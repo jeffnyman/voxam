@@ -170,3 +170,23 @@ def test_allows_high_memory_overlapping_static() -> None:
 def test_rejects_file_exceeding_version_maximum() -> None:
     with pytest.raises(ZMachineMemoryError, match="allows at most"):
         memory_image(version=1, size=128 * 1024 + 2)
+
+
+def test_header_view_reflects_live_memory() -> None:
+    memory = memory_image()
+    memory.write_word(0x02, 0x0042)
+
+    assert_that(memory.header.release).is_equal_to(0x0042)
+
+
+def test_story_remains_pristine_after_memory_writes(
+    load_fixture: Callable[[int], Story],
+) -> None:
+    story = load_fixture(3)
+    memory = Memory(story)
+    original = story.header.release
+
+    memory.write_word(0x02, original + 1)
+
+    assert_that(memory.header.release).is_equal_to(original + 1)
+    assert_that(story.header.release).is_equal_to(original)

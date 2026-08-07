@@ -1,7 +1,7 @@
 """The memory map of the Z-Machine (§1.1)."""
 
 from voxam.errors import ZMachineMemoryError
-from voxam.zmachine.header import HEADER_SIZE
+from voxam.zmachine.header import HEADER_SIZE, Header
 from voxam.zmachine.story import Story
 
 # The maximum story length in bytes depends on the version (§1.1.4).
@@ -96,6 +96,17 @@ class Memory:
         # The top of static memory is the lower of the last file byte or
         # $ffff (§1.1.2); addresses past it cannot be directly accessed.
         self._read_limit = min(len(self._data), STATIC_MEMORY_CAP + 1)
+
+    @property
+    def header(self) -> Header:
+        """A live, typed view of the header within this image (§11.1).
+
+        The header sits in dynamic memory, and a running game may
+        legally alter parts of it (§11.1.2.1), so this view reflects
+        writes made through this Memory rather than the pristine story.
+        """
+
+        return Header(self._data)
 
     def read_byte(self, address: int) -> int:
         """Read the byte at an address in dynamic or static memory.

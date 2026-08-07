@@ -38,14 +38,18 @@ PACKED_PC_VERSION = 6
 
 @dataclass(frozen=True)
 class Header:
-    """A read-only view of the header fields within story file memory.
+    """A typed view of the header fields within story file memory.
+
+    Over a Story's bytes this is a fixed view of the pristine file; over
+    a Memory's bytearray it is a live view of the working image, since
+    a running game may legally alter parts of the header (§11.1.2.1).
 
     Attributes:
-        data: The full story file bytes, of which the first 64 form the
-            header (§1.1.1.1).
+        data: The full story file or memory image, of which the first
+            64 bytes form the header (§1.1.1.1).
     """
 
-    data: bytes
+    data: bytes | bytearray
 
     def __post_init__(self) -> None:
         """Reject byte content too short to contain a header.
