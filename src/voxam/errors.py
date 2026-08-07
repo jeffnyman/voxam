@@ -7,3 +7,7 @@ class VoxamError(Exception):
 
 class ZMachineStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Z-Machine story."""
+
+
+class ZMachineHeaderError(VoxamError):
+    """Raised when a header field is absent or read inappropriately."""
