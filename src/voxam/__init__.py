@@ -1,1 +1,1 @@
-"""Voxam - a Z-Machine emulator and interpreter."""
+"""Voxam - a Z-Machine and Glulx emulator and interpreter."""
