@@ -1,0 +1,11 @@
+{
+  // Mirror .editorconfig with native VS Code settings, so line-ending and
+  // whitespace behavior does not depend on the EditorConfig extension.
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "[markdown]": {
+    // Markdown may use trailing double-spaces as hard line breaks.
+    "files.trimTrailingWhitespace": false
+  }
+}

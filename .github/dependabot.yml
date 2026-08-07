@@ -1,0 +1,46 @@
+version: 2
+
+# Both prefixes below matter: with squash-only merges the PR title becomes the
+# commit on main, and the pr-title check (and commitizen's history parsing)
+# require Conventional Commits. Dependabot's default "Bump foo from 1 to 2"
+# title would fail that gate; the commit-message config makes titles like
+# "ci(deps): bump actions/checkout from 7 to 8" instead.
+
+updates:
+  # The action pins in .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    # One PR per week covering all action bumps, instead of one PR each.
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The entharion reference-material pin. Dependabot proposes moving it to
+  # the latest upstream commit; whether and when to merge stays a human
+  # decision. CI never fetches the submodule, so these PRs are cheap.
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # pyproject.toml dependencies and dependency-groups, plus uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    # Dev tooling (ruff, mypy, pytest, ...) bumps land as one weekly PR.
+    # Runtime dependencies, once they exist, still get individual PRs.
+    groups:
+      dev-dependencies:
+        dependency-type: "development"

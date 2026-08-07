@@ -1,0 +1,22 @@
+# Root file for the project.
+root = true
+
+# Global settings for all files.
+charset = utf-8
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Windows scripts keep CRLF to match .gitattributes.
+[*.{bat,cmd,ps1,psm1}]
+end_of_line = crlf
+
+# Markdown files might have deliberate ending spaces.
+[*.md]
+trim_trailing_whitespace = false
+
+# Data and config formats conventionally use two-space indentation.
+[*.{yml,yaml,json,toml}]
+indent_size = 2

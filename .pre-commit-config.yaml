@@ -1,0 +1,90 @@
+# Every hook runs out of the project's own environment via `uv run --frozen`,
+# so pre-commit never clones hook repos or builds cached environments under
+# ~/.cache/pre-commit, and tool versions have one source of truth: uv.lock.
+
+# Install the commit-msg stage alongside the default pre-commit stage, so a
+# plain `pre-commit install` also enables commit-message validation.
+default_install_hook_types: [pre-commit, commit-msg]
+
+# Hooks that declare no stage should run only at the pre-commit stage; without
+# this they would also re-run (against the message file) at commit-msg time.
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      # File hygiene — the pre-commit-hooks package from the dev group.
+      - id: check-added-large-files
+        name: check for added large files
+        entry: uv run --frozen check-added-large-files
+        language: system
+      - id: check-case-conflict
+        name: check for case conflicts
+        entry: uv run --frozen check-case-conflict
+        language: system
+      - id: check-merge-conflict
+        name: check for merge conflict markers
+        entry: uv run --frozen check-merge-conflict
+        language: system
+        types: [text]
+      - id: check-toml
+        name: check toml syntax
+        entry: uv run --frozen check-toml
+        language: system
+        types: [toml]
+      - id: check-yaml
+        name: check yaml syntax
+        entry: uv run --frozen check-yaml
+        language: system
+        types: [yaml]
+      - id: debug-statements
+        name: check for debugger imports
+        entry: uv run --frozen debug-statement-hook
+        language: system
+        types: [python]
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: uv run --frozen end-of-file-fixer
+        language: system
+        types: [text]
+      - id: mixed-line-ending
+        name: normalize line endings to lf
+        entry: uv run --frozen mixed-line-ending
+        args: [--fix=lf]
+        exclude: '\.(bat|cmd|ps1|psm1)$'
+        language: system
+        types: [text]
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: uv run --frozen trailing-whitespace-fixer
+        args: [--markdown-linebreak-ext=md]
+        language: system
+        types: [text]
+
+      # Lint and format — ruff from the dev group.
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types_or: [python, pyi]
+
+      # Type check — mypy from the dev group.
+      - id: mypy
+        name: mypy
+        entry: uv run --frozen mypy
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+        require_serial: true
+
+      # Commit message convention — commitizen from the dev group.
+      - id: commitizen
+        name: commitizen check
+        entry: uv run --frozen cz check --commit-msg-file
+        language: system
+        stages: [commit-msg]

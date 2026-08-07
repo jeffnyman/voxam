@@ -1,0 +1,49 @@
+# Establish project-wide standard of LF line endings.
+* text=auto eol=lf
+
+# Binary files (binary is a macro for -text -diff).
+*.pdf    binary
+*.ico    binary
+*.gif    binary
+*.jpg    binary
+*.png    binary
+*.jpeg   binary
+*.webp   binary
+
+# Treat SVG files as normalized text instead of binary.
+*.svg    text
+
+# Handle Windows specific files.
+*.cmd    text eol=crlf
+*.bat    text eol=crlf
+*.ps1    text eol=crlf
+*.psm1   text eol=crlf
+
+# Improve diff output for Python files.
+*.py     diff=python
+
+# Export exclusions for archive.
+.editorconfig            export-ignore
+.gitattributes           export-ignore
+.gitignore               export-ignore
+
+#
+# Interactive fiction assets. These are all binary; never let
+# Git normalize line endings inside a story file or a saved game.
+#
+
+# Z-code story files (versions 1-8) and their Blorb wrappers
+*.z[1-8]   binary
+*.zblorb   binary
+*.blorb    binary
+*.zlb      binary
+*.blb      binary
+
+# Glulx
+*.ulx      binary
+*.gblorb   binary
+
+# Saved games (Quetzal) and other Infocom-era data files
+*.qzl      binary
+*.sav      binary
+*.dat      binary

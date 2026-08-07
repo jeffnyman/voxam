@@ -1,0 +1,42 @@
+name: PR Title
+
+# With squash-only merges, the commit that lands on main takes its message
+# from the PR title, not from the branch's commits — so main's history, which
+# `cz bump` reads to derive versions, is only as conventional as the titles.
+# The commit-msg hook guards local commits; this check guards what actually
+# lands.
+on:
+  pull_request:
+    # `edited` re-runs the check when the title changes; `synchronize` keeps
+    # the status attached to the latest commit, which branch protection
+    # requires.
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Keep in lockstep with the types commitizen's cz_conventional_commits
+          # schema accepts, so a title that passes here would also pass
+          # `cz check`.
+          types: |
+            build
+            bump
+            chore
+            ci
+            docs
+            feat
+            fix
+            perf
+            refactor
+            revert
+            style
+            test

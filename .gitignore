@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Tooling caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Editor helpers
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Operating system metadata
+**/.directory
+**/.DS_Store
+**/desktop.ini
+**/Thumbs.db

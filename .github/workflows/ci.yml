@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+  UV_FROZEN: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --all-groups
+
+      - name: Ruff (lint)
+        run: uv run ruff check --output-format=github .
+
+      - name: Ruff (format)
+        run: uv run ruff format --check --diff .
+
+      - name: mypy
+        run: uv run mypy
+
+  test:
+    name: Test on ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project
+        run: uv sync --all-groups
+
+      - name: Run tests
+        run: uv run pytest
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # The ruleset on main requires a single status check named "ci". Workflow
+  # names never report a status — jobs do — so this gate job carries that name,
+  # waits on every other job, and fails unless all of them succeeded. It also
+  # gives branch protection one stable check to require no matter how the test
+  # matrix changes.
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    needs: [lint, test, build]
+    if: always()
+    steps:
+      - name: Fail if any needed job failed, was cancelled, or was skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: exit 1

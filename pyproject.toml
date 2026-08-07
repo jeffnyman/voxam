@@ -1,0 +1,196 @@
+[project]
+name = "voxam"
+version = "0.0.0"
+description = "An Interpreter for the Z-Machine and Glulx"
+readme = "README.md"
+authors = [
+    { name = "Jeff Nyman", email = "jeffnyman@gmail.com" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+keywords = ["z-machine", "interactive-fiction", "interpreter", "emulator", "infocom"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Games/Entertainment",
+    "Topic :: System :: Emulators",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.scripts]
+voxam = "voxam.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jeffnyman/voxam"
+Repository = "https://github.com/jeffnyman/voxam"
+Issues = "https://github.com/jeffnyman/voxam/issues"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "assertpy>=1.1",
+    "commitizen>=4.17.0",
+    "mypy>=2.3.0",
+    "pre-commit>=4.6.1",
+    "pre-commit-hooks>=6.0.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.1",
+    "types-assertpy>=1.1.0.20260518",
+]
+
+# --------------------------------------------------------------------------- #
+# Ruff — linting and formatting
+# --------------------------------------------------------------------------- #
+
+[tool.ruff]
+target-version = "py312"
+src = ["src", "tests"]
+line-length = 88
+
+# Vendored submodules are third-party checkouts, not our source to lint.
+extend-exclude = ["entharion"]
+
+# Apply the exclusions above even when a path is passed explicitly, which is how
+# editor integrations and pre-commit invoke ruff. Without this, opening a file
+# under entharion/ in an editor would still lint it.
+force-exclude = true
+
+[tool.ruff.lint]
+select = [
+  "A",    # flake8-builtins       — shadowing of Python builtins
+  "ANN",  # flake8-annotations    — missing type annotations
+  "ARG",  # flake8-unused-args    — unused function arguments
+  "B",    # flake8-bugbear        — likely bugs and design problems
+  "C4",   # flake8-comprehensions — comprehension simplifications
+  "D",    # pydocstyle            — docstring presence and style
+  "E",    # pycodestyle errors
+  "F",    # pyflakes
+  "I",    # isort                 — import ordering
+  "N",    # pep8-naming
+  "PL",   # pylint
+  "PT",   # flake8-pytest-style
+  "PTH",  # flake8-use-pathlib    — prefer pathlib over os.path
+  "RET",  # flake8-return         — return-statement consistency
+  "RUF",  # ruff-specific rules
+  "S",    # flake8-bandit         — common security problems
+  "SIM",  # flake8-simplify
+  "TID",  # flake8-tidy-imports
+  "UP",   # pyupgrade             — modern syntax for the target version
+  "W",    # pycodestyle warnings
+]
+
+ignore = [
+  "D202",     # No blank lines allowed after function docstring
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "D",        # test names already say what is being verified
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.isort]
+known-first-party = ["voxam"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# The default ("auto") preserves whatever ending a file already has, which
+# would let a CRLF file stay CRLF; force LF so the formatter is itself a
+# guard for Python files. Non-Python files rely on the mixed-line-ending
+# pre-commit hook.
+line-ending = "lf"
+
+# --------------------------------------------------------------------------- #
+# mypy — static type checking
+# --------------------------------------------------------------------------- #
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests"]
+exclude = "entharion"
+strict = true
+warn_unreachable = true
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+    "possibly-undefined",
+]
+pretty = true
+
+# --------------------------------------------------------------------------- #
+# pytest
+# --------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+    "--cov",
+    "--cov-report=term-missing",
+]
+xfail_strict = true
+filterwarnings = ["error"]
+
+# --------------------------------------------------------------------------- #
+# Coverage
+# --------------------------------------------------------------------------- #
+
+[tool.coverage.run]
+source_pkgs = ["voxam", "tests"]
+branch = true
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 100
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+# --------------------------------------------------------------------------- #
+# Commitizen — commit message convention and version management
+# --------------------------------------------------------------------------- #
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+
+# Derive the current version from [project] in this file, so `cz bump` keeps
+# the package version and the git tag in lockstep.
+version_provider = "pep621"
+tag_format = "v$version"
+
+# While the project is 0.x, breaking changes bump the minor version rather
+# than promoting to 1.0.0. Remove this once the public interface stabilizes.
+major_version_zero = true
+
+update_changelog_on_bump = true

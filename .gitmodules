@@ -1,0 +1,3 @@
+[submodule "entharion"]
+	path = entharion
+	url = https://github.com/jeffnyman/entharion.git
