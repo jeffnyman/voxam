@@ -5,10 +5,7 @@ from pathlib import Path
 from typing import Self
 
 from voxam.errors import ZMachineStoryError
-
-# Dynamic memory must contain at least 64 bytes (§1.1.1), and the first 64
-# bytes are the header (§1.1.1.1), so no story file can be shorter.
-HEADER_SIZE = 64
+from voxam.zmachine.header import HEADER_SIZE, Header
 
 # The byte at address 0 holds the version number, 1 to 8 (§11.1).
 VERSION_RANGE = range(1, 9)
@@ -65,7 +62,13 @@ class Story:
         return cls(path.read_bytes())
 
     @property
+    def header(self) -> Header:
+        """Typed access to this story's header fields (§11.1)."""
+
+        return Header(self.data)
+
+    @property
     def version(self) -> int:
         """The Z-Machine version this story targets (§11.1)."""
 
-        return self.data[0]
+        return self.header.version

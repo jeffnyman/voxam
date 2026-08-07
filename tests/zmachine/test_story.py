@@ -4,7 +4,8 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import ZMachineStoryError
-from voxam.zmachine.story import HEADER_SIZE, Story
+from voxam.zmachine.header import HEADER_SIZE
+from voxam.zmachine.story import Story
 
 
 def story_bytes(version: int = 3, size: int = HEADER_SIZE) -> bytes:
