@@ -29,6 +29,10 @@ class ZMachineStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Z-Machine story."""
 
 
+class ZMachineTextError(VoxamError):
+    """Raised when encoded text cannot be decoded to characters."""
+
+
 class ZMachineUnimplementedError(VoxamError):
     """Raised when execution reaches an opcode Voxam does not yet run.
 

@@ -126,7 +126,7 @@ def test_a_result_stored_to_variable_0_lands_on_the_callers_stack(
 def test_unimplemented_opcodes_report_the_frontier(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xB2, 0x80, 0x00])))
+    machine = code_machine(layout(bytes([0xB4])))
 
     with pytest.raises(ZMachineUnimplementedError, match="not yet implemented"):
         machine.run()
@@ -137,12 +137,12 @@ def test_unimplemented_opcodes_report_the_frontier(
 def test_the_frontier_report_names_the_opcode_and_address(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xB2, 0x80, 0x00])))
+    machine = code_machine(layout(bytes([0xB4])))
 
     with pytest.raises(ZMachineUnimplementedError) as excinfo:
         machine.run()
 
-    assert_that(excinfo.value.opcode_name).is_equal_to("print")
+    assert_that(excinfo.value.opcode_name).is_equal_to("nop")
     assert_that(excinfo.value.address).is_equal_to(CODE)
     assert_that(machine.pc).is_equal_to(CODE)
 
@@ -172,16 +172,111 @@ def test_call_vn_to_address_0_stores_nothing(
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(0xFFFF)
 
 
-# Every fixture -- Version 6 and its §5.4 main-routine boot included --
-# executes its opening call chain for real and halts at the same
-# frontier: the print_paddr that will fall in the milestone branch.
+# 'h' and 'i' are Z-characters 13 and 14; a single word, terminator
+# bit set, holds them plus a padding 5: 0x8000 | 13<<10 | 14<<5 | 5
+# (§3.2, §3.5.3, §3.7).
+HI = bytes([0xB5, 0xC5])
+
+
+def test_print_prints_the_inline_string(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    main = bytes([0xB2, *HI, 0xBA])
+    machine = code_machine(layout(main), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("hi")
+
+
+# print_ret prints its string, a new-line, and returns true (§14).
+def test_print_ret_prints_and_returns_true(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    main = bytes([0xE0, 0x3F, *ROUTINE_A_PACKED, RESULT_VARIABLE, 0xBA])
+    machine = code_machine(layout(main, bytes([0x00, 0xB3, *HI])), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("hi\n")
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(1)
+
+
+def test_print_addr_prints_from_a_byte_address(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    main = bytes([0x87, 0x00, 0x60, 0xBA])
+    machine = code_machine(layout(main, HI), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("hi")
+
+
+# The string sits at byte address $60, which under Version 3's scale
+# factor of 2 is packed 0x30 (§1.2.3).
+def test_print_paddr_prints_from_a_packed_address(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    main = bytes([0x8D, 0x00, 0x30, 0xBA])
+    machine = code_machine(layout(main, HI), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("hi")
+
+
+def test_new_line_prints_a_newline(code_machine: Callable[..., Machine]) -> None:
+    output: list[str] = []
+    machine = code_machine(layout(bytes([0xBB, 0xBA])), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("\n")
+
+
+def test_print_char_prints_a_zscii_code(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    main = bytes([0xE5, 0x7F, 0x41, 0xBA])
+    machine = code_machine(layout(main), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("A")
+
+
+# print_num interprets its operand as signed (§2.2): 0xFFFF is -1.
+@pytest.mark.parametrize(
+    ("operand", "expected"), [([0x00, 0x2A], "42"), ([0xFF, 0xFF], "-1")]
+)
+def test_print_num_prints_signed_decimals(
+    operand: list[int], expected: str, code_machine: Callable[..., Machine]
+) -> None:
+    output: list[str] = []
+    main = bytes([0xE6, 0x3F, *operand, 0xBA])
+    machine = code_machine(layout(main), output=output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to(expected)
+
+
+# The milestone: every fixture -- Version 6 and its §5.4 main-routine
+# boot included -- runs its whole program for real and says hello.
 @pytest.mark.parametrize("version", range(1, 9))
-def test_every_fixture_runs_to_the_print_frontier(
+def test_every_fixture_says_hello(
     version: int, load_fixture: Callable[[int], Story]
 ) -> None:
-    machine = Machine(load_fixture(version))
+    output: list[str] = []
+    machine = Machine(load_fixture(version), output.append)
 
-    with pytest.raises(ZMachineUnimplementedError) as excinfo:
-        machine.run()
+    machine.run()
 
-    assert_that(excinfo.value.opcode_name).is_equal_to("print_paddr")
+    assert_that("".join(output)).is_equal_to("hello from all z machine versions")
+    assert_that(machine.running).is_false()

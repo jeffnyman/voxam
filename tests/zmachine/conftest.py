@@ -1,15 +1,12 @@
 """Shared pytest fixtures for the Z-Machine tests."""
 
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
-
-FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
 def _image(code: bytes, version: int) -> Story:
@@ -32,18 +29,6 @@ def _image(code: bytes, version: int) -> Story:
 
 
 @pytest.fixture
-def load_fixture() -> Callable[[int], Story]:
-    """Provide a loader for the simple-test story of a given version."""
-
-    def _load(version: int) -> Story:
-        (path,) = FIXTURES.glob(f"simple-test-r*-s260727.z{version}")
-
-        return Story.load(path)
-
-    return _load
-
-
-@pytest.fixture
 def code_memory() -> Callable[..., Memory]:
     """Provide a builder for a memory image with planted code."""
 
@@ -57,7 +42,11 @@ def code_memory() -> Callable[..., Memory]:
 def code_machine() -> Callable[..., Machine]:
     """Provide a builder for a machine whose execution starts at $40."""
 
-    def _build(code: bytes = b"", version: int = 3) -> Machine:
-        return Machine(_image(code, version))
+    def _build(
+        code: bytes = b"",
+        version: int = 3,
+        output: Callable[[str], None] | None = None,
+    ) -> Machine:
+        return Machine(_image(code, version), output)
 
     return _build
