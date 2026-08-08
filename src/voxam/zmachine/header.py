@@ -28,6 +28,10 @@ ROUTINES_OFFSET = 0x28
 STATIC_STRINGS_OFFSET = 0x2A
 OFFSET_VERSIONS = (6, 7)
 
+# From Version 5, the word at $34 may name a custom alphabet table;
+# zero means the standard alphabets (§3.5.5, §11.1).
+ALPHABET_TABLE = 0x34
+
 # The file length is stored divided by a version-dependent constant
 # (§11.1.6).
 FILE_LENGTH_SCALE = {1: 2, 2: 2, 3: 2, 4: 4, 5: 4, 6: 8, 7: 8, 8: 8}
@@ -154,6 +158,16 @@ class Header:
         """The byte address of the abbreviations table (§11.1)."""
 
         return self._word(ABBREVIATIONS_TABLE)
+
+    @property
+    def alphabet_table_address(self) -> int:
+        """The custom alphabet table's byte address, or 0 (§3.5.5).
+
+        Zero means the standard alphabets. The field exists from
+        Version 5; earlier versions leave the word zero anyway.
+        """
+
+        return self._word(ALPHABET_TABLE)
 
     @property
     def routines_offset(self) -> int:

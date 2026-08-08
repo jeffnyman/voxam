@@ -128,6 +128,15 @@ line-ending = "lf"
 python_version = "3.12"
 files = ["src", "tests"]
 exclude = "entharion"
+
+# The test tree has a conftest.py at two levels and no __init__.py
+# files; deriving module names from directory structure keeps mypy
+# from seeing two modules both named "conftest". Declaring src as a
+# package base keeps the same derivation calling the package voxam,
+# not src.voxam.
+explicit_package_bases = true
+mypy_path = "src"
+
 strict = true
 warn_unreachable = true
 enable_error_code = [

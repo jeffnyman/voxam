@@ -7,6 +7,7 @@ ZMachineUnimplementedError, so pointing Voxam at any story reveals
 the frontier of what remains to build.
 """
 
+import sys
 from collections.abc import Callable
 
 from voxam.errors import ZMachineUnimplementedError
@@ -14,10 +15,11 @@ from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
-from voxam.zmachine.packed import routine_address
+from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import Variables
+from voxam.zmachine.zscii import decode_string, zscii_to_char
 
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
 FALSE_VALUE = 0
@@ -25,6 +27,17 @@ TRUE_VALUE = 1
 
 # A call to packed address 0 does nothing and returns false (§6.4.3).
 NULL_ROUTINE = 0
+
+# Words hold signed values in two's complement: $8000 and up are
+# negative (§2.2).
+SIGN_BIT = 0x8000
+WORD_RANGE = 0x10000
+
+
+def signed(value: int) -> int:
+    """Interpret a word as a signed number (§2.2)."""
+
+    return value - WORD_RANGE if value & SIGN_BIT else value
 
 
 class Machine:
@@ -34,7 +47,9 @@ class Machine:
     the program counter, advanced one instruction at a time.
     """
 
-    def __init__(self, story: Story) -> None:
+    def __init__(
+        self, story: Story, output: Callable[[str], None] | None = None
+    ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
         Outside Version 6, execution begins at the header's initial
@@ -43,11 +58,14 @@ class Machine:
 
         Args:
             story: The validated story file to run.
+            output: Where printed text goes; standard output when not
+                given. A richer §8 screen model will replace this.
         """
 
         self._memory = Memory(story)
         self._calls = CallStack()
         self._variables = Variables(self._memory, self._calls)
+        self._output = output if output is not None else sys.stdout.write
         self._running = True
 
         header = self._memory.header
@@ -173,6 +191,55 @@ class Machine:
 
         self._return(FALSE_VALUE)
 
+    def _op_print(self, instruction: Instruction) -> None:
+        """Print the literal string following the opcode (§3.2)."""
+
+        text, _ = decode_string(self._memory, instruction.operands_end)
+        self._output(text)
+        self._pc = instruction.next_address
+
+    def _op_print_ret(self, instruction: Instruction) -> None:
+        """Print the literal string, a new-line, and return true (§14)."""
+
+        text, _ = decode_string(self._memory, instruction.operands_end)
+        self._output(text + "\n")
+        self._return(TRUE_VALUE)
+
+    def _op_print_paddr(self, instruction: Instruction) -> None:
+        """Print the string at a packed address (§1.2.3)."""
+
+        packed = self._value(instruction.operands[0])
+        address = string_address(self._memory.header, packed)
+        text, _ = decode_string(self._memory, address)
+        self._output(text)
+        self._pc = instruction.next_address
+
+    def _op_print_addr(self, instruction: Instruction) -> None:
+        """Print the string at a byte address (§14)."""
+
+        address = self._value(instruction.operands[0])
+        text, _ = decode_string(self._memory, address)
+        self._output(text)
+        self._pc = instruction.next_address
+
+    def _op_print_char(self, instruction: Instruction) -> None:
+        """Print the character a ZSCII code means (§3.8)."""
+
+        self._output(zscii_to_char(self._value(instruction.operands[0])))
+        self._pc = instruction.next_address
+
+    def _op_print_num(self, instruction: Instruction) -> None:
+        """Print an operand as a signed decimal number (§2.2)."""
+
+        self._output(str(signed(self._value(instruction.operands[0]))))
+        self._pc = instruction.next_address
+
+    def _op_new_line(self, instruction: Instruction) -> None:
+        """Print a new-line."""
+
+        self._output("\n")
+        self._pc = instruction.next_address
+
     def _op_push(self, instruction: Instruction) -> None:
         """Push the operand's value onto the stack (§6.3)."""
 
@@ -197,6 +264,13 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "call": Machine._op_call,
     "call_vn": Machine._op_call,
     "call_vs": Machine._op_call,
+    "new_line": Machine._op_new_line,
+    "print": Machine._op_print,
+    "print_addr": Machine._op_print_addr,
+    "print_char": Machine._op_print_char,
+    "print_num": Machine._op_print_num,
+    "print_paddr": Machine._op_print_paddr,
+    "print_ret": Machine._op_print_ret,
     "push": Machine._op_push,
     "ret": Machine._op_ret,
     "rtrue": Machine._op_rtrue,
