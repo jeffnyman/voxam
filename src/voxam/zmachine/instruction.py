@@ -1,9 +1,9 @@
-"""Decoding the operand portion of Z-Machine instructions (§4).
+"""Decoding complete Z-Machine instructions (§4).
 
 An instruction is opcode, operand types, operands, and then riders --
 store variable, branch offset, text -- whose presence depends on which
-opcode it is (§4.1). This module decodes everything up to the riders,
-which is exactly the part determined by bit patterns alone.
+opcode it is (§4.1). The bit patterns determine everything up to the
+riders; the opcode tables (§14) supply the knowledge of what follows.
 """
 
 from dataclasses import dataclass
@@ -12,6 +12,13 @@ from typing import Self
 
 from voxam.errors import ZMachineInstructionError
 from voxam.zmachine.memory import Memory
+from voxam.zmachine.opcodes import Opcode, OpcodeKind, lookup
+from voxam.zmachine.riders import (
+    Branch,
+    read_branch,
+    read_store_variable,
+    text_end,
+)
 
 # The top two bits of the opcode byte select the form (§4.3).
 FORM_MASK = 0b1100_0000
@@ -40,6 +47,10 @@ LONG_SECOND_TYPE_BIT = 0b0010_0000
 # fourth in bits 1 and 0 (§4.4.3).
 TYPE_FIELD_SHIFTS = (6, 4, 2, 0)
 TYPE_MASK = 0b11
+
+# call_vs2 (VAR:12) and call_vn2 (VAR:26) take a second type byte for
+# operands five through eight (§4.4.3.1).
+DOUBLE_TYPE_OPCODES = (0x0C, 0x1A)
 
 
 class Form(Enum):
@@ -87,28 +98,38 @@ class Operand:
 
 @dataclass(frozen=True)
 class Instruction:
-    """The operand portion of a single decoded instruction (§4.1).
-
-    Store variables, branch offsets, and instruction text depend on
-    which opcode this is, so they are not decoded here. That makes
-    operands_end the address where any riders would begin, not
-    necessarily where the instruction ends (§4.1).
+    """A single fully decoded instruction (§4.1).
 
     Attributes:
         address: The byte address the instruction begins at.
         form: The instruction form (§4.3).
         operand_count: The operand count label (§4.3).
         opcode_number: The opcode number within that count (§4.3).
+        opcode: What §14 knows about the opcode: its name and which
+            riders it carries.
         operands: The decoded operands, in the order given (§4.5.2).
-        operands_end: The first byte address past the operands.
+        operands_end: The first byte address past the operands, where
+            the riders begin.
+        store_variable: The variable number a result goes to, when the
+            opcode stores (§4.6).
+        branch: The branch rider, when the opcode branches (§4.7).
+        text: The byte span of the literal string, when the opcode
+            carries one (§3.2).
+        next_address: The first byte address past the whole
+            instruction: where execution continues.
     """
 
     address: int
     form: Form
     operand_count: OperandCount
     opcode_number: int
+    opcode: Opcode
     operands: tuple[Operand, ...]
     operands_end: int
+    store_variable: int | None
+    branch: Branch | None
+    text: tuple[int, int] | None
+    next_address: int
 
     @classmethod
     def decode(cls, memory: Memory, address: int) -> Self:
@@ -119,11 +140,12 @@ class Instruction:
             address: The byte address of its opcode.
 
         Returns:
-            The decoded operand portion of the instruction.
+            The decoded instruction.
 
         Raises:
             ZMachineInstructionError: If a type byte specifies an
-                operand after an omitted one (§4.4.3).
+                operand after an omitted one (§4.4.3), or no opcode is
+                defined for the decoded number in this version (§14).
             ZMachineMemoryError: If the instruction runs outside the
                 game-readable regions.
         """
@@ -145,9 +167,18 @@ class Instruction:
                 OperandCount.VAR if opcode_byte & VAR_COUNT_BIT else OperandCount.OP2
             )
             opcode_number = opcode_byte & BOTTOM_FIVE_MASK
-            kinds = _field_types(memory.read_byte(pos))
 
-            pos += 1
+            if (
+                operand_count is OperandCount.VAR
+                and opcode_number in DOUBLE_TYPE_OPCODES
+            ):
+                kinds = _field_types(memory.read_byte(pos), memory.read_byte(pos + 1))
+
+                pos += 2
+            else:
+                kinds = _field_types(memory.read_byte(pos))
+
+                pos += 1
         elif opcode_byte & FORM_MASK == SHORT_FORM_BITS:
             form = Form.SHORT
             kind = OperandType((opcode_byte >> SHORT_TYPE_SHIFT) & TYPE_MASK)
@@ -165,22 +196,34 @@ class Instruction:
             )
 
         operands, operands_end = _read_operands(memory, pos, kinds)
+        opcode = lookup(_opcode_kind(form, operand_count), opcode_number, version)
+        store_variable, branch, text, next_address = _read_riders(
+            memory, operands_end, opcode
+        )
 
         return cls(
             address=address,
             form=form,
             operand_count=operand_count,
             opcode_number=opcode_number,
+            opcode=opcode,
             operands=operands,
             operands_end=operands_end,
+            store_variable=store_variable,
+            branch=branch,
+            text=text,
+            next_address=next_address,
         )
 
 
-def _field_types(type_byte: int) -> tuple[OperandType, ...]:
-    """Split a type byte into its operand types, first field first (§4.4.3).
+def _field_types(*type_bytes: int) -> tuple[OperandType, ...]:
+    """Split type bytes into their operand types, first field first (§4.4.3).
+
+    The double-variable opcodes pass two bytes here, giving eight
+    fields; the omitted-tail rule then applies across both (§4.4.3.1).
 
     Args:
-        type_byte: The byte of four 2-bit type fields.
+        type_bytes: One or two bytes of four 2-bit type fields each.
 
     Returns:
         The specified types, without the omitted tail.
@@ -191,7 +234,9 @@ def _field_types(type_byte: int) -> tuple[OperandType, ...]:
     """
 
     fields = [
-        OperandType((type_byte >> shift) & TYPE_MASK) for shift in TYPE_FIELD_SHIFTS
+        OperandType((type_byte >> shift) & TYPE_MASK)
+        for type_byte in type_bytes
+        for shift in TYPE_FIELD_SHIFTS
     ]
 
     omitted_from = None
@@ -200,10 +245,8 @@ def _field_types(type_byte: int) -> tuple[OperandType, ...]:
         if kind is OperandType.OMITTED:
             omitted_from = position if omitted_from is None else omitted_from
         elif omitted_from is not None:
-            msg = (
-                f"type byte ${type_byte:02x} specifies an operand after "
-                f"an omitted one (§4.4.3)"
-            )
+            shown = " ".join(f"${type_byte:02x}" for type_byte in type_bytes)
+            msg = f"type bytes {shown} specify an operand after an omitted one (§4.4.3)"
 
             raise ZMachineInstructionError(msg)
 
@@ -214,6 +257,56 @@ def _long_type(bit: int) -> OperandType:
     """Map a long-form type bit: 0 is small constant, 1 is variable (§4.4.2)."""
 
     return OperandType.VARIABLE if bit else OperandType.SMALL_CONSTANT
+
+
+_KIND_BY_COUNT = {
+    OperandCount.OP0: OpcodeKind.ZERO_OP,
+    OperandCount.OP1: OpcodeKind.ONE_OP,
+    OperandCount.OP2: OpcodeKind.TWO_OP,
+    OperandCount.VAR: OpcodeKind.VAR,
+}
+
+
+def _opcode_kind(form: Form, operand_count: OperandCount) -> OpcodeKind:
+    """Pick the §14 table: extended form has its own, all else by count."""
+
+    if form is Form.EXTENDED:
+        return OpcodeKind.EXT
+
+    return _KIND_BY_COUNT[operand_count]
+
+
+def _read_riders(
+    memory: Memory, pos: int, opcode: Opcode
+) -> tuple[int | None, Branch | None, tuple[int, int] | None, int]:
+    """Read whichever riders the opcode declares, in §4.1 order.
+
+    Args:
+        memory: The memory image holding the instruction.
+        pos: The first byte address past the operands.
+        opcode: The table knowledge saying which riders are present.
+
+    Returns:
+        The store variable, branch, text span, and the first address
+        past the whole instruction.
+    """
+
+    store_variable = None
+    branch = None
+    text = None
+
+    if opcode.stores:
+        store_variable, pos = read_store_variable(memory, pos)
+
+    if opcode.branches:
+        branch, pos = read_branch(memory, pos)
+
+    if opcode.has_text:
+        end = text_end(memory, pos)
+        text = (pos, end)
+        pos = end
+
+    return store_variable, branch, text, pos
 
 
 def _read_operands(
