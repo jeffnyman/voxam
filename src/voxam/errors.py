@@ -17,5 +17,13 @@ class ZMachineMemoryError(VoxamError):
     """Raised when a memory map is incoherent or an access breaks its rules."""
 
 
+class ZMachineRoutineError(VoxamError):
+    """Raised when bytes cannot be parsed as a routine."""
+
+
+class ZMachineStackError(VoxamError):
+    """Raised when the routine call state is used against its rules."""
+
+
 class ZMachineStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Z-Machine story."""

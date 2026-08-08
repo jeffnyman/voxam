@@ -22,6 +22,12 @@ ABBREVIATIONS_TABLE = 0x18
 FILE_LENGTH = 0x1A
 CHECKSUM = 0x1C
 
+# Versions 6 and 7 locate routines and static strings via offsets,
+# stored divided by 8, in the words at $28 and $2a (§1.2.3, §11.1).
+ROUTINES_OFFSET = 0x28
+STATIC_STRINGS_OFFSET = 0x2A
+OFFSET_VERSIONS = (6, 7)
+
 # The file length is stored divided by a version-dependent constant
 # (§11.1.6).
 FILE_LENGTH_SCALE = {1: 2, 2: 2, 3: 2, 4: 4, 5: 4, 6: 8, 7: 8, 8: 8}
@@ -148,6 +154,44 @@ class Header:
         """The byte address of the abbreviations table (§11.1)."""
 
         return self._word(ABBREVIATIONS_TABLE)
+
+    @property
+    def routines_offset(self) -> int:
+        """The routines offset, as stored: divided by 8 (§1.2.3, §11.1).
+
+        Raises:
+            ZMachineHeaderError: Outside Versions 6 and 7, which are the
+                only versions with offset-based packed addresses.
+        """
+
+        if self.version not in OFFSET_VERSIONS:
+            msg = (
+                f"version {self.version} has no routines offset; only "
+                f"versions 6 and 7 unpack addresses with one (§1.2.3)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+        return self._word(ROUTINES_OFFSET)
+
+    @property
+    def static_strings_offset(self) -> int:
+        """The static strings offset, as stored: divided by 8 (§1.2.3, §11.1).
+
+        Raises:
+            ZMachineHeaderError: Outside Versions 6 and 7, which are the
+                only versions with offset-based packed addresses.
+        """
+
+        if self.version not in OFFSET_VERSIONS:
+            msg = (
+                f"version {self.version} has no static strings offset; only "
+                f"versions 6 and 7 unpack addresses with one (§1.2.3)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+        return self._word(STATIC_STRINGS_OFFSET)
 
     @property
     def initial_program_counter(self) -> int:
