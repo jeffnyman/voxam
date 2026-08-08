@@ -27,3 +27,31 @@ class ZMachineStackError(VoxamError):
 
 class ZMachineStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Z-Machine story."""
+
+
+class ZMachineUnimplementedError(VoxamError):
+    """Raised when execution reaches an opcode Voxam does not yet run.
+
+    This is the frontier reporter: pointing Voxam at a story and
+    reading this error's message is how the implementation backlog
+    announces itself.
+
+    Attributes:
+        opcode_name: The name of the unimplemented opcode.
+        address: The byte address execution reached it at.
+    """
+
+    def __init__(self, opcode_name: str, address: int) -> None:
+        """Record which opcode was reached, and where.
+
+        Args:
+            opcode_name: The name of the unimplemented opcode.
+            address: The byte address execution reached it at.
+        """
+
+        self.opcode_name = opcode_name
+        self.address = address
+
+        super().__init__(
+            f"reached {opcode_name} at ${address:04x}, which is not yet implemented"
+        )
