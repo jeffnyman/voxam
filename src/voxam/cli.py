@@ -35,6 +35,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="a story file to run; omit to just show the banner",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help="seed the dice for a reproducible session",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -56,7 +61,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     try:
-        Machine(story).run()
+        Machine(story, seed=arguments.seed).run()
     except EOFError:
         print("\nvoxam: end of input")
 

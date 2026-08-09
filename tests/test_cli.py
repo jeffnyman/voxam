@@ -93,6 +93,15 @@ def test_reports_an_invalid_story(
     assert_that(capsys.readouterr().out).contains("header")
 
 
+def test_a_seed_is_accepted_for_reproducible_sessions(
+    fixture_path: Callable[[int], Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main(["--seed", "1137", str(fixture_path(3))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("hello from all z machine")
+
+
 def test_typed_input_reaches_the_story(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

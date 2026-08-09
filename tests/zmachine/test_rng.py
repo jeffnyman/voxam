@@ -38,6 +38,37 @@ def test_high_seeds_reproduce_their_sequences() -> None:
     )
 
 
+# THE COMPATIBILITY CONTRACT. These exact sequences are what recorded
+# playthroughs depend on: the stream is Voxam's own xorshift32, and
+# these values may never change without invalidating every acceptance
+# fixture ever recorded. Treat a failure here as a breaking change,
+# not a test to update.
+def test_the_stream_is_pinned_forever() -> None:
+    session = Randomizer(seed=1137)
+
+    assert_that([session.roll(100) for _ in range(5)]).is_equal_to([67, 57, 59, 61, 30])
+
+    dice = Randomizer(seed=42)
+
+    assert_that([dice.roll(6) for _ in range(5)]).is_equal_to([1, 5, 3, 6, 1])
+
+    opcode_seeded = Randomizer()
+    opcode_seeded.seed(5000)
+
+    assert_that([opcode_seeded.roll(100) for _ in range(5)]).is_equal_to(
+        [18, 67, 58, 80, 32]
+    )
+
+
+# A session seed leaves the §2.4 state machine alone: the game's own
+# opcode-level seeding still wins.
+def test_a_session_seed_does_not_enter_the_predictable_state() -> None:
+    session = Randomizer(seed=1137)
+    session.seed(3)
+
+    assert_that([session.roll(10) for _ in range(4)]).is_equal_to([1, 2, 3, 1])
+
+
 def test_random_mode_stays_in_range() -> None:
     rng = Randomizer()
 

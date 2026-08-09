@@ -350,6 +350,21 @@ def test_random_seeds_rolls_and_rerandomizes(
     assert_that(machine.memory.read_word(0x106)).is_equal_to(0)
 
 
+# A session seed reaches the dice: rolling 100 under seeds 1137 and
+# 42 gives the pinned first values 67 and 9. This is the wiring the
+# --seed argument and future acceptance fixtures rely on.
+@pytest.mark.parametrize(("seed", "expected"), [(1137, 67), (42, 9)])
+def test_a_session_seed_reaches_the_dice(
+    seed: int, expected: int, code_machine: Callable[..., Machine]
+) -> None:
+    main = bytes([0xE7, 0x7F, 0x64, RESULT_VARIABLE, 0xBA])
+    machine = code_machine(layout(main), seed=seed)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(expected)
+
+
 # A story bigger than 64K keeps strings in high memory beyond the
 # game-read cap; print_paddr must reach them through the interpreter's
 # fetch path (§1.1.3). Packed 0x8100 doubles to byte address $10200.
