@@ -311,6 +311,45 @@ def test_the_discarding_call_variants(
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(0xFFFF)
 
 
+# Seeding via a negative range yields 0 and enters the predictable
+# state, whose rising sequence the next rolls follow; a range of 0
+# re-randomizes and also yields 0 (§2.4, §15).
+def test_random_seeds_rolls_and_rerandomizes(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            0xE7,
+            0x3F,
+            0xFF,
+            0xFD,
+            RESULT_VARIABLE,  # random -3: seed
+            0xE7,
+            0x7F,
+            0x03,
+            0x11,  # random 3 -> 1
+            0xE7,
+            0x7F,
+            0x03,
+            0x12,  # random 3 -> 2
+            0xE7,
+            0x7F,
+            0x00,
+            0x13,  # random 0: re-randomize -> 0
+            0xBA,
+        ]
+    )
+    machine = code_machine(layout(program))
+    machine.memory.write_word(RESULT_ADDRESS, 0xFFFF)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(0)
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(1)
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(2)
+    assert_that(machine.memory.read_word(0x106)).is_equal_to(0)
+
+
 # A story bigger than 64K keeps strings in high memory beyond the
 # game-read cap; print_paddr must reach them through the interpreter's
 # fetch path (§1.1.3). Packed 0x8100 doubles to byte address $10200.

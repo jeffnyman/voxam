@@ -23,6 +23,7 @@ from voxam.zmachine.memory import Memory
 from voxam.zmachine.objects import ObjectTable
 from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
+from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import Variables
@@ -101,6 +102,7 @@ class Machine:
         self._calls = CallStack()
         self._variables = Variables(self._memory, self._calls)
         self._objects = ObjectTable(self._memory)
+        self._rng = Randomizer()
         self._output = output if output is not None else sys.stdout.write
         self._running = True
 
@@ -697,6 +699,28 @@ class Machine:
         self._variables.write_in_place(reference, value)
         self._pc = instruction.next_address
 
+    def _op_random(self, instruction: Instruction) -> None:
+        """Roll, seed, or re-randomize the generator (§2.4, §15).
+
+        A positive range rolls; a negative range seeds the predictable
+        state with its magnitude and yields 0; zero re-randomizes and
+        yields 0.
+        """
+
+        value = signed(self._value(instruction.operands[0]))
+
+        if value > 0:
+            result = self._rng.roll(value)
+        elif value < 0:
+            self._rng.seed(-value)
+            result = 0
+        else:
+            self._rng.randomize()
+            result = 0
+
+        self._store_result(instruction.store_variable, result)
+        self._pc = instruction.next_address
+
     def _op_print(self, instruction: Instruction) -> None:
         """Print the literal string following the opcode (§3.2)."""
 
@@ -819,6 +843,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
     "quit": Machine._op_quit,
+    "random": Machine._op_random,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
