@@ -11,12 +11,17 @@ import operator
 import sys
 from collections.abc import Callable
 
-from voxam.errors import ZMachineArithmeticError, ZMachineUnimplementedError
+from voxam.errors import (
+    ZMachineArithmeticError,
+    ZMachineInstructionError,
+    ZMachineUnimplementedError,
+)
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.packed import routine_address, string_address
+from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import Variables
@@ -28,6 +33,10 @@ TRUE_VALUE = 1
 
 # A call to packed address 0 does nothing and returns false (§6.4.3).
 NULL_ROUTINE = 0
+
+# je compares its first operand against the others, so one operand
+# alone is not permitted (§15 remarks).
+JE_MINIMUM_OPERANDS = 2
 
 # Words hold signed values in two's complement: $8000 and up are
 # negative (§2.2). Results wrap back into a word; the Standard leaves
@@ -86,6 +95,7 @@ class Machine:
                 given. A richer §8 screen model will replace this.
         """
 
+        self._story = story
         self._memory = Memory(story)
         self._calls = CallStack()
         self._variables = Variables(self._memory, self._calls)
@@ -374,6 +384,160 @@ class Machine:
 
         self._step_variable(instruction, -1)
 
+    def _branch(self, instruction: Instruction, condition: bool) -> None:
+        """Act on a branch rider after a test (§4.7).
+
+        The branch applies when the condition matches its sense; the
+        sentinel offsets 0 and 1 return from the current routine
+        instead of jumping (§4.7.1, §4.7.2).
+        """
+
+        branch = instruction.branch
+
+        if branch is None or condition != branch.on_true:
+            self._pc = instruction.next_address
+        elif branch.returns_false:
+            self._return(FALSE_VALUE)
+        elif branch.returns_true:
+            self._return(TRUE_VALUE)
+        else:
+            self._pc = branch.target(instruction.next_address)
+
+    def _op_je(self, instruction: Instruction) -> None:
+        """Branch if the first operand equals any of the others (§15).
+
+        Equality is indifferent to signedness; je with fewer than two
+        operands is not permitted (§15 remarks).
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        if len(values) < JE_MINIMUM_OPERANDS:
+            msg = (
+                f"je at ${instruction.address:04x} has {len(values)} "
+                f"operand(s), but needs at least two (§15)"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        self._branch(instruction, values[0] in values[1:])
+
+    def _op_jl(self, instruction: Instruction) -> None:
+        """Branch if the first operand is less, signed (§2.2.1, §15)."""
+
+        left = signed(self._value(instruction.operands[0]))
+        right = signed(self._value(instruction.operands[1]))
+
+        self._branch(instruction, left < right)
+
+    def _op_jg(self, instruction: Instruction) -> None:
+        """Branch if the first operand is greater, signed (§2.2.1, §15)."""
+
+        left = signed(self._value(instruction.operands[0]))
+        right = signed(self._value(instruction.operands[1]))
+
+        self._branch(instruction, left > right)
+
+    def _op_jz(self, instruction: Instruction) -> None:
+        """Branch if the operand is zero (§15)."""
+
+        self._branch(instruction, self._value(instruction.operands[0]) == 0)
+
+    def _op_test(self, instruction: Instruction) -> None:
+        """Branch if every flag in the bitmap is set (§15)."""
+
+        bitmap = self._value(instruction.operands[0])
+        flags = self._value(instruction.operands[1])
+
+        self._branch(instruction, bitmap & flags == flags)
+
+    def _op_jump(self, instruction: Instruction) -> None:
+        """Move execution unconditionally by a signed offset (§15).
+
+        The destination arithmetic matches a branch's (§4.7.2), but
+        the offset is an ordinary operand, not branch data.
+        """
+
+        offset = signed(self._value(instruction.operands[0]))
+
+        self._pc = instruction.next_address + offset - BRANCH_TARGET_ADJUSTMENT
+
+    def _check_step(self, instruction: Instruction, delta: int) -> bool:
+        """Step a referenced variable and compare it (§15, §6.3.4).
+
+        Returns:
+            Whether the new signed value passed its comparison: above
+            it after incrementing, below it after decrementing.
+        """
+
+        reference = self._value(instruction.operands[0])
+        comparison = signed(self._value(instruction.operands[1]))
+        stepped = (signed(self._variables.read_in_place(reference)) + delta) & WORD_MASK
+
+        self._variables.write_in_place(reference, stepped)
+
+        if delta > 0:
+            return signed(stepped) > comparison
+
+        return signed(stepped) < comparison
+
+    def _op_inc_chk(self, instruction: Instruction) -> None:
+        """Increment a referenced variable; branch if now greater (§15)."""
+
+        self._branch(instruction, self._check_step(instruction, 1))
+
+    def _op_dec_chk(self, instruction: Instruction) -> None:
+        """Decrement a referenced variable; branch if now less (§15)."""
+
+        self._branch(instruction, self._check_step(instruction, -1))
+
+    def _op_and(self, instruction: Instruction) -> None:
+        """Bitwise AND, unsigned (§2.2.1, §15)."""
+
+        left = self._value(instruction.operands[0])
+        right = self._value(instruction.operands[1])
+
+        self._store_result(instruction.store_variable, left & right)
+        self._pc = instruction.next_address
+
+    def _op_or(self, instruction: Instruction) -> None:
+        """Bitwise OR, unsigned (§2.2.1, §15)."""
+
+        left = self._value(instruction.operands[0])
+        right = self._value(instruction.operands[1])
+
+        self._store_result(instruction.store_variable, left | right)
+        self._pc = instruction.next_address
+
+    def _op_not(self, instruction: Instruction) -> None:
+        """Bitwise complement, unsigned (§2.2.1, §15)."""
+
+        value = self._value(instruction.operands[0])
+
+        self._store_result(instruction.store_variable, ~value & WORD_MASK)
+        self._pc = instruction.next_address
+
+    def _op_check_arg_count(self, instruction: Instruction) -> None:
+        """Branch if the numbered argument was supplied (§6.4.4.1, §15)."""
+
+        wanted = self._value(instruction.operands[0])
+
+        self._branch(instruction, wanted <= self._calls.argument_count)
+
+    def _op_verify(self, instruction: Instruction) -> None:
+        """Branch if the pristine story's checksum is correct (§15).
+
+        Verification reads the file as shipped, not the mutated
+        working image -- which is why the machine keeps its Story.
+        """
+
+        self._branch(instruction, self._story.header.verify())
+
+    def _op_piracy(self, instruction: Instruction) -> None:
+        """Branch, gullibly, as §15 asks interpreters to do."""
+
+        self._branch(instruction, condition=True)
+
     def _op_print(self, instruction: Instruction) -> None:
         """Print the literal string following the opcode (§3.2)."""
 
@@ -445,7 +609,9 @@ class Machine:
 # differs only in having no store variable to fill (§6.4.1).
 _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "add": Machine._op_add,
+    "and": Machine._op_and,
     "call": Machine._op_call,
+    "check_arg_count": Machine._op_check_arg_count,
     "call_1n": Machine._op_call,
     "call_1s": Machine._op_call,
     "call_2n": Machine._op_call,
@@ -453,14 +619,24 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "call_vn": Machine._op_call,
     "call_vs": Machine._op_call,
     "dec": Machine._op_dec,
+    "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
     "inc": Machine._op_inc,
+    "inc_chk": Machine._op_inc_chk,
+    "je": Machine._op_je,
+    "jg": Machine._op_jg,
+    "jl": Machine._op_jl,
+    "jump": Machine._op_jump,
+    "jz": Machine._op_jz,
     "load": Machine._op_load,
     "loadb": Machine._op_loadb,
     "loadw": Machine._op_loadw,
     "mod": Machine._op_mod,
     "mul": Machine._op_mul,
     "new_line": Machine._op_new_line,
+    "not": Machine._op_not,
+    "or": Machine._op_or,
+    "piracy": Machine._op_piracy,
     "print": Machine._op_print,
     "print_addr": Machine._op_print_addr,
     "print_char": Machine._op_print_char,
@@ -477,4 +653,6 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "storeb": Machine._op_storeb,
     "storew": Machine._op_storew,
     "sub": Machine._op_sub,
+    "test": Machine._op_test,
+    "verify": Machine._op_verify,
 }
