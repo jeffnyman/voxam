@@ -100,13 +100,22 @@ def test_early_versions_shift_relatively(code_memory: Callable[..., Memory]) -> 
 
 
 # Version 1 has no new-line in A2 -- Z-character 1 is the new-line
-# (§3.5.2) -- and its A2 row starts at '0' and includes '<' (§3.5.4).
+# (§3.5.2) -- so '0' moves up to character 7 and '<' joins the row at
+# 27 (§3.5.4). The escape stays at character 6 (§3.4).
 def test_version_1_has_its_own_rules(code_memory: Callable[..., Memory]) -> None:
-    memory = code_memory(encode(13, 1, 3, 6, 3, 26), version=1)
+    memory = code_memory(encode(13, 1, 3, 7, 3, 27), version=1)
 
     text, _ = decode_string(memory, CODE)
 
     assert_that(text).is_equal_to("h\n0<")
+
+
+def test_version_1_keeps_the_escape(code_memory: Callable[..., Memory]) -> None:
+    memory = code_memory(encode(3, 6, 2, 1), version=1)
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("A")
 
 
 @pytest.mark.parametrize(("version", "zchars"), [(2, (1, 0)), (3, (1, 5)), (5, (2, 5))])

@@ -184,6 +184,9 @@ exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
+    # A test helper's escape hatch: reachable only when the test is
+    # already failing, so it can never be covered by a passing suite.
+    "pytest\\.fail",
 ]
 
 # --------------------------------------------------------------------------- #
