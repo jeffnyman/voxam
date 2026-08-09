@@ -53,10 +53,10 @@ class Routine:
             ZMachineRoutineError: If the local count exceeds 15, which
                 usually means the address is not a routine at all.
             ZMachineMemoryError: If the header runs outside the
-                game-readable regions.
+                story file (§1.1).
         """
 
-        count = memory.read_byte(address)
+        count = memory.fetch_byte(address)
 
         if count > MAX_LOCALS:
             msg = (
@@ -69,7 +69,7 @@ class Routine:
 
         if memory.header.version <= LOCALS_IN_HEADER_LAST_VERSION:
             initial_locals = tuple(
-                memory.read_word(address + 1 + WORD_SIZE * index)
+                memory.fetch_word(address + 1 + WORD_SIZE * index)
                 for index in range(count)
             )
             first_instruction = address + 1 + WORD_SIZE * count

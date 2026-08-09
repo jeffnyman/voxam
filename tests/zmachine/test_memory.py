@@ -98,6 +98,34 @@ def test_allows_write_to_the_last_dynamic_byte() -> None:
     assert_that(memory.read_byte(STATIC_BASE - 1)).is_equal_to(0x77)
 
 
+# Game reads stop at $ffff, but the interpreter's own fetches reach
+# the whole file: that is where large stories keep their routines and
+# strings (§1.1.2, §1.1.3).
+def test_the_interpreter_fetches_past_the_game_read_cap() -> None:
+    memory = memory_image(size=0x10800, seed={0x10200: 0x42, 0x10201: 0x43})
+
+    assert_that(memory.fetch_byte(0x10200)).is_equal_to(0x42)
+    assert_that(memory.fetch_word(0x10200)).is_equal_to(0x4243)
+
+    with pytest.raises(ZMachineMemoryError, match="game-readable memory"):
+        memory.read_byte(0x10200)
+
+
+def test_fetches_stop_at_the_file_end() -> None:
+    memory = memory_image()
+
+    assert_that(memory.fetch_byte(SIZE - 1)).is_equal_to(0)
+
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
+        memory.fetch_byte(SIZE)
+
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
+        memory.fetch_word(SIZE - 1)
+
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
+        memory.fetch_byte(-1)
+
+
 def test_words_are_stored_big_endian() -> None:
     memory = memory_image()
     memory.write_word(64, 0xBEEF)

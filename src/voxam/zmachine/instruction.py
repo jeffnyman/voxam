@@ -147,18 +147,18 @@ class Instruction:
                 operand after an omitted one (§4.4.3), or no opcode is
                 defined for the decoded number in this version (§14).
             ZMachineMemoryError: If the instruction runs outside the
-                game-readable regions.
+                story file (§1.1).
         """
 
-        opcode_byte = memory.read_byte(address)
+        opcode_byte = memory.fetch_byte(address)
         version = memory.header.version
         pos = address + 1
 
         if opcode_byte == EXTENDED_OPCODE and version >= EXTENDED_MIN_VERSION:
             form = Form.EXTENDED
             operand_count = OperandCount.VAR
-            opcode_number = memory.read_byte(pos)
-            kinds = _field_types(memory.read_byte(pos + 1))
+            opcode_number = memory.fetch_byte(pos)
+            kinds = _field_types(memory.fetch_byte(pos + 1))
 
             pos += 2
         elif opcode_byte & FORM_MASK == VARIABLE_FORM_BITS:
@@ -172,11 +172,11 @@ class Instruction:
                 operand_count is OperandCount.VAR
                 and opcode_number in DOUBLE_TYPE_OPCODES
             ):
-                kinds = _field_types(memory.read_byte(pos), memory.read_byte(pos + 1))
+                kinds = _field_types(memory.fetch_byte(pos), memory.fetch_byte(pos + 1))
 
                 pos += 2
             else:
-                kinds = _field_types(memory.read_byte(pos))
+                kinds = _field_types(memory.fetch_byte(pos))
 
                 pos += 1
         elif opcode_byte & FORM_MASK == SHORT_FORM_BITS:
@@ -327,10 +327,10 @@ def _read_operands(
 
     for kind in kinds:
         if kind is OperandType.LARGE_CONSTANT:
-            operands.append(Operand(kind, memory.read_word(pos)))
+            operands.append(Operand(kind, memory.fetch_word(pos)))
             pos += 2
         else:
-            operands.append(Operand(kind, memory.read_byte(pos)))
+            operands.append(Operand(kind, memory.fetch_byte(pos)))
             pos += 1
 
     return tuple(operands), pos

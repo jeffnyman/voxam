@@ -311,6 +311,27 @@ def test_the_discarding_call_variants(
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(0xFFFF)
 
 
+# A story bigger than 64K keeps strings in high memory beyond the
+# game-read cap; print_paddr must reach them through the interpreter's
+# fetch path (§1.1.3). Packed 0x8100 doubles to byte address $10200.
+def test_print_paddr_reaches_high_memory_beyond_the_cap() -> None:
+    data = bytearray(0x10800)
+    data[0] = 3
+    data[0x04:0x06] = (0x0200).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0100).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0200).to_bytes(2, "big")
+    data[0x40:0x44] = bytes([0x8D, 0x81, 0x00, 0xBA])
+    data[0x10200:0x10202] = HI
+
+    output: list[str] = []
+    machine = Machine(Story(bytes(data)), output.append)
+
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("hi")
+
+
 # The milestone: every fixture -- Version 6 and its §5.4 main-routine
 # boot included -- runs its whole program for real and says hello.
 @pytest.mark.parametrize("version", range(1, 9))
