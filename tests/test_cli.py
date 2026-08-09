@@ -130,6 +130,62 @@ def test_end_of_input_ends_the_session(
     assert_that(capsys.readouterr().out).contains("end of input")
 
 
+def accept_file(tmp_path: Path, content: str) -> Path:
+    path = tmp_path / "session.accept"
+    path.write_text(content, encoding="utf-8")
+
+    return path
+
+
+# The full replay loop: the script names its game, the command is
+# typed and echoed, and the exhausted script ends the session.
+def test_replays_an_acceptance_script(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook   # around\n")
+
+    exit_code = main(["--accept", str(script)])
+
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(out).contains("Running reads.z3")
+    assert_that(out).contains("look\n")
+    assert_that(out).does_not_contain("# around")
+
+
+def test_a_seed_argument_overrides_the_scripts_seed(tmp_path: Path) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! SEED=99\n! GAME={story}\nlook\n")
+
+    exit_code = main(["--accept", str(script), "--seed", "1137"])
+
+    assert_that(exit_code).is_equal_to(0)
+
+
+def test_a_script_and_a_story_argument_conflict(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = accept_file(tmp_path, "! GAME=g.z3\n")
+
+    exit_code = main(["--accept", str(script), "some-story.z3"])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the story")
+
+
+def test_a_bad_script_is_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = accept_file(tmp_path, "look\n")
+
+    exit_code = main(["--accept", str(script)])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("names no game")
+
+
 # nop decodes fine but has no handler yet, so the CLI surfaces the
 # frontier report and exits 1.
 def test_reports_the_implementation_frontier(

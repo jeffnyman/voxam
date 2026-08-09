@@ -22,6 +22,57 @@ cd voxam
 uv sync --all-groups
 ```
 
+## Playing stories
+
+Point Voxam at a story file and play at the terminal:
+
+```bash
+uv run voxam path/to/story.z3
+```
+
+Add `--seed` to make the dice reproducible: the same seed and the
+same commands produce the same session, every time.
+
+```bash
+uv run voxam --seed 1137 path/to/story.z3
+```
+
+### Acceptance scripts
+
+A recorded session can be saved as an acceptance script and replayed:
+
+```bash
+uv run voxam --accept acceptance/some-session.accept
+```
+
+An acceptance script is a plain text file of typed commands plus a
+few directives. Scripts in the `acceptance/` directory reference
+games under the optional `entharion` reference submodule, so they
+replay locally rather than in CI.
+
+```text
+! SEED=99
+! GAME=path/to/story.z1
+
+# Comments annotate the session; blank lines are ignored.
+
+x me. x mailbox            # inline comments start at whitespace + #
+> open mailbox             # the > prefix is optional transcript style
+```
+
+The rules, line by line:
+
+- `! KEY=VALUE` is a directive: `GAME` names the story file to run,
+  and `SEED` fixes the dice (a `--seed` argument overrides it).
+- `#` at the start of a line is a comment.
+- An inline comment begins at whitespace followed by `#`.
+- A leading `>` is optional and stripped; it also escapes the rare
+  command that genuinely begins with `#` or `!`. A `>` alone types
+  an empty line.
+- Anything else is typed into the game exactly as written.
+- When the commands run out, the session ends as if the player had
+  reached end of input.
+
 ## Development
 
 All commands assume the environment created by `uv sync --all-groups`.

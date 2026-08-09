@@ -5,6 +5,10 @@ class VoxamError(Exception):
     """Base class for every error Voxam raises."""
 
 
+class AcceptanceError(VoxamError):
+    """Raised when an acceptance script cannot be used."""
+
+
 class ZMachineArithmeticError(VoxamError):
     """Raised for arithmetic a story may not perform (§2.3)."""
 
