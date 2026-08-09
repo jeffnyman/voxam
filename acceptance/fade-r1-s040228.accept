@@ -1,0 +1,18 @@
+! SEED=99
+! GAME=entharion/zcode-inform/fade-r1-s040228.z1
+
+x me. x Justin. hit Justin. kiss Justin
+ask Justin about Justin. x curtains
+
+# Eventually, there will be a crash, a piece of masonry will fall,
+# and Boldo will arrive one turn after that. Since this event happens
+# at random, you might need to type "wait" or "z" a few times until
+# it happens.
+
+wait         # the seed means we need only one wait
+
+x chunk. take it. throw it at Justin
+x adventurer. search Boldo. g. g
+x eye. x ladder. x death star
+drop ladder. up
+drop chunk
