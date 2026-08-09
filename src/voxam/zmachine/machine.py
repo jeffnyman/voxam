@@ -7,10 +7,11 @@ ZMachineUnimplementedError, so pointing Voxam at any story reveals
 the frontier of what remains to build.
 """
 
+import operator
 import sys
 from collections.abc import Callable
 
-from voxam.errors import ZMachineUnimplementedError
+from voxam.errors import ZMachineArithmeticError, ZMachineUnimplementedError
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
@@ -29,15 +30,38 @@ TRUE_VALUE = 1
 NULL_ROUTINE = 0
 
 # Words hold signed values in two's complement: $8000 and up are
-# negative (§2.2).
+# negative (§2.2). Results wrap back into a word; the Standard leaves
+# out-of-range results unspecified, and wrapping is the convention
+# (§2.3.2).
 SIGN_BIT = 0x8000
 WORD_RANGE = 0x10000
+WORD_MASK = 0xFFFF
+WORD_SIZE = 2
 
 
 def signed(value: int) -> int:
     """Interpret a word as a signed number (§2.2)."""
 
     return value - WORD_RANGE if value & SIGN_BIT else value
+
+
+def _quotient(left: int, right: int) -> int:
+    """Divide, truncating toward zero as the Z-machine does (§2.2.1).
+
+    Python's // floors toward negative infinity, which disagrees with
+    the Z-machine for exactly one sign combination -- so the division
+    is done on magnitudes and the sign applied afterward.
+    """
+
+    magnitude = abs(left) // abs(right)
+
+    return magnitude if (left < 0) == (right < 0) else -magnitude
+
+
+def _remainder(left: int, right: int) -> int:
+    """Remainder after truncating division: its sign follows the dividend."""
+
+    return left - _quotient(left, right) * right
 
 
 class Machine:
@@ -150,6 +174,12 @@ class Machine:
         if frame.store_variable is not None:
             self._variables.write(frame.store_variable, value)
 
+    def _store_result(self, variable: int | None, value: int) -> None:
+        """Deliver an instruction's result, discarding one with no home."""
+
+        if variable is not None:
+            self._variables.write(variable, value)
+
     def _op_call(self, instruction: Instruction) -> None:
         """Call a routine, or return false for address 0 (§6.4)."""
 
@@ -157,8 +187,7 @@ class Machine:
         packed = values[0]
 
         if packed == NULL_ROUTINE:
-            if instruction.store_variable is not None:
-                self._variables.write(instruction.store_variable, FALSE_VALUE)
+            self._store_result(instruction.store_variable, FALSE_VALUE)
 
             self._pc = instruction.next_address
 
@@ -190,6 +219,160 @@ class Machine:
         """Return false from the current routine (§6.4.5)."""
 
         self._return(FALSE_VALUE)
+
+    def _binary(
+        self, instruction: Instruction, operation: Callable[[int, int], int]
+    ) -> None:
+        """Run a signed two-operand operation, wrapping the result (§2.2)."""
+
+        left = signed(self._value(instruction.operands[0]))
+        right = signed(self._value(instruction.operands[1]))
+
+        self._store_result(
+            instruction.store_variable, operation(left, right) & WORD_MASK
+        )
+
+        self._pc = instruction.next_address
+
+    def _divide(
+        self, instruction: Instruction, operation: Callable[[int, int], int]
+    ) -> None:
+        """Run a signed division-family operation, policing §2.3.1.
+
+        Operands resolve first-to-last before the divisor is examined
+        (§4.5.2).
+        """
+
+        left = signed(self._value(instruction.operands[0]))
+        right = signed(self._value(instruction.operands[1]))
+
+        if right == 0:
+            msg = f"division by zero at ${instruction.address:04x} (§2.3.1)"
+
+            raise ZMachineArithmeticError(msg)
+
+        self._store_result(
+            instruction.store_variable, operation(left, right) & WORD_MASK
+        )
+
+        self._pc = instruction.next_address
+
+    def _op_add(self, instruction: Instruction) -> None:
+        """Add, signed (§2.2.1, §15)."""
+
+        self._binary(instruction, operator.add)
+
+    def _op_sub(self, instruction: Instruction) -> None:
+        """Subtract, signed (§2.2.1, §15)."""
+
+        self._binary(instruction, operator.sub)
+
+    def _op_mul(self, instruction: Instruction) -> None:
+        """Multiply, signed (§2.2.1, §15)."""
+
+        self._binary(instruction, operator.mul)
+
+    def _op_div(self, instruction: Instruction) -> None:
+        """Divide, signed, truncating toward zero (§2.2.1, §15)."""
+
+        self._divide(instruction, _quotient)
+
+    def _op_mod(self, instruction: Instruction) -> None:
+        """Take the remainder after signed division (§2.2.1, §15)."""
+
+        self._divide(instruction, _remainder)
+
+    def _op_loadw(self, instruction: Instruction) -> None:
+        """Store the word at array + 2 * word-index (§15).
+
+        Address arithmetic is unsigned: §2.2.1 lists the signed
+        operations, and this is not among them.
+        """
+
+        array = self._value(instruction.operands[0])
+        index = self._value(instruction.operands[1])
+
+        self._store_result(
+            instruction.store_variable,
+            self._memory.read_word(array + WORD_SIZE * index),
+        )
+
+        self._pc = instruction.next_address
+
+    def _op_loadb(self, instruction: Instruction) -> None:
+        """Store the byte at array + byte-index (§15)."""
+
+        array = self._value(instruction.operands[0])
+        index = self._value(instruction.operands[1])
+
+        self._store_result(
+            instruction.store_variable, self._memory.read_byte(array + index)
+        )
+
+        self._pc = instruction.next_address
+
+    def _op_storew(self, instruction: Instruction) -> None:
+        """Write a word at array + 2 * word-index (§15)."""
+
+        array = self._value(instruction.operands[0])
+        index = self._value(instruction.operands[1])
+        value = self._value(instruction.operands[2])
+
+        self._memory.write_word(array + WORD_SIZE * index, value)
+        self._pc = instruction.next_address
+
+    def _op_storeb(self, instruction: Instruction) -> None:
+        """Write a byte at array + byte-index (§15)."""
+
+        array = self._value(instruction.operands[0])
+        index = self._value(instruction.operands[1])
+        value = self._value(instruction.operands[2])
+
+        self._memory.write_byte(array + index, value)
+        self._pc = instruction.next_address
+
+    def _op_store(self, instruction: Instruction) -> None:
+        """Write a value into the referenced variable (§15, §6.3.4).
+
+        This is one of the seven indirect-reference opcodes: a
+        reference to variable $00 overwrites the stack top in place.
+        """
+
+        reference = self._value(instruction.operands[0])
+        value = self._value(instruction.operands[1])
+
+        self._variables.write_in_place(reference, value)
+        self._pc = instruction.next_address
+
+    def _op_load(self, instruction: Instruction) -> None:
+        """Store the referenced variable's value (§15, §6.3.4)."""
+
+        reference = self._value(instruction.operands[0])
+
+        self._store_result(
+            instruction.store_variable, self._variables.read_in_place(reference)
+        )
+
+        self._pc = instruction.next_address
+
+    def _step_variable(self, instruction: Instruction, delta: int) -> None:
+        """Add a signed delta to the referenced variable (§15, §6.3.4)."""
+
+        reference = self._value(instruction.operands[0])
+        value = signed(self._variables.read_in_place(reference))
+
+        self._variables.write_in_place(reference, (value + delta) & WORD_MASK)
+        self._pc = instruction.next_address
+
+    def _op_inc(self, instruction: Instruction) -> None:
+        """Increment the referenced variable, signed (§15)."""
+
+        self._step_variable(instruction, 1)
+
+    def _op_dec(self, instruction: Instruction) -> None:
+        """Decrement the referenced variable, signed (§15)."""
+
+        self._step_variable(instruction, -1)
 
     def _op_print(self, instruction: Instruction) -> None:
         """Print the literal string following the opcode (§3.2)."""
@@ -261,9 +444,22 @@ class Machine:
 # under the two names §14 gives VAR:0 across versions, and call_vn
 # differs only in having no store variable to fill (§6.4.1).
 _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
+    "add": Machine._op_add,
     "call": Machine._op_call,
+    "call_1n": Machine._op_call,
+    "call_1s": Machine._op_call,
+    "call_2n": Machine._op_call,
+    "call_2s": Machine._op_call,
     "call_vn": Machine._op_call,
     "call_vs": Machine._op_call,
+    "dec": Machine._op_dec,
+    "div": Machine._op_div,
+    "inc": Machine._op_inc,
+    "load": Machine._op_load,
+    "loadb": Machine._op_loadb,
+    "loadw": Machine._op_loadw,
+    "mod": Machine._op_mod,
+    "mul": Machine._op_mul,
     "new_line": Machine._op_new_line,
     "print": Machine._op_print,
     "print_addr": Machine._op_print_addr,
@@ -272,9 +468,13 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "print_paddr": Machine._op_print_paddr,
     "print_ret": Machine._op_print_ret,
     "push": Machine._op_push,
-    "ret": Machine._op_ret,
-    "rtrue": Machine._op_rtrue,
-    "rfalse": Machine._op_rfalse,
-    "ret_popped": Machine._op_ret_popped,
     "quit": Machine._op_quit,
+    "ret": Machine._op_ret,
+    "ret_popped": Machine._op_ret_popped,
+    "rfalse": Machine._op_rfalse,
+    "rtrue": Machine._op_rtrue,
+    "store": Machine._op_store,
+    "storeb": Machine._op_storeb,
+    "storew": Machine._op_storew,
+    "sub": Machine._op_sub,
 }

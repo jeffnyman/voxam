@@ -192,6 +192,51 @@ class CallStack:
 
         return stack.pop()
 
+    def peek(self) -> int:
+        """Read the top of the stack without pulling it (§6.3.4).
+
+        The seven indirect-reference opcodes read the stack top in
+        place, leaving the depth unchanged.
+
+        Returns:
+            The value on top of the current routine's stack.
+
+        Raises:
+            ZMachineStackError: If the current routine's stack is
+                empty.
+        """
+
+        stack = self._frames[-1].stack
+
+        if not stack:
+            msg = "cannot read the top of an empty stack in place (§6.3.4)"
+
+            raise ZMachineStackError(msg)
+
+        return stack[-1]
+
+    def replace_top(self, value: int) -> None:
+        """Overwrite the top of the stack in place (§6.3.4).
+
+        Args:
+            value: The word value to write over the current top.
+
+        Raises:
+            ZMachineStackError: If the current routine's stack is
+                empty, or the value does not fit in a word.
+        """
+
+        self._require_word(value)
+
+        stack = self._frames[-1].stack
+
+        if not stack:
+            msg = "cannot overwrite the top of an empty stack in place (§6.3.4)"
+
+            raise ZMachineStackError(msg)
+
+        stack[-1] = value
+
     def _local_index(self, number: int) -> int:
         """Map a local number to its list index, policing §4.2.2."""
 

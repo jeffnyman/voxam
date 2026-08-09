@@ -267,6 +267,50 @@ def test_print_num_prints_signed_decimals(
     assert_that("".join(output)).is_equal_to(expected)
 
 
+# call_1s and call_2s are the storing call variants for one and two
+# operands (§14); Version 4 scales packed addresses by 4, so the
+# routine at $60 is packed 0x18.
+def test_call_1s_delivers_a_result(code_machine: Callable[..., Machine]) -> None:
+    main = bytes([0x88, 0x00, 0x18, RESULT_VARIABLE, 0xBA])
+    returns_42 = bytes([0x00, 0x9B, 0x2A])
+    machine = code_machine(layout(main, returns_42), version=4)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
+
+
+def test_call_2s_passes_its_argument(code_machine: Callable[..., Machine]) -> None:
+    main = bytes([0x19, 0x18, 0x07, RESULT_VARIABLE, 0xBA])
+    returns_local = bytes([0x01, 0x00, 0x05, 0xAB, 0x01])
+    machine = code_machine(layout(main, returns_local), version=4)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(7)
+
+
+# call_1n and call_2n discard their results (§6.4.1): the sentinel
+# global survives and the program still runs to quit.
+@pytest.mark.parametrize(
+    ("main", "routine"),
+    [
+        (bytes([0x8F, 0x00, 0x18, 0xBA]), bytes([0x00, 0xB0])),
+        (bytes([0x1A, 0x18, 0x07, 0xBA]), bytes([0x01, 0xB0])),
+    ],
+)
+def test_the_discarding_call_variants(
+    main: bytes, routine: bytes, code_machine: Callable[..., Machine]
+) -> None:
+    machine = code_machine(layout(main, routine), version=5)
+    machine.memory.write_word(RESULT_ADDRESS, 0xFFFF)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(0xFFFF)
+
+
 # The milestone: every fixture -- Version 6 and its §5.4 main-routine
 # boot included -- runs its whole program for real and says hello.
 @pytest.mark.parametrize("version", range(1, 9))

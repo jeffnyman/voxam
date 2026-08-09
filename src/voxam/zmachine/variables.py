@@ -78,6 +78,49 @@ class Variables:
         else:
             self._memory.write_word(self._global_address(number), value)
 
+    def read_in_place(self, number: int) -> int:
+        """Read a variable by reference: the stack top stays put (§6.3.4).
+
+        The seven indirect-reference opcodes use this instead of read:
+        for variable $00 the top of the stack is read without pulling.
+
+        Args:
+            number: The referenced variable number, 0 to 255.
+
+        Returns:
+            The variable's value.
+
+        Raises:
+            ZMachineStackError: If the stack is empty or the local
+                does not exist.
+            ZMachineMemoryError: If the globals table lies outside
+                readable memory.
+        """
+
+        if number == STACK_VARIABLE:
+            return self._calls.peek()
+
+        return self.read(number)
+
+    def write_in_place(self, number: int, value: int) -> None:
+        """Write a variable by reference: the stack top is replaced (§6.3.4).
+
+        Args:
+            number: The referenced variable number, 0 to 255.
+            value: The word value to store.
+
+        Raises:
+            ZMachineStackError: If the stack is empty, the local does
+                not exist, or the value does not fit in a word.
+            ZMachineMemoryError: If the globals table lies outside
+                writable memory.
+        """
+
+        if number == STACK_VARIABLE:
+            self._calls.replace_top(value)
+        else:
+            self.write(number, value)
+
     def _global_address(self, number: int) -> int:
         """Locate a global in the table at the header's address (§6.2)."""
 

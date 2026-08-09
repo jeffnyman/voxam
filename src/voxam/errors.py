@@ -5,6 +5,10 @@ class VoxamError(Exception):
     """Base class for every error Voxam raises."""
 
 
+class ZMachineArithmeticError(VoxamError):
+    """Raised for arithmetic a story may not perform (§2.3)."""
+
+
 class ZMachineHeaderError(VoxamError):
     """Raised when a header field is absent or read inappropriately."""
 

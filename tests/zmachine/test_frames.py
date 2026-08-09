@@ -86,6 +86,30 @@ def test_each_routine_sees_only_its_own_stack() -> None:
     assert_that(calls.pop()).is_equal_to(11)
 
 
+# The in-place operations of §6.3.4 need a top to work on: an empty
+# stack refuses both the read and the overwrite.
+def test_in_place_access_needs_a_stack_top() -> None:
+    calls = CallStack()
+
+    with pytest.raises(ZMachineStackError, match="read the top of an empty"):
+        calls.peek()
+
+    with pytest.raises(ZMachineStackError, match="overwrite the top of an empty"):
+        calls.replace_top(42)
+
+
+def test_replace_top_overwrites_without_growing() -> None:
+    calls = CallStack()
+    calls.push(11)
+    calls.replace_top(42)
+
+    assert_that(calls.peek()).is_equal_to(42)
+    assert_that(calls.pop()).is_equal_to(42)
+
+    with pytest.raises(ZMachineStackError, match="empty stack"):
+        calls.pop()
+
+
 def test_popped_frames_carry_their_return_directions() -> None:
     calls = CallStack()
     calls.call(routine_with(()), (), return_address=0x1234, store_variable=0x05)
