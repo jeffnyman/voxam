@@ -98,6 +98,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"src/voxam/zmachine/rng.py" = [
+  "S311",     # the Z-machine's dice are game randomness, not cryptography
+]
 "tests/**" = [
   "D",        # test names already say what is being verified
 ]
