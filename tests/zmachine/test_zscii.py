@@ -82,11 +82,15 @@ def test_the_zscii_escape_builds_a_character(
     assert_that(text).is_equal_to("A")
 
 
-def test_a_truncated_escape_is_rejected(code_memory: Callable[..., Memory]) -> None:
+# A string may legally end while a construction is incomplete: the
+# remnant is simply ignored (§3.6.1). This happens routinely with
+# dictionary words cut to the dictionary resolution.
+def test_a_truncated_escape_is_ignored(code_memory: Callable[..., Memory]) -> None:
     memory = code_memory(encode(5, 6))
 
-    with pytest.raises(ZMachineTextError, match="inside a ZSCII escape"):
-        decode_string(memory, CODE)
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("")
 
 
 # In Versions 1 and 2, Z-character 2 shifts to the next alphabet for
@@ -118,14 +122,88 @@ def test_version_1_keeps_the_escape(code_memory: Callable[..., Memory]) -> None:
     assert_that(text).is_equal_to("A")
 
 
-@pytest.mark.parametrize(("version", "zchars"), [(2, (1, 0)), (3, (1, 5)), (5, (2, 5))])
-def test_abbreviations_are_a_reported_frontier(
-    version: int, zchars: tuple[int, ...], code_memory: Callable[..., Memory]
-) -> None:
-    memory = code_memory(encode(*zchars), version=version)
+# Low enough that even bank 3's entries stay inside dynamic memory.
+ABBREVIATION_TABLE = 0x120
 
-    with pytest.raises(ZMachineTextError, match="abbreviations"):
+
+def plant_abbreviation(
+    memory: Memory, entry: int, encoded: bytes, at: int = 0x1A8
+) -> None:
+    memory.write_word(0x18, ABBREVIATION_TABLE)
+    memory.write_word(ABBREVIATION_TABLE + 2 * entry, at // 2)
+
+    for offset, value in enumerate(encoded):
+        memory.write_byte(at + offset, value)
+
+
+# Z-character 1 then 0 names abbreviation entry 0, whose string is
+# spliced into the text (§3.3). The table entry is a word address.
+def test_abbreviations_expand(code_memory: Callable[..., Memory]) -> None:
+    memory = code_memory(encode(1, 0, 0, 13))
+    plant_abbreviation(memory, 0, encode(13, 14))
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("hi h")
+
+
+# The bank character selects among three banks of 32: entry number
+# 32(z - 1) + x (§3.3).
+@pytest.mark.parametrize(
+    ("bank", "index", "entry"), [(1, 5, 5), (2, 1, 33), (3, 2, 66)]
+)
+def test_abbreviation_banks(
+    bank: int, index: int, entry: int, code_memory: Callable[..., Memory]
+) -> None:
+    memory = code_memory(encode(bank, index))
+    plant_abbreviation(memory, entry, encode(13, 14))
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("hi")
+
+
+# In Version 2 only Z-character 1 abbreviates (§3.3); 2 and 3 remain
+# shifts, as the shift tests elsewhere show.
+def test_version_2_has_one_abbreviation_bank(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(1, 3), version=2)
+    plant_abbreviation(memory, 3, encode(13, 14))
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("hi")
+
+
+def test_abbreviations_may_not_nest(code_memory: Callable[..., Memory]) -> None:
+    memory = code_memory(encode(1, 0))
+    plant_abbreviation(memory, 0, encode(1, 1))
+
+    with pytest.raises(ZMachineTextError, match="may not use abbreviations"):
         decode_string(memory, CODE)
+
+
+# §3.3.1's other rule: an abbreviation may not end mid-construction,
+# though a top-level string may (§3.6.1).
+def test_abbreviations_may_not_end_incomplete(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(1, 0))
+    plant_abbreviation(memory, 0, encode(5, 6))
+
+    with pytest.raises(ZMachineTextError, match="incomplete"):
+        decode_string(memory, CODE)
+
+
+def test_a_truncated_abbreviation_is_ignored(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(5, 5, 1))
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("")
 
 
 def test_custom_alphabet_tables_are_a_reported_frontier(

@@ -33,6 +33,13 @@ FIRST_ABBREVIATION_VERSION = 3
 ABBREVIATION_CHARS = (1, 2, 3)
 V2_ABBREVIATION_CHAR = 1
 
+# Abbreviation z then x names entry 32(z - 1) + x of the table the
+# header points at; each entry is a word address, doubled to reach
+# bytes (§3.3, §1.2.2).
+ABBREVIATION_BANK_SIZE = 32
+WORD_ADDRESS_SCALE = 2
+WORD_SIZE = 2
+
 # In alphabet A2, character 6 escapes to a ten-bit ZSCII code and
 # character 7 is a new-line, except in Version 1 (§3.4, §3.5.3).
 A2 = 2
@@ -69,9 +76,9 @@ def decode_string(memory: Memory, address: int) -> tuple[str, int]:
         The decoded text and the first address past the string.
 
     Raises:
-        ZMachineTextError: On text needing machinery that does not
-            exist yet: abbreviations (§3.3) or a custom alphabet
-            table (§3.5.5).
+        ZMachineTextError: On an abbreviation breaking §3.3.1's rules,
+            or text needing a custom alphabet table, which does not
+            exist yet (§3.5.5).
         ZMachineMemoryError: If the string runs outside the
             game-readable regions.
     """
@@ -81,19 +88,9 @@ def decode_string(memory: Memory, address: int) -> tuple[str, int]:
 
         raise ZMachineTextError(msg)
 
-    zchars: list[int] = []
-    pos = address
+    zchars, end = _zchars_at(memory, address)
 
-    while True:
-        word = memory.read_word(pos)
-        pos += 2
-
-        zchars.extend((word >> shift) & Z_CHAR_MASK for shift in Z_CHAR_SHIFTS)
-
-        if word & STRING_TERMINATOR_BIT:
-            break
-
-    return _text_of(memory.header.version, zchars), pos
+    return _text_of(memory, zchars), end
 
 
 def zscii_to_char(code: int) -> str:
@@ -121,9 +118,37 @@ def zscii_to_char(code: int) -> str:
     raise ZMachineTextError(msg)
 
 
-def _text_of(version: int, zchars: list[int]) -> str:
-    """Interpret Z-characters under a version's rules (§3.2, §3.5)."""
+def _zchars_at(memory: Memory, address: int) -> tuple[list[int], int]:
+    """Gather a string's Z-characters up to its terminator (§3.2).
 
+    Returns:
+        The Z-characters and the first address past the string.
+    """
+
+    zchars: list[int] = []
+    pos = address
+
+    while True:
+        word = memory.read_word(pos)
+        pos += WORD_SIZE
+
+        zchars.extend((word >> shift) & Z_CHAR_MASK for shift in Z_CHAR_SHIFTS)
+
+        if word & STRING_TERMINATOR_BIT:
+            break
+
+    return zchars, pos
+
+
+def _text_of(memory: Memory, zchars: list[int], in_abbreviation: bool = False) -> str:
+    """Interpret Z-characters under a version's rules (§3.2, §3.5).
+
+    A string may legally end mid-construction, the remnant ignored
+    (§3.6.1) -- except inside an abbreviation, where that and any
+    further abbreviation are illegal (§3.3.1).
+    """
+
+    version = memory.header.version
     rows = _alphabets(version)
     out: list[str] = []
     locked = 0
@@ -141,13 +166,27 @@ def _text_of(version: int, zchars: list[int]) -> str:
             out.append("\n")
             current = locked
         elif _is_abbreviation(version, char):
-            msg = "abbreviations are not yet implemented (§3.3)"
+            if in_abbreviation:
+                msg = "an abbreviation may not use abbreviations (§3.3.1)"
 
-            raise ZMachineTextError(msg)
+                raise ZMachineTextError(msg)
+
+            if position >= len(zchars):
+                _require_complete(in_abbreviation)
+                break
+
+            out.append(_abbreviation(memory, char, zchars[position]))
+            position += 1
+            current = locked
         elif char < FIRST_ALPHABET_CHARACTER:
             current, locked = _shift(version, current, locked, char)
         elif current == A2 and char == ESCAPE:
-            out.append(_escaped(zchars, position))
+            if position + 2 > len(zchars):
+                _require_complete(in_abbreviation)
+                break
+
+            code = (zchars[position] << 5) | zchars[position + 1]
+            out.append(zscii_to_char(code))
             position += 2
             current = locked
         elif current == A2 and version > 1 and char == A2_NEWLINE:
@@ -158,6 +197,33 @@ def _text_of(version: int, zchars: list[int]) -> str:
             current = locked
 
     return "".join(out)
+
+
+def _require_complete(in_abbreviation: bool) -> None:
+    """Police §3.3.1: only abbreviations may not end mid-construction."""
+
+    if in_abbreviation:
+        msg = (
+            "an abbreviation may not end with an incomplete "
+            "multi-Z-character construction (§3.3.1)"
+        )
+
+        raise ZMachineTextError(msg)
+
+
+def _abbreviation(memory: Memory, bank_char: int, index: int) -> str:
+    """Expand abbreviation entry 32(z - 1) + x (§3.3).
+
+    The table entry is a word address, doubled to reach the string's
+    bytes (§1.2.2) -- the one place word addresses are used at all.
+    """
+
+    table = memory.header.abbreviations_table_address
+    entry_number = ABBREVIATION_BANK_SIZE * (bank_char - 1) + index
+    entry = memory.read_word(table + WORD_SIZE * entry_number)
+    zchars, _ = _zchars_at(memory, WORD_ADDRESS_SCALE * entry)
+
+    return _text_of(memory, zchars, in_abbreviation=True)
 
 
 def _alphabets(version: int) -> tuple[str, str, str]:
@@ -195,24 +261,3 @@ def _shift(version: int, current: int, locked: int, char: int) -> tuple[int, int
         return rotated, rotated
 
     return rotated, locked
-
-
-def _escaped(zchars: list[int], position: int) -> str:
-    """Assemble a ten-bit ZSCII escape from two Z-characters (§3.4).
-
-    Args:
-        zchars: The full Z-character sequence.
-        position: The index of the escape's first payload character.
-
-    Raises:
-        ZMachineTextError: If the string ends inside the escape.
-    """
-
-    if position + 2 > len(zchars):
-        msg = "the string ends inside a ZSCII escape (§3.4)"
-
-        raise ZMachineTextError(msg)
-
-    code = (zchars[position] << 5) | zchars[position + 1]
-
-    return zscii_to_char(code)
