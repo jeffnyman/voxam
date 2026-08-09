@@ -126,6 +126,46 @@ class Memory:
 
         return self._data[address]
 
+    def fetch_byte(self, address: int) -> int:
+        """Read a byte anywhere in the story, as the interpreter (§1.1.3).
+
+        Game reads stop at the top of static memory, but the
+        interpreter's own accesses -- instruction fetch, routine
+        headers, encoded strings -- must reach all of high memory,
+        beyond even $ffff in large stories.
+
+        Args:
+            address: The byte address to read.
+
+        Returns:
+            The value of the byte at that address.
+
+        Raises:
+            ZMachineMemoryError: If the address lies outside the file.
+        """
+
+        self._require_fetchable(address)
+
+        return self._data[address]
+
+    def fetch_word(self, address: int) -> int:
+        """Read a big-endian word anywhere in the story (§1.1.3, §2.1).
+
+        Args:
+            address: The byte address of the word's first byte.
+
+        Returns:
+            The value of the word at that address.
+
+        Raises:
+            ZMachineMemoryError: If either byte lies outside the file.
+        """
+
+        self._require_fetchable(address)
+        self._require_fetchable(address + 1)
+
+        return int.from_bytes(self._data[address : address + 2], "big")
+
     def read_word(self, address: int) -> int:
         """Read the big-endian word at an address (§2.1).
 
@@ -180,6 +220,17 @@ class Memory:
         self._require_word(value)
 
         self._data[address : address + 2] = value.to_bytes(2, "big")
+
+    def _require_fetchable(self, address: int) -> None:
+        """Reject addresses outside the story file itself (§1.1)."""
+
+        if not 0 <= address < len(self._data):
+            msg = (
+                f"cannot fetch ${address:04x}: the story file ends at "
+                f"${len(self._data) - 1:04x} (§1.1)"
+            )
+
+            raise ZMachineMemoryError(msg)
 
     def _require_readable(self, address: int) -> None:
         """Reject addresses outside dynamic and static memory (§1.1.2)."""

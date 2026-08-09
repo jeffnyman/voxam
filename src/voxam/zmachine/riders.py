@@ -101,7 +101,7 @@ def read_store_variable(memory: Memory, address: int) -> tuple[int, int]:
         The variable number and the first address past the rider.
     """
 
-    return memory.read_byte(address), address + 1
+    return memory.fetch_byte(address), address + 1
 
 
 def read_branch(memory: Memory, address: int) -> tuple[Branch, int]:
@@ -115,13 +115,13 @@ def read_branch(memory: Memory, address: int) -> tuple[Branch, int]:
         The decoded branch and the first address past the rider.
     """
 
-    first = memory.read_byte(address)
+    first = memory.fetch_byte(address)
     on_true = bool(first & BRANCH_ON_TRUE_BIT)
 
     if first & SHORT_BRANCH_BIT:
         return Branch(on_true, first & OFFSET_HIGH_MASK), address + 1
 
-    offset = ((first & OFFSET_HIGH_MASK) << 8) | memory.read_byte(address + 1)
+    offset = ((first & OFFSET_HIGH_MASK) << 8) | memory.fetch_byte(address + 1)
 
     if offset & LONG_OFFSET_SIGN:
         offset -= LONG_OFFSET_RANGE
@@ -141,12 +141,12 @@ def text_end(memory: Memory, address: int) -> int:
 
     Raises:
         ZMachineMemoryError: If no terminator appears before the end
-            of game-readable memory.
+            of the story file.
     """
 
     pos = address
 
-    while not memory.read_word(pos) & STRING_TERMINATOR_BIT:
+    while not memory.fetch_word(pos) & STRING_TERMINATOR_BIT:
         pos += 2
 
     return pos + 2

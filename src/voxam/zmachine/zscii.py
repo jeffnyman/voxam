@@ -80,7 +80,7 @@ def decode_string(memory: Memory, address: int) -> tuple[str, int]:
             or text needing a custom alphabet table, which does not
             exist yet (§3.5.5).
         ZMachineMemoryError: If the string runs outside the
-            game-readable regions.
+            story file (§1.1).
     """
 
     if memory.header.alphabet_table_address != 0:
@@ -129,7 +129,7 @@ def _zchars_at(memory: Memory, address: int) -> tuple[list[int], int]:
     pos = address
 
     while True:
-        word = memory.read_word(pos)
+        word = memory.fetch_word(pos)
         pos += WORD_SIZE
 
         zchars.extend((word >> shift) & Z_CHAR_MASK for shift in Z_CHAR_SHIFTS)
@@ -220,7 +220,7 @@ def _abbreviation(memory: Memory, bank_char: int, index: int) -> str:
 
     table = memory.header.abbreviations_table_address
     entry_number = ABBREVIATION_BANK_SIZE * (bank_char - 1) + index
-    entry = memory.read_word(table + WORD_SIZE * entry_number)
+    entry = memory.fetch_word(table + WORD_SIZE * entry_number)
     zchars, _ = _zchars_at(memory, WORD_ADDRESS_SCALE * entry)
 
     return _text_of(memory, zchars, in_abbreviation=True)

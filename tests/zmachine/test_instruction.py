@@ -295,7 +295,7 @@ def test_operands_cannot_run_past_readable_memory(
     # two operands, whose first read falls off the end of the file.
     memory = code_memory(b"")
 
-    with pytest.raises(ZMachineMemoryError, match="game-readable memory"):
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
         Instruction.decode(memory, SIZE - 1)
 
 

@@ -128,7 +128,7 @@ def test_unterminated_text_cannot_scan_past_readable_memory(
     # until the memory guards stop it.
     memory = code_memory(b"")
 
-    with pytest.raises(ZMachineMemoryError, match="game-readable memory"):
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
         text_end(memory, CODE)
 
 
@@ -139,5 +139,5 @@ def test_branch_bytes_cannot_run_past_readable_memory(
     # two-byte branch whose second byte is off the end of the file.
     memory = code_memory(b"")
 
-    with pytest.raises(ZMachineMemoryError, match="game-readable memory"):
+    with pytest.raises(ZMachineMemoryError, match="story file ends"):
         read_branch(memory, SIZE - 1)
