@@ -88,6 +88,7 @@ class Machine:
         story: Story,
         output: Callable[[str], None] | None = None,
         input_source: Callable[[], str] | None = None,
+        seed: int | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -102,6 +103,8 @@ class Machine:
             input_source: Where typed commands come from, one line per
                 call without its newline; the interactive terminal
                 when not given.
+            seed: A session seed making the dice reproducible; None
+                means true entropy.
         """
 
         self._story = story
@@ -109,7 +112,7 @@ class Machine:
         self._calls = CallStack()
         self._variables = Variables(self._memory, self._calls)
         self._objects = ObjectTable(self._memory)
-        self._rng = Randomizer()
+        self._rng = Randomizer(seed)
         self._output = output if output is not None else sys.stdout.write
         self._input = input_source if input_source is not None else input
         self._words: Dictionary | None = None

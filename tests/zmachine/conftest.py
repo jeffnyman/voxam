@@ -47,7 +47,8 @@ def code_machine() -> Callable[..., Machine]:
         version: int = 3,
         output: Callable[[str], None] | None = None,
         input_source: Callable[[], str] | None = None,
+        seed: int | None = None,
     ) -> Machine:
-        return Machine(_image(code, version), output, input_source)
+        return Machine(_image(code, version), output, input_source, seed)
 
     return _build
