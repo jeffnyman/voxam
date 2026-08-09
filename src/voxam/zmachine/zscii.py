@@ -64,6 +64,12 @@ ZSCII_PRINTABLE_END = 126
 
 FIRST_ALPHABET_CHARACTER = 6
 
+# Dictionary-form encoding is fixed-length: 6 Z-characters through
+# Version 3, 9 after, padded with 5s and guillotined past that
+# (§3.7, §13.3, §13.4).
+DICTIONARY_ZCHARS = {1: 6, 2: 6, 3: 6, 4: 9, 5: 9, 6: 9, 7: 9, 8: 9}
+PAD = 5
+
 
 def decode_string(memory: Memory, address: int) -> tuple[str, int]:
     """Decode the encoded string beginning at an address (§3.2).
@@ -116,6 +122,107 @@ def zscii_to_char(code: int) -> str:
     msg = f"ZSCII code {code} is not yet printable (§3.8)"
 
     raise ZMachineTextError(msg)
+
+
+def encode_word(version: int, word: str) -> bytes:
+    """Encode typed text in dictionary form (§3.7).
+
+    The text is lowercased, encoded without abbreviations, padded
+    with 5s, and cut to the dictionary resolution; the final word
+    carries the terminator bit.
+
+    Args:
+        version: The story's version, which sets the resolution and
+            the shift convention.
+        word: The typed word to encode.
+
+    Returns:
+        The encoded bytes: four through Version 3, six after.
+    """
+
+    resolution = DICTIONARY_ZCHARS[version]
+    zchars = _encode_zchars(version, word.lower())[:resolution]
+    zchars += [PAD] * (resolution - len(zchars))
+
+    encoded = b""
+
+    for index in range(0, resolution, 3):
+        packed = (
+            (zchars[index] << Z_CHAR_SHIFTS[0])
+            | (zchars[index + 1] << Z_CHAR_SHIFTS[1])
+            | zchars[index + 2]
+        )
+
+        if index + 3 == resolution:
+            packed |= STRING_TERMINATOR_BIT
+
+        encoded += packed.to_bytes(2, "big")
+
+    return encoded
+
+
+def _encode_zchars(version: int, text: str) -> list[int]:
+    """Turn lowercased text into shift-laden Z-characters (§3.7).
+
+    From Version 3, each A2 character takes a single shift 5. In
+    Versions 1 and 2 the shifts are relative, and a lock is used
+    instead when the next two characters share an alphabet (§3.7.1).
+    """
+
+    a0, _, a2 = _alphabets(version)
+    a2_search_start = 1 if version == 1 else 2
+
+    targets: list[tuple[int, list[int]]] = []
+
+    for character in text:
+        if character in a0:
+            targets.append((0, [a0.index(character) + FIRST_ALPHABET_CHARACTER]))
+            continue
+
+        position = a2.find(character, a2_search_start)
+
+        if position >= 0:
+            targets.append((A2, [position + FIRST_ALPHABET_CHARACTER]))
+        else:
+            code = ord(character)
+            escape = [ESCAPE, (code >> 5) & Z_CHAR_MASK, code & Z_CHAR_MASK]
+            targets.append((A2, escape))
+
+    if version > LAST_SHIFT_LOCK_VERSION:
+        out: list[int] = []
+
+        for alphabet, chars in targets:
+            if alphabet == A2:
+                # Z-character 5 selects A2 for one character (§3.2.3).
+                out.append(5)
+
+            out.extend(chars)
+
+        return out
+
+    return _shift_locked(targets)
+
+
+def _shift_locked(targets: list[tuple[int, list[int]]]) -> list[int]:
+    """Emit Version 1 and 2 shifts, locking for runs (§3.2.2, §3.7.1)."""
+
+    out: list[int] = []
+    locked = 0
+
+    for index, (alphabet, chars) in enumerate(targets):
+        if alphabet != locked:
+            run = index + 1 < len(targets) and targets[index + 1][0] == alphabet
+            upward = (alphabet - locked) % 3 == 1
+
+            if run:
+                out.append(4 if upward else 5)
+                locked = alphabet
+            else:
+                out.append(2 if upward else 3)
+
+        out.extend(chars)
+
+    return out
 
 
 def _zchars_at(memory: Memory, address: int) -> tuple[list[int], int]:

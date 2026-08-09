@@ -5,7 +5,7 @@ from assertpy import assert_that
 
 from voxam.errors import ZMachineTextError
 from voxam.zmachine.memory import Memory
-from voxam.zmachine.zscii import decode_string, zscii_to_char
+from voxam.zmachine.zscii import decode_string, encode_word, zscii_to_char
 
 CODE = 0x40
 
@@ -214,6 +214,47 @@ def test_custom_alphabet_tables_are_a_reported_frontier(
 
     with pytest.raises(ZMachineTextError, match="custom alphabet"):
         decode_string(memory, CODE)
+
+
+# Dictionary-form encoding (§3.7), all values hand-packed: 'h' and
+# 'i' are 13 and 14; pads are 5s; the last word carries the top bit.
+@pytest.mark.parametrize(
+    ("version", "word", "expected"),
+    [
+        (3, "hi", bytes([0x35, 0xC5, 0x94, 0xA5])),
+        (3, "HI", bytes([0x35, 0xC5, 0x94, 0xA5])),
+        (3, "x1", bytes([0x74, 0xA9, 0x94, 0xA5])),
+        (3, "@", bytes([0x14, 0xC2, 0x80, 0xA5])),
+        (5, "hi", bytes([0x35, 0xC5, 0x14, 0xA5, 0x94, 0xA5])),
+    ],
+)
+def test_encodes_words_in_dictionary_form(
+    version: int, word: str, expected: bytes
+) -> None:
+    assert_that(encode_word(version, word)).is_equal_to(expected)
+
+
+# Six Z-characters is the whole resolution through Version 3 (§3.7):
+# everything past the guillotine is indistinguishable.
+def test_encoding_guillotines_at_the_resolution() -> None:
+    assert_that(encode_word(3, "hihihihi")).is_equal_to(encode_word(3, "hihihi"))
+    assert_that(encode_word(3, "hihihihi")).is_equal_to(bytes([0x35, 0xCD, 0xB9, 0xAE]))
+
+
+# Versions 1 and 2 encode with relative shifts, locking when at least
+# two characters share the alphabet (§3.7.1): "12" locks down with 5,
+# while a lone "1" takes the single shift 3.
+def test_early_versions_lock_for_runs() -> None:
+    assert_that(encode_word(2, "12")).is_equal_to(bytes([0x15, 0x2A, 0x94, 0xA5]))
+    assert_that(encode_word(2, "1a")).is_equal_to(bytes([0x0D, 0x26, 0x94, 0xA5]))
+
+
+# Coming back up from a locked A2, a run of A0 characters locks again
+# with 4, and a lone one takes the single shift 2 (§3.2.2, §3.7.1):
+# "12ab" packs to [5 9 10] [4 6 7] and "12a" to [5 9 10] [2 6 pad].
+def test_early_versions_shift_back_up() -> None:
+    assert_that(encode_word(2, "12ab")).is_equal_to(bytes([0x15, 0x2A, 0x90, 0xC7]))
+    assert_that(encode_word(2, "12a")).is_equal_to(bytes([0x15, 0x2A, 0x88, 0xC5]))
 
 
 @pytest.mark.parametrize(("code", "expected"), [(13, "\n"), (65, "A"), (126, "~")])
