@@ -21,6 +21,10 @@ class ZMachineMemoryError(VoxamError):
     """Raised when a memory map is incoherent or an access breaks its rules."""
 
 
+class ZMachineObjectError(VoxamError):
+    """Raised when the object table is used against its rules (§12)."""
+
+
 class ZMachineRoutineError(VoxamError):
     """Raised when bytes cannot be parsed as a routine."""
 

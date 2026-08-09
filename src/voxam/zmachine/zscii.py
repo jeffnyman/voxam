@@ -39,14 +39,15 @@ A2 = 2
 ESCAPE = 6
 A2_NEWLINE = 7
 
-# The alphabet rows for Z-characters 6 to 31 (§3.5.3). The first two
-# A2 entries are placeholders: escape and new-line are handled before
-# any table lookup. Version 1 has its own A2 row, with no new-line
-# and a < character (§3.5.4).
+# The alphabet rows for Z-characters 6 to 31 (§3.5.3). Leading A2
+# entries marked ? are placeholders: the escape (all versions) and
+# the new-line (Version 2 up) are handled before any table lookup.
+# Version 1 keeps the escape but has no A2 new-line -- its new-line
+# is Z-character 1 -- freeing a slot for the < character (§3.5.4).
 ALPHABET_A0 = "abcdefghijklmnopqrstuvwxyz"
 ALPHABET_A1 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ALPHABET_A2 = "??0123456789.,!?_#'\"/\\-:()"
-ALPHABET_A2_V1 = "0123456789.,!?_#'\"/\\<-:()"
+ALPHABET_A2_V1 = "?0123456789.,!?_#'\"/\\<-:()"
 
 # ZSCII output codes: 13 is new-line, and 32 to 126 agree with ASCII
 # (§3.8.2.5, §3.8.3).
@@ -145,7 +146,7 @@ def _text_of(version: int, zchars: list[int]) -> str:
             raise ZMachineTextError(msg)
         elif char < FIRST_ALPHABET_CHARACTER:
             current, locked = _shift(version, current, locked, char)
-        elif current == A2 and version > 1 and char == ESCAPE:
+        elif current == A2 and char == ESCAPE:
             out.append(_escaped(zchars, position))
             position += 2
             current = locked

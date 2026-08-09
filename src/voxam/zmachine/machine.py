@@ -20,6 +20,7 @@ from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
+from voxam.zmachine.objects import ObjectTable
 from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
 from voxam.zmachine.routine import Routine
@@ -99,6 +100,7 @@ class Machine:
         self._memory = Memory(story)
         self._calls = CallStack()
         self._variables = Variables(self._memory, self._calls)
+        self._objects = ObjectTable(self._memory)
         self._output = output if output is not None else sys.stdout.write
         self._running = True
 
@@ -538,6 +540,163 @@ class Machine:
 
         self._branch(instruction, condition=True)
 
+    def _op_get_parent(self, instruction: Instruction) -> None:
+        """Store an object's parent (§15). No branch, unlike its kin."""
+
+        obj = self._value(instruction.operands[0])
+
+        self._store_result(instruction.store_variable, self._objects.parent(obj))
+        self._pc = instruction.next_address
+
+    def _op_get_sibling(self, instruction: Instruction) -> None:
+        """Store an object's sibling, branching if one exists (§15)."""
+
+        sibling = self._objects.sibling(self._value(instruction.operands[0]))
+
+        self._store_result(instruction.store_variable, sibling)
+        self._branch(instruction, sibling != 0)
+
+    def _op_get_child(self, instruction: Instruction) -> None:
+        """Store an object's first child, branching if one exists (§15)."""
+
+        child = self._objects.child(self._value(instruction.operands[0]))
+
+        self._store_result(instruction.store_variable, child)
+        self._branch(instruction, child != 0)
+
+    def _op_jin(self, instruction: Instruction) -> None:
+        """Branch if the first object's parent is the second (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        parent = self._value(instruction.operands[1])
+
+        self._branch(instruction, self._objects.parent(obj) == parent)
+
+    def _op_test_attr(self, instruction: Instruction) -> None:
+        """Branch if the object's attribute is set (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        attribute = self._value(instruction.operands[1])
+
+        self._branch(instruction, self._objects.attribute(obj, attribute))
+
+    def _op_set_attr(self, instruction: Instruction) -> None:
+        """Set the object's attribute (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        attribute = self._value(instruction.operands[1])
+
+        self._objects.set_attribute(obj, attribute, on=True)
+        self._pc = instruction.next_address
+
+    def _op_clear_attr(self, instruction: Instruction) -> None:
+        """Clear the object's attribute (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        attribute = self._value(instruction.operands[1])
+
+        self._objects.set_attribute(obj, attribute, on=False)
+        self._pc = instruction.next_address
+
+    def _op_insert_obj(self, instruction: Instruction) -> None:
+        """Move an object to be a destination's first child (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        destination = self._value(instruction.operands[1])
+
+        self._objects.insert(obj, destination)
+        self._pc = instruction.next_address
+
+    def _op_remove_obj(self, instruction: Instruction) -> None:
+        """Detach an object from its parent (§15)."""
+
+        self._objects.remove(self._value(instruction.operands[0]))
+        self._pc = instruction.next_address
+
+    def _op_print_obj(self, instruction: Instruction) -> None:
+        """Print an object's short name (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        text, _ = decode_string(self._memory, self._objects.short_name_address(obj))
+
+        self._output(text)
+        self._pc = instruction.next_address
+
+    def _op_put_prop(self, instruction: Instruction) -> None:
+        """Write a property the object provides (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        number = self._value(instruction.operands[1])
+        value = self._value(instruction.operands[2])
+
+        self._objects.put_property(obj, number, value)
+        self._pc = instruction.next_address
+
+    def _op_get_prop(self, instruction: Instruction) -> None:
+        """Store a property's value, defaulted when absent (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        number = self._value(instruction.operands[1])
+
+        self._store_result(
+            instruction.store_variable, self._objects.property_value(obj, number)
+        )
+
+        self._pc = instruction.next_address
+
+    def _op_get_prop_addr(self, instruction: Instruction) -> None:
+        """Store a property's data address, or 0 when absent (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        number = self._value(instruction.operands[1])
+        found = self._objects.find_property(obj, number)
+
+        self._store_result(instruction.store_variable, 0 if found is None else found[0])
+
+        self._pc = instruction.next_address
+
+    def _op_get_prop_len(self, instruction: Instruction) -> None:
+        """Store a property's length from its data address (§15).
+
+        Address 0 must give 0 (§15), pairing with get_prop_addr's
+        absent result.
+        """
+
+        address = self._value(instruction.operands[0])
+        length = 0 if address == 0 else self._objects.property_length_at(address)
+
+        self._store_result(instruction.store_variable, length)
+        self._pc = instruction.next_address
+
+    def _op_get_next_prop(self, instruction: Instruction) -> None:
+        """Store the next property number the object provides (§15)."""
+
+        obj = self._value(instruction.operands[0])
+        number = self._value(instruction.operands[1])
+
+        self._store_result(
+            instruction.store_variable, self._objects.next_property(obj, number)
+        )
+
+        self._pc = instruction.next_address
+
+    def _op_pull(self, instruction: Instruction) -> None:
+        """Pull the stack into a referenced variable (§15, §6.3.4).
+
+        The seventh indirect-reference opcode: pulling into variable
+        $00 overwrites the new stack top in place. Version 6's user
+        stacks are not yet implemented.
+        """
+
+        if instruction.opcode.stores:
+            raise ZMachineUnimplementedError("pull", instruction.address)
+
+        reference = self._value(instruction.operands[0])
+        value = self._calls.pop()
+
+        self._variables.write_in_place(reference, value)
+        self._pc = instruction.next_address
+
     def _op_print(self, instruction: Instruction) -> None:
         """Print the literal string following the opcode (§3.2)."""
 
@@ -612,6 +771,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "and": Machine._op_and,
     "call": Machine._op_call,
     "check_arg_count": Machine._op_check_arg_count,
+    "clear_attr": Machine._op_clear_attr,
     "call_1n": Machine._op_call,
     "call_1s": Machine._op_call,
     "call_2n": Machine._op_call,
@@ -621,9 +781,18 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
+    "get_child": Machine._op_get_child,
+    "get_next_prop": Machine._op_get_next_prop,
+    "get_parent": Machine._op_get_parent,
+    "get_prop": Machine._op_get_prop,
+    "get_prop_addr": Machine._op_get_prop_addr,
+    "get_prop_len": Machine._op_get_prop_len,
+    "get_sibling": Machine._op_get_sibling,
     "inc": Machine._op_inc,
     "inc_chk": Machine._op_inc_chk,
+    "insert_obj": Machine._op_insert_obj,
     "je": Machine._op_je,
+    "jin": Machine._op_jin,
     "jg": Machine._op_jg,
     "jl": Machine._op_jl,
     "jump": Machine._op_jump,
@@ -641,9 +810,14 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "print_addr": Machine._op_print_addr,
     "print_char": Machine._op_print_char,
     "print_num": Machine._op_print_num,
+    "print_obj": Machine._op_print_obj,
     "print_paddr": Machine._op_print_paddr,
     "print_ret": Machine._op_print_ret,
+    "pull": Machine._op_pull,
     "push": Machine._op_push,
+    "put_prop": Machine._op_put_prop,
+    "remove_obj": Machine._op_remove_obj,
+    "set_attr": Machine._op_set_attr,
     "quit": Machine._op_quit,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
@@ -654,5 +828,6 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "storew": Machine._op_storew,
     "sub": Machine._op_sub,
     "test": Machine._op_test,
+    "test_attr": Machine._op_test_attr,
     "verify": Machine._op_verify,
 }
