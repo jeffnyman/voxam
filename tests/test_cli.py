@@ -1,3 +1,4 @@
+import io
 import runpy
 import sys
 from collections.abc import Callable
@@ -17,6 +18,26 @@ def broken_story(tmp_path: Path, code: bytes) -> Path:
     data[0x0E:0x10] = (0x0060).to_bytes(2, "big")
     data[0x40 : 0x40 + len(code)] = code
     path = tmp_path / "story.z3"
+    path.write_bytes(bytes(data))
+
+    return path
+
+
+# A story that reads one command and quits, with buffers at $50 and
+# $58 and an empty dictionary at $5a.
+def reading_story(tmp_path: Path) -> Path:
+    data = bytearray(96)
+    data[0] = 3
+    data[0x04:0x06] = (0x0060).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x08:0x0A] = (0x005A).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0060).to_bytes(2, "big")
+    data[0x40:0x47] = bytes([0xE4, 0x0F, 0x00, 0x50, 0x00, 0x58, 0xBA])
+    data[0x50] = 6
+    data[0x58] = 1
+    data[0x5A] = 0
+    data[0x5B] = 7
+    path = tmp_path / "reads.z3"
     path.write_bytes(bytes(data))
 
     return path
@@ -70,6 +91,34 @@ def test_reports_an_invalid_story(
 
     assert_that(exit_code).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("header")
+
+
+def test_typed_input_reaches_the_story(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+
+    exit_code = main([str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("voxam:")
+
+
+# Running out of typed input ends the session cleanly rather than
+# crashing mid-read.
+def test_end_of_input_ends_the_session(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+    exit_code = main([str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("end of input")
 
 
 # nop decodes fine but has no handler yet, so the CLI surfaces the

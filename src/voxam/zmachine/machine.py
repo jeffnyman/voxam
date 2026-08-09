@@ -16,6 +16,7 @@ from voxam.errors import (
     ZMachineInstructionError,
     ZMachineUnimplementedError,
 )
+from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
@@ -83,7 +84,10 @@ class Machine:
     """
 
     def __init__(
-        self, story: Story, output: Callable[[str], None] | None = None
+        self,
+        story: Story,
+        output: Callable[[str], None] | None = None,
+        input_source: Callable[[], str] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -95,6 +99,9 @@ class Machine:
             story: The validated story file to run.
             output: Where printed text goes; standard output when not
                 given. A richer §8 screen model will replace this.
+            input_source: Where typed commands come from, one line per
+                call without its newline; the interactive terminal
+                when not given.
         """
 
         self._story = story
@@ -104,6 +111,8 @@ class Machine:
         self._objects = ObjectTable(self._memory)
         self._rng = Randomizer()
         self._output = output if output is not None else sys.stdout.write
+        self._input = input_source if input_source is not None else input
+        self._words: Dictionary | None = None
         self._running = True
 
         header = self._memory.header
@@ -699,6 +708,84 @@ class Machine:
         self._variables.write_in_place(reference, value)
         self._pc = instruction.next_address
 
+    def _dictionary(self) -> Dictionary:
+        """The standard dictionary, read once on first use (§13.1)."""
+
+        if self._words is None:
+            self._words = Dictionary(self._memory)
+
+        return self._words
+
+    def _op_sread(self, instruction: Instruction) -> None:
+        """Read a typed command into the buffers (§15 read, §13.6).
+
+        Versions 1 to 4 only, and without timed input; the §8.2
+        status-line redisplay awaits the screen model.
+
+        Raises:
+            ZMachineUnimplementedError: For Version 5's storing aread,
+                or a nonzero time and routine pair.
+        """
+
+        if instruction.opcode.stores:
+            raise ZMachineUnimplementedError("aread", instruction.address)
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        if any(values[2:]):
+            raise ZMachineUnimplementedError("timed sread", instruction.address)
+
+        text_buffer = values[0]
+        parse_buffer = values[1]
+
+        # Byte 0 holds n where the buffer is a string array of length
+        # n: the typed letters plus the zero terminator fit inside it,
+        # so the capacity is n - 1 (§15 read).
+        capacity = self._memory.read_byte(text_buffer) - 1
+        line = self._input().lower()[:capacity]
+
+        position = text_buffer + 1
+
+        for character in line:
+            self._memory.write_byte(position, ord(character))
+            position += 1
+
+        self._memory.write_byte(position, 0)
+
+        self._parse(parse_buffer, line)
+        self._pc = instruction.next_address
+
+    def _parse(self, parse_buffer: int, line: str) -> None:
+        """Write the lexical analysis into the parse buffer (§15 read).
+
+        Each block: the word's dictionary address or 0, its letter
+        count, and the position of its first letter in the text
+        buffer, whose text starts at byte 1 (§13.6.3).
+        """
+
+        dictionary = self._dictionary()
+        limit = self._memory.read_byte(parse_buffer)
+        words = tokenize(line, dictionary.separators)[:limit]
+
+        self._memory.write_byte(parse_buffer + 1, len(words))
+
+        block = parse_buffer + 2
+
+        for word, offset in words:
+            self._memory.write_word(block, dictionary.lookup(word))
+            self._memory.write_byte(block + 2, len(word))
+            self._memory.write_byte(block + 3, offset + 1)
+            block += 4
+
+    def _op_show_status(self, instruction: Instruction) -> None:
+        """Redraw nothing, for now (§8.2).
+
+        The status line arrives with the screen model; until then the
+        opcode legally does nothing visible.
+        """
+
+        self._pc = instruction.next_address
+
     def _op_random(self, instruction: Instruction) -> None:
         """Roll, seed, or re-randomize the generator (§2.4, §15).
 
@@ -793,6 +880,7 @@ class Machine:
 _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "add": Machine._op_add,
     "and": Machine._op_and,
+    "aread": Machine._op_sread,
     "call": Machine._op_call,
     "check_arg_count": Machine._op_check_arg_count,
     "clear_attr": Machine._op_clear_attr,
@@ -842,6 +930,8 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "put_prop": Machine._op_put_prop,
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
+    "show_status": Machine._op_show_status,
+    "sread": Machine._op_sread,
     "quit": Machine._op_quit,
     "random": Machine._op_random,
     "ret": Machine._op_ret,

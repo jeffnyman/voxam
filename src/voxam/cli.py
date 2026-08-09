@@ -57,6 +57,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         Machine(story).run()
+    except EOFError:
+        print("\nvoxam: end of input")
+
+        return EXIT_OK
     except ZMachineUnimplementedError as error:
         print(f"\nvoxam: {error}")
 
