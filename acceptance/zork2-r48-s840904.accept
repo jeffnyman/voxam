@@ -1,0 +1,382 @@
+! SEED=14
+! GAME=../entharion/zcode-infocom/zork2-r48-s840904.z3
+
+get all
+s. s. s. sw. s
+se
+enter gazebo
+get all
+exit
+n
+ne
+get water
+s. se. s. s. w
+turn on lantern
+drop all except lantern and teapot
+
+# You're in the Carousel Room. You have to get to the
+# Riddle Room from here, and chances are very good it
+# won't happen on the first try. The room is actually
+# to the southeast, but that direction, like any other,
+# only has a 1-in-8 chance of actually working. This
+# seed makes the below work.
+
+sw. sw. se
+say "a well"
+
+# Needed because with this seed, the Wizard appears
+# and causes you to drop your teapot.
+take teapot
+
+e. e
+enter bucket
+pour water in bucket
+get out
+e
+
+# Walkthroughs say "get all except orange" here, but under this
+# release the load limit refuses the third cake while the teapot is
+# in hand -- and it is no Wizard spell: waiting does not help. The
+# teapot is the bulk. Park it on the table, take the cakes, and
+# collect it again after growing back.
+
+put teapot on table
+get green. get red. get blue
+eat green
+e
+throw red in pool
+get candy
+w
+eat blue
+nw
+
+robot, go e
+e
+robot, push triangular
+robot, go s
+s
+get sphere
+robot, lift cage
+get sphere
+
+n. w
+
+# In stopping the Carousel Room, you've gotten this room spinning.
+# The idea is just to keep returning here and trying southeeast
+# until you get to the Tea Room. This seed will work with the
+# below.
+
+se. w. se
+
+# The teapot was never lost: the spun-room escape lands back in the
+# Tea Room, right where it was parked on the table. Take it, walk
+# west to the well top, and ride down the way you came up -- the
+# bucket rises when water is poured in, and descends when the water
+# is scooped back out, INTO the teapot, which is the teapot's whole
+# job. (The Wizard drops by mid-descent under this seed, waves his
+# wand, and mercifully changes his mind.)
+
+get teapot
+w
+enter bucket
+get water
+get out
+drop teapot
+
+w
+get necklace
+w. nw
+open box
+get violin
+sw
+drop all treasures
+ne. ne. ne
+get all
+sw. sw. n. n. u. u
+
+put mat under door
+open lid
+put letter opener in keyhole
+pull mat
+get key and letter opener
+unlock door with key
+drop key and letter opener
+open door
+n
+get sphere
+s. d. w. n
+
+attack dragon with sword
+s
+attack dragon with sword
+s
+attack dragon with sword
+w
+drop sword
+
+e. n. n. n
+open chest
+get statuette
+
+# Here is where you must begin to follow the princess.
+
+s. e
+wait
+e. s. s
+e.
+wait
+e
+turn off lantern
+n.
+enter gazebo
+wait
+wait
+drop rose
+exit
+turn on lantern
+
+s. s. w. s. s. d
+
+# You're in the Oddly-Angled Room, Zork's monument to the national
+# pastime. Walkthroughs say to hunt for the club "usually east or
+# west," but the hunt is an illusion: until the puzzle is solved
+# this maze cannot be mapped, because every exit is a trapdoor to a
+# random room. Probed empirically under this seed, all sixty-four
+# two-move combinations land in the same place -- home plate, where
+# the club lies by the diamond-shaped window. Two moves of any kind
+# arrive.
+
+nw. se.
+
+# LEAVE THE CLUB ON THE GROUND -- for now. The run below advances
+# identically without it, and its bulk is exactly what costs you
+# the violin at the load limit (shades of the teapot). The club IS
+# wanted later, at the aquarium, but the solved maze stays walkable,
+# so we return for it once our hands are free. Now run the bases
+# from home plate. The window in
+# the floor is the progress meter, climbing from flickering dimly
+# through dimly glowing, glowing, and glowing brightly to glowing
+# serenely. The "strange rusty squeal" on the last move is the
+# reward, rendered in sound: back at the stairway, the floor has
+# swung down to reveal a secret passage -- down to the Cerberus
+# Room, where the endgame waits.
+
+se. ne. nw. sw
+
+# Back out the way we came to collect the stash from the Cobwebby
+# Corridor. (This route was right all along; only the club in hand
+# made "get all treasures" choke on the violin.)
+
+s
+u. n. n
+sw
+
+# Shed the last of the ballast. Neither the newspaper nor the
+# matchbook has any further part to play, and the corridor keeps
+# them safe if that ever proves wrong.
+
+drop newspaper and matchbook
+get all treasures
+
+sw
+give candy to lizard
+unlock door with key
+open door
+s. w
+turn off lantern
+put red on ruby stand
+put blue on sapphire stand
+w
+
+# The club's ambush: the walkthroughs now want it thrown at the
+# aquarium -- the same club whose bulk cost us the violin, which is
+# why it stayed at home plate. No harm done: solving the diamond
+# didn't just open the secret passage, it tamed the maze. The exits
+# are real now, and home plate sits one step north of the stairway
+# entrance. Walk back, fetch the club, and return; the load works
+# this time because the candy went to the lizard and both spheres
+# are parked on their stands.
+
+turn on lantern
+e. e. n. n
+ne. s. s. d
+n
+get club
+s. u. n. n
+sw. sw. s. w. w
+
+# The reward for the errand: the club shatters the aquarium, the
+# sea serpent expires an inch from your foot, and a CLEAR crystal
+# sphere -- the third of the set -- sits amid the sand and broken
+# glass. (The Wizard appears mid-scene and, under this seed, once
+# more thinks better of it.)
+
+throw club at aquarium
+get sphere
+e
+put clear on diamond stand
+get sphere
+s
+put sphere in circle
+give all treasures to demon
+n
+
+e. n. n
+
+# The corridor kept them safe, as promised. Every walkthrough says
+# "get matches and newspaper" at the Carousel Room next -- because
+# their imagined player dumped everything there back at the start.
+# Ours carried the pair as far as this corridor before shedding
+# them for the violin, so collect them here, with the string, one
+# room early. (The delicate gold key turned out to be a treasure:
+# the demon took it with the rest.)
+
+get all
+ne
+
+n
+get brick
+s. nw. w. w. s
+
+# This is one of the more hazardous parts of the game.
+
+enter basket
+open receptable
+put newspaper in receptacle
+light match
+burn newspaper
+turn off lantern
+
+# Wait until the small ledge appears.
+
+wait
+wait
+land
+
+tie wire to hook
+get out
+get zorkmid
+s
+turn on lantern
+open purple
+get stamp
+n
+turn off lantern
+enter basket
+untie wire
+
+# Wait until you reach the second ledge.
+
+wait
+wait
+wait
+
+land
+
+tie wire to hook
+get out
+s
+put brick in hole
+put string in brick
+
+light match
+burn string
+n
+s
+get crown and card
+n
+enter basket
+untie wire
+wait
+close receptable
+turn on lantern
+look at card
+drop card and matches
+
+# Wait until the balloon reaches the bottom.
+
+wait. wait. wait. wait
+
+get out
+n
+get ruby
+e. e. n. n. w. w
+
+# Getting the final treasures out of the bank requires a
+# precise series of moves. You can't just walk out with
+# them because of the security system, and there are a
+# lot of those infamous loops, so be sure to follow these
+# instructions exactly.
+
+ne. e. s
+get painting
+
+n
+enter shimmering light
+enter south wall
+enter shimmering light
+get bills
+
+enter north wall
+drop bills and portrait
+e. e
+get bills and portrait
+enter shimmering light
+s
+
+e. e. s. s. se. sw. sw. s. w
+
+# Leave the lantern on; as long as it isn't nearly drained,
+# you should have enough juice for the rest of the way.
+
+s
+give all treasures to demon
+
+# "But one treasure is yet to be given!" The demon keeps honest
+# books, and the missing entry is the golden dragon statuette --
+# still nestled in its chest back at the Dragon's Lair, because
+# this release's chest does not open on the first try. "The hinges
+# are very rusty," the game says; "you can probably open it if you
+# try again." No walkthrough tries again, and the princess waking
+# in the same breath distracts everyone from noticing that "get
+# statuette" bounced off a still-closed lid. Nor can it be fixed
+# at the source: one extra turn there reshuffles every die roll
+# after it -- the princess wanders off unfollowed, and the Wizard,
+# merciful no longer, Filches the statuette into his trophy
+# cabinet. So we run the errand now, at the end of the recorded
+# timeline, when the only thing left to disturb is the demon's
+# patience.
+
+n. e. n. n
+ne. nw
+n. n. n
+open chest
+get statuette
+s. s. s
+se. sw. sw. s. w. s
+
+# "This will do for my fee. 'Tis a paltry hoard, but as you have
+# done me a small service by loosing me from this wizard, it will
+# suffice." Satisfied at last.
+
+give statuette to demon
+
+# You could also do: DEMON, GIVE ME WAND
+
+demon, kill wizard
+
+get wand
+n. e. n. n. ne. s
+
+point wand at menhir
+say "float"
+sw
+get collar
+ne. s. d. d
+put collar on dog
+e
+open door
+s
+turn off lantern
+open secret door
+s

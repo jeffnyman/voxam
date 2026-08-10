@@ -177,31 +177,28 @@ light candles with match
 put candles in basket
 lower basket
 drop matchbook
-n. d. e. ne. se. sw. d. d. w
+n. d. e. ne. se. sw. d. d
 
-# RELEASE 15 BUG (a real one, in the 1981 game). "drop all" here
-# drives the room-contents lister into infinite recursion: the
-# routine at packed address 6626 calls itself forever and never
-# advances to the next object. On period interpreters those nested
-# frames blew the fixed stack and the game crashed; on an interpreter
-# with an unbounded stack it hangs. Probed empirically: the call
-# fires tens of thousands of times, the instruction after it never
-# runs, and the call depth grows without limit -- while the object
-# tree stays perfectly consistent, so this is the game's logic, not
-# data corruption. Note the game's own platform contract caps total
-# stack usage (Z-Machine Standard 6.3.3); release 15 breaks it.
+# RELEASE 15 BUG (a real one, in the 1981 game). The TIMBER ROOM,
+# one move west of here, is a landmine: dropping any HELD item there
+# -- or taking inventory -- drives the room-contents lister into
+# infinite recursion. The routine at packed address 6626 calls
+# itself forever and never advances to the next object; on period
+# interpreters those nested frames blew the fixed stack and crashed
+# the game, and the game's own platform contract caps total stack
+# usage far below what this consumes (Z-Machine Standard 6.3.3).
+# The object tree stays perfectly consistent throughout, so this is
+# the game's logic, not data corruption.
 #
-# The commands below are fenced off until a route around the bug is
-# found. Triggering it: reach this room and type "drop all" (or any
-# inventory walk, such as "i").
+# THE WORKAROUND, and surely how 1981 players survived: drop
+# everything HERE at Ladder Bottom instead, and pass through the
+# Timber Room empty-handed. Entering and leaving the room is safe;
+# only inventory-touching actions inside it recurse.
 
-```
 drop all
-```
-
-```
-w
+w. w
 get coal and candles and screwdriver
+
 s
 open lid
 put coal in machine
@@ -213,9 +210,23 @@ get diamond
 n
 put diamond in basket
 drop candles
+
+# A knock-on from the Timber Room workaround: in the v1/v3 routes
+# the lit lamp was dropped IN the Timber Room and lit it for the
+# return trip. Here the lamp lies one room further east at Ladder
+# Bottom, so the Timber Room is pitch black on the way back. The
+# squeeze refuses even the candles ("You cannot fit through this
+# passage with that load"), so the answer is one empty-handed dash
+# through the dark -- straight east, touching nothing (grue risk,
+# and the drop-landmine besides). Under THIS seed the grue passes
+# on the snack; if the SEED directive ever changes, re-verify this
+# dash survives.
+
 e
-get all but timber
-e. u. u. n. e. s. n
+e
+get all
+
+u. u. n. e. s. n
 get sapphire
 u. s
 raise basket

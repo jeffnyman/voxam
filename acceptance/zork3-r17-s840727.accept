@@ -1,0 +1,277 @@
+! SEED=24
+! GAME=../entharion/zcode-infocom/zork3-r17-s840727.z3
+
+get lantern
+turn on lantern
+s. s. s. s
+enter lake
+w. s
+get torch
+look at table
+
+# You have to wait here until the indicator says "II".
+
+wait
+wait
+wait
+wait
+wait
+
+touch table
+
+# You're instantly zipped to another room from Zork II!
+# This is Room 8, to be exact, west of the Carousel Room.
+
+get can
+wait
+
+# Wait for the indicator to  change to "III".
+
+wait
+
+touch table
+drop torch
+wait
+n
+
+# Now things get a little tricky. You have to take the southern
+# path from the lake with the grue repellent *and* something
+# from the bottom of the lake. You'll drop the can as soon as you
+# enter, so you'll have to dive to get it. Unfortunately, the cold
+# doesn't do wonders for your grip and it may take you more than one
+# try to get both items. Worse, you can only stay underwater for so
+# long. Plus there's a hungry fish lurking underwater, and sometimes
+# a roc comes by and snatches you when you enter from the west bank.
+
+enter lake
+d
+
+# If you don't get both the first time, try again. This seed helps
+# you with that!
+
+get can and object
+u. s
+
+spray grue repellent on self
+s. s. e
+drop can
+get key
+open cover
+d. n. n. n
+get torch
+
+w. w. sw
+
+attack figure with sword
+attack figure with sword
+attack figure with sword
+attack figure with sword
+attack figure with sword
+get hood
+attack figure with sword
+attack figure with sword
+attack figure with sword
+get hood
+get cloak
+
+# Getting out is easier than it looks from inside. Every room of
+# these hills is named "Land of Shadow" and the wall teases you
+# with blocked exits, so wandering even one room off the path
+# means hunting blind for the way out. But the duel never moved
+# us: the fight ends in the same room it began -- the one at the
+# crumbled breach in the north wall. One step north through the
+# breach is the Barren Area, and east of that is the Junction.
+
+n. e
+w. w
+get bread
+d
+
+# Wait for the adventurer to show up.
+wait
+wait
+
+tie chest to rope
+
+wait
+wait
+wait
+wait
+grab rope
+d. d. s
+
+# Wait until a ship shows up.
+
+wait. wait. wait. wait. wait. wait
+say "hello sailor"
+get vial
+
+n. ne. se. e. s. e. e. s. s
+
+# The door is unopenable, but the earthquake created a new way in.
+# This seed makes sure the earthquake has already happened.
+
+e. n
+push gold machine s
+open stone door
+push machine e
+turn dial to 776
+enter machine
+push button
+get ring
+look
+
+# Wait for the guards to leave.
+
+wait
+wait
+wait
+wait
+
+open door
+w
+open wooden door
+n
+put ring under seat
+turn dial to 948
+enter gold machine
+push button
+get out
+look under seat
+open door
+s
+open stone door
+e
+get all
+
+w. s
+
+# Now you come to the Royal Puzzle. There's exactly one
+# solution, and if you make ONE wrong move, you'll never
+# succeed.
+
+d
+push s wall
+e. s. e. e
+push s wall
+get book
+push s wall
+push w wall
+push w wall
+e. s
+push e wall
+n. n. n. n. n
+push e wall
+w
+s. s. s. s
+e. e
+n. n. n
+push w wall
+e. s. s. s
+w. w. w. w
+n. n. n
+w. n
+push e wall
+push e wall
+push e wall
+w. w. s. s. e. e. s
+push e wall
+w. w. w. n. n. n. e. e
+push s wall
+push s wall
+w. s. s. e. e. n
+push w wall
+push w wall
+s. w
+push n wall
+push n wall
+push n wall
+w. n
+u
+
+# That concludes that hideous puzzle!
+
+n. w. n. n. w. w. n. e. ne
+
+# The old man is real, but the walkthroughs undersell the ritual.
+# His arrival is a fresh roll on every entry to this room, and
+# under this seed the fourth re-entry wins it. (Probed directly:
+# the object tree shows him materialize in this room on that
+# entry and stay.) Two details no walkthrough mentions: he is an
+# "old and wizened man" huddled asleep in the corner, snoring,
+# while the elvish sword blazes in his presence -- some old man!
+# -- and bread offered to a sleeping man bounces off with "He is
+# asleep!" Wake him first. Fed, he points at the engraved north
+# wall -- "Perhaps what you seek is through there!" -- where the
+# outline of a secret door appears, and he is gone between
+# glances.
+
+sw. ne
+sw. ne
+sw. ne
+sw. ne
+wake man
+give bread to man
+
+# Before you go further, check to see that you have each of the
+# following: book, vial, staff, cloak, hood, sword, torch, key,
+# amulet, ring. You do with this seed!
+
+open door
+n. n
+put sword in beam
+s
+push button
+n. n. n
+
+# What you need to do is get the compass rose pointed south, then
+# open up the panel in the back, which will allow you to exit to
+# the north.
+
+raise short pole
+push white panel
+push white panel
+push pine panel
+n
+
+open vial
+drink liquid
+n. n. n
+knock on door
+
+# The DM answers the door and explains everything that led up to this
+# moment. In a nutshell, he was testing your strength (fighting the
+# figure), compassion (not killing the figure after he was helpless), trust
+# (following the friendly adventurer's instructions), unselfishness (not
+# begrudging the adventurer the treasures in the chest), intelligence (figuring
+# out how to recover the ring), temperance (not trying to take all the crown
+# jewels) persistence (the Royal Puzzle), and generosity (giving the bread).
+
+n. e. n. n
+turn dial to 4
+push button
+s
+open door
+s
+
+# Pushing the button with the dial at 4 has caused a brass door to appear.
+# Walkthroughs say that but it is bronze.
+
+dungeon master, go to parapet
+dungeon master, turn dial to 1
+dungeon master, push button
+
+# The Dungeon Master's button-press worked: the bronze door now
+# stands closed in the south wall of the cell. And the phrase the
+# walkthroughs give works too, spoken exactly: "unlock bronze door
+# with key" -- "The key seems to mold itself to the shape of the
+# lock." Mind the parser's trap, though: a plain "unlock door with
+# key" asks "Which door do you mean, the cell door or the bronze
+# door?" and the question costs the turn. Beyond the door: the
+# Treasury of Zork, a tap of the staff, and the Dungeon Master's
+# burden passes to you. Potential: 7 of a possible 7, in 301
+# moves.
+
+unlock bronze door with key
+open bronze door
+s
