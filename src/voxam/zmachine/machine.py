@@ -8,7 +8,6 @@ the frontier of what remains to build.
 """
 
 import operator
-import sys
 from collections.abc import Callable
 
 from voxam.errors import (
@@ -16,9 +15,10 @@ from voxam.errors import (
     ZMachineInstructionError,
     ZMachineUnimplementedError,
 )
+from voxam.frontend import Frontend, PlainFrontend, Status
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
-from voxam.zmachine.header import PACKED_PC_VERSION
+from voxam.zmachine.header import PACKED_PC_VERSION, STATUS_FLAGS_VERSION
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.objects import ObjectTable
@@ -27,7 +27,7 @@ from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
 from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.story import Story
-from voxam.zmachine.variables import Variables
+from voxam.zmachine.variables import FIRST_GLOBAL, Variables
 from voxam.zmachine.zscii import decode_string, zscii_to_char
 
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
@@ -86,7 +86,7 @@ class Machine:
     def __init__(
         self,
         story: Story,
-        output: Callable[[str], None] | None = None,
+        frontend: Frontend | None = None,
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
     ) -> None:
@@ -94,12 +94,14 @@ class Machine:
 
         Outside Version 6, execution begins at the header's initial
         address, inside no routine (§5.5). Version 6 instead calls the
-        main routine (§5.4).
+        main routine (§5.4). A Version 3 header is stamped with the
+        frontend's honest capabilities before the story wakes, so the
+        game can adapt to them (§11.1).
 
         Args:
             story: The validated story file to run.
-            output: Where printed text goes; standard output when not
-                given. A richer §8 screen model will replace this.
+            frontend: Where text and status go; a plain stream to
+                standard output when not given.
             input_source: Where typed commands come from, one line per
                 call without its newline; the interactive terminal
                 when not given.
@@ -113,12 +115,19 @@ class Machine:
         self._variables = Variables(self._memory, self._calls)
         self._objects = ObjectTable(self._memory)
         self._rng = Randomizer(seed)
-        self._output = output if output is not None else sys.stdout.write
+        self._frontend = frontend if frontend is not None else PlainFrontend()
+        self._output = self._frontend.write
         self._input = input_source if input_source is not None else input
         self._words: Dictionary | None = None
         self._running = True
 
         header = self._memory.header
+
+        if header.version == STATUS_FLAGS_VERSION:
+            header.declare_status_line(available=self._frontend.has_status_line)
+            header.declare_screen_splitting(
+                available=self._frontend.has_screen_splitting
+            )
 
         if header.version == PACKED_PC_VERSION:
             address = routine_address(header, header.main_routine_packed_address)
@@ -722,8 +731,7 @@ class Machine:
     def _op_sread(self, instruction: Instruction) -> None:
         """Read a typed command into the buffers (§15 read, §13.6).
 
-        Versions 1 to 4 only, and without timed input; the §8.2
-        status-line redisplay awaits the screen model.
+        Versions 1 to 4 only, and without timed input.
 
         Raises:
             ZMachineUnimplementedError: For Version 5's storing aread,
@@ -737,6 +745,14 @@ class Machine:
 
         if any(values[2:]):
             raise ZMachineUnimplementedError("timed sread", instruction.address)
+
+        # In Versions 1 to 3 the status line is redisplayed before the
+        # player types (§8.2, §15 read) -- when there is one to show.
+        if (
+            self._memory.header.version <= STATUS_FLAGS_VERSION
+            and self._frontend.has_status_line
+        ):
+            self._frontend.show_status(self._status())
 
         text_buffer = values[0]
         parse_buffer = values[1]
@@ -780,12 +796,36 @@ class Machine:
             self._memory.write_byte(block + 3, offset + 1)
             block += 4
 
-    def _op_show_status(self, instruction: Instruction) -> None:
-        """Redraw nothing, for now (§8.2).
+    def _status(self) -> Status:
+        """Assemble what the status line shows (§8.2).
 
-        The status line arrives with the screen model; until then the
-        opcode legally does nothing visible.
+        The location is the short name of the object in the first
+        global variable; the numbers are the second and third globals,
+        read as score and turns or as hours and minutes according to
+        the header's status-line type (§8.2.2, §8.2.3).
         """
+
+        location = self._variables.read(FIRST_GLOBAL)
+        text, _ = decode_string(
+            self._memory, self._objects.short_name_address(location)
+        )
+
+        return Status(
+            location=text,
+            score=signed(self._variables.read(FIRST_GLOBAL + 1)),
+            turns=self._variables.read(FIRST_GLOBAL + 2),
+            time_game=self._memory.header.time_game,
+        )
+
+    def _op_show_status(self, instruction: Instruction) -> None:
+        """Redraw the status line on request (§8.2).
+
+        A frontend without a status line has nothing to redraw: the
+        conforming quiet of an interpreter that declared so (§11.1).
+        """
+
+        if self._frontend.has_status_line:
+            self._frontend.show_status(self._status())
 
         self._pc = instruction.next_address
 

@@ -150,6 +150,65 @@ def test_other_versions_refuse_a_packed_routine_address(
         _ = header.main_routine_packed_address
 
 
+def flagged_header(version: int = 3, flags: int = 0) -> bytes:
+    data = bytearray(synthetic_header(version=version))
+    data[1] = flags
+
+    return bytes(data)
+
+
+# A Version 3 game claims an hours:minutes status line with bit 1 of
+# Flags 1 (§8.2.3.2); without it, score and turns.
+def test_version_3_reads_the_status_line_type() -> None:
+    assert_that(Header(flagged_header(flags=0x02)).time_game).is_true()
+    assert_that(Header(flagged_header()).time_game).is_false()
+
+
+# Versions 1 and 2 predate the bit: score and turns, whatever Flags 1
+# happens to hold.
+def test_early_versions_always_show_score() -> None:
+    assert_that(Header(flagged_header(version=1, flags=0x02)).time_game).is_false()
+
+
+# From Version 4 there is no status line for the bit to describe
+# (§8.2).
+def test_later_versions_refuse_a_status_line_type() -> None:
+    with pytest.raises(ZMachineHeaderError, match="no status line"):
+        _ = Header(flagged_header(version=4)).time_game
+
+
+# The header speaks in absences: bit 4 of Flags 1 set means no status
+# line, while bit 5 set means the screen can split (§11.1).
+def test_declarations_write_the_capability_bits() -> None:
+    header = Header(bytearray(synthetic_header()))
+
+    header.declare_status_line(available=False)
+    header.declare_screen_splitting(available=True)
+
+    assert_that(header.data[1]).is_equal_to(0x30)
+
+    header.declare_status_line(available=True)
+    header.declare_screen_splitting(available=False)
+
+    assert_that(header.data[1]).is_equal_to(0x00)
+
+
+def test_declarations_refuse_the_pristine_story() -> None:
+    header = Header(synthetic_header())
+
+    with pytest.raises(ZMachineHeaderError, match="pristine"):
+        header.declare_status_line(available=False)
+
+
+# Other versions' Flags 1 bits mean entirely different things
+# (§11.1): boldface in Version 4, for one.
+def test_declarations_refuse_other_versions() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="only version 3"):
+        header.declare_screen_splitting(available=True)
+
+
 # Offsets here are written out raw, straight from the table in §11.1,
 # so this test cannot inherit a mistake in the module's constants.
 def test_reads_field_values_from_spec_offsets() -> None:

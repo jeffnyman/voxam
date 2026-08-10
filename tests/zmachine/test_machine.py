@@ -4,6 +4,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import ZMachineStackError, ZMachineUnimplementedError
+from voxam.frontend import PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -394,7 +395,7 @@ def test_print_paddr_reaches_high_memory_beyond_the_cap() -> None:
     data[0x10200:0x10202] = HI
 
     output: list[str] = []
-    machine = Machine(Story(bytes(data)), output.append)
+    machine = Machine(Story(bytes(data)), PlainFrontend(output.append))
 
     machine.run()
 
@@ -408,7 +409,7 @@ def test_every_fixture_says_hello(
     version: int, load_fixture: Callable[[int], Story]
 ) -> None:
     output: list[str] = []
-    machine = Machine(load_fixture(version), output.append)
+    machine = Machine(load_fixture(version), PlainFrontend(output.append))
 
     machine.run()
 

@@ -151,9 +151,11 @@ def test_a_zero_time_is_not_timed(code_machine: Callable[..., Machine]) -> None:
     assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
 
 
-# show_status legally redraws nothing until the screen model exists
-# (§8.2); the program must still run through it to quit.
-def test_show_status_is_quietly_deferred(
+# Under a plain frontend -- which declared no status line -- the
+# opcode conformingly redraws nothing (§8.2, §11.1), and it must not
+# even assemble a status: these globals point at no object, so an
+# assembly attempt would halt on the object lookup.
+def test_show_status_stays_quiet_without_a_status_line(
     code_machine: Callable[..., Machine],
 ) -> None:
     machine = code_machine(bytes([0xBC, 0xBA]))
