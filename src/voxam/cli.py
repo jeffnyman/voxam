@@ -5,8 +5,9 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from voxam.acceptance import AcceptanceScript, replay
+from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
 from voxam.errors import VoxamError, ZMachineUnimplementedError
+from voxam.frontend import Frontend, PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -103,15 +104,37 @@ def _replay_script(
         return EXIT_UNUSABLE
 
     seed = seed_override if seed_override is not None else script.seed
+    watch = RefusalWatch(script, warn=lambda message: print(f"voxam: {message}"))
+
+    def tee(text: str) -> None:
+        sys.stdout.write(text)
+        watch.saw(text)
+
+    # At handoff the last scripted response is complete; the watch is
+    # closed there so live typing is never blamed on the script.
+    def handed_off() -> str:
+        watch.finish()
+
+        return input()
+
     source = replay(
-        script.commands, sys.stdout.write, exhausted=input if handoff else None
+        script.commands,
+        sys.stdout.write,
+        exhausted=handed_off if handoff else None,
+        typed=watch.typed,
     )
 
-    return _play(script.game, seed, source)
+    code = _play(script.game, seed, source, PlainFrontend(tee))
+    watch.finish()
+
+    return code
 
 
 def _play(
-    story_path: Path, seed: int | None, input_source: Callable[[], str] | None
+    story_path: Path,
+    seed: int | None,
+    input_source: Callable[[], str] | None,
+    frontend: Frontend | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes."""
 
@@ -129,7 +152,7 @@ def _play(
     )
 
     try:
-        Machine(story, input_source=input_source, seed=seed).run()
+        Machine(story, frontend, input_source=input_source, seed=seed).run()
     except EOFError:
         print("\nvoxam: end of input")
 

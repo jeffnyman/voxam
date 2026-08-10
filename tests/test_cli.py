@@ -137,6 +137,81 @@ def accept_file(tmp_path: Path, content: str) -> Path:
     return path
 
 
+def ztext(text: str) -> bytes:
+    """Encode lowercase letters and spaces as terminated z-text."""
+
+    codes = [0 if c == " " else 6 + ord(c) - ord("a") for c in text]
+
+    while len(codes) % 3:
+        codes.append(5)
+
+    words = []
+
+    for i in range(0, len(codes), 3):
+        word = (codes[i] << 10) | (codes[i + 1] << 5) | codes[i + 2]
+
+        if i + 3 == len(codes):
+            word |= 0x8000
+
+        words.append(word)
+
+    return b"".join(word.to_bytes(2, "big") for word in words)
+
+
+# A story that reads one command, answers it in the parser's refusal
+# voice, and quits.
+def refusing_story(tmp_path: Path) -> Path:
+    data = bytearray(0xA0)
+    data[0] = 3
+    data[0x04:0x06] = (0x0090).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x08:0x0A] = (0x007A).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0090).to_bytes(2, "big")
+    code = (
+        bytes([0xE4, 0x0F, 0x00, 0x70, 0x00, 0x78])
+        + bytes([0xB2])
+        + ztext("you must use a verb")
+        + bytes([0xBA])
+    )
+    data[0x40 : 0x40 + len(code)] = code
+    data[0x70] = 6
+    data[0x78] = 1
+    data[0x7A] = 0
+    data[0x7B] = 7
+    path = tmp_path / "refuses.z3"
+    path.write_bytes(bytes(data))
+
+    return path
+
+
+# The watch reads the conversation during --accept and points at the
+# script line whose command drew the refusal.
+def test_replay_warns_about_refused_commands(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = refusing_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\n# opener\nfrotz\n")
+
+    exit_code = main(["--accept", str(script)])
+
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(out).contains("voxam: line 3: 'frotz' looks refused")
+
+
+def test_clean_replays_draw_no_warnings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+
+    exit_code = main(["--accept", str(script)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("looks refused")
+
+
 # The full replay loop: the script names its game, the command is
 # typed and echoed, and the exhausted script ends the session.
 def test_replays_an_acceptance_script(
