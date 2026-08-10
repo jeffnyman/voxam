@@ -49,11 +49,14 @@ class AcceptanceScript:
         game: The story file the session plays.
         seed: The session seed, or None for true entropy.
         commands: The typed lines, in order.
+        lines: Each command's line number in the script file, in the
+            same order -- so a warning can point at the file.
     """
 
     game: Path
     seed: int | None
     commands: tuple[str, ...]
+    lines: tuple[int, ...]
 
     @classmethod
     def parse(cls, path: Path) -> Self:
@@ -74,6 +77,7 @@ class AcceptanceScript:
         game: Path | None = None
         seed: int | None = None
         commands: list[str] = []
+        numbers: list[int] = []
         fenced = False
         lines = path.read_text(encoding="utf-8").splitlines()
 
@@ -100,19 +104,21 @@ class AcceptanceScript:
                     raise AcceptanceError(msg)
             else:
                 commands.append(_command(line))
+                numbers.append(number)
 
         if game is None:
             msg = f"{path.name} names no game; add '! GAME=<story file>'"
 
             raise AcceptanceError(msg)
 
-        return cls(game=game, seed=seed, commands=tuple(commands))
+        return cls(game=game, seed=seed, commands=tuple(commands), lines=tuple(numbers))
 
 
 def replay(
     commands: Iterable[str],
     echo: Callable[[str], object],
     exhausted: Callable[[], str] | None = None,
+    typed: Callable[[int], None] | None = None,
 ) -> Callable[[], str]:
     """Build an input source typing the commands, then handing over.
 
@@ -127,27 +133,140 @@ def replay(
             the interactive terminal instead makes the script a
             catch-up that leaves the player at the prompt. Handed-off
             lines are not echoed: a terminal shows typing itself.
+        typed: Told each command's position, zero-based, just before
+            it is typed -- which is also the moment the previous
+            command's response is complete. A RefusalWatch listens
+            here.
 
     Returns:
         An input source for a Machine.
     """
 
-    iterator = iter(commands)
+    iterator = enumerate(commands)
 
     def _next_command() -> str:
         try:
-            command = next(iterator)
+            index, command = next(iterator)
         except StopIteration:
             if exhausted is None:
                 raise EOFError from None
 
             return exhausted()
 
+        if typed is not None:
+            typed(index)
+
         echo(command + "\n")
 
         return command
 
     return _next_command
+
+
+# The parser's refusal dialect: responses meaning a typed command did
+# not do what it said. A replay marches straight past them -- this is
+# how a statuette stays in its chest and a Weasel skips his meeting
+# -- so the watch turns each into a loud warning instead. Curated
+# from the Infocom house parser; matching is case-insensitive, and
+# the list grows by experience.
+REFUSALS = (
+    "do you mean",
+    "I beg your pardon",
+    "I don't know the word",
+    "It's not clear what you're referring to",
+    "That sentence isn't one I recognize",
+    "There was no verb in that sentence",
+    "What do you want",
+    "You can't go that way",
+    "You can't see any",
+    "You must use a verb",
+    "You should close it first",
+    "You should open it first",
+)
+
+
+def refusal_in(response: str) -> str | None:
+    """Find the first line of a response spoken in the refusal dialect.
+
+    Args:
+        response: Everything a story printed in reply to one command.
+
+    Returns:
+        The offending line of the response, or None when the response
+        contains no known refusal.
+    """
+
+    lowered = response.lower()
+
+    for phrase in REFUSALS:
+        found = lowered.find(phrase.lower())
+
+        if found >= 0:
+            start = response.rfind("\n", 0, found) + 1
+            end = response.find("\n", found)
+
+            return response[start : end if end >= 0 else len(response)]
+
+    return None
+
+
+class RefusalWatch:
+    """Reads a replayed conversation for silently refused commands.
+
+    The response to a command is everything the story prints before
+    the next command is typed. The watch collects that output, and
+    when the response speaks the refusal dialect it warns with the
+    command and its line in the script file -- at recording time,
+    not forty turns later when the missing side effect surfaces.
+    """
+
+    def __init__(self, script: AcceptanceScript, warn: Callable[[str], None]) -> None:
+        """Bind the script being replayed and a warning sink.
+
+        Args:
+            script: The parsed script, for commands and line numbers.
+            warn: Receives one message per refused command.
+        """
+
+        self._script = script
+        self._warn = warn
+        self._pieces: list[str] = []
+        self._awaiting: int | None = None
+
+    def saw(self, text: str) -> None:
+        """Collect story output as the response in progress."""
+
+        self._pieces.append(text)
+
+    def typed(self, index: int) -> None:
+        """Judge the previous response; start collecting the next."""
+
+        self._judge()
+
+        self._awaiting = index
+        self._pieces.clear()
+
+    def finish(self) -> None:
+        """Judge the final command's response, ending the watch."""
+
+        self._judge()
+
+        self._awaiting = None
+        self._pieces.clear()
+
+    def _judge(self) -> None:
+        """Warn if the collected response refused its command."""
+
+        if self._awaiting is None:
+            return
+
+        offense = refusal_in("".join(self._pieces))
+
+        if offense is not None:
+            line = self._script.lines[self._awaiting]
+            command = self._script.commands[self._awaiting]
+
+            self._warn(f"line {line}: {command!r} looks refused: {offense.strip()}")
 
 
 def _game_path(script: Path, value: str) -> Path:
