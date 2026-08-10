@@ -38,7 +38,7 @@ plain command
         )
     )
 
-    assert_that(script.game).is_equal_to(Path("games/fade.z1"))
+    assert_that(script.game).is_equal_to(tmp_path / "games/fade.z1")
     assert_that(script.seed).is_equal_to(99)
     assert_that(script.commands).is_equal_to(
         (
@@ -50,6 +50,25 @@ plain command
             "plain command",
         )
     )
+
+
+# A relative game path counts from the script's own directory, so a
+# script replays identically whatever directory it is run from; an
+# absolute path passes through.
+def test_game_paths_resolve_against_the_script(tmp_path: Path) -> None:
+    nested = tmp_path / "acceptance"
+    nested.mkdir()
+    script_path = nested / "session.accept"
+    script_path.write_text("! GAME=../games/zork.z3\nlook\n", encoding="utf-8")
+
+    script = AcceptanceScript.parse(script_path)
+
+    assert_that(script.game).is_equal_to(nested / ".." / "games" / "zork.z3")
+
+    absolute = tmp_path / "elsewhere.z3"
+    script_path.write_text(f"! GAME={absolute}\n", encoding="utf-8")
+
+    assert_that(AcceptanceScript.parse(script_path).game).is_equal_to(absolute)
 
 
 def test_the_seed_is_optional(tmp_path: Path) -> None:
@@ -93,3 +112,17 @@ def test_replay_types_then_signals_eof() -> None:
 
     with pytest.raises(EOFError):
         source()
+
+
+# With a handoff, exhaustion yields to live input instead of ending
+# -- and handed-off lines are not echoed, since a real terminal
+# shows typing itself.
+def test_replay_can_hand_off_to_live_input() -> None:
+    echoed: list[str] = []
+    live = iter(["north", "south"])
+    source = replay(["look"], echoed.append, exhausted=lambda: next(live))
+
+    assert_that(source()).is_equal_to("look")
+    assert_that(source()).is_equal_to("north")
+    assert_that(source()).is_equal_to("south")
+    assert_that(echoed).is_equal_to(["look\n"])

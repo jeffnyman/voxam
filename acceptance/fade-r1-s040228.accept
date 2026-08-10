@@ -1,5 +1,5 @@
 ! SEED=99
-! GAME=entharion/zcode-inform/fade-r1-s040228.z1
+! GAME=../entharion/zcode-inform/fade-r1-s040228.z1
 
 x me. x Justin. hit Justin. kiss Justin
 ask Justin about Justin. x curtains

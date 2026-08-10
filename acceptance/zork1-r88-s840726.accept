@@ -1,0 +1,35 @@
+! SEED=99
+! GAME=../entharion/zcode-infocom/zork1-r88-s840726.z3
+
+n. n. u
+get egg
+d. s. e
+open window
+w
+get all
+w
+open sack
+get lunch and garlic
+drop all
+get sword and lamp
+move rug
+open trapdoor
+open case
+e. u
+turn on lamp
+get all
+d. w
+drop knife
+d. s. e
+get painting
+w. n. n
+
+# The battle with the troll is random and you have
+# to keep fighting him until you knock him out.
+# Your last hit will kill him. The more damage you
+# take, the more time it takes to recover, which can
+# impact your inventory limit. So this seed makes
+# sure the troll is dispatched quickly.
+
+kill troll
+kill troll
