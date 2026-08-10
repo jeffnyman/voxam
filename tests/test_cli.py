@@ -186,6 +186,35 @@ def test_a_bad_script_is_reported(
     assert_that(capsys.readouterr().out).contains("names no game")
 
 
+# --replay catches up through the script, then live input takes over
+# at the prompt: here the script is empty, so the game's one read
+# comes straight from stdin.
+def test_replay_hands_off_to_the_terminal(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\n")
+
+    exit_code = main(["--replay", str(script)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("end of input")
+
+
+def test_accept_and_replay_conflict(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    script = accept_file(tmp_path, "! GAME=g.z3\n")
+
+    exit_code = main(["--accept", str(script), "--replay", str(script)])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("pick one")
+
+
 # nop decodes fine but has no handler yet, so the CLI surfaces the
 # frontier report and exits 1.
 def test_reports_the_implementation_frontier(

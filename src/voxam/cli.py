@@ -47,12 +47,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="replay an acceptance script instead of playing interactively",
     )
+    parser.add_argument(
+        "--replay",
+        type=Path,
+        help="replay an acceptance script, then keep playing at the prompt",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
 
-    if arguments.accept is not None:
-        return _replay_script(arguments.accept, arguments.story, arguments.seed)
+    if arguments.accept is not None and arguments.replay is not None:
+        print("voxam: --accept and --replay are one script apiece; pick one")
+
+        return EXIT_UNUSABLE
+
+    script_path = arguments.accept if arguments.accept is not None else arguments.replay
+
+    if script_path is not None:
+        return _replay_script(
+            script_path,
+            arguments.story,
+            arguments.seed,
+            handoff=arguments.replay is not None,
+        )
 
     if arguments.story is None:
         return EXIT_OK
@@ -61,9 +78,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _replay_script(
-    script_path: Path, story: Path | None, seed_override: int | None
+    script_path: Path,
+    story: Path | None,
+    seed_override: int | None,
+    *,
+    handoff: bool,
 ) -> int:
-    """Replay an acceptance script; --seed beats the script's seed."""
+    """Replay an acceptance script; --seed beats the script's seed.
+
+    With handoff, the exhausted script yields to the interactive
+    terminal instead of ending the session.
+    """
 
     if story is not None:
         print("voxam: an acceptance script names its own game; drop the story")
@@ -78,8 +103,11 @@ def _replay_script(
         return EXIT_UNUSABLE
 
     seed = seed_override if seed_override is not None else script.seed
+    source = replay(
+        script.commands, sys.stdout.write, exhausted=input if handoff else None
+    )
 
-    return _play(script.game, seed, replay(script.commands, sys.stdout.write))
+    return _play(script.game, seed, source)
 
 
 def _play(

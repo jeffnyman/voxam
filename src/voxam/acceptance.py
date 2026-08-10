@@ -81,7 +81,7 @@ class AcceptanceScript:
                 if key == "SEED":
                     seed = _seed(value, number)
                 elif key == "GAME":
-                    game = Path(value)
+                    game = _game_path(path, value)
                 else:
                     msg = f"line {number}: unknown directive {key}"
 
@@ -97,8 +97,12 @@ class AcceptanceScript:
         return cls(game=game, seed=seed, commands=tuple(commands))
 
 
-def replay(commands: Iterable[str], echo: Callable[[str], object]) -> Callable[[], str]:
-    """Build an input source typing the commands, then signalling EOF.
+def replay(
+    commands: Iterable[str],
+    echo: Callable[[str], object],
+    exhausted: Callable[[], str] | None = None,
+) -> Callable[[], str]:
+    """Build an input source typing the commands, then handing over.
 
     Args:
         commands: The lines to type, in order.
@@ -106,6 +110,11 @@ def replay(commands: Iterable[str], echo: Callable[[str], object]) -> Callable[[
             so the session transcript shows what was entered at each
             prompt. Its return value is ignored, so a raw stream
             write serves.
+        exhausted: Where input comes from once the script runs out.
+            None means the session ends there, as at end of input;
+            the interactive terminal instead makes the script a
+            catch-up that leaves the player at the prompt. Handed-off
+            lines are not echoed: a terminal shows typing itself.
 
     Returns:
         An input source for a Machine.
@@ -117,13 +126,29 @@ def replay(commands: Iterable[str], echo: Callable[[str], object]) -> Callable[[
         try:
             command = next(iterator)
         except StopIteration:
-            raise EOFError from None
+            if exhausted is None:
+                raise EOFError from None
+
+            return exhausted()
 
         echo(command + "\n")
 
         return command
 
     return _next_command
+
+
+def _game_path(script: Path, value: str) -> Path:
+    """Resolve GAME against the script's own directory.
+
+    A relative game path means "from where this script lives", so a
+    script replays identically whatever directory it is run from.
+    Absolute paths pass through. Forward slashes work everywhere.
+    """
+
+    game = Path(value)
+
+    return game if game.is_absolute() else script.parent / game
 
 
 def _directive(line: str, number: int) -> tuple[str, str]:

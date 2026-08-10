@@ -63,7 +63,9 @@ x me. x mailbox            # inline comments start at whitespace + #
 The rules, line by line:
 
 - `! KEY=VALUE` is a directive: `GAME` names the story file to run,
-  and `SEED` fixes the dice (a `--seed` argument overrides it).
+  and `SEED` fixes the dice (a `--seed` argument overrides it). A
+  relative `GAME` path counts from the script's own directory, and
+  forward slashes work on every platform.
 - `#` at the start of a line is a comment.
 - An inline comment begins at whitespace followed by `#`.
 - A leading `>` is optional and stripped; it also escapes the rare
@@ -72,6 +74,14 @@ The rules, line by line:
 - Anything else is typed into the game exactly as written.
 - When the commands run out, the session ends as if the player had
   reached end of input.
+
+While recording a longer session, `--replay` types the script and
+then leaves you at the prompt instead of ending, so a work-in-
+progress script catches you up to where you left off:
+
+```bash
+uv run voxam --replay acceptance/some-session.accept
+```
 
 ## Development
 
