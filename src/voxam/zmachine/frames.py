@@ -16,6 +16,16 @@ from voxam.zmachine.routine import Routine
 # Local variables are numbered 1 to 15 (§4.2.2).
 FIRST_LOCAL = 1
 
+# §6.3.3 defines a call's "usage" as 4 plus its local count, and sets
+# 1024 total usage as the classic floor a game may assume -- while
+# noting later games need much more. This ceiling is 64 times that
+# floor: far above any legitimate game, and low enough to turn
+# runaway recursion into a loud halt rather than a silent hang.
+# (Zork 1 release 15 has exactly such a bug, which crashed period
+# interpreters by exhausting their fixed stacks.)
+FRAME_USAGE = 4
+USAGE_LIMIT = 64 * 1024
+
 
 @dataclass
 class Frame:
@@ -57,6 +67,7 @@ class CallStack:
         self._frames = [
             Frame(return_address=0, store_variable=None, locals=[], argument_count=0)
         ]
+        self._usage = 0
 
     @property
     def depth(self) -> int:
@@ -89,9 +100,18 @@ class CallStack:
             return_address: Where execution resumes on return.
             store_variable: The caller's variable for the result, or
                 None when the opcode throws it away.
+
+        Raises:
+            ZMachineStackError: If the call would push total stack
+                usage past the ceiling (§6.3.3) -- the loud version
+                of the stack overflow a period interpreter would
+                crash with, and almost certainly runaway recursion.
         """
 
         initial = list(routine.initial_locals)
+
+        self._claim_usage(FRAME_USAGE + len(initial))
+
         initial[: len(arguments)] = arguments[: len(initial)]
 
         self._frames.append(
@@ -120,7 +140,10 @@ class CallStack:
 
             raise ZMachineStackError(msg)
 
-        return self._frames.pop()
+        frame = self._frames.pop()
+        self._usage -= FRAME_USAGE + len(frame.locals) + len(frame.stack)
+
+        return frame
 
     def local(self, number: int) -> int:
         """Read a local variable of the current routine (§4.2.2).
@@ -161,10 +184,12 @@ class CallStack:
             value: The word value to push.
 
         Raises:
-            ZMachineStackError: If the value does not fit in a word.
+            ZMachineStackError: If the value does not fit in a word,
+                or the push would pass the usage ceiling (§6.3.3).
         """
 
         self._require_word(value)
+        self._claim_usage(1)
 
         self._frames[-1].stack.append(value)
 
@@ -189,6 +214,8 @@ class CallStack:
             )
 
             raise ZMachineStackError(msg)
+
+        self._usage -= 1
 
         return stack.pop()
 
@@ -259,3 +286,21 @@ class CallStack:
             msg = f"value {value} does not fit in a word"
 
             raise ZMachineStackError(msg)
+
+    def _claim_usage(self, amount: int) -> None:
+        """Charge stack usage against the §6.3.3 ceiling.
+
+        A period interpreter's fixed stack would overflow and crash
+        here; halting loudly names the almost-certain culprit instead
+        of hanging forever on an unbounded one.
+        """
+
+        if self._usage + amount > USAGE_LIMIT:
+            msg = (
+                f"stack usage passed {USAGE_LIMIT} (§6.3.3 promises games "
+                f"far less): almost certainly runaway recursion"
+            )
+
+            raise ZMachineStackError(msg)
+
+        self._usage += amount
