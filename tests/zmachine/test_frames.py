@@ -86,6 +86,50 @@ def test_each_routine_sees_only_its_own_stack() -> None:
     assert_that(calls.pop()).is_equal_to(11)
 
 
+def keep_calling(calls: CallStack) -> None:
+    while True:
+        calls.call(routine_with((0,)), (), return_address=0, store_variable=0)
+
+
+def keep_pushing(calls: CallStack) -> None:
+    while True:
+        calls.push(1)
+
+
+# Runaway recursion must halt loudly, not hang: each call charges
+# 4 + locals against the §6.3.3 usage ceiling.
+def test_runaway_recursion_hits_the_usage_ceiling() -> None:
+    calls = CallStack()
+
+    with pytest.raises(ZMachineStackError, match="runaway recursion"):
+        keep_calling(calls)
+
+
+def test_runaway_pushing_hits_the_ceiling_too() -> None:
+    calls = CallStack()
+
+    with pytest.raises(ZMachineStackError, match="usage passed"):
+        keep_pushing(calls)
+
+
+# Returning reclaims a frame's whole usage -- locals and any stack
+# leftovers included -- so deep but balanced call patterns never
+# trouble the ceiling.
+def test_balanced_calls_reclaim_their_usage() -> None:
+    calls = CallStack()
+
+    for _ in range(30_000):
+        calls.call(routine_with((0, 0, 0)), (), return_address=0, store_variable=0)
+        calls.push(42)
+        calls.pop_frame()
+
+    for _ in range(70_000):
+        calls.push(7)
+        calls.pop()
+
+    assert_that(calls.depth).is_equal_to(1)
+
+
 # The in-place operations of §6.3.4 need a top to work on: an empty
 # stack refuses both the read and the overwrite.
 def test_in_place_access_needs_a_stack_top() -> None:

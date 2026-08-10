@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import ZMachineUnimplementedError
+from voxam.errors import ZMachineStackError, ZMachineUnimplementedError
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -348,6 +348,21 @@ def test_random_seeds_rolls_and_rerandomizes(
     assert_that(machine.memory.read_word(0x102)).is_equal_to(1)
     assert_that(machine.memory.read_word(0x104)).is_equal_to(2)
     assert_that(machine.memory.read_word(0x106)).is_equal_to(0)
+
+
+# A routine that calls itself forever: the §6.3.3 usage ceiling
+# turns what a 1980s interpreter crashed on -- and an unbounded
+# stack would hang on -- into a loud halt. Zork 1 release 15 has
+# exactly this bug in its room-contents lister.
+def test_infinite_recursion_halts_loudly(
+    code_machine: Callable[..., Machine],
+) -> None:
+    main = bytes([0xE0, 0x3F, *ROUTINE_A_PACKED, RESULT_VARIABLE, 0xBA])
+    calls_itself = bytes([0x00, 0xE0, 0x3F, *ROUTINE_A_PACKED, 0x00])
+    machine = code_machine(layout(main, calls_itself))
+
+    with pytest.raises(ZMachineStackError, match="runaway recursion"):
+        machine.run()
 
 
 # A session seed reaches the dice: rolling 100 under seeds 1137 and
