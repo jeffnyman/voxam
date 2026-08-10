@@ -71,6 +71,12 @@ The rules, line by line:
 - A leading `>` is optional and stripped; it also escapes the rare
   command that genuinely begins with `#` or `!`. A `>` alone types
   an empty line.
+- A line starting with three backticks is a fence: everything until
+  the next fence is skipped entirely, directives included. Text
+  after the backticks labels the fence, and an unclosed fence skips
+  the rest of the file -- handy while working out a section that a
+  seed change will invalidate, or to replay only the start of a
+  longer script.
 - Anything else is typed into the game exactly as written.
 - When the commands run out, the session ends as if the player had
   reached end of input.

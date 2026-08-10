@@ -10,6 +10,7 @@ The grammar, line by line:
     ! KEY=VALUE      a directive: GAME names the story file, SEED
                      makes the session reproducible
     # ...            a comment
+    ```              a fence: toggles skipping of whole sections
     > command        a typed command, transcript style
     command          the same, without the prompt sugar
     (blank)          skipped
@@ -17,6 +18,11 @@ The grammar, line by line:
 An inline comment starts at whitespace followed by #. A command that
 must genuinely begin with # or ! can be written with the > prefix,
 which is otherwise optional. A > alone types an empty line.
+
+Everything between a pair of fences is skipped raw, directives
+included; text after the backticks labels the fence and is ignored.
+An unclosed fence skips the rest of the file, which makes "replay
+only up to here" a one-line edit.
 """
 
 import re
@@ -30,6 +36,7 @@ from voxam.errors import AcceptanceError
 COMMENT = "#"
 DIRECTIVE = "!"
 PROMPT = ">"
+FENCE = "```"
 
 _INLINE_COMMENT = re.compile(r"\s+#")
 
@@ -67,12 +74,17 @@ class AcceptanceScript:
         game: Path | None = None
         seed: int | None = None
         commands: list[str] = []
+        fenced = False
         lines = path.read_text(encoding="utf-8").splitlines()
 
         for number, raw in enumerate(lines, start=1):
             line = raw.strip()
 
-            if not line or line.startswith(COMMENT):
+            if line.startswith(FENCE):
+                fenced = not fenced
+                continue
+
+            if fenced or not line or line.startswith(COMMENT):
                 continue
 
             if line.startswith(DIRECTIVE):
