@@ -8,6 +8,7 @@ from voxam.errors import (
     ZMachineStackError,
     ZMachineUnimplementedError,
 )
+from voxam.frontend import PlainFrontend
 from voxam.zmachine.header import PACKED_PC_VERSION
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
@@ -454,7 +455,7 @@ def test_insert_obj_and_remove_obj_reshape_the_tree() -> None:
 
 def test_print_obj_prints_the_short_name() -> None:
     output: list[str] = []
-    machine = Machine(scene(bytes([0x9A, 1, 0xBA])), output.append)
+    machine = Machine(scene(bytes([0x9A, 1, 0xBA])), PlainFrontend(output.append))
 
     machine.run()
 

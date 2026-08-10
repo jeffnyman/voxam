@@ -1,0 +1,190 @@
+from assertpy import assert_that
+
+from voxam.frontend import Status
+from voxam.zmachine.header import (
+    FLAGS_1,
+    NO_STATUS_LINE_BIT,
+    SCREEN_SPLIT_BIT,
+    TIME_STATUS_BIT,
+)
+from voxam.zmachine.machine import Machine
+from voxam.zmachine.story import Story
+
+TABLE_BASE = 0x400
+GLOBALS_BASE = 0x100
+DICTIONARY_BASE = 0x150
+TEXT_BUFFER = 0x200
+PARSE_BUFFER = 0x220
+
+# show_status, print "hi", quit: the status must not disturb the
+# ordinary print stream around it.
+SHOW_STATUS = bytes([0xBC, 0xB2, 0xB5, 0xC5, 0xBA])
+SREAD = bytes([0xE4, 0x0F, 0x02, 0x00, 0x02, 0x20, 0xBA])
+
+# 'h' and 'i' in one terminated word (§3.5.3).
+HI = bytes([0xB5, 0xC5])
+
+
+class Recorder:
+    """A frontend with a status line, remembering all it is shown."""
+
+    has_status_line = True
+    has_screen_splitting = False
+
+    def __init__(self) -> None:
+        self.events: list[str] = []
+        self.statuses: list[Status] = []
+        self.text: list[str] = []
+
+    def write(self, text: str) -> None:
+        self.events.append("write")
+        self.text.append(text)
+
+    def show_status(self, status: Status) -> None:
+        self.events.append("status")
+        self.statuses.append(status)
+
+
+class Splitter(Recorder):
+    """A frontend that can also split the screen (§8.6)."""
+
+    has_screen_splitting = True
+
+
+def status_story(code: bytes, version: int = 3, flags: int = 0) -> Story:
+    """Build a story whose object 1 is named "hi" (§12.3.1).
+
+    The object table sits at $400: 31 property defaults, one Version
+    3 entry, and its property table opening with the short name.
+    """
+
+    data = bytearray(2048)
+    data[0] = version
+    data[1] = flags
+    data[0x04:0x06] = (0x0700).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0A:0x0C] = TABLE_BASE.to_bytes(2, "big")
+    data[0x0C:0x0E] = GLOBALS_BASE.to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0700).to_bytes(2, "big")
+    data[0x40 : 0x40 + len(code)] = code
+
+    entry = TABLE_BASE + 62
+    properties = entry + 9
+    data[entry + 7 : entry + 9] = properties.to_bytes(2, "big")
+    data[properties] = len(HI) // 2
+    data[properties + 1 : properties + 1 + len(HI)] = HI
+
+    return Story(bytes(data))
+
+
+def plant_empty_dictionary(machine: Machine) -> None:
+    machine.memory.write_word(0x08, DICTIONARY_BASE)
+    machine.memory.write_byte(DICTIONARY_BASE, 0)
+    machine.memory.write_byte(DICTIONARY_BASE + 1, 7)
+    machine.memory.write_word(DICTIONARY_BASE + 2, 0)
+
+
+def machine_with(
+    frontend: Recorder,
+    *,
+    code: bytes = SHOW_STATUS,
+    flags: int = 0,
+    score: int = 0,
+    turns: int = 0,
+) -> Machine:
+    machine = Machine(status_story(code, 3, flags), frontend, input_source=lambda: "go")
+    machine.memory.write_word(GLOBALS_BASE, 1)
+    machine.memory.write_word(GLOBALS_BASE + 2, score & 0xFFFF)
+    machine.memory.write_word(GLOBALS_BASE + 4, turns)
+
+    return machine
+
+
+# The location is the short name of the object in the first global,
+# and the numbers are the second and third globals (§8.2.2, §8.2.3.1).
+# A negative score is legitimate and must survive signed (§8.2.3.1).
+def test_show_status_assembles_the_globals() -> None:
+    frontend = Recorder()
+    machine = machine_with(frontend, score=-3, turns=42)
+
+    machine.run()
+
+    assert_that(frontend.statuses).is_equal_to(
+        [Status(location="hi", score=-3, turns=42, time_game=False)]
+    )
+    assert_that(frontend.events).is_equal_to(["status", "write"])
+    assert_that(frontend.text).is_equal_to(["hi"])
+
+
+# With bit 1 of Flags 1 set, the same globals are a clock reading:
+# hours and minutes instead of score and turns (§8.2.3.2).
+def test_a_time_game_reports_a_clock() -> None:
+    frontend = Recorder()
+    machine = machine_with(frontend, flags=TIME_STATUS_BIT, score=23, turns=59)
+
+    machine.run()
+
+    assert_that(frontend.statuses).is_equal_to(
+        [Status(location="hi", score=23, turns=59, time_game=True)]
+    )
+
+
+# In Versions 1 to 3 the status line is redisplayed before the player
+# types (§8.2, §15 read): the status must reach the frontend before
+# the input source is drained.
+def test_sread_shows_the_status_before_reading() -> None:
+    frontend = Recorder()
+    events = frontend.events
+
+    def source() -> str:
+        events.append("input")
+
+        return ""
+
+    machine = Machine(status_story(SREAD), frontend, input_source=source)
+    machine.memory.write_word(GLOBALS_BASE, 1)
+    plant_empty_dictionary(machine)
+    machine.memory.write_byte(TEXT_BUFFER, 10)
+    machine.memory.write_byte(PARSE_BUFFER, 2)
+
+    machine.run()
+
+    assert_that(events).is_equal_to(["status", "input"])
+
+
+# From Version 4 there is no status line at all (§8.2): even a capable
+# frontend hears nothing from sread.
+def test_v4_reading_shows_no_status() -> None:
+    frontend = Recorder()
+    machine = Machine(status_story(SREAD, version=4), frontend, lambda: "")
+    plant_empty_dictionary(machine)
+    machine.memory.write_byte(TEXT_BUFFER, 10)
+    machine.memory.write_byte(PARSE_BUFFER, 2)
+
+    machine.run()
+
+    assert_that(frontend.statuses).is_empty()
+
+
+# Booting stamps the frontend's honest capabilities into a Version 3
+# header: bit 4 is set when there is NO status line, bit 5 when the
+# screen can split (§11.1).
+def test_boot_declares_capabilities_in_the_header() -> None:
+    lined = machine_with(Recorder())
+    flags = lined.memory.read_byte(FLAGS_1)
+
+    assert_that(flags & NO_STATUS_LINE_BIT).is_zero()
+    assert_that(flags & SCREEN_SPLIT_BIT).is_zero()
+
+    splitter = machine_with(Splitter())
+    flags = splitter.memory.read_byte(FLAGS_1)
+
+    assert_that(flags & SCREEN_SPLIT_BIT).is_not_zero()
+
+
+# Other versions' Flags 1 mean entirely different things (§11.1), so
+# the boot declaration leaves them untouched.
+def test_boot_leaves_other_versions_flags_alone() -> None:
+    machine = Machine(status_story(bytes([0xBA]), version=5), Recorder(), lambda: "")
+
+    assert_that(machine.memory.read_byte(FLAGS_1)).is_zero()

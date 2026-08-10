@@ -8,6 +8,17 @@ from voxam.errors import ZMachineHeaderError
 # bytes are the header (§1.1.1.1), so no story file can be shorter.
 HEADER_SIZE = 64
 
+# Flags 1 lives at $01. A Version 3 game sets bit 1 to ask for an
+# hours:minutes status line instead of score/turns (§8.2.3.2); the
+# interpreter answers with bit 4, set when it has no status line to
+# offer, and bit 5, set when it can split the screen (§11.1). Only
+# Version 3's Flags 1 defines these bits.
+FLAGS_1 = 0x01
+TIME_STATUS_BIT = 0x02
+NO_STATUS_LINE_BIT = 0x10
+SCREEN_SPLIT_BIT = 0x20
+STATUS_FLAGS_VERSION = 3
+
 # Field locations from the table in §11.1.
 RELEASE = 0x02
 HIGH_MEMORY_BASE = 0x04
@@ -249,6 +260,81 @@ class Header:
             raise ZMachineHeaderError(msg)
 
         return self._word(INITIAL_PC)
+
+    @property
+    def time_game(self) -> bool:
+        """Whether the status line shows the time of day (§8.2.3.2).
+
+        A Version 3 game claims a clock with bit 1 of Flags 1;
+        Versions 1 and 2 predate the bit and always show score and
+        turns.
+
+        Raises:
+            ZMachineHeaderError: From Version 4, where no status line
+                exists for the bit to describe (§8.2).
+        """
+
+        if self.version > STATUS_FLAGS_VERSION:
+            msg = (
+                f"version {self.version} has no status line for a type "
+                f"bit to describe (§8.2)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+        if self.version < STATUS_FLAGS_VERSION:
+            return False
+
+        return bool(self.data[FLAGS_1] & TIME_STATUS_BIT)
+
+    def declare_status_line(self, *, available: bool) -> None:
+        """Record whether the interpreter offers a status line (§11.1).
+
+        The header speaks in absences here: bit 4 of Flags 1 is set
+        when no status line is available.
+
+        Raises:
+            ZMachineHeaderError: Outside Version 3, the only version
+                whose Flags 1 defines the bit; or over the pristine
+                story bytes, which never change.
+        """
+
+        self._set_flag(NO_STATUS_LINE_BIT, on=not available)
+
+    def declare_screen_splitting(self, *, available: bool) -> None:
+        """Record whether the interpreter can split the screen (§11.1).
+
+        Raises:
+            ZMachineHeaderError: Outside Version 3, the only version
+                whose Flags 1 defines the bit; or over the pristine
+                story bytes, which never change.
+        """
+
+        self._set_flag(SCREEN_SPLIT_BIT, on=available)
+
+    def _set_flag(self, bit: int, *, on: bool) -> None:
+        """Write one interpreter capability bit into Flags 1 (§11.1)."""
+
+        if self.version != STATUS_FLAGS_VERSION:
+            msg = (
+                f"version {self.version} does not define this Flags 1 "
+                f"capability bit; only version 3 does (§11.1)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+        if not isinstance(self.data, bytearray):
+            msg = (
+                "the pristine story never changes; declare capabilities "
+                "on the working image (§11.1.2)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+        if on:
+            self.data[FLAGS_1] |= bit
+        else:
+            self.data[FLAGS_1] &= 0xFF ^ bit
 
     def verify(self) -> bool:
         """Report whether the computed and stored checksums agree (§15).
