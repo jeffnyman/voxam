@@ -1,5 +1,5 @@
-! SEED=92
-! GAME=../entharion/zcode-infocom/zork1-r88-s840726.z3
+! SEED=20
+! GAME=../entharion/zcode-infocom/zork1-r2-sAS000C.z1
 
 n. n. u
 get egg
@@ -33,7 +33,6 @@ w. n. n
 
 kill troll
 kill troll
-kill troll
 
 drop sword
 e. e. se. e
@@ -48,6 +47,7 @@ get sceptre
 put coffin and painting in case
 e. e. e. e. d. d. n
 wave sceptre
+
 e. e. n. n
 get shovel
 ne
@@ -76,10 +76,6 @@ give egg to thief
 kill thief
 kill thief
 kill thief
-kill thief
-kill thief
-kill thief
-kill thief
 
 get all but stiletto
 drop knife
@@ -87,7 +83,7 @@ d. nw. s. w. u. d. ne
 unlock grate
 drop key
 open grate
-u. s.
+u. s
 
 # This is the part where it was crucial to give
 # the egg to the thief because he opened it so
@@ -127,11 +123,28 @@ d. d
 ring bell
 get candles
 light match
-light candles
+
+# HISTORICAL FORK (1980 vs 1983). In Release 88 the parser infers
+# the instrument and "light candles" just works. Release 2's parser
+# demands it spelled out: a bare "light candles" asks "You must tell
+# me what to light them with" -- and the match burns out during the
+# question, so the ceremony silently fails and the spirits stay.
+#
+# Bonus discovery from probing this fork: Release 2 has a latent bug
+# of its own. Typing "light candles" while the candles are still on
+# the ground (the red-hot bell makes you drop them) runs a code path
+# that pops a stack value it never pushed. Infocom's 1980 flat-stack
+# interpreters silently read a caller's value and carried on; a
+# Standard-strict interpreter halts, per section 15's rule for pull.
+# Reproduce from this point with:
+#   x candles / x bell / ring bell / light match / light candles
+# So: take the candles first, and name the match.
+
+light candles with match
 read book
+
 s
 get skull
-
 n. u. n. n. n. w. w. s. u
 put skull and bar in case
 d. n. e. n. ne. e
