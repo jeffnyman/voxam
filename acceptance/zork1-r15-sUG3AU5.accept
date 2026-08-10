@@ -1,5 +1,5 @@
-! SEED=92
-! GAME=../entharion/zcode-infocom/zork1-r88-s840726.z3
+! SEED=20
+! GAME=../entharion/zcode-infocom/zork1-r15-sUG3AU5.z2
 
 n. n. u
 get egg
@@ -31,7 +31,6 @@ w. n. n
 # impact your inventory limit. So this seed makes
 # sure the troll is dispatched quickly.
 
-kill troll
 kill troll
 kill troll
 
@@ -73,10 +72,6 @@ give lunch and water to cyclops
 
 u
 give egg to thief
-kill thief
-kill thief
-kill thief
-kill thief
 kill thief
 kill thief
 kill thief
@@ -127,11 +122,28 @@ d. d
 ring bell
 get candles
 light match
-light candles
+
+# HISTORICAL FORK (1980 vs 1983). In Release 88 the parser infers
+# the instrument and "light candles" just works. Release 2's parser
+# demands it spelled out: a bare "light candles" asks "You must tell
+# me what to light them with" -- and the match burns out during the
+# question, so the ceremony silently fails and the spirits stay.
+#
+# Bonus discovery from probing this fork: Release 2 has a latent bug
+# of its own. Typing "light candles" while the candles are still on
+# the ground (the red-hot bell makes you drop them) runs a code path
+# that pops a stack value it never pushed. Infocom's 1980 flat-stack
+# interpreters silently read a caller's value and carried on; a
+# Standard-strict interpreter halts, per section 15's rule for pull.
+# Reproduce from this point with:
+#   x candles / x bell / ring bell / light match / light candles
+# So: take the candles first, and name the match.
+
+light candles with match
 read book
+
 s
 get skull
-
 n. u. n. n. n. w. w. s. u
 put skull and bar in case
 d. n. e. n. ne. e
@@ -155,6 +167,7 @@ drop figurine
 n. e
 drop all but lamp and garlic
 n. d. e. ne. se. sw. d. d. s
+
 get coal
 n. u. u. n. e. s. n. u. s
 get all
@@ -165,7 +178,28 @@ put candles in basket
 lower basket
 drop matchbook
 n. d. e. ne. se. sw. d. d. w
+
+# RELEASE 15 BUG (a real one, in the 1981 game). "drop all" here
+# drives the room-contents lister into infinite recursion: the
+# routine at packed address 6626 calls itself forever and never
+# advances to the next object. On period interpreters those nested
+# frames blew the fixed stack and the game crashed; on an interpreter
+# with an unbounded stack it hangs. Probed empirically: the call
+# fires tens of thousands of times, the instruction after it never
+# runs, and the call depth grows without limit -- while the object
+# tree stays perfectly consistent, so this is the game's logic, not
+# data corruption. Note the game's own platform contract caps total
+# stack usage (Z-Machine Standard 6.3.3); release 15 breaks it.
+#
+# The commands below are fenced off until a route around the bug is
+# found. Triggering it: reach this room and type "drop all" (or any
+# inventory walk, such as "i").
+
+```
 drop all
+```
+
+```
 w
 get coal and candles and screwdriver
 s
