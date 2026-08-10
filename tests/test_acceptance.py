@@ -71,6 +71,50 @@ def test_game_paths_resolve_against_the_script(tmp_path: Path) -> None:
     assert_that(AcceptanceScript.parse(script_path).game).is_equal_to(absolute)
 
 
+# Fenced sections are skipped raw -- commands, comments, and even
+# directives -- and text after the backticks labels the fence.
+def test_fenced_sections_are_skipped(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=g.z3
+before
+``` thief fight, redo under new seed
+w. n
+kill thief
+! SEED=1234
+```
+after
+""",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to(("before", "after"))
+    assert_that(script.seed).is_none()
+
+
+# An unclosed fence deliberately skips the rest of the file: one
+# edit turns a full script into "replay only up to here".
+def test_an_unclosed_fence_skips_the_rest(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(tmp_path, "! GAME=g.z3\nkeep\n```\ndropped\nalso dropped\n")
+    )
+
+    assert_that(script.commands).is_equal_to(("keep",))
+
+
+def test_fences_can_park_several_sections(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            "! GAME=g.z3\none\n```\nx\n```\ntwo\n```\ny\n```\nthree\n",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to(("one", "two", "three"))
+
+
 def test_the_seed_is_optional(tmp_path: Path) -> None:
     script = AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.z3\nlook\n"))
 
