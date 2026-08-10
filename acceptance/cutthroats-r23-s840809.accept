@@ -1,0 +1,368 @@
+! SEED=20
+! GAME=../entharion/zcode-infocom/cutthroats-r23-s840809.z3
+
+stand up
+
+# This is important in the game. If your watch runs down, you
+# can't keep track of the time.
+
+wind watch
+take note
+read note
+open dresser
+take room key
+open door
+out
+
+# The book stays behind, so the door must actually LOCK -- and
+# there is a trap here: after walking out, the door stands open,
+# and a bare "lock door" earns a polite "You should close it
+# first" that a replay marches straight past. (The statuette
+# lesson again: silent refusals.) With the door truly locked the
+# Weasel never lays a hand on the book -- he strolls right past
+# you on Wharf Road at 8:19 instead of burgling your room -- and,
+# crucially, he keeps his nine o'clock at The Shanty. Probed the
+# other timelines: leave the door open, or let the lock silently
+# fail, and he prowls the inn, drifts to the Back Alley, and Pete
+# announces "Weasel ain't gonna show." No Weasel, no deal, dead
+# game -- decided at this door, an hour before anyone tells you.
+
+close door
+lock door
+
+d. out. e. e. e. e. s
+sit down
+order breakfast
+wait
+order water
+drink water
+eat breakfast
+
+# The Weasel slinks in while breakfast settles -- "At Pete's
+# request, the Weasel joins you" -- and Johnny whispers about the
+# sunken treasure: the deal is on. If this scene ever plays as
+# "Weasel ain't gonna show" instead, the door lock upstream
+# silently failed; see above.
+
+yes
+stand up
+exit
+w. w. w. w. sw. sw. nw
+
+# Johnny Red arrives with this seed.
+
+wait. wait. wait. wait
+
+# The Weasel arrives with this seed.
+
+wait. wait
+
+# Pete the Rat arrives with this seed.
+
+wait. wait
+
+# You  can only recover treasures from two of the ships,
+# the Sao Vera and the S.S. Leviathan. The other wrecks
+# are only red herrings, and you don't have to bother
+# with them. Which of the two real wrecks you will dive
+# for depends on the item you are shown by Johnny Red.
+# If he shows you the gold coin, it's the Sao Vera; if
+# it's the dinner plate, then the ship is the Leviathan.
+# This seed shows the dinner plate.
+
+wait
+
+# Johnny gives instructions. You have to get the minutes
+# of longitude and latitude of the wreck, $500, and then
+# be at Point Lookout at 10:45.
+
+wait
+wait
+
+se. ne. ne. s. u. s
+unlock door
+open door
+s
+take passbook
+take all from closet
+
+# Since we're diving for the Leviathan, you need to get the
+# scuba gear from the closet. (The scuba gear not needed for
+# the Sao Vera).
+
+n
+close door
+lock door
+d. n. e. e. e. e. se. sw
+
+# You don't want McGinty to see you lugging your gear around.
+
+drop suit, tank, mask, and flippers
+se. s. sw. n
+withdraw $500
+s. ne. se
+
+# The walkthroughs say "return to Ocean Road, where you go
+# southeast to Point Lookout" -- and that last climb is the whole
+# ballgame. The south end of Ocean Road is NOT Point Lookout; the
+# lookout is up the small cliff path to its southeast. Stop one
+# room short and everything downstream unravels on schedule:
+# McGinty strolls by, sees the passbook lying in the open road,
+# and pockets it with a long look at you -- while Johnny climbs
+# to the empty lookout at 10:36, waits twenty minutes, and gives
+# up. Up HERE the passbook is out of sight (McGinty prowls the
+# road below the whole time, probed and confirmed), and Johnny
+# finds you at his appointed hour.
+
+drop passbook
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+# "Well? Did you bring the money?" Show him, and Johnny levels
+# with you: Hevlin gave him the dinner plate, and the boat hangs
+# on one question -- "Is the treasure more than 200 feet deep?"
+# The answer is NOT in the game. Reading the book of shipwrecks
+# yields only "This book is included in your Cutthroats package":
+# the wreck table lived in the printed booklet in the box, 1984
+# copy protection, which is why every walkthrough simply knows
+# it. The Leviathan lies shallow -- hence our scuba gear -- so
+# the answer is no.
+
+show money to johnny
+no
+nw. n. n. nw. w. s
+
+# Wait until McGinty leaves.
+
+wait
+wait
+wait
+
+# One more beat: the salesman spends this turn busy with JOHNNY,
+# who hands over his list, pays his share, and sets the whole
+# clock in one speech -- "We'll leave on the Night Wind at high
+# tide... Deliver the stuff half an hour before high tide...
+# Better be on board then to watch the stuff." Pay before that
+# plays out and the $69 goes nowhere; then every purchase below
+# bounces off "I can't sell you anything until you pay the $69
+# of Johnny Red's," nothing is ever delivered, and hours later
+# Johnny scrubs the expedition on the dock with "Outfitters
+# never delivered the stuff." Five polite refusals, one dead
+# game.
+
+wait
+
+pay $69
+buy flashlight
+buy shark repellent.
+
+# If you're diving for the Sao Vera, that's all you need.
+# However, if you are diving for the Leviathan, you need
+# more things.
+
+buy C battery
+buy putty
+buy electromagnet
+rent small air compresser
+
+n. e. se. s. s. sw. w. w
+
+# Soon McGinty will appear, and a short while later, Weasel.
+# The two men will go off to a corner and talk. Then Weasel
+# will hand something to McGinty, and board the Ferry.
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+# Three more beats finish the show: "The Weasel hands something
+# to McGinty and then boards the ferry," the ferry pulls away,
+# and McGinty strolls off east -- which is the real gift, because
+# he walks the Ocean Road ahead of us and turns north just as we
+# duck southwest into the alley. The gear gets collected with his
+# back turned, which is exactly how "don't let McGinty see you
+# lugging your gear around" prefers it.
+
+wait
+wait
+wait
+
+e. e. ne. n. nw
+take all
+w. w
+
+# Standing behind the vacant lot, which is next door to McGinty's.
+# Wait here, and McGinty will come by, heading from East to West.
+# Continue waiting, and he will soon re-appear, going from West to
+# East (he is walking along Wharf Road, of course).
+
+wait
+wait
+wait
+wait
+
+w
+open window
+enter window
+take envelope
+read envelope
+s. e. n. n. n
+
+# Enter whichever ship has been rented for the dive, which for this
+# seed is the Night Wind.
+
+w. n. d
+
+# You don't want Weasel to know you have it (he'll kill you), and if
+# you show it to Johnny now, you'll cancel the expedition.
+
+hide envelope under bed
+
+# "Better be on board to watch the stuff": twelve minutes in the
+# bunks covers it. The delivery boy trundles his cart through the
+# boat, the Weasel slips below, and Johnny takes up station in
+# the Captain's Cabin -- aft of here, past the galley (Pete's
+# stew, and water) and the lounge.
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+# Aft to the cabin with the numbers. The coordinates are copy
+# protection like the depth was: they come from the book of
+# shipwrecks in the game package, 25 and 25 for the Leviathan.
+# The syntax that works is talking to Johnny directly.
+
+s. s. s
+johnny, the latitude is 25
+johnny, the longitude is 25
+
+# Back to the bunks. "We'll be leaving shortly. Get some sleep."
+# The Night Wind sails at high tide, the bunk claims you on the
+# next turn, and Johnny shakes you awake at the dive site. Mind
+# the stomach on arrival: the hunger and thirst daemons are
+# shouting by then, and Pete's stew and the galley water are one
+# room aft. Eat and drink before suiting up.
+
+n. n. n
+wait
+wait
+
+stand up
+put on wet suit
+put on flippers
+take mask
+take tank
+
+fore
+
+take battery
+take drill
+open drill
+put battery in drill
+close drill
+
+get all except compressor
+fill tank with compressor
+
+aft
+get envelope
+aft
+eat stew
+drink water
+aft. aft
+
+show johnny the envelope
+n. u
+put on tank
+put on mask
+
+# Time for the dive!
+
+dive
+open shark repellent
+turn on flashlight
+d. d. d. d. aft
+read sign
+open door
+aft
+touch magnet to mine
+turn on magnet
+drop the magnet
+u
+remove tank
+aft. aft
+turn on the drill
+drill the lock
+
+# You must do the next thing right away!
+
+turn off drill
+
+# The walkthroughs' urgency is real, but its reason is hidden:
+# the case took water THE INSTANT the safe popped -- it rode in
+# on that rush of escaping air, before any hand touched it -- and
+# no sealing order beats it there (probed: even a pre-squeezed
+# glob applied the very next turn finds "some water" already
+# inside). Worse, "empty case" is booby-trapped -- "In the
+# process of emptying the case, you manage to get the stamps
+# wet" -- and any water left aboard sloshes on the climb out and
+# ruins them anyway. So: a race, then a repair. Run the case to
+# the air pocket before the rising water tops the shelf -- six
+# turns, exactly -- donning the tank mid-sprint in the dining
+# room, because the floor hole refuses a hand-carried tank and
+# the narrow passages refuse a worn one. And never, ever DROP
+# the tank: it takes the airhose with it, and you with the hose.
+
+take case
+fore. fore
+put on tank
+d
+fore
+u
+
+# Sanctuary: a passenger compartment still full of air, kept dry
+# by its closed aft door. Now the repair: drill a drain hole in
+# the case -- "The water pours out of the hole" -- with what
+# proves to be the drill's dying breath, the battery sputtering
+# out on this very act. Then one glob of putty seals crack and
+# drain hole together. The stamps never feel a drop.
+
+turn on drill
+drill case
+turn off drill
+open tube
+squeeze tube
+put glob on crack
+
+# Out and up: through the storage locker, up past the sleeping
+# quarters, and two hundred feet of blue back to the Night Wind.
+# "Good job, matey!" Two hundred fifty points of a possible two
+# hundred fifty, the rank of a rich diver, and a thought for
+# Hevlin.
+
+d
+fore
+u
+u
+u. u. u. u
