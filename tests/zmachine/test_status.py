@@ -26,10 +26,20 @@ HI = bytes([0xB5, 0xC5])
 
 
 class Recorder:
-    """A frontend with a status line, remembering all it is shown."""
+    """A frontend with a status line, remembering all it is shown.
+
+    Its claims are deliberately distinctive, so the boot-time header
+    stamp can be traced back to the frontend that made them.
+    """
 
     has_status_line = True
     has_screen_splitting = False
+    has_bold = True
+    has_italic = False
+    has_fixed_pitch = True
+    has_timed_input = True
+    screen_lines = 24
+    screen_columns = 64
 
     def __init__(self) -> None:
         self.events: list[str] = []
@@ -182,9 +192,23 @@ def test_boot_declares_capabilities_in_the_header() -> None:
     assert_that(flags & SCREEN_SPLIT_BIT).is_not_zero()
 
 
-# Other versions' Flags 1 mean entirely different things (§11.1), so
-# the boot declaration leaves them untouched.
-def test_boot_leaves_other_versions_flags_alone() -> None:
+# From Version 4 the boot stamp changes vocabulary: interpreter
+# identity, screen size, and typography, all traceable to the
+# frontend's distinctive claims (§11.1, §11.1.3, §8.4).
+def test_v4_boot_introduces_the_interpreter() -> None:
     machine = Machine(status_story(bytes([0xBA]), version=5), Recorder(), lambda: "")
 
+    assert_that(machine.memory.read_byte(0x1E)).is_equal_to(6)
+    assert_that(machine.memory.read_byte(0x1F)).is_equal_to(ord("V"))
+    assert_that(machine.memory.read_byte(0x20)).is_equal_to(24)
+    assert_that(machine.memory.read_byte(0x21)).is_equal_to(64)
+    assert_that(machine.memory.read_byte(FLAGS_1)).is_equal_to(0x94)
+
+
+# Versions 1 and 2 predate every capability bit: their headers boot
+# untouched.
+def test_early_boots_leave_the_header_alone() -> None:
+    machine = Machine(status_story(bytes([0xBA]), version=1), Recorder(), lambda: "")
+
     assert_that(machine.memory.read_byte(FLAGS_1)).is_zero()
+    assert_that(machine.memory.read_byte(0x20)).is_zero()

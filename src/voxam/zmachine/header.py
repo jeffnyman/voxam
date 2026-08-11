@@ -19,6 +19,28 @@ NO_STATUS_LINE_BIT = 0x10
 SCREEN_SPLIT_BIT = 0x20
 STATUS_FLAGS_VERSION = 3
 
+# From Version 4, Flags 1 changes meaning entirely: now it carries
+# the typography and timing the interpreter can offer -- boldface
+# (bit 2), italic (bit 3), fixed-space style (bit 4), and timed
+# keyboard input (bit 7) (§11.1).
+BOLD_BIT = 0x04
+ITALIC_BIT = 0x08
+FIXED_PITCH_BIT = 0x10
+TIMED_INPUT_BIT = 0x80
+
+# From Version 4 the interpreter also introduces itself: a platform
+# number at $1e with a revision letter at $1f (§11.1.3), and the
+# screen size in lines at $20 and characters at $21, where 255
+# lines means "infinite" -- the right claim for an unpaged stream
+# (§8.4, §11.1). Games consult these before drawing: Trinity quits
+# outright on a zero-width screen.
+INTERPRETER_NUMBER = 0x1E
+INTERPRETER_VERSION = 0x1F
+SCREEN_LINES = 0x20
+SCREEN_COLUMNS = 0x21
+SCREEN_FIELDS_VERSION = 4
+INFINITE_LINES = 255
+
 # Field locations from the table in §11.1.
 RELEASE = 0x02
 HIGH_MEMORY_BASE = 0x04
@@ -299,6 +321,7 @@ class Header:
                 story bytes, which never change.
         """
 
+        self._require_version_3()
         self._set_flag(NO_STATUS_LINE_BIT, on=not available)
 
     def declare_screen_splitting(self, *, available: bool) -> None:
@@ -310,10 +333,11 @@ class Header:
                 story bytes, which never change.
         """
 
+        self._require_version_3()
         self._set_flag(SCREEN_SPLIT_BIT, on=available)
 
-    def _set_flag(self, bit: int, *, on: bool) -> None:
-        """Write one interpreter capability bit into Flags 1 (§11.1)."""
+    def _require_version_3(self) -> None:
+        """Refuse the Version 3 capability bits elsewhere (§11.1)."""
 
         if self.version != STATUS_FLAGS_VERSION:
             msg = (
@@ -323,6 +347,85 @@ class Header:
 
             raise ZMachineHeaderError(msg)
 
+    def introduce_interpreter(self, number: int, revision: int) -> None:
+        """Record which interpreter is running the story (§11.1.3).
+
+        Args:
+            number: The platform number the interpreter claims.
+            revision: The ASCII code of its revision letter.
+
+        Raises:
+            ZMachineHeaderError: Before Version 4, where the fields
+                do not exist; or over the pristine story bytes.
+        """
+
+        self._require_screen_fields()
+
+        live = self._live()
+        live[INTERPRETER_NUMBER] = number
+        live[INTERPRETER_VERSION] = revision
+
+    def declare_screen_size(self, *, lines: int, columns: int) -> None:
+        """Record the screen size in lines and characters (§8.4).
+
+        255 lines means "infinite": the claim of a stream that never
+        pages.
+
+        Raises:
+            ZMachineHeaderError: Before Version 4, where the fields
+                do not exist; or over the pristine story bytes.
+        """
+
+        self._require_screen_fields()
+
+        live = self._live()
+        live[SCREEN_LINES] = lines
+        live[SCREEN_COLUMNS] = columns
+
+    def declare_presentation(
+        self, *, bold: bool, italic: bool, fixed_pitch: bool, timed_input: bool
+    ) -> None:
+        """Record the typography and timing on offer (§11.1).
+
+        From Version 4 the Flags 1 capability bits mean boldface,
+        italic, fixed-space style, and timed keyboard input.
+
+        Raises:
+            ZMachineHeaderError: Before Version 4, whose Flags 1
+                means other things; or over the pristine story bytes.
+        """
+
+        self._require_screen_fields()
+
+        self._set_flag(BOLD_BIT, on=bold)
+        self._set_flag(ITALIC_BIT, on=italic)
+        self._set_flag(FIXED_PITCH_BIT, on=fixed_pitch)
+        self._set_flag(TIMED_INPUT_BIT, on=timed_input)
+
+    def _require_screen_fields(self) -> None:
+        """Refuse the interpreter fields before Version 4 (§11.1)."""
+
+        if self.version < SCREEN_FIELDS_VERSION:
+            msg = (
+                f"version {self.version} has no interpreter fields to "
+                f"fill; they begin at version 4 (§11.1)"
+            )
+
+            raise ZMachineHeaderError(msg)
+
+    def _set_flag(self, bit: int, *, on: bool) -> None:
+        """Write one interpreter capability bit into Flags 1 (§11.1)."""
+
+        live = self._live()
+
+        if on:
+            live[FLAGS_1] |= bit
+        else:
+            live[FLAGS_1] &= 0xFF ^ bit
+
+    def _live(self) -> bytearray:
+        """The working image's bytes, refusing the pristine story."""
+
         if not isinstance(self.data, bytearray):
             msg = (
                 "the pristine story never changes; declare capabilities "
@@ -331,10 +434,7 @@ class Header:
 
             raise ZMachineHeaderError(msg)
 
-        if on:
-            self.data[FLAGS_1] |= bit
-        else:
-            self.data[FLAGS_1] &= 0xFF ^ bit
+        return self.data
 
     def verify(self) -> bool:
         """Report whether the computed and stored checksums agree (§15).

@@ -209,6 +209,53 @@ def test_declarations_refuse_other_versions() -> None:
         header.declare_screen_splitting(available=True)
 
 
+# From Version 4 the interpreter introduces itself: platform and
+# revision at $1e/$1f, screen size at $20/$21, and Flags 1 reborn as
+# typography and timing capabilities (§11.1, §11.1.3, §8.4).
+def test_version_4_headers_take_the_interpreter_identity() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    header.introduce_interpreter(6, ord("V"))
+    header.declare_screen_size(lines=255, columns=80)
+    header.declare_presentation(
+        bold=False, italic=False, fixed_pitch=True, timed_input=False
+    )
+
+    assert_that(header.data[0x1E]).is_equal_to(6)
+    assert_that(header.data[0x1F]).is_equal_to(ord("V"))
+    assert_that(header.data[0x20]).is_equal_to(255)
+    assert_that(header.data[0x21]).is_equal_to(80)
+    assert_that(header.data[1]).is_equal_to(0x10)
+
+
+# The presentation bits are written both ways, and bits that mean
+# other things -- colours, pictures -- are left exactly as found.
+def test_presentation_bits_spare_their_neighbours() -> None:
+    data = bytearray(synthetic_header(version=5))
+    data[1] = 0xFF
+    header = Header(data)
+
+    header.declare_presentation(
+        bold=False, italic=False, fixed_pitch=False, timed_input=False
+    )
+
+    assert_that(header.data[1]).is_equal_to(0xFF ^ 0x9C)
+
+
+def test_interpreter_fields_begin_at_version_4() -> None:
+    header = Header(bytearray(synthetic_header(version=3)))
+
+    with pytest.raises(ZMachineHeaderError, match="begin at version 4"):
+        header.declare_screen_size(lines=255, columns=80)
+
+
+def test_interpreter_fields_refuse_the_pristine_story() -> None:
+    header = Header(synthetic_header(version=4))
+
+    with pytest.raises(ZMachineHeaderError, match="pristine"):
+        header.introduce_interpreter(6, ord("V"))
+
+
 # Offsets here are written out raw, straight from the table in §11.1,
 # so this test cannot inherit a mistake in the module's constants.
 def test_reads_field_values_from_spec_offsets() -> None:
