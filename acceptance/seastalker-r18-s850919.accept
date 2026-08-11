@@ -1,0 +1,202 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/seastalker-r18-s850919.z3
+
+Jeff
+Nyman
+yes
+
+turn on videophone
+get microphone
+turn on microphone
+tune videophone
+ask bly about problem
+bye
+drop microphone
+e. e
+look at panel
+close breaker
+w. s. s. w
+get capsule
+n. s
+
+ask tip for magazine
+open magazine
+read article
+close hatch
+fill tank
+put capsule in reactor
+close reactor
+turn on reactor
+
+# The saboteur's work is already aboard: the voltage regulator has
+# been tampered with, and at fast throttle the operational
+# computers' lasers over-charge until the engine dies. Nothing
+# warns you here -- push the circuit tester's button in dock and
+# it reads "All systems A-O-K," because the tester cannot see
+# tampering until it overloads. Probed the at-sea alternative to
+# death: the first crawl-space repair attempt out there ALWAYS
+# gashes your arm on a sharp corner (scripted, not luck -- four
+# shifted timelines, four gashes), the wound blocks the repair
+# entirely, Tip refuses to crawl in your place ("You belong in
+# there, not I!"), and only Doc at the Aquadome can treat it.
+# In dock, before the engine even starts, the same repair is one
+# word: "Fixed."
+
+ask tip for tool
+open access panel with tool
+enter crawl space
+fix regulator with tool
+exit crawl space
+close access panel
+
+turn on engine
+open gate
+open throttle
+e
+
+look at sonar
+d. e. e. e. e
+look at sonar
+
+ne. ne. ne. e. e
+look at sonar
+
+e. e. e. ne
+look at sonar
+
+ne. ne. ne. ne
+look at sonar
+
+ne. ne. ne. ne
+look at sonar
+
+n. n. n. n. n. n
+look at sonar
+
+ne. ne. ne. ne. ne
+look at sonar
+
+# A note on that sonarscope: it renders as inline ASCII because
+# Voxam's plain frontend declares "no screen splitting" in the
+# header, and Seastalker -- well-behaved junior that it is --
+# checks the bit and degrades gracefully instead of calling
+# split_window. The honest header working as designed (§11.1);
+# the terminal frontend will someday put this display in a real
+# upper window.
+#
+# The yellow light is a freighter entering the harbor, keel at 10
+# meters, closing at a square per turn -- and we are headed
+# straight at it. The submarine answer: go under. Fifteen meters
+# clears the keel with only an orange depth grumble (twenty
+# scrapes the shoaling bay floor and turns the warning red), and
+# four more squares northeast pass through the opening in the sea
+# wall. Open sea, and the first five points.
+
+dive to 15 meters
+ne
+ne
+ne
+ne
+
+# With the regulator mended in dock, the crisis the walkthroughs
+# stumble through never happens: no rising temperature gauge, no
+# red-zone shriek, no wounded crawl-space heroics. The autopilot
+# quotes sixty turns to the Aquadome, and fast throttle triples
+# the pace without a single degree of complaint.
+
+turn on autopilot
+set throttle to fast
+wait
+y
+wait
+y
+n
+get phone
+wait
+dock
+wait
+open hatch
+exit
+
+n. n. n
+open air supply system with tool
+get relay
+screw relay into space
+se. s
+get bazooka
+n. e
+
+wait
+yes
+no
+ask about evidence
+open box with tool
+look in box
+w
+get wrench
+open office door
+wait
+no
+w
+yes
+yes
+yes
+yes
+yes
+w
+
+wait
+wait
+yes
+no
+give magazine to doc
+yes
+wait
+no
+put dart on claw
+s
+put bazooka on claw
+yes
+no
+ask tip about grid
+yes
+yes
+wait
+no
+s. s
+
+get syringe
+open hatch
+out
+n. n
+show syringe to doc
+wait
+no
+s. s
+arrest bill
+turn off electricity
+turn on electricity
+w. w. s. s. s
+fill tank
+wait
+no
+turn on engine
+open gate
+open throttle
+s
+
+e. e. se
+wait
+wait
+yes
+no
+yes
+no
+yes
+
+e. e
+wait
+aim bazooka at pod
+shoot bazooka
+yes
+quit

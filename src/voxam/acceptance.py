@@ -168,21 +168,27 @@ def replay(
 # how a statuette stays in its chest and a Weasel skips his meeting
 # -- so the watch turns each into a loud warning instead. Curated
 # from the Infocom house parser; matching is case-insensitive, and
-# the list grows by experience.
-REFUSALS = (
-    "do you mean",
+# the list grows by experience. A refusal LEADS its line: prose that
+# merely contains the words -- Seastalker's standing "Okay, Jeff,
+# what do you want to do now?" prompt -- stays unremarked.
+REFUSAL_OPENINGS = (
     "I beg your pardon",
     "I don't know the word",
     "It's not clear what you're referring to",
     "That sentence isn't one I recognize",
     "There was no verb in that sentence",
     "What do you want",
+    "You can't do that",
     "You can't go that way",
     "You can't see any",
     "You must use a verb",
     "You should close it first",
     "You should open it first",
 )
+
+# Disambiguation questions bury their tell mid-line -- "Which door
+# do you mean..." -- so this family is sought anywhere in the line.
+REFUSAL_TELLS = ("do you mean",)
 
 
 def refusal_in(response: str) -> str | None:
@@ -192,20 +198,19 @@ def refusal_in(response: str) -> str | None:
         response: Everything a story printed in reply to one command.
 
     Returns:
-        The offending line of the response, or None when the response
-        contains no known refusal.
+        The offending line of the response, stripped, or None when
+        the response contains no known refusal.
     """
 
-    lowered = response.lower()
+    for line in response.splitlines():
+        candidate = line.strip()
+        lowered = candidate.lower()
 
-    for phrase in REFUSALS:
-        found = lowered.find(phrase.lower())
+        opens = any(lowered.startswith(p.lower()) for p in REFUSAL_OPENINGS)
+        tells = any(t in lowered for t in REFUSAL_TELLS)
 
-        if found >= 0:
-            start = response.rfind("\n", 0, found) + 1
-            end = response.find("\n", found)
-
-            return response[start : end if end >= 0 else len(response)]
+        if opens or tells:
+            return candidate
 
     return None
 
