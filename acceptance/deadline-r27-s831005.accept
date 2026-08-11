@@ -1,0 +1,166 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/deadline-r27-s831005.z3
+
+n
+open door
+n. n. e. u. u. w. w. w. w. n
+take cup, calendar, pad, and pencil
+rub pencil on pad
+turn page of calendar
+examine rug
+examine mud
+open balcony door
+n
+examine railing
+
+s. s. e. e. e. e. d. d. w. s
+open door
+s. e. e. se
+examine ladder
+
+n. s. n. n. n. e. u. u. s. s
+open cabinet
+examine loblo
+
+n. n. d. d. w. s. s
+
+wait until 11:30
+y
+y
+y
+y
+
+# You will be handed an evelope.
+
+y
+y
+y
+y
+
+e. e. nw. w
+
+# You have to wait until you see McNabb. With this seed,
+# he should be there already.
+
+mcnabb, hello
+ask mcnabb about roses
+mcnabb, show me the holes
+s
+examine the holes
+examine the ground
+dig around holes
+dig around holes
+analyze the porcelain for loblo
+
+n. w. s. n. n. n. w
+
+# Now you wait for the will to be read.
+
+wait
+wait
+y
+wait
+y
+y
+wait
+y
+n
+
+show george the calendar
+
+# Now you have to follow George.
+
+e. e. u. u. w. w. w. s
+n. w. n. n
+
+wait
+y
+look
+
+# This is where George enters the hidden area.
+
+look
+
+# Now the hidden area should have swung shut.
+
+# NOT a game bug -- the tightest timing window in the corpus so
+# far, and the five-minute wait was fatal generosity. Traced in
+# the object tree: George slips into the closet at 12:18, dials
+# the safe open, reads the new will, relocks everything, and is
+# at the top of the stairs by 12:27 -- and the safe has no
+# combination you will ever learn, so what locks then locks for
+# good. The walkthroughs' "take will / look in safe" assume you
+# burst in DURING his visit. To the minute: south to the library,
+# examine the bookshelf (this is what reveals the button --
+# pressing blind finds nothing), wait exactly two minutes while
+# George finishes dialing -- press during the dialing and he
+# panics, bolts, and the safe stays shut forever -- then press.
+# The shelf swings out on George mid-triumph: he crumples,
+# sobbing, clutching the new will beside the wide-open safe, and
+# the button-press itself carries you into the closet.
+
+s
+examine the bookshelf
+wait
+wait
+press the button
+
+# The will comes off the sobbing heir ("disowning George and
+# giving his entire estate to his wife"). The safe needs a "look
+# in" before its contents come into reach -- and taking the stack
+# overloads your arms, fumbling something to the floor every
+# time, so the cup gets parked here first (the closet keeps it if
+# it is ever wanted again).
+
+take new will
+look in safe
+drop cup
+take stack
+read papers
+
+w. s. e. e. e. e. d. d. w. w
+baxter, hello
+show lab report to dunbar
+show lab report to baxter
+accuse dunbar
+e
+
+wait
+wait
+n
+look
+s. s
+
+pick up ticket
+
+# You will likely drop something as a result of this, which is silly.
+# In this seed, you drop the new will.
+
+pick up ticket
+read ticket
+show ticket to dunbar
+
+e. e. se
+
+wait
+y
+y
+
+wait
+y
+y
+y
+
+wait
+y
+y
+y
+
+# Now Baxter should show up.
+
+wait
+n
+
+show ticket to baxter
+arrest baxter and dunbar
+y
