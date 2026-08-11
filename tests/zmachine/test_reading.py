@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import ZMachineUnimplementedError
+from voxam.errors import ZMachineInstructionError, ZMachineUnimplementedError
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
 
@@ -163,6 +163,71 @@ def test_show_status_stays_quiet_without_a_status_line(
     machine.run()
 
     assert_that(machine.running).is_false()
+
+
+# read_char device 1, storing to G0, then quit.
+READ_CHAR = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+RESULT = 0x100
+
+
+# A keystroke is the first character of the next input line: the
+# line-based seam's honest rendering of "press any key" (§15
+# read_char).
+def test_read_char_stores_the_first_characters_code(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(READ_CHAR, version=4, input_source=lambda: "y")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(ord("y"))
+
+
+# A bare return is the return key itself, ZSCII 13 -- which is also
+# how an acceptance script's lone > presses a key.
+def test_an_empty_line_is_the_return_key(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(READ_CHAR, version=4, input_source=lambda: "")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(13)
+
+
+# The first operand is always 1, the keyboard: no other input device
+# was ever defined (§15 read_char).
+def test_read_char_refuses_unknown_devices(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xF6, 0x7F, 0x02, 0x10, 0xBA])
+    machine = code_machine(program, version=4, input_source=lambda: "y")
+
+    with pytest.raises(ZMachineInstructionError, match="only device"):
+        machine.run()
+
+
+# A nonzero time and routine pair would need timed input.
+def test_timed_read_char_is_a_reported_frontier(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x02, 0x10, 0xBA])
+    machine = code_machine(timed, version=4, input_source=lambda: "y")
+
+    with pytest.raises(ZMachineUnimplementedError, match="timed read_char"):
+        machine.run()
+
+
+# A zero time and routine are the same as their absence.
+def test_an_untimed_read_char_pair_is_not_timed(
+    code_machine: Callable[..., Machine],
+) -> None:
+    untimed = bytes([0xF6, 0x57, 0x01, 0x00, 0x00, 0x10, 0xBA])
+    machine = code_machine(untimed, version=4, input_source=lambda: " ")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(ord(" "))
 
 
 # Two reads from one source: a game loop's shape in miniature.
