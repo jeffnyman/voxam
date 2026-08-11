@@ -53,6 +53,43 @@ def test_a_call_delivers_the_routines_result(
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
 
 
+# call_vs2 is an ordinary call grown a second type byte for up to
+# seven arguments (§4.4.3.1). Five arguments force the decoder
+# through that byte, and returning the fifth local proves the whole
+# chain delivered. Version 4: the packed scale is 4, so the routine
+# at $60 is packed $18, and routine headers still carry initial
+# values (§5.2.1).
+def test_call_vs2_carries_extra_arguments(
+    code_machine: Callable[..., Machine],
+) -> None:
+    main = bytes(
+        [0xEC, 0x15, 0x5F, 0x00, 0x18, 11, 22, 33, 44, 55, RESULT_VARIABLE, 0xBA]
+    )
+    returns_fifth = bytes([0x05] + [0x00, 0x00] * 5 + [0xAB, 0x05])
+    machine = code_machine(layout(main, returns_fifth), version=4)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(55)
+
+
+# call_vn2 is the discarding twin: it runs the routine and stores
+# nothing (§6.4.1) -- proven by a side effect with no home for a
+# result. It arrives only in Version 5 (§14), where routine headers
+# have shed their initial values (§5.2.1).
+def test_call_vn2_discards_but_still_calls(
+    code_machine: Callable[..., Machine],
+) -> None:
+    main = bytes([0xFA, 0x15, 0x5F, 0x00, 0x18, 1, 2, 3, 4, 5, 0xBA])
+    stores_marker = bytes([0x05, 0x0D, 0x11, 0x2A, 0xB0])
+    machine = code_machine(layout(main, stores_marker), version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS + 2)).is_equal_to(42)
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_zero()
+
+
 # One argument, two locals: the argument lands in local 1 (§6.4.4)
 # while local 2 keeps its header default (§6.4.4.1) -- verified by
 # returning each local in turn.

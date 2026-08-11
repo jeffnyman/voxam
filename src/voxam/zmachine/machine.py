@@ -1236,7 +1236,10 @@ class Machine:
 
 # Dispatch by opcode name: call and call_vs are the same behaviour
 # under the two names §14 gives VAR:0 across versions, and call_vn
-# differs only in having no store variable to fill (§6.4.1).
+# differs only in having no store variable to fill (§6.4.1). The
+# "2" variants are the same calls again, grown a second type byte
+# for up to seven arguments (§4.4.3.1) -- the decoder handles that,
+# so one handler serves all eight names.
 _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "add": Machine._op_add,
     "and": Machine._op_and,
@@ -1250,7 +1253,9 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "call_2n": Machine._op_call,
     "call_2s": Machine._op_call,
     "call_vn": Machine._op_call,
+    "call_vn2": Machine._op_call,
     "call_vs": Machine._op_call,
+    "call_vs2": Machine._op_call,
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
