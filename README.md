@@ -342,7 +342,7 @@ This project stands on the shoulders of the team at Infocom, the MIT-born compan
 
 ## ⚖️ License
 
-The code used in this project is licensed under the [MIT license](https://github.com/jeffnyman/quendor/blob/main/LICENSE).
+The code used in this project is licensed under the [MIT license](https://github.com/jeffnyman/voxam/blob/main/LICENSE).
 
 **Note:** This license applies _only_ to the code in this repository. The original Z-Machine concept, design, and any original assets belong to their respective copyright holders.
 

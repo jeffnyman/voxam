@@ -54,6 +54,15 @@ class Recorder:
         self.events.append("status")
         self.statuses.append(status)
 
+    def set_style(self, style: int) -> None:
+        """Discard: the status tests never change styles."""
+
+    def erase_window(self, window: int) -> None:
+        """Discard: the status tests never erase."""
+
+    def set_buffering(self, buffered: bool) -> None:
+        """Discard: the status tests never toggle buffering."""
+
 
 class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""
