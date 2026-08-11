@@ -877,6 +877,27 @@ class Machine:
         self._frontend.set_buffering(bool(self._value(instruction.operands[0])))
         self._pc = instruction.next_address
 
+    def _op_split_window(self, instruction: Instruction) -> None:
+        """Hand the upper window's new height to the frontend (§8.7.2)."""
+
+        self._frontend.split_window(self._value(instruction.operands[0]))
+        self._pc = instruction.next_address
+
+    def _op_set_window(self, instruction: Instruction) -> None:
+        """Hand the window selection to the frontend (§8.7.2)."""
+
+        self._frontend.set_window(self._value(instruction.operands[0]))
+        self._pc = instruction.next_address
+
+    def _op_set_cursor(self, instruction: Instruction) -> None:
+        """Hand an upper-window cursor move to the frontend (§8.7.2)."""
+
+        line = self._value(instruction.operands[0])
+        column = self._value(instruction.operands[1])
+
+        self._frontend.set_cursor(line, column)
+        self._pc = instruction.next_address
+
     def _op_show_status(self, instruction: Instruction) -> None:
         """Redraw the status line on request (§8.2).
 
@@ -1076,8 +1097,11 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "put_prop": Machine._op_put_prop,
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
+    "set_cursor": Machine._op_set_cursor,
     "set_text_style": Machine._op_set_text_style,
+    "set_window": Machine._op_set_window,
     "show_status": Machine._op_show_status,
+    "split_window": Machine._op_split_window,
     "sread": Machine._op_sread,
     "quit": Machine._op_quit,
     "random": Machine._op_random,

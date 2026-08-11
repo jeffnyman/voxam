@@ -21,6 +21,7 @@ class ScreenRecorder:
         self.styles: list[int] = []
         self.erased: list[int] = []
         self.buffering: list[bool] = []
+        self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
 
     def write(self, text: str) -> None:
         """Discard: these programs print nothing."""
@@ -36,6 +37,15 @@ class ScreenRecorder:
 
     def set_buffering(self, buffered: bool) -> None:
         self.buffering.append(buffered)
+
+    def split_window(self, lines: int) -> None:
+        self.windows.append(("split", lines))
+
+    def set_window(self, window: int) -> None:
+        self.windows.append(("select", window))
+
+    def set_cursor(self, line: int, column: int) -> None:
+        self.windows.append(("cursor", line, column))
 
 
 def screen_story(code: bytes, version: int = 4) -> Story:
@@ -100,3 +110,33 @@ def test_buffering_toggles_reach_the_frontend() -> None:
     frontend = run(bytes([0xF2, 0x7F, 0x01, 0xF2, 0x7F, 0x00, 0xBA]))
 
     assert_that(frontend.buffering).is_equal_to([True, False])
+
+
+# A status-line redraw in miniature, the way Version 4 games do it
+# themselves: split three lines off, select the upper window, place
+# the cursor, then come back down (§8.7.2).
+def test_window_operations_reach_the_frontend_in_order() -> None:
+    frontend = run(
+        bytes(
+            [
+                0xEA,
+                0x7F,
+                0x03,
+                0xEB,
+                0x7F,
+                0x01,
+                0xEF,
+                0x5F,
+                0x01,
+                0x02,
+                0xEB,
+                0x7F,
+                0x00,
+                0xBA,
+            ]
+        )
+    )
+
+    assert_that(frontend.windows).is_equal_to(
+        [("split", 3), ("select", 1), ("cursor", 1, 2), ("select", 0)]
+    )

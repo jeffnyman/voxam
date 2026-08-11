@@ -13,6 +13,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+# The screen model's two windows: the scrolling lower window where
+# the story unfolds, and the fixed upper window games draw status
+# chrome into (§8.7.2). erase_window's -1 both unsplits the screen
+# and reselects the lower window.
+LOWER_WINDOW = 0
+UPPER_WINDOW = 1
+UNSPLIT_AND_CLEAR = -1
+
 
 @dataclass(frozen=True)
 class Status:
@@ -93,6 +101,15 @@ class Frontend(Protocol):
     def set_buffering(self, buffered: bool) -> None:
         """Turn word-wrap buffering on or off (§8.7)."""
 
+    def split_window(self, lines: int) -> None:
+        """Give the upper window this many lines; 0 unsplits (§8.7.2)."""
+
+    def set_window(self, window: int) -> None:
+        """Select the window that receives text (§8.7.2)."""
+
+    def set_cursor(self, line: int, column: int) -> None:
+        """Move the upper window's cursor (§8.7.2)."""
+
 
 class PlainFrontend:
     """A dumb-terminal presentation: one unadorned stream of text.
@@ -118,11 +135,18 @@ class PlainFrontend:
         """Bind the text stream, standard output when not given."""
 
         self._write = write if write is not None else sys.stdout.write
+        self._window = LOWER_WINDOW
 
     def write(self, text: str) -> None:
-        """Pass story text through to the stream."""
+        """Pass story text through to the stream -- lower window only.
 
-        self._write(text)
+        Text sent to the upper window is a game's self-drawn status
+        chrome: dropping it is what keeps a transcript the story and
+        nothing else.
+        """
+
+        if self._window == LOWER_WINDOW:
+            self._write(text)
 
     def show_status(self, status: Status) -> None:
         """Drop the status: a plain stream has no line to keep it on."""
@@ -136,12 +160,30 @@ class PlainFrontend:
         """
 
     def erase_window(self, window: int) -> None:
-        """Drop the erasure: a stream has nothing to erase.
+        """Drop the erasure, honouring -1's side effect (§8.7).
 
-        Whether a full-screen clear should leave a paragraph break
-        in the transcript is an open question; the answer waits on
-        reading real Version 4 transcripts without one.
+        A stream has nothing to erase, but erasing window -1 also
+        unsplits the screen and reselects the lower window -- and
+        THAT matters here, or a game that clears its way out of the
+        upper window would leave the stream muted forever. (Whether
+        a full-screen clear should also leave a paragraph break in
+        the transcript is an open question; the answer waits on
+        reading real Version 4 transcripts without one.)
         """
+
+        if window == UNSPLIT_AND_CLEAR:
+            self._window = LOWER_WINDOW
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""
+
+    def split_window(self, lines: int) -> None:
+        """Drop the split: the stream has no rows to portion out."""
+
+    def set_window(self, window: int) -> None:
+        """Remember the selection, which is what routes write()."""
+
+        self._window = window
+
+    def set_cursor(self, line: int, column: int) -> None:
+        """Drop the cursor move: it only means anything up top."""

@@ -63,6 +63,15 @@ class Recorder:
     def set_buffering(self, buffered: bool) -> None:
         """Discard: the status tests never toggle buffering."""
 
+    def split_window(self, lines: int) -> None:
+        """Discard: the status tests never split."""
+
+    def set_window(self, window: int) -> None:
+        """Discard: the status tests never change windows."""
+
+    def set_cursor(self, line: int, column: int) -> None:
+        """Discard: the status tests never move the cursor."""
+
 
 class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""
