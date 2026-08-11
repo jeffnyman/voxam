@@ -32,7 +32,7 @@ from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, Variables
-from voxam.zmachine.zscii import decode_string, zscii_to_char
+from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
 
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
 FALSE_VALUE = 0
@@ -51,6 +51,10 @@ JE_MINIMUM_OPERANDS = 2
 # letter is Voxam's own.
 INTERPRETER_PLATFORM = 6
 INTERPRETER_REVISION = ord("V")
+
+# read_char's first operand is always 1, the keyboard: no other
+# input device was ever defined (§15 read_char).
+KEYBOARD_DEVICE = 1
 
 # scan_table's optional form byte is its fourth operand and defaults
 # to $82: compare words (the top bit) over two-byte fields (the
@@ -898,6 +902,41 @@ class Machine:
         self._frontend.set_cursor(line, column)
         self._pc = instruction.next_address
 
+    def _op_read_char(self, instruction: Instruction) -> None:
+        """Read one keystroke, storing its ZSCII code (§15 read_char).
+
+        The input seam speaks in lines, so a keystroke is the first
+        character of the next line -- and a bare return is the
+        return key itself, ZSCII 13. A recorded script presses a key
+        with a one-character line, or return with an empty one.
+
+        Raises:
+            ZMachineInstructionError: If the first operand is not 1,
+                the keyboard, which §15 makes the only input device.
+            ZMachineUnimplementedError: For a nonzero time and
+                routine pair, which would need timed input.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        if values[0] != KEYBOARD_DEVICE:
+            msg = (
+                f"read_char at ${instruction.address:04x} asks for input "
+                f"device {values[0]}, but the keyboard, 1, is the only "
+                f"device there is (§15 read_char)"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        if any(values[1:]):
+            raise ZMachineUnimplementedError("timed read_char", instruction.address)
+
+        line = self._input()
+        code = ord(line[0]) if line else ZSCII_NEWLINE
+
+        self._store_result(instruction.store_variable, code)
+        self._pc = instruction.next_address
+
     def _op_show_status(self, instruction: Instruction) -> None:
         """Redraw the status line on request (§8.2).
 
@@ -1105,6 +1144,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "sread": Machine._op_sread,
     "quit": Machine._op_quit,
     "random": Machine._op_random,
+    "read_char": Machine._op_read_char,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
