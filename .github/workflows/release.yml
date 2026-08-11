@@ -1,18 +1,30 @@
 name: Release
 
-# A release is a pushed tag like v0.2.0, which is what `cz bump` creates.
-# The pipeline rehearses every release on TestPyPI first; the PyPI job then
-# waits on the `pypi` environment's required-reviewer approval.
+# A release is a pushed v* tag on main. The pipeline mirrors the
+# manual runbook: build and audit the artifacts, publish to TestPyPI,
+# smoke-test the published package in a clean environment, then wait
+# at the pypi environment gate for a human "Approve and deploy"
+# before publishing to PyPI and cutting the GitHub release.
+#
+# Both publish jobs authenticate with PyPI trusted publishing (OIDC):
+# no tokens exist anywhere. Each service is configured with a trusted
+# publisher bound to this repository, this file's name, and its
+# environment name.
+
 on:
   push:
     tags: ["v*"]
+
+env:
+  FORCE_COLOR: "1"
+  UV_FROZEN: "1"
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build distribution
+    name: Build and audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,8 +34,60 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Install the project
+        run: uv sync --all-groups
+
+      # Insurance on the exact tagged commit, cheap at this suite's speed.
+      - name: Run tests
+        run: uv run pytest
+
       - name: Build sdist and wheel
         run: uv build
+
+      - name: Validate long description
+        run: uvx twine check dist/*
+
+      # The copyright audit: the artifacts may contain nothing beyond
+      # the package sources and project files. The reference submodule
+      # and the acceptance recordings must never ship.
+      - name: Audit artifact contents
+        run: |
+          python - <<'AUDIT'
+          import glob, re, sys, tarfile, zipfile
+
+          PROJECT_FILES = {
+              "PKG-INFO", "pyproject.toml", "pyproject.toml.orig",
+              "LICENSE", "README.md", "src", "src/voxam",
+          }
+
+          def sdist_ok(name: str) -> bool:
+              inner = re.sub(r"^voxam-[^/]+/?", "", name)
+              return (
+                  inner in PROJECT_FILES
+                  or inner == ""
+                  or inner.startswith("src/voxam/")
+              )
+
+          def wheel_ok(name: str) -> bool:
+              return name.startswith("voxam/") or re.match(
+                  r"^voxam-[^/]+\.dist-info/", name
+              )
+
+          bad = [
+              n for n in zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+              if not wheel_ok(n)
+          ] + [
+              m.name for m in tarfile.open(glob.glob("dist/*.tar.gz")[0]).getmembers()
+              if not sdist_ok(m.name)
+          ]
+
+          if bad:
+              print("unexpected files in distribution artifacts:")
+              for name in bad:
+                  print(" ", name)
+              sys.exit(1)
+          print("artifact contents are exactly the package")
+          AUDIT
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -38,9 +102,6 @@ jobs:
     environment:
       name: testpypi
       url: https://test.pypi.org/p/voxam
-
-    # Trusted publishing: the workflow authenticates to the index via OIDC,
-    # matching the pending publisher registered there. No tokens anywhere.
     permissions:
       id-token: write
     steps:
@@ -55,10 +116,42 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
+  smoke:
+    name: Smoke test from TestPyPI
+    runs-on: ubuntu-latest
+    needs: publish-testpypi
+    steps:
+      # The checkout supplies the story-file fixture the smoke run plays.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # TestPyPI can take a moment to serve a fresh upload, hence the
+      # retry. The install must come from TestPyPI alone: with no
+      # dependencies to resolve, no PyPI fallback index is needed.
+      - name: Install the released package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if pip install --index-url https://test.pypi.org/simple/ "voxam==${VERSION}"; then
+              exit 0
+            fi
+            echo "not yet available (attempt ${attempt}); waiting..."
+            sleep 20
+          done
+          exit 1
+
+      - name: Play a story with the installed package
+        run: |
+          voxam tests/fixtures/simple-test-r1-s260727.z3 | tee smoke.txt
+          grep -q "hello from all z machine versions" smoke.txt
+
   publish-pypi:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: publish-testpypi
+    needs: smoke
     environment:
       name: pypi
       url: https://pypi.org/p/voxam
@@ -73,3 +166,43 @@ jobs:
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Cut the GitHub release
+    runs-on: ubuntu-latest
+    needs: publish-pypi
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # The release notes are this version's section of the
+      # commitizen-maintained changelog.
+      - name: Extract changelog section
+        run: |
+          python - <<'NOTES'
+          import os, pathlib, re
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          match = re.search(
+              rf"^## v{re.escape(version)}.*?(?=^## v|\Z)",
+              text,
+              re.MULTILINE | re.DOTALL,
+          )
+          notes = match.group(0) if match else f"Release {version}"
+          pathlib.Path("notes.md").write_text(notes, encoding="utf-8")
+          NOTES
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md
