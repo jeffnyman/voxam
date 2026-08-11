@@ -56,6 +56,22 @@ INTERPRETER_REVISION = ord("V")
 # input device was ever defined (§15 read_char).
 KEYBOARD_DEVICE = 1
 
+# The four output streams (§7.1): the screen, the transcript, memory
+# redirection into a table, and the player's command record. Positive
+# selects, negative deselects, and stream 3 may nest 16 deep at most
+# -- one deeper is a fault the interpreter must halt on (§7.1.2.1.1).
+SCREEN_STREAM = 1
+TRANSCRIPT_STREAM = 2
+MEMORY_STREAM = 3
+COMMANDS_STREAM = 4
+REDIRECTION_LIMIT = 16
+
+# A memory-redirected table opens with a word for the character
+# count, data following from its third byte (§7.1.2.1). Selecting
+# stream 3 takes two operands: the stream and the table.
+REDIRECTION_DATA_OFFSET = 2
+REDIRECTION_OPERANDS = 2
+
 # scan_table's optional form byte is its fourth operand and defaults
 # to $82: compare words (the top bit) over two-byte fields (the
 # rest), examining the first word or byte of each field (§15
@@ -146,6 +162,8 @@ class Machine:
         self._input = input_source if input_source is not None else input
         self._words: Dictionary | None = None
         self._running = True
+        self._screen_selected = True
+        self._redirections: list[tuple[int, list[str]]] = []
 
         header = self._memory.header
 
@@ -252,6 +270,20 @@ class Machine:
 
         if variable is not None:
             self._variables.write(variable, value)
+
+    def _print(self, text: str) -> None:
+        """Send story text down the selected output streams (§7).
+
+        While stream 3 is selected, text goes into the newest memory
+        table and nowhere else -- not even other stream 3 tables
+        (§7.1.2.2). Otherwise it reaches the screen, unless the game
+        deselected that too, in which case it vanishes as asked.
+        """
+
+        if self._redirections:
+            self._redirections[-1][1].append(text)
+        elif self._screen_selected:
+            self._output(text)
 
     def _op_call(self, instruction: Instruction) -> None:
         """Call a routine, or return false for address 0 (§6.4)."""
@@ -680,7 +712,7 @@ class Machine:
         obj = self._value(instruction.operands[0])
         text, _ = decode_string(self._memory, self._objects.short_name_address(obj))
 
-        self._output(text)
+        self._print(text)
         self._pc = instruction.next_address
 
     def _op_put_prop(self, instruction: Instruction) -> None:
@@ -902,6 +934,100 @@ class Machine:
         self._frontend.set_cursor(line, column)
         self._pc = instruction.next_address
 
+    def _op_output_stream(self, instruction: Instruction) -> None:
+        """Select or deselect an output stream (§7, §15).
+
+        A positive operand selects, its negative deselects, and 0
+        does nothing. Stream 3 redirects text into a memory table --
+        a word for the count, then the ZSCII characters -- and nests
+        up to 16 deep; each deselection closes the newest table,
+        writing its count.
+
+        Raises:
+            ZMachineInstructionError: On a 17th nested redirection
+                (§7.1.2.1.1), a stream 3 selection with no table, a
+                deselection of a stream 3 that is not on, or a
+                stream number §7 does not define.
+            ZMachineUnimplementedError: For the transcript and
+                command-record streams.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        stream = signed(values[0])
+
+        if stream == 0:
+            pass
+        elif stream == SCREEN_STREAM:
+            self._screen_selected = True
+        elif stream == -SCREEN_STREAM:
+            self._screen_selected = False
+        elif stream == MEMORY_STREAM:
+            self._redirect_into(instruction, values)
+        elif stream == -MEMORY_STREAM:
+            self._end_redirection(instruction)
+        elif abs(stream) in (TRANSCRIPT_STREAM, COMMANDS_STREAM):
+            raise ZMachineUnimplementedError(
+                f"output stream {abs(stream)}", instruction.address
+            )
+        else:
+            msg = (
+                f"output_stream at ${instruction.address:04x} names "
+                f"stream {stream}, but §7.1 defines only 1 to 4"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        self._pc = instruction.next_address
+
+    def _redirect_into(self, instruction: Instruction, values: list[int]) -> None:
+        """Open a stream 3 redirection into a table (§7.1.2.1)."""
+
+        if len(values) < REDIRECTION_OPERANDS:
+            msg = (
+                f"output_stream 3 at ${instruction.address:04x} names no "
+                f"table to redirect into (§7.1.2.1)"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        if len(self._redirections) >= REDIRECTION_LIMIT:
+            msg = (
+                f"output_stream 3 at ${instruction.address:04x} would nest "
+                f"{REDIRECTION_LIMIT + 1} deep; §7.1.2.1.1 allows "
+                f"{REDIRECTION_LIMIT} at most"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        self._redirections.append((values[1], []))
+
+    def _end_redirection(self, instruction: Instruction) -> None:
+        """Close the newest stream 3 table, writing its count (§7.1.2.1).
+
+        New-lines are written as ZSCII 13 (§7.1.2.2.1); other
+        characters carry their ZSCII codes.
+        """
+
+        if not self._redirections:
+            msg = (
+                f"output_stream -3 at ${instruction.address:04x}, but "
+                f"stream 3 is not selected (§7.1.2)"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        table, pieces = self._redirections.pop()
+        text = "".join(pieces)
+        position = table + REDIRECTION_DATA_OFFSET
+
+        for character in text:
+            code = ZSCII_NEWLINE if character == "\n" else ord(character)
+
+            self._memory.write_byte(position, code)
+            position += 1
+
+        self._memory.write_word(table, len(text))
+
     def _op_read_char(self, instruction: Instruction) -> None:
         """Read one keystroke, storing its ZSCII code (§15 read_char).
 
@@ -1016,14 +1142,14 @@ class Machine:
         """Print the literal string following the opcode (§3.2)."""
 
         text, _ = decode_string(self._memory, instruction.operands_end)
-        self._output(text)
+        self._print(text)
         self._pc = instruction.next_address
 
     def _op_print_ret(self, instruction: Instruction) -> None:
         """Print the literal string, a new-line, and return true (§14)."""
 
         text, _ = decode_string(self._memory, instruction.operands_end)
-        self._output(text + "\n")
+        self._print(text + "\n")
         self._return(TRUE_VALUE)
 
     def _op_print_paddr(self, instruction: Instruction) -> None:
@@ -1032,7 +1158,7 @@ class Machine:
         packed = self._value(instruction.operands[0])
         address = string_address(self._memory.header, packed)
         text, _ = decode_string(self._memory, address)
-        self._output(text)
+        self._print(text)
         self._pc = instruction.next_address
 
     def _op_print_addr(self, instruction: Instruction) -> None:
@@ -1040,25 +1166,25 @@ class Machine:
 
         address = self._value(instruction.operands[0])
         text, _ = decode_string(self._memory, address)
-        self._output(text)
+        self._print(text)
         self._pc = instruction.next_address
 
     def _op_print_char(self, instruction: Instruction) -> None:
         """Print the character a ZSCII code means (§3.8)."""
 
-        self._output(zscii_to_char(self._value(instruction.operands[0])))
+        self._print(zscii_to_char(self._value(instruction.operands[0])))
         self._pc = instruction.next_address
 
     def _op_print_num(self, instruction: Instruction) -> None:
         """Print an operand as a signed decimal number (§2.2)."""
 
-        self._output(str(signed(self._value(instruction.operands[0]))))
+        self._print(str(signed(self._value(instruction.operands[0]))))
         self._pc = instruction.next_address
 
     def _op_new_line(self, instruction: Instruction) -> None:
         """Print a new-line."""
 
-        self._output("\n")
+        self._print("\n")
         self._pc = instruction.next_address
 
     def _op_push(self, instruction: Instruction) -> None:
@@ -1123,6 +1249,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "new_line": Machine._op_new_line,
     "not": Machine._op_not,
     "or": Machine._op_or,
+    "output_stream": Machine._op_output_stream,
     "piracy": Machine._op_piracy,
     "print": Machine._op_print,
     "print_addr": Machine._op_print_addr,
