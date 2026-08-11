@@ -1,54 +1,112 @@
-# Voxam
+<h1 align="center">
+  <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-title.png" alt="Voxam">
+</h1>
 
-An emulator and interpreter for the Z-Machine and Glulx, written in Python.
+<p align="center">
+  <em>A Specification-Accurate Z-Machine Implementation</em><br />
+  <em>Early and Late Infocom + Modern Inform</em>
+</p>
 
-The Z-Machine is the virtual machine that Infocom designed in 1979 to run its
-text adventures, and which the interactive fiction community has used ever
-since. While the Z-Machine remains active for retro-style games, Glulx was
-introduced in 1999 as the standard for modern, heavy-duty interactive fiction.
-The goal for Voxam is to read a compiled story file for either platform and
-execute it.
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/built%20with-Python-blue.svg" alt="Built with Python"></a>
+  <a href="https://github.com/jeffnyman/voxam/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="Voxam is released under the MIT license."></a>
+</p>
 
-## Requirements
+<p align="center">
+  <a href="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml"><img src="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-green.svg" alt="Conventional Commits: 1.0.0"></a>
+</p>
 
-- Python 3.12 or later
-- [uv](https://docs.astral.sh/uv/) for dependency and environment management
+<p align="center">
+  <a href="https://vscode.dev/github/jeffnyman/voxam"><img alt="Open with vscode" src="https://img.shields.io/static/v1?logo=visualstudiocode&label=&message=Open%20in%20Visual%20Studio%20Code&labelColor=2c2c32&color=007acc&logoColor=007acc"></a>
+</p>
+
+An interpreter for the Z-Machine, written in Python, with Glulx to
+follow.
+
+The Z-Machine is the virtual machine Infocom designed in 1979 to run
+its text adventures, and which the interactive fiction community has
+used ever since. Voxam reads a compiled story file and executes it,
+with two guiding commitments: fidelity to the
+[Z-Machine Standard](https://jeffnyman.github.io/z-machine-standard/)
+-- every rule the interpreter enforces cites the section it came from
+-- and reproducibility, so that a recorded play session replays
+identically, forever.
+
+Voxam is developed against the real Infocom catalog. The *Zork*
+trilogy, *Cutthroats*, *Deadline*, and *Seastalker* have all been played to
+winning conclusions under Voxam, several of them across multiple
+releases, each verified end-to-end by the acceptance harness
+described below.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
+</p>
+
+## Status
+
+Version `0.x`: early, honest, and playable.
+
+**Works today:** story file versions 1 through 3, which cover
+Infocom's 1980--1985 catalog and many modern retro-style games. That
+includes the full parser and object machinery, a seeded random
+number generator for reproducible sessions, status line semantics,
+and an acceptance-script harness for recording and replaying whole
+playthroughs.
+
+**Under construction:** version 4 support is being built
+"frontier-driven" -- games are run until they name the next missing
+piece. Version 4 stories boot and identify the interpreter; the
+screen model (split windows, text styles) is in progress.
+
+**Not yet:** SAVE and RESTORE, sound, timed input, versions 5 and
+up, and Glulx. For recorded sessions, seeds substitute for saves:
+a script replays a whole game in moments.
 
 ## Installation
 
+Voxam requires Python 3.12 or later.
+
 ```bash
-git clone https://github.com/jeffnyman/voxam.git
-cd voxam
-uv sync --all-groups
+pip install voxam
 ```
+
+or, as an isolated tool:
+
+```bash
+pipx install voxam        # or: uv tool install voxam
+```
+
+Voxam ships no story files. Bring your own: the
+[IF Archive](https://ifarchive.org/) hosts thousands of freely
+available games, and story files you own from commercial collections
+work as-is.
 
 ## Playing stories
 
 Point Voxam at a story file and play at the terminal:
 
 ```bash
-uv run voxam path/to/story.z3
+voxam path/to/story.z3
 ```
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.
 
 ```bash
-uv run voxam --seed 1137 path/to/story.z3
+voxam --seed 1137 path/to/story.z3
 ```
 
-### Acceptance scripts
+## Acceptance scripts
 
-A recorded session can be saved as an acceptance script and replayed:
+A play session can be saved as an acceptance script and replayed:
 
 ```bash
-uv run voxam --accept acceptance/some-session.accept
+voxam --accept some-session.accept
 ```
 
 An acceptance script is a plain text file of typed commands plus a
-few directives. Scripts in the `acceptance/` directory reference
-games under the optional `entharion` reference submodule, so they
-replay locally rather than in CI.
+few directives:
 
 ```text
 ! SEED=99
@@ -82,16 +140,43 @@ The rules, line by line:
   reached end of input.
 
 While recording a longer session, `--replay` types the script and
-then leaves you at the prompt instead of ending, so a work-in-
-progress script catches you up to where you left off:
+then leaves you at the prompt instead of ending, so a
+work-in-progress script catches you up to where you left off:
 
 ```bash
-uv run voxam --replay acceptance/some-session.accept
+voxam --replay some-session.accept
 ```
+
+### Refusal warnings
+
+During a replay, Voxam listens for the parser's *refusal dialect* --
+responses like "You can't see any statuette here!" or "You should
+close it first" that mean a recorded command did not do what it
+said. Each one is reported with the script line that drew it:
+
+```text
+voxam: line 31: 'lock door' looks refused: You should close it first.
+```
+
+Refusals scroll past a human reader without registering, and the
+missing side effect may not surface until dozens of turns later.
+The warning points at the moment it happened, which turns the most
+common recording bug from an archaeology expedition into a one-line
+fix.
 
 ## Development
 
-All commands assume the environment created by `uv sync --all-groups`.
+Working on Voxam itself needs
+[uv](https://docs.astral.sh/uv/) for dependency and environment
+management:
+
+```bash
+git clone https://github.com/jeffnyman/voxam.git
+cd voxam
+uv sync --all-groups
+```
+
+All commands below assume that environment.
 
 | Task | Command |
 | --- | --- |
@@ -120,6 +205,11 @@ All commands assume the environment created by `uv sync --all-groups`.
   Standard, including the PDF beside it, number some paragraphs differently.
 - **Line endings.** LF everywhere except Windows script files, enforced by both
   `.gitattributes` and `.editorconfig`.
+- **Recordings.** Complete playthroughs live under `acceptance/` in the
+  repository (they are not part of the installed package). They reference
+  games under the optional `entharion` submodule, so they replay locally
+  rather than in CI -- and they double as the project's archaeology notebook,
+  annotating where the games' published walkthroughs go wrong.
 
 ### Pre-commit hooks
 
@@ -160,8 +250,8 @@ uv run cz check -m "feat: add object table parsing"
 uv run cz commit
 ```
 
-Because the history is machine-readable, commitizen can also derive the next
-version, tag it, and update the changelog once releases begin:
+Because the history is machine-readable, commitizen derives the next
+version, tags it, and updates the changelog:
 
 ```bash
 uv run cz bump
@@ -212,6 +302,48 @@ git add entharion
 git commit -m "chore(deps): update entharion submodule"
 ```
 
-## License
+## 👨‍💻 Author
 
-Released under the [MIT License](LICENSE).
+<p align="center">
+  Made with 🤍 by <a href="https://github.com/jeffnyman">Jeff Nyman</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3178C6?style=for-the-badge&logo=python&logoColor=white">
+</p>
+
+<p align="center">
+  <a href="https://testerstories.com" target="_blank" >
+    <img src="https://img.shields.io/badge/Website-Jeff%20Nyman-000000?style=social&logo=wordpress" alt="Website - Jeff Nyman">
+  </a>
+</p>
+<p align="center">
+  <a href="https://www.linkedin.com/in/jeffnyman/" target="_blank" >
+    <img src="https://img.shields.io/badge/LinkedIn-Jeff%20Nyman-0A66C2?style=social&logo=linkedin" alt="LinkedIn - Jeff Nyman">
+  </a>
+</p>
+
+## ☦️ Doxazein (δοξάζειν)
+
+<p align="center">
+  חֶסֶד וֶאֱמֶת אַל־יַעַזְבֻךָ קָשְׁרֵם עַל־גַּרְגְּרֹתֶיךָ כָּתְבֵם עַל־לוּחַ לִבֶּךָ
+</p>
+
+<p align="center">
+"Let not mercy and truth forsake thee:<br>
+bind them about thy neck;<br>
+write them upon the table of thine heart."<br>
+<em>Proverbs 3:3</em>
+</p>
+
+## 🕹️ Acknowledgements
+
+This project stands on the shoulders of the team at Infocom, the MIT-born company that invented the Z-Machine to let _Zork_, and everything that followed, run unmodified across nearly every computer of its era. Particular thanks go to Marc Blank and Joel Berez, who designed the Z-Machine's virtual architecture, and to Tim Anderson, Bruce Daniels, and Dave Lebling, whose work on _Zork_ at MIT gave the format a reason to exist. Thanks also to Graham Nelson, whose Inform language and Z-Machine Standards Document kept the format alive and well-documented long after Infocom itself was gone, making implementations like this one possible.
+
+## ⚖️ License
+
+The code used in this project is licensed under the [MIT license](https://github.com/jeffnyman/quendor/blob/main/LICENSE).
+
+**Note:** This license applies _only_ to the code in this repository. The original Z-Machine concept, design, and any original assets belong to their respective copyright holders.
+
+✨ Long live the classics.
