@@ -210,6 +210,7 @@ def test_replay_reports_each_command_position() -> None:
         "You must use a verb!",
         "I beg your pardon?",
         "You can't go that way.",
+        "You can't do that since you gashed your arm!",
     ],
 )
 def test_the_refusal_dialect_is_recognized(response: str) -> None:
@@ -225,6 +226,8 @@ def test_the_refusal_dialect_is_recognized(response: str) -> None:
         "Time passes...",
         "Considering the frigid temperature of the water, you should "
         "probably not plan an extended stay.",
+        "Okay, Jeff, what do you want to do now?",
+        "The sign says you can't go that way in winter.",
     ],
 )
 def test_ordinary_responses_pass_unremarked(response: str) -> None:
