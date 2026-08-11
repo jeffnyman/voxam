@@ -1,0 +1,624 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/trinity-r12-s860926.z4
+
+# Prologue: Kensington Park
+
+# You can see the credits of the game.
+
+$credi
+>
+
+# The game is in "brief" mode by default.
+
+verbose
+
+i
+examine watch
+take coin
+examine coin
+e
+examine memorial
+examine blossoms
+take ball
+nw
+examine sundial
+examine gnomon
+unscrew gnomon
+take gnomon
+nw
+examine woman
+examine pigeons
+buy bag
+take bag and coin
+feed birds
+take ruby
+ask woman about roadrunner
+ask woman about ruby
+e
+examine boats
+take bird
+examine bird
+open bird
+read paper
+nw
+examine pram
+open pram
+look it pram
+push pram east
+examine boy
+push pram east
+examine woman
+throw ball at umbrella
+take umbrella
+push pram south
+examine notice
+e
+enter pram
+open umbrella
+take all but pram
+examine statue
+examine missile
+e
+e
+
+# The Wabe
+
+i
+fold paper
+examine meteor
+put paper and coin in pocket
+examine watch
+take card
+read card
+put card in pocket
+n
+
+examine toadstools
+ne
+examine log
+take log
+examine splinter
+take splinter
+e
+
+drop bag
+drop umbrella
+u. u
+
+examine shadow
+examine sundial
+examine symbols
+examine rose
+examine hole
+examine ring
+put gnomon in hole
+d. d. s. sw. e
+
+examine sculpture
+reach in it
+n. u
+take axe
+examine axe
+s. d
+
+w. ne. n. u. u
+put gnomon in hole
+push lever
+turn ring
+
+# The ring lets us easily select which symbol we want the gnomon's
+# shadow to point at. This is important since the larger shadow of
+# the giant gnomon will point to the corresponding toadstool, and
+# when that toadstool is so selected, its white door opens. Since
+# aligning the screw threads is the only useful application of the
+# flipped world, this script revisits the arbor to flip us back and
+# then ignores the arbor thereafter. It's less confusing that way.
+
+d. d. s. sw. e. n. u. s. d. w. ne. n
+
+nw
+examine flytrap
+e
+examine tree
+examine chasm
+examine mesa
+examine toadstool
+chop tree
+push tree north
+sw. e
+drop axe
+take umbrella
+w. w
+
+examine waterfall
+w
+enter waterfall
+search waterfall
+w
+
+examine icicles
+hit icicle with umbrella
+take icicle
+
+# We want to take the icicle all the way over to the Crater on
+# the east side of the wabe where there's a hot lump of metal.
+# But the icicle won't survive the trip there (it melts) unless
+# you go via the Vertex, where it will reharden in the cold
+# upper air.
+
+e. e. e. u. u
+d. d. ne. e. e
+
+put icicle on lump
+
+take lump
+examine lump
+w. w
+examine hive
+sw
+drop lump
+drop umbrella
+w. w. n
+
+examine crypt
+read crypt
+open crypt
+examine statues
+examine barrow
+n
+examine wight
+examine hole
+examine door
+n
+examine bones
+search bones
+take key
+examine key
+s
+put key in hole
+turn key
+d. e. e. n. n.
+
+examine boy
+examine bubble
+examine wand
+examine dish
+examine headphones
+talk to boy
+se. ne
+examine cottage
+knock on door
+open door
+e
+examine map
+examine cauldron
+look in cauldron
+smell
+examine book
+read book
+examine pedestal
+turn page
+read book
+examine magpie
+examine cage
+
+listen to magpie
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+open cage
+take cage
+open back door
+e
+examine herbs
+examine fence
+examine thyme
+take thyme
+examine refuse
+search refuse
+take garlic
+examine garlic
+examine toadtool
+examine white door
+w. w. se. w
+put hand in hive
+w. w
+examine flytrap
+e. e
+put hand in hive
+e. nw. e
+put honey in cauldron
+put hand in cauldron
+
+w. se. sw. w
+
+# It's best to get into the habit of travelling light. You don't
+# want to go into the past and have trouble picking up stuff
+# because your inventory is full.
+
+drop garlic
+drop birdcage
+drop splinter
+take umbrella
+u. u
+turn ring to sixth symbol
+d. d. e. e
+enter door
+
+# Japanese Playground
+
+open umbrella
+take all
+examine teachers
+examine children
+e
+examine spade
+take spade
+w
+wait
+give umbrella to girl
+e
+give paper to girl
+w
+ride bird
+enter door
+
+# The Wabe
+
+w. w. w. w. n
+
+open lid with spade
+look in crypt
+examine corpse
+examine bandage
+take bandage
+examine mouth
+take silver coin
+examine silver coin
+put it in pocket
+examine boots
+take boots
+wear boots
+examine shroud
+take shroud
+examine corpse
+kiss corpse
+s. e. e
+drop shroud bandage, spade
+take splinter
+u. u
+turn ring to third symbol
+d. d. w. w. n. n. n
+enter door
+
+# Underground
+
+examine cylinder
+take lantern
+w
+turn on lantern
+drop lantern
+w
+
+put splinter into crevice
+take skink
+put skink in pocket
+
+# No "take splinter" here: the walkthrough retrieves it, but this
+# release answers "You can't quite reach the splinter. The crevice
+# is too deep." -- a silent refusal, and the splinter is spent
+# anyway.
+
+e
+take all
+e. e
+
+# The Wabe
+
+s
+turn key
+d. e. e. e
+turn off lantern
+drop lantern
+examine walkie
+drop walkie
+
+# THE LUMP IS THE WHOLE PUZZLE, and here is where it silently goes
+# wrong: with everything else in your arms, "take axe and lump"
+# answers "The axe: Taken. The lump of metal: Your load is too
+# heavy." -- and everything at the orbit site downstream of this
+# line is doomed twenty turns before you find out (the statuette
+# lesson, at orbital velocity). The lump is a magnet; the spade
+# and walkie even tug toward it in your hands. Shed the ballast
+# first -- this stash is where the endgame collects its kit
+# anyway, and the shroud and bandage wait here safely.
+
+drop spade
+drop bandage
+drop shroud
+take axe and lump
+u. u
+turn ring to second symbol
+d. d. nw. n
+enter dish
+wait
+wait
+s. sw
+enter door
+
+# Earth Orbit -- and the site the forums call impossible. It is
+# not; the walkthroughs merely lost the load-bearing item. Read
+# from this release's own ZIL source (I-ORBIT, events.zil): the
+# site runs an eight-beat clock, and everything hangs on CARRYING
+# THE MAGNETIC LUMP from the silo. Beat 4, it tugs in your arms;
+# beat 5, PLOOP -- it leaps to the satellite's hull and anchors
+# your soap bubble ("Where gnomon has gone before," grumbles the
+# voice); beats 6-8 the satellite ferries you back toward the
+# white door it is aimed at. At "The white door is very close
+# now," break the bubble: "You're blown violently away from the
+# satellite, straight towards the white door. The plutonium heart
+# of the satellite erupts in a searing glare as you cross the
+# threshold..." The break IS the exit -- one beat later the blast
+# takes everything. Without the lump you drift past the satellite
+# and choose between suffocation and incineration, which is the
+# timeline every walkthrough transcribed. The skink dies en route:
+# vacuum-side chores for the magpie's recipe.
+
+take skink
+kill it
+wait
+wait
+wait
+wait
+break bubble with axe
+
+# The Wabe
+
+e. e
+examine skink
+drop skink, axe
+u. u
+turn ring to fourth symbol
+d. d. nw. e. n
+enter door
+
+# Pacific Island
+
+d
+open box
+examine switch
+push it
+push button
+s. nw
+examine islet
+examine tree
+w
+examine crabs
+examine fin
+look
+w
+examine coconuts
+point at coconut
+examine tide
+examine tide
+examine tide
+point to coconut
+take coconut
+se. n. u
+enter door
+
+# The Wabe
+
+s. w. se
+take axe, skink, garlic
+ne. e. nw. e
+drop coconut
+cut coconut with axe
+take coconut
+pour milk in cauldron
+put skink in cauldron
+put garlic in cauldron
+w
+wait
+e
+look in cauldron
+examine emerald
+take emerald
+put emerald in green boot
+w. se. w. sw
+drop coconut, axe
+take cage
+u. u
+turn ring to fifth symbol
+d. d. ne. e. nw. e. e
+enter white door
+
+# Russian Tundra
+
+d. ne. ne
+look in fissure
+take lemming
+put lemming in cage
+close cage
+sw. sw. u
+enter door
+examine lemming
+w. w. se. w. sw
+take shroud
+wear it
+take walkie, lantern, and bag
+u. u
+turn ring to seventh symbol
+d. d. se
+
+# Any time you die in the game, you end up here and ride the dory.
+# The oarsman won't normally let you on unless you seem to be dead,
+# so you'll need to wear the shroud and pay him the silver coin.
+
+wait
+wait
+enter dory
+give silver coin to oarsman
+s
+drop shroud
+enter door
+
+# New Mexico Desert
+
+
+NEW MEXICO DESERT
+
+open book
+take slip
+examine slip
+examine diagram
+
+# The diagram legend is randomized and looks like this:
+# RD=DET BL=GND ST=INF WH=POS
+# The two-letter codes are wire colors (RD means RED; BL means
+# BLUE; ST means STRIPED; WH means WHITE), and the three-letter
+# codes are wire functions (DET means DETONATOR; GND means GROUND;
+# INF means INFORMER; POS means POSITIVE). This set is set as:
+# RD=DET BL=GND ST=POS WH=INF
+
+drop slip
+w. d. d
+take ruby
+put ruby in red boot
+nw. nw. nw
+open jeep
+in
+examine radio
+examine dial
+
+# The dialnumber is 79 for this seed.
+
+set slider to 79
+pull antenna
+turn on walkie
+out
+se. se. se. se. se
+open gate
+se. s
+open door
+e
+take knife
+e. n. n
+close door
+open cage
+open door
+drop cage
+s
+search workbench
+take screwdriver
+open front door
+e. e. se. u
+drop walkie and bag
+d. ne. u
+turn on lantern
+take binoculars
+d
+take all but lantern
+u. u
+take all
+s. w. w
+sw. sw. s
+look through binoculars at shelter
+wait
+point to key
+take key
+examine thin man
+n. n. n. n
+unlock box with key
+examine panel
+pull breaker
+
+# You have to note which line on X is mentioned over the walkie-talkie.
+# For this seed, it is "informer line on X".
+
+close breaker
+sw. sw. sw. sw
+examine dog
+examine searchlight
+
+# By this time, the roadrunner should have appeared.
+
+drop bag
+ne. ne. ne. ne. u. u. e
+
+examine enclosure
+examine panel
+unscrew panel
+look in panel
+turn on bulb
+look in panel
+
+# We're at Zero minus seven minutes, or close to that. You need to wait
+# until the sequencer is on until you can make your move. Pay attention
+# to the walkie-talkie messages.
+
+# At Zero minus five minutes, people are told to "assume safe positions".
+# At Zero minus two minutes, there will be a siren.
+# At Zero minus forty-five seconds, the auto-sequencer will activate.
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+# You want to cut the wire that corresponds to the line that the locked box
+# breaker controlled, and you know which color that is based on the legend
+# printed on the back of the cardboard slip you found inside the paperback
+# book. That's white for this seed.
+
+cut white wire
+
+# Epilogue: Kensington Park again
+
+i
+e
+take ball
+nw
+examine sundial
+turn gnomon
+take gnomon
+nw
+ask woman about roadrunner
+ask woman about ruby
+give card to woman
+buy bag
+take bag and coin
+feed birds
+take ruby
+e
+examine boats
+take paper bird
+open bird
+read paper
+examine watch
+nw
+open pram
+push pram e
+take dish
+push pram e
+examine woman
+>
+quit
