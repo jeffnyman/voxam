@@ -48,20 +48,23 @@ def test_plain_frontend_drops_screen_operations() -> None:
     frontend.set_buffering(buffered=False)
     frontend.split_window(3)
     frontend.set_cursor(1, 1)
+    frontend.bleep(1)
     frontend.write("after")
 
     assert_that(pieces).is_equal_to(["after"])
 
 
-# The routing rule that keeps Version 4 transcripts clean: upper
-# window text is a game's self-drawn status chrome, and the stream
-# shows the story alone (§8.7.2).
-def test_upper_window_text_is_dropped() -> None:
+# The routing rule that keeps Version 4 transcripts clean: a one- or
+# two-line upper window is a game's self-drawn status chrome, and
+# the stream shows the story alone (§8.7.2).
+def test_status_bar_chrome_is_dropped() -> None:
     pieces: list[str] = []
     frontend = PlainFrontend(pieces.append)
 
     frontend.write("story ")
+    frontend.split_window(1)
     frontend.set_window(1)
+    frontend.set_cursor(1, 30)
     frontend.write("STATUS CHROME")
     frontend.set_window(0)
     frontend.write("continues")
@@ -69,9 +72,55 @@ def test_upper_window_text_is_dropped() -> None:
     assert_that(pieces).is_equal_to(["story ", "continues"])
 
 
+# A tall split is content, not chrome -- Trinity's fourteen-line
+# title card -- and the cursor moves reconstruct its layout: a row
+# change becomes a new-line, a column becomes padding, so centered
+# stays centered.
+def test_tall_upper_windows_render_with_their_layout() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.split_window(14)
+    frontend.set_window(1)
+    frontend.set_cursor(10, 25)
+    frontend.write("T R I N I T Y")
+    frontend.set_cursor(12, 29)
+    frontend.write("An Interactive Fantasy")
+    frontend.set_window(0)
+    frontend.write("You step out of the white door.")
+
+    assert_that("".join(pieces)).is_equal_to(
+        "\n"
+        + " " * 24
+        + "T R I N I T Y\n"
+        + " " * 28
+        + "An Interactive Fantasy\n"
+        + "You step out of the white door."
+    )
+
+
+# Cursor moves along one row pad only forward; the pen never backs
+# up in a stream.
+def test_content_cursor_pads_within_a_row() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.split_window(5)
+    frontend.set_window(1)
+    frontend.set_cursor(1, 5)
+    frontend.write("abc")
+    frontend.set_cursor(1, 10)
+    frontend.write("z")
+    frontend.set_cursor(1, 3)
+    frontend.write("!")
+
+    assert_that("".join(pieces)).is_equal_to("    abc  z!")
+
+
 # Erasing window -1 unsplits AND reselects the lower window (§8.7):
 # without honouring that side effect, a game that clears its way out
-# of the upper window would mute the stream forever.
+# of the upper window would mute the stream forever. It also ends
+# the split, so a later status bar is chrome again.
 def test_unsplitting_erasure_reselects_the_lower_window() -> None:
     pieces: list[str] = []
     frontend = PlainFrontend(pieces.append)
@@ -82,6 +131,11 @@ def test_unsplitting_erasure_reselects_the_lower_window() -> None:
     frontend.write("still chrome")
     frontend.erase_window(-1)
     frontend.write("story again")
+    frontend.split_window(14)
+    frontend.erase_window(-1)
+    frontend.set_window(1)
+    frontend.write("chrome once more")
+    frontend.set_window(0)
 
     assert_that(pieces).is_equal_to(["story again"])
 
