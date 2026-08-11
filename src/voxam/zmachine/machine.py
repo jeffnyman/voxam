@@ -52,6 +52,15 @@ JE_MINIMUM_OPERANDS = 2
 INTERPRETER_PLATFORM = 6
 INTERPRETER_REVISION = ord("V")
 
+# scan_table's optional form byte is its fourth operand and defaults
+# to $82: compare words (the top bit) over two-byte fields (the
+# rest), examining the first word or byte of each field (§15
+# scan_table).
+SCAN_FORM_OPERAND = 3
+DEFAULT_SCAN_FORM = 0x82
+SCAN_WORD_BIT = 0x80
+SCAN_FIELD_MASK = 0x7F
+
 # Words hold signed values in two's complement: $8000 and up are
 # negative (§2.2). Results wrap back into a word; the Standard leaves
 # out-of-range results unspecified, and wrapping is the convention
@@ -854,6 +863,47 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_scan_table(self, instruction: Instruction) -> None:
+        """Search a table for a value, delivering its address (§15).
+
+        The value examined sits first in each field; a match stores
+        the field's address and branches, no match stores 0. The
+        optional form byte -- $82 when absent -- chooses word or
+        byte comparison with its top bit and carries each field's
+        length in the rest.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        target = values[0]
+        count = values[2]
+        form = (
+            values[SCAN_FORM_OPERAND]
+            if len(values) > SCAN_FORM_OPERAND
+            else DEFAULT_SCAN_FORM
+        )
+
+        width = form & SCAN_FIELD_MASK
+        words = bool(form & SCAN_WORD_BIT)
+
+        address = values[1]
+        found = 0
+
+        for _ in range(count):
+            entry = (
+                self._memory.read_word(address)
+                if words
+                else self._memory.read_byte(address)
+            )
+
+            if entry == target:
+                found = address
+                break
+
+            address += width
+
+        self._store_result(instruction.store_variable, found)
+        self._branch(instruction, found != 0)
+
     def _op_random(self, instruction: Instruction) -> None:
         """Roll, seed, or re-randomize the generator (§2.4, §15).
 
@@ -1006,6 +1056,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
     "rtrue": Machine._op_rtrue,
+    "scan_table": Machine._op_scan_table,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,
     "storew": Machine._op_storew,
