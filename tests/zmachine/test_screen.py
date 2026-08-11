@@ -1,5 +1,7 @@
+import pytest
 from assertpy import assert_that
 
+from voxam.errors import ZMachineUnimplementedError
 from voxam.frontend import Status
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -22,6 +24,7 @@ class ScreenRecorder:
         self.erased: list[int] = []
         self.buffering: list[bool] = []
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
+        self.bleeps: list[int] = []
 
     def write(self, text: str) -> None:
         """Discard: these programs print nothing."""
@@ -46,6 +49,9 @@ class ScreenRecorder:
 
     def set_cursor(self, line: int, column: int) -> None:
         self.windows.append(("cursor", line, column))
+
+    def bleep(self, number: int) -> None:
+        self.bleeps.append(number)
 
 
 def screen_story(code: bytes, version: int = 4) -> Story:
@@ -140,3 +146,23 @@ def test_window_operations_reach_the_frontend_in_order() -> None:
     assert_that(frontend.windows).is_equal_to(
         [("split", 3), ("select", 1), ("cursor", 1, 2), ("select", 0)]
     )
+
+
+# Numbers 1 and 2 are the interpreter's own bleeps, and a bare
+# sound_effect means bleep 1 (§9).
+def test_bleeps_reach_the_frontend() -> None:
+    frontend = run(bytes([0xF5, 0x7F, 0x02, 0xF5, 0xFF, 0xBA]))
+
+    assert_that(frontend.bleeps).is_equal_to([2, 1])
+
+
+# From number 3 upward, sound_effect names sampled sounds, which
+# need Blorb-era machinery this interpreter does not have yet.
+def test_sampled_sounds_are_a_reported_frontier() -> None:
+    frontend = ScreenRecorder()
+    machine = Machine(
+        screen_story(bytes([0xF5, 0x7F, 0x03, 0xBA])), frontend, lambda: ""
+    )
+
+    with pytest.raises(ZMachineUnimplementedError, match="sampled sound 3"):
+        machine.run()

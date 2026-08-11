@@ -14,12 +14,19 @@ from dataclasses import dataclass
 from typing import Protocol
 
 # The screen model's two windows: the scrolling lower window where
-# the story unfolds, and the fixed upper window games draw status
-# chrome into (§8.7.2). erase_window's -1 both unsplits the screen
-# and reselects the lower window.
+# the story unfolds, and the fixed upper window games draw into
+# (§8.7.2). erase_window's -1 both unsplits the screen and reselects
+# the lower window.
 LOWER_WINDOW = 0
 UPPER_WINDOW = 1
 UNSPLIT_AND_CLEAR = -1
+
+# Games put two very different things in the upper window: one- or
+# two-line status bars redrawn every turn, and tall splits holding
+# real content -- title cards, quotations, maps. A stream should
+# mute the first and show the second, and the split height is the
+# tell (Trinity's status bar is 1 line; its title card is 14).
+STATUS_CHROME_LINES = 2
 
 
 @dataclass(frozen=True)
@@ -110,6 +117,9 @@ class Frontend(Protocol):
     def set_cursor(self, line: int, column: int) -> None:
         """Move the upper window's cursor (§8.7.2)."""
 
+    def bleep(self, number: int) -> None:
+        """Sound a bleep: 1 is high, 2 is low (§9)."""
+
 
 class PlainFrontend:
     """A dumb-terminal presentation: one unadorned stream of text.
@@ -136,17 +146,26 @@ class PlainFrontend:
 
         self._write = write if write is not None else sys.stdout.write
         self._window = LOWER_WINDOW
+        self._split = 0
+        self._upper_row = 1
+        self._upper_column = 1
 
     def write(self, text: str) -> None:
-        """Pass story text through to the stream -- lower window only.
+        """Pass story text through to the stream, muting chrome.
 
-        Text sent to the upper window is a game's self-drawn status
-        chrome: dropping it is what keeps a transcript the story and
-        nothing else.
+        Lower-window text always flows. Upper-window text flows only
+        when the split is tall enough to hold content -- a title
+        card, a quotation -- and is muted when it is a one- or
+        two-line status bar redrawn every turn. That distinction is
+        what keeps a transcript the story and nothing else, without
+        losing the parts of the story games put up top.
         """
 
         if self._window == LOWER_WINDOW:
             self._write(text)
+        elif self._upper_holds_content():
+            self._write(text)
+            self._upper_column += len(text)
 
     def show_status(self, status: Status) -> None:
         """Drop the status: a plain stream has no line to keep it on."""
@@ -173,17 +192,64 @@ class PlainFrontend:
 
         if window == UNSPLIT_AND_CLEAR:
             self._window = LOWER_WINDOW
+            self._split = 0
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""
 
     def split_window(self, lines: int) -> None:
-        """Drop the split: the stream has no rows to portion out."""
+        """Remember the split height: it is the chrome-or-content tell."""
+
+        self._split = lines
 
     def set_window(self, window: int) -> None:
-        """Remember the selection, which is what routes write()."""
+        """Remember the selection, which is what routes write().
+
+        Leaving a content-bearing upper window ends its last line,
+        so upper text and the story never share one.
+        """
+
+        if (
+            window == LOWER_WINDOW
+            and self._window == UPPER_WINDOW
+            and self._upper_holds_content()
+        ):
+            self._write("\n")
 
         self._window = window
+        self._upper_row = 1
+        self._upper_column = 1
 
     def set_cursor(self, line: int, column: int) -> None:
-        """Drop the cursor move: it only means anything up top."""
+        """Reconstruct content-window layout in stream form.
+
+        A row change becomes a new-line and a column beyond the pen
+        becomes padding, which is how a centered title card stays
+        centered in a transcript. Cursor moves in a status bar are
+        dropped with the rest of the chrome.
+        """
+
+        if self._window != UPPER_WINDOW or not self._upper_holds_content():
+            return
+
+        if line != self._upper_row:
+            self._write("\n")
+            self._upper_row = line
+            self._upper_column = 1
+
+        if column > self._upper_column:
+            self._write(" " * (column - self._upper_column))
+            self._upper_column = column
+
+    def _upper_holds_content(self) -> bool:
+        """Whether the upper window is tall enough to be content."""
+
+        return self._split > STATUS_CHROME_LINES
+
+    def bleep(self, number: int) -> None:
+        """Drop the bleep: a transcript is quieter than a terminal.
+
+        A BEL character could ring a real bell here, but it would
+        also embed control characters in every recorded session; the
+        blessed frontend is where sound belongs.
+        """

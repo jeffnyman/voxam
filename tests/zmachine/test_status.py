@@ -72,6 +72,9 @@ class Recorder:
     def set_cursor(self, line: int, column: int) -> None:
         """Discard: the status tests never move the cursor."""
 
+    def bleep(self, number: int) -> None:
+        """Discard: the status tests never make a sound."""
+
 
 class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""

@@ -56,6 +56,12 @@ INTERPRETER_REVISION = ord("V")
 # input device was ever defined (§15 read_char).
 KEYBOARD_DEVICE = 1
 
+# sound_effect's first two numbers are the interpreter's own bleeps;
+# from 3 upward they name sampled sounds, which need Blorb-era
+# machinery (§9). A bare sound_effect means bleep 1.
+HIGH_BLEEP = 1
+FIRST_SAMPLED_SOUND = 3
+
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
 # selects, negative deselects, and stream 3 may nest 16 deep at most
@@ -1028,6 +1034,30 @@ class Machine:
 
         self._memory.write_word(table, len(text))
 
+    def _op_sound_effect(self, instruction: Instruction) -> None:
+        """Sound a bleep, the only sound most stories make (§9).
+
+        A bare sound_effect means bleep 1; 1 and 2 are the high and
+        low bleeps the interpreter itself provides. The extra
+        operands -- effect, volume, routine -- belong to sampled
+        sounds and are ignored for bleeps.
+
+        Raises:
+            ZMachineUnimplementedError: For numbers 3 and up, the
+                sampled sounds.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        number = values[0] if values else HIGH_BLEEP
+
+        if number >= FIRST_SAMPLED_SOUND:
+            raise ZMachineUnimplementedError(
+                f"sampled sound {number}", instruction.address
+            )
+
+        self._frontend.bleep(number)
+        self._pc = instruction.next_address
+
     def _op_read_char(self, instruction: Instruction) -> None:
         """Read one keystroke, storing its ZSCII code (§15 read_char).
 
@@ -1267,6 +1297,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "set_text_style": Machine._op_set_text_style,
     "set_window": Machine._op_set_window,
     "show_status": Machine._op_show_status,
+    "sound_effect": Machine._op_sound_effect,
     "split_window": Machine._op_split_window,
     "sread": Machine._op_sread,
     "quit": Machine._op_quit,
