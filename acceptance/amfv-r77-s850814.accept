@@ -1,0 +1,625 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/amfv-r77-s850814.z4
+
+# AMFV security decoder (from SECURITY-CHECK, prism.zil):
+#   answer = OUTER[(2 * color_index + inner_index) mod 32]
+#
+# Colors (index): WHITE 0, DARK GREEN 1, DARK BLUE 2, PINK 3,
+#   ORANGE 4, PURPLE 5, TAN 6, AQUA 7, LIGHT BLUE 8, LIGHT GREEN 9,
+#   LIGHT GRAY 10, YELLOW 11, BLACK 12, DARK GRAY 13, BROWN 14, RED 15
+#
+# INNER (find the shown number's index):
+#   89 61 50 18 29 82 46 77 27 68 22 95 40 58 15 86
+#   28 33 94 11 64 98 34 49 60 16 85 52 37 53 93 91
+#
+# OUTER (read the answer at the computed index):
+#   12 66 73 36 90 41 19 48 62 92 55 23 84 99 57 20
+#   78 67 51 88 17 31 70 39 96 25 81 83 47 54 13 43
+#
+# Example, if you are asked for: YELLOW 86
+# That will be 41
+# (YELLOW is color 11; 86 sits at inner index 15; 2×11+15 = 37, wraps
+# to 5; outer[5] = 41.)
+
+>
+wait
+wait
+wait
+go to sim mode
+
+78
+
+# ---- 2041 · task 1/9: visiting your own home or living quarters ----
+# (The task list is the game's own: nine scenes must be recorded in
+# the 2041 simulation before Perelman unlocks Part II. Which command
+# banks which task was read straight out of the game's memory, so
+# these headers are verified, not guessed.)
+
+sw. s. w
+unlock door
+w
+unlock door
+record
+n
+no
+record off
+
+# ---- 2041 · task 2/9: eating a meal in a restaurant ----
+
+s. e. e. n. w. w. s
+sit
+record
+order food
+record off
+stand
+n. e. e
+
+time
+
+# ---- 2041 · task 3/9: attending a court in session ----
+# Needs to be 9:30 AM or later, which it will be.
+
+record
+nw
+record off
+se. n
+
+# ---- 2041 · task 4/9: talking to a government official ----
+# Needs to be 10:00 AM or later, which it will be.
+
+w
+record
+talk to official
+record off
+# ---- 2041 · task 5/9: reading a newspaper ----
+
+e. ne. ne
+put card in slot
+record
+read paper
+record off
+# ---- 2041 · task 6/9: talking to a church official ----
+
+n. sw
+record on
+talk to church elder
+record off
+# ---- 2041 · task 7/9: going to a movie ----
+
+ne. s. e. nw
+buy ticket
+record
+enter hall
+record off
+
+# ---- 2041 · task 8/9: visiting a power-generating facility ----
+
+se. w. s. s. s. s. s. se. se
+record
+s
+record off
+# ---- 2041 · task 9/9: riding some form of public transportation ----
+
+n. nw. d
+wait
+in
+record
+wait
+record off
+abort
+
+peof
+
+wait until 2:15
+wait until 2:15
+wait
+wait
+
+>
+>
+
+# Now you enter Part II
+
+go to sim mode
+47
+20
+
+u. nw
+record
+w
+record off
+e
+record
+n
+record off
+s. s. e. s. w
+unlock the door
+w. n
+unlock door
+n
+no
+record
+wait
+comfort jill
+record off
+open door
+s. e. e
+
+# Eating at Roy's Pagoda
+
+n. w. w. s
+sit
+record
+order food
+record off
+stand
+n. e. e
+
+# Courthouse
+
+record
+nw
+record off
+se. n
+
+# Government official
+
+w
+record
+talk to official
+record off
+
+# Newspaper
+
+e. ne. ne
+put card in slot
+record
+read paper
+record off
+
+# Church elder
+
+n. sw
+record on
+talk to church elder
+record off
+
+# Movie
+
+ne. s. e. nw
+buy ticket
+record
+enter hall
+record off
+
+# This is a new part.
+# You will run out of buffer space either before or right after
+# reading the pamphlet, but that's okay.
+
+se. w. se
+get pamphlet
+record
+read pamphlet
+record off
+
+abort
+
+peof
+tell perelman about recordings
+
+wait until 8:10
+wait
+
+# The walkthroughs' "wait a couple of hours" for the 30-year sim is
+# a trap of frames: the unlock needs 300 MINUTES SPENT INSIDE the
+# 20-year simulation (SIM-LEVEL-TABLE, prism.zil) -- and waiting in
+# Communications Mode banks nothing, which is what overnight waits
+# here were doing. Read from memory: the 2051 tour had already
+# banked 284 of the 300, so seventeen sim-side minutes finish it.
+# Enter, wait three beats, step out.
+
+go to sim mode
+41
+20
+wait
+wait
+wait
+abort
+
+# Re-entering, the menu now offers "10, 20 and 30 years in the
+# future." Both security rolls come up YELLOW 86 under this seed;
+# the wheel answers 41 to each.
+
+go to sim mode
+41
+30
+
+record
+look
+record off
+w. w. w
+
+record
+look
+record off
+
+unlock door
+w
+unlock door
+n
+record
+wait
+wait
+record off
+open door
+s. e. e. e
+record
+nw
+record off
+w. n
+record
+nw
+record off
+se
+n. ne. ne
+record
+e
+record off
+nw
+buy ticket
+record
+enter hall
+record off
+
+se. w. n
+record
+n
+record off
+n
+record
+sw
+record off
+
+nw. s
+record
+w
+
+# Every walkthrough orders a save here: "go south into the zoo and
+# see if you catch children torturing a small animal -- if not,
+# restore and try again." Save-scumming a random event, in other
+# words, because a live player can't reroll time any other way. A
+# seeded recording can: under this seed, one wait before walking
+# south puts the cruelty scene on the second zoo turn, inside the
+# recording, on every replay until the end of time. No save file
+# has ever been this reliable.
+
+wait
+s
+look
+record off
+
+n. n
+record
+n
+record off
+e. e. e. e. s. s. se
+get pamphlet
+record
+read pamphlet
+record off
+
+abort
+
+peof
+
+wait until 3:00
+wait until 5:00
+wait until 7:00
+wait until 7:00
+wait until 9:00
+wait
+wait 10 minutes
+yes
+
+# It doesn't matter what words you type here for the
+# psych test.
+
+speed
+birds
+jar
+vase
+nothing
+
+wait until 10:15
+wait
+tell perelman about recordings
+wait until 12:00
+wait
+
+# Same frame-trap as the last unlock, measured instead of guessed:
+# the 40-year sim needs 400 minutes banked INSIDE the 2061 sim, and
+# the recording tour already banked 262 (read from SIM-LEVEL-TABLE
+# at $7b93). Fourteen in-sim waits -- about ten sim-minutes apiece
+# -- close the gap at 407, while a BSF patrol, a skycar crash, and
+# a distant pistol shot pass by to keep the vigil in character.
+# Codes under this seed: BLACK 37 answers 17 going in; LIGHT GRAY
+# 33 answers 41 coming back.
+
+go to sim mode
+17
+30
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+abort
+
+go to sim mode
+41
+40
+
+record
+d
+record off
+
+se
+take pamphlet
+record
+read pamphlet
+record off
+
+nw. e. nw
+buy ticket
+record
+enter hall
+record off
+
+se. w. s
+record
+w
+record off
+
+e
+record
+se. sw
+record off
+
+w. s. s. w. w. w
+unlock door
+w
+unlock door
+n
+wait
+record
+wait
+wait
+record off
+
+s. e. e. nw
+record
+read list
+record off
+
+se. n
+record
+nw
+record off
+
+se. w. nw
+record
+
+# The next actions abort the sim as you are attacked.
+
+w
+y
+
+peof
+tell perelman about recordings
+wait until 7:00
+wait
+
+# The last of the frame-traps, and the largest: the 50-year sim
+# needs 600 minutes banked inside the 2071 sim, and the tour --
+# cut short by the attack -- banked only 202 (SIM-LEVEL-TABLE,
+# $7b93). Forty-one waits at the arrival point close the gap;
+# 2071 leaves the vigil unmolested. Codes under this seed:
+# DARK GREEN 58 answers 20 going in; BROWN 64 answers 78 for the
+# final door. Beyond it: 2081, the last decade.
+
+go to sim mode
+20
+40
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+abort
+
+go to sim mode
+78
+50
+
+record
+look
+
+# The city itself is the killer here, not bad luck. North from the
+# arrival corner walks into a scripted ambush (a grizzled man with a
+# club; you wake up at Main & Wicker), and south from THERE is
+# Buxton/Briggs territory -- "Outsiders will be killed on sight" --
+# where the tribe binds you for the bonfire. No amount of waiting
+# reschedules either one. The tour below never gives them the
+# chance: sign, grocery, bridge, out, staying one scene ahead of
+# the dog pack you can hear closing from the east. Five scenes bank
+# 24 of the 43 points on offer in 2081, and the endgame gate (read
+# from the debug block at prism.zil:2123) needs all four decades
+# over minimums: 2051 > 10, 2061 > 20, 2071 > 40, 2081 > 14. The
+# 2071 tour survived its attack with 56 banked, so this clears the
+# last bar with room to spare. One vocabulary trap: the sack is
+# "blood-soaked," but the parser has never heard the word "bloody."
+
+read sign
+sw
+eat mold
+ne. e
+examine sack
+record off
+abort
+
+peof
+
+# Perelman keeps office hours. Deliver too early and the office is
+# empty ("You can't see Perelman here!"); wait for him to walk in
+# with his coffee, then hand over the buffer. Three waits later his
+# message comes over the line, and on the fourth he returns to
+# deliver the verdict in person: the recordings are valid, the Plan
+# must be cancelled, and -- for the first time -- he is proud of
+# you. Part III begins.
+
+wait until 3:00
+wait until 5:00
+wait until 7:00
+wait until 9:00
+wait until 9:30
+wait
+wait
+wait
+wait
+wait
+tell perelman about recordings
+wait
+wait
+wait
+wait
+
+>
+>
+
+peof
+
+wait
+wait
+wait
+wait
+wait until 2:40
+wait
+wait until 3:30
+wait
+record
+wait
+wait
+wait
+wait
+wait
+record off
+
+go to interface mode
+n
+
+hvac, turn off ventilation in delta sector
+
+go to comm mode
+maco
+wait until 4:40
+wait
+wait
+wait
+wait
+
+go to interface mode
+y
+
+# The feeder is real; it's just on a delivery schedule. Emily
+# Warren's message is sent by I-MESSAGE-Z, which then re-queues
+# itself for 274 minutes -- her "four or five hours" -- and only
+# that second firing moves the hardware into the interface room.
+# Every prior attempt failed simply because the ports list was
+# checked before the truck arrived. The win itself (prism.zil:3766)
+# needs three things at transmit time: the transmitter on, the
+# record buffer as the feed, and at least two beats of Ryder's
+# rant in that buffer -- the recording above banked all five. Once
+# "Now transmitting record buffer" prints, I-WIN is queued thirteen
+# minutes out and Ryder's career is over.
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wnn feeder, status
+wnn feeder, transmit the record buffer
+wait
+wait
+
+>
+>
+
+# The farewell: everything is set for the final simulation. No
+# security code this time -- there is nothing left to guard.
+
+go to sim mode
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+>
