@@ -46,9 +46,44 @@ def test_plain_frontend_drops_screen_operations() -> None:
     frontend.set_style(2)
     frontend.erase_window(-1)
     frontend.set_buffering(buffered=False)
+    frontend.split_window(3)
+    frontend.set_cursor(1, 1)
     frontend.write("after")
 
     assert_that(pieces).is_equal_to(["after"])
+
+
+# The routing rule that keeps Version 4 transcripts clean: upper
+# window text is a game's self-drawn status chrome, and the stream
+# shows the story alone (§8.7.2).
+def test_upper_window_text_is_dropped() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.write("story ")
+    frontend.set_window(1)
+    frontend.write("STATUS CHROME")
+    frontend.set_window(0)
+    frontend.write("continues")
+
+    assert_that(pieces).is_equal_to(["story ", "continues"])
+
+
+# Erasing window -1 unsplits AND reselects the lower window (§8.7):
+# without honouring that side effect, a game that clears its way out
+# of the upper window would mute the stream forever.
+def test_unsplitting_erasure_reselects_the_lower_window() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.set_window(1)
+    frontend.write("chrome")
+    frontend.erase_window(-2)
+    frontend.write("still chrome")
+    frontend.erase_window(-1)
+    frontend.write("story again")
+
+    assert_that(pieces).is_equal_to(["story again"])
 
 
 # The plain frontend's whole self-portrait, as stamped into Version
