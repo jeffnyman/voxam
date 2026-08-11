@@ -75,6 +75,24 @@ class Frontend(Protocol):
     def show_status(self, status: Status) -> None:
         """Present a freshly assembled status line (§8.2)."""
 
+    def set_style(self, style: int) -> None:
+        """Change the type style for text that follows (§8.7).
+
+        The style is a bitmask: 0 returns to roman, 1 is reverse
+        video, 2 boldface, 4 italic, 8 fixed pitch.
+        """
+
+    def erase_window(self, window: int) -> None:
+        """Erase a window to its background (§8.7).
+
+        Window -1 unsplits the screen and clears it all; -2 clears
+        the whole screen without unsplitting; 0 and up name a single
+        window.
+        """
+
+    def set_buffering(self, buffered: bool) -> None:
+        """Turn word-wrap buffering on or off (§8.7)."""
+
 
 class PlainFrontend:
     """A dumb-terminal presentation: one unadorned stream of text.
@@ -108,3 +126,22 @@ class PlainFrontend:
 
     def show_status(self, status: Status) -> None:
         """Drop the status: a plain stream has no line to keep it on."""
+
+    def set_style(self, style: int) -> None:
+        """Drop the style: none were claimed, and §8.7 permits that.
+
+        The header declared no boldface and no italic, so a game
+        asking for them is asking politely for something it was told
+        does not exist.
+        """
+
+    def erase_window(self, window: int) -> None:
+        """Drop the erasure: a stream has nothing to erase.
+
+        Whether a full-screen clear should leave a paragraph break
+        in the transcript is an open question; the answer waits on
+        reading real Version 4 transcripts without one.
+        """
+
+    def set_buffering(self, buffered: bool) -> None:
+        """Drop the toggle: an unwrapped stream needs no buffering."""

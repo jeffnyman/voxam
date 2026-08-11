@@ -36,6 +36,21 @@ def test_plain_frontend_declares_nothing_and_drops_the_status() -> None:
     assert_that(frontend.has_screen_splitting).is_false()
 
 
+# A stream has no styles (none were claimed, which §8.7 permits)
+# and nothing to erase: both screen operations drop without
+# disturbing the text.
+def test_plain_frontend_drops_screen_operations() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.set_style(2)
+    frontend.erase_window(-1)
+    frontend.set_buffering(buffered=False)
+    frontend.write("after")
+
+    assert_that(pieces).is_equal_to(["after"])
+
+
 # The plain frontend's whole self-portrait, as stamped into Version
 # 4+ headers: no typography beyond a stream's inherent fixed pitch,
 # 80 characters wide, and infinitely tall since it never pages

@@ -851,6 +851,32 @@ class Machine:
             time_game=self._memory.header.time_game,
         )
 
+    def _op_set_text_style(self, instruction: Instruction) -> None:
+        """Hand the requested type style to the frontend (§8.7).
+
+        Each frontend renders the styles it claimed in the header
+        and ignores the rest, which §8.7 permits.
+        """
+
+        self._frontend.set_style(self._value(instruction.operands[0]))
+        self._pc = instruction.next_address
+
+    def _op_erase_window(self, instruction: Instruction) -> None:
+        """Hand a window erasure to the frontend (§8.7).
+
+        The operand is signed: -1 unsplits and clears everything,
+        -2 clears everything without unsplitting.
+        """
+
+        self._frontend.erase_window(signed(self._value(instruction.operands[0])))
+        self._pc = instruction.next_address
+
+    def _op_buffer_mode(self, instruction: Instruction) -> None:
+        """Hand the word-wrap buffering toggle to the frontend (§8.7)."""
+
+        self._frontend.set_buffering(bool(self._value(instruction.operands[0])))
+        self._pc = instruction.next_address
+
     def _op_show_status(self, instruction: Instruction) -> None:
         """Redraw the status line on request (§8.2).
 
@@ -999,6 +1025,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "add": Machine._op_add,
     "and": Machine._op_and,
     "aread": Machine._op_sread,
+    "buffer_mode": Machine._op_buffer_mode,
     "call": Machine._op_call,
     "check_arg_count": Machine._op_check_arg_count,
     "clear_attr": Machine._op_clear_attr,
@@ -1011,6 +1038,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
+    "erase_window": Machine._op_erase_window,
     "get_child": Machine._op_get_child,
     "get_next_prop": Machine._op_get_next_prop,
     "get_parent": Machine._op_get_parent,
@@ -1048,6 +1076,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "put_prop": Machine._op_put_prop,
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
+    "set_text_style": Machine._op_set_text_style,
     "show_status": Machine._op_show_status,
     "sread": Machine._op_sread,
     "quit": Machine._op_quit,
