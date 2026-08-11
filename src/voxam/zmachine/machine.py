@@ -18,7 +18,11 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend, Status
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
-from voxam.zmachine.header import PACKED_PC_VERSION, STATUS_FLAGS_VERSION
+from voxam.zmachine.header import (
+    PACKED_PC_VERSION,
+    SCREEN_FIELDS_VERSION,
+    STATUS_FLAGS_VERSION,
+)
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.objects import ObjectTable
@@ -40,6 +44,13 @@ NULL_ROUTINE = 0
 # je compares its first operand against the others, so one operand
 # alone is not permitted (§15 remarks).
 JE_MINIMUM_OPERANDS = 2
+
+# §11.1.3 asks an interpreter to identify itself in Version 4+
+# headers as one of the classic machines; 6, the IBM PC, is the
+# conventional stand-in for "some modern computer", and the revision
+# letter is Voxam's own.
+INTERPRETER_PLATFORM = 6
+INTERPRETER_REVISION = ord("V")
 
 # Words hold signed values in two's complement: $8000 and up are
 # negative (§2.2). Results wrap back into a word; the Standard leaves
@@ -94,9 +105,11 @@ class Machine:
 
         Outside Version 6, execution begins at the header's initial
         address, inside no routine (§5.5). Version 6 instead calls the
-        main routine (§5.4). A Version 3 header is stamped with the
-        frontend's honest capabilities before the story wakes, so the
-        game can adapt to them (§11.1).
+        main routine (§5.4). Before the story wakes, the header is
+        stamped with the frontend's honest capabilities -- Version 3's
+        status and splitting bits, or Version 4's interpreter
+        identity, screen size, and typography -- so the game can
+        adapt to them (§11.1).
 
         Args:
             story: The validated story file to run.
@@ -127,6 +140,18 @@ class Machine:
             header.declare_status_line(available=self._frontend.has_status_line)
             header.declare_screen_splitting(
                 available=self._frontend.has_screen_splitting
+            )
+        elif header.version >= SCREEN_FIELDS_VERSION:
+            header.introduce_interpreter(INTERPRETER_PLATFORM, INTERPRETER_REVISION)
+            header.declare_screen_size(
+                lines=self._frontend.screen_lines,
+                columns=self._frontend.screen_columns,
+            )
+            header.declare_presentation(
+                bold=self._frontend.has_bold,
+                italic=self._frontend.has_italic,
+                fixed_pitch=self._frontend.has_fixed_pitch,
+                timed_input=self._frontend.has_timed_input,
             )
 
         if header.version == PACKED_PC_VERSION:
