@@ -211,6 +211,14 @@ def test_replay_reports_each_command_position() -> None:
         "I beg your pardon?",
         "You can't go that way.",
         "You can't do that since you gashed your arm!",
+        "Your load is too heavy. You'll have to drop something.",
+        "You can't quite reach it.",
+        '[I don\'t know the word "bloody".]',
+        "That's not a verb I recognise.",
+        "That's not a verb I recognize.",
+        "I didn't understand that sentence.",
+        "I only understood you as far as wanting to go.",
+        "You can't see any such thing.",
     ],
 )
 def test_the_refusal_dialect_is_recognized(response: str) -> None:
@@ -228,6 +236,8 @@ def test_the_refusal_dialect_is_recognized(response: str) -> None:
         "probably not plan an extended stay.",
         "Okay, Jeff, what do you want to do now?",
         "The sign says you can't go that way in winter.",
+        "[Your score has just gone up by five points.]",
+        "Your load of firewood tumbles onto the hearth.",
     ],
 )
 def test_ordinary_responses_pass_unremarked(response: str) -> None:
