@@ -325,3 +325,64 @@ def test_the_undo_snapshot_survives_a_file_restore(
 
     assert_that(machine.memory.read_word(G1_ADDRESS)).is_equal_to(2)
     assert_that(machine.memory.read_word(0x108)).is_equal_to(42)
+
+
+# Undo levels stack and unwind LIFO: two captures, two restores,
+# and the SECOND restore lands on the OLDER state -- g4 finishes 0,
+# its value at the first capture, though it was 1 at the second
+# (§15 restore_undo; Praxix's multiundo).
+def test_undo_levels_unwind_newest_first(
+    code_machine: Callable[..., Machine],
+) -> None:
+    #   $40  save_undo -> g0        (older capture: g4 = 0)
+    #   $44  je g0, 2 [-> $5d]
+    #   $48  store g4, 1
+    #   $4b  save_undo -> g1        (newer capture: g4 = 1)
+    #   $4f  je g1, 2 [-> $58]
+    #   $53  restore_undo -> g2     (pops the newer)
+    #   $57  quit
+    #   $58  restore_undo -> g3     (pops the older)
+    #   $5c  quit
+    #   $5d  store g5, 42
+    #   $60  quit
+    program = bytes(
+        [
+            *[0xBE, 0x09, 0xFF, 0x10],
+            *[0x41, 0x10, 0x02, 0xD7],
+            *[0x0D, 0x14, 0x01],
+            *[0xBE, 0x09, 0xFF, 0x11],
+            *[0x41, 0x11, 0x02, 0xC7],
+            *[0xBE, 0x0A, 0xFF, 0x12],
+            *[0xBA],
+            *[0xBE, 0x0A, 0xFF, 0x13],
+            *[0xBA],
+            *[0x0D, 0x15, 0x2A],
+            *[0xBA],
+        ]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    # The final state is the OLDER capture's: g1 and g4 rewound to 0,
+    # though g1 was transiently 2 to route control. Both captures
+    # consumed is the LIFO proof -- a FIFO would have ended the run
+    # at the first restore with the newer one still in hand.
+    assert_that(machine.memory.read_word(G0_ADDRESS)).is_equal_to(2)
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_zero()
+    assert_that(machine.memory.read_word(0x108)).is_zero()
+    assert_that(machine.memory.read_word(0x10A)).is_equal_to(42)
+    assert_that(len(machine._undo)).is_zero()
+
+
+# The stack holds UNDO_DEPTH captures; the deque quietly forgets the
+# oldest beyond that, bounding the memory spent.
+def test_undo_captures_stop_at_the_depth_cap(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([*[0xBE, 0x09, 0xFF, 0x10] * 17, 0xBA])
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(len(machine._undo)).is_equal_to(16)
