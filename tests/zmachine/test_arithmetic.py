@@ -344,3 +344,48 @@ def test_overshifts_settle_instead_of_halting(
     machine = code_machine(shifter(opcode, number, places), version=5)
 
     assert_that(run(machine)).is_equal_to(expected)
+
+
+# Table indices are signed by the conventions §15 left open: Inform
+# emits negative indices to step backward from a table, and the sum
+# wraps to what a 16-bit address can carry. Praxix found both
+# missing in its second minute; eleven recorded games never used
+# either.
+def test_a_negative_word_index_steps_backward(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xCF, 0x0F, 0x01, 0x04, 0xFF, 0xFF, RESULT_VARIABLE, 0xBA])
+    machine = code_machine(program)
+    machine.memory.write_word(0x102, 0xBEEF)
+
+    assert_that(run(machine)).is_equal_to(0xBEEF)
+
+
+def test_a_negative_byte_index_steps_backward(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xD0, 0x0F, 0x01, 0x04, 0xFF, 0xFF, RESULT_VARIABLE, 0xBA])
+    machine = code_machine(program)
+    machine.memory.write_byte(0x103, 0x2A)
+
+    assert_that(run(machine)).is_equal_to(0x2A)
+
+
+def test_a_negative_index_stores_backward(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xE1, 0x07, 0x01, 0x08, 0xFF, 0xFE, 0x2A, 0xBA])
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(42)
+
+
+def test_the_table_address_wraps_at_16_bits(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xCF, 0x0F, 0xFF, 0x06, 0x00, 0x80, RESULT_VARIABLE, 0xBA])
+    machine = code_machine(program)
+
+    assert_that(run(machine)).is_equal_to(0x0040)
