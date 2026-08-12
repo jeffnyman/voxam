@@ -634,3 +634,28 @@ def test_moving_object_0_still_halts(code_machine: Callable[..., Machine]) -> No
 
     with pytest.raises(ZMachineObjectError, match="object 0 does not exist"):
         machine.run()
+
+
+# Nothing has no attributes set (§12.3): test_attr on object 0
+# answers false instead of halting -- Magic Toyshop tests attribute
+# 3 of object 0 while emptying a box. The writing twins keep the
+# halt.
+def test_testing_an_attribute_of_object_0_answers_false(
+    code_machine: Callable[..., Machine],
+) -> None:
+    # test_attr 0, 3 [on true -> quit]; store g0, 42; quit
+    program = bytes([0x0A, 0x00, 0x03, 0xC4, 0x0D, 0x10, 0x2A, 0xBA])
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+def test_setting_an_attribute_of_object_0_still_halts(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0x0B, 0x00, 0x03, 0xBA]))
+
+    with pytest.raises(ZMachineObjectError, match="object 0 does not exist"):
+        machine.run()
