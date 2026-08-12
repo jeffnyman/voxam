@@ -1,0 +1,257 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/allroads-r1-s011119.z5
+
+wake up
+i
+>
+>
+>
+
+listen
+down
+remove rope
+examine the clock
+examine the crowd
+examine square
+listen
+
+# The scaffold runs on the clock-tower's chimes, one per turn, and
+# the darkness does not exist until the THIRD chime brings it
+# ("Darkness sways into vision just beside you"). The walkthroughs
+# reach that beat on a different turn-count than this command
+# sequence does, so their jump aimed at a darkness not yet born --
+# four silent refusals in a row. One wait re-synchronizes the
+# timeline. The window is two chimes wide; at the fifth the game
+# shoves you through regardless, which is why the examine-dust turn
+# below doubles as the stumble into the Empty Room, where the dust
+# has been waiting all along.
+
+wait
+examine darkness
+jump into the darkness
+examine dust
+blow dust
+
+
+# The iron key falls through the window slot on a schedule -- four
+# turns after arrival, heralded by footsteps and Antonio's voice --
+# and the walkthroughs grab for it on turn one. The grabs fail
+# silently, and the story punishes the desync twenty scenes later
+# with an arrest. Played in intent order, the bottle-and-ropes work
+# consumes exactly the turns the schedule needs, and the key is
+# waiting when the hands are free.
+
+examine wine bottle
+kick the bottle
+rub ropes on glass
+again
+examine ring
+read note
+i
+take key
+unlock the door
+n
+close hatch
+lock it
+i
+put key through hoop
+s
+take rope
+throw rope at pigeons
+n
+take key
+u. s. ne
+examine woman
+talk to woman
+drink from fountain
+enter the church
+talk to the priest
+i
+remove ring
+put ring in alms bowl
+talk to priest
+again
+sit
+pray
+stand
+follow priest
+talk to captain
+run
+examine me
+cut manacles on dagger
+talk to captain
+g. g
+enter the darkness
+examine the painting
+examine steps
+i
+x key
+drop it
+go upstairs
+examine florantine's door
+knock on denizen's door
+sign book
+n
+sit
+examine denizen
+talk to her
+g
+examine the candle
+take it
+take ring
+stand
+s. s
+talk to giuseppe
+examine him
+hit him
+talk to him
+x form
+n
+sign form
+g
+n
+give form to her
+talk to her
+g
+go
+close eyes
+talk to her
+g
+take form
+x it
+s. w. d. nw
+talk to girl
+kiss her
+d
+kiss her
+talk to man
+g
+remove ropes
+open door
+x light
+wait
+talk to captain
+examine bars
+look through window
+talk to denizen
+g. g. g. g. g
+x stars
+remove manacles
+wait
+look on bed
+examine woman
+kiss her
+talk to woman
+stand
+take money
+talk to her
+give coin to her
+talk to her
+talk to her
+look
+take note
+dress
+read note
+open blind
+read note
+turn on tap
+put note in water
+close tap
+listen
+out
+close door
+s. d
+>
+
+# Not dying -- returning. The cell has no exit because the story
+# does not need one: "every morning the same: you always return
+# eventually," and the night in the cell ends with the game itself
+# carrying you back to the inn bedroom. The walkthroughs' bedroom
+# scene -- the woman, the coin, the unlocked door -- was transcribed
+# twenty lines too early, against the FIRST morning, and refused
+# there; this is the morning it belongs to. She has the key: pay
+# her the gold coin and she unlocks the door on her way out.
+
+wait
+stand
+open blind
+kiss her
+talk to woman
+take money
+give coin to her
+talk to her
+dress
+open door
+out
+read note
+destroy note
+
+# The note names the mission -- "Our traitor is Giuseppe
+# Florantine, aide to the Denizen. You may dispatch him any way you
+# choose" -- and from here the game rail-guards the approach: the
+# alley's other exits refuse ("Not turning back, now"), south opens
+# into Piazza St. Marco, and the Palace door leads to the Grand
+# Staircase, Florantine's door at its top. The walkthrough does not
+# diverge here; it just never wrote the walk to work.
+
+out
+d
+s
+enter palace
+
+# From here to the end, the game is DESIGNED to feel broken, and
+# that design fooled everyone including this recording's makers.
+# On the staircase the narrative dissociates: something else takes
+# the body, and every typed command is echoed back a beat late --
+# "... examine the room key ... the room key ..." -- while the
+# story fast-forwards through a replay of everything that happened
+# before. The refusals in this stretch are the scene's own voice;
+# ride it. It ends in the Empty Room where the game began, with
+# Giuseppe Florantine bound beside you, begging.
+
+examine key
+drop key
+u
+examine florantine's door
+sign book
+go west
+go west
+z. z
+remove ropes
+listen
+examine aide
+kill him
+i
+t aide
+remove ring
+put ring on aide
+knock on door
+look
+enter giuseppe
+z. z
+
+# The kill. Bare hands are refused -- "there are cleaner methods,
+# there is your reputation to consider" -- because this assassin
+# has never needed a weapon: the ring that marked its wearer for
+# the scaffold goes onto Giuseppe's bound finger, the knock brings
+# the old man's "Is it done?", and the darkness splits you in two:
+# Sebastian DeLosa walks out free while an eye-and-ear stays to
+# watch. The hanging that opened this game was never yours. The
+# final scene is the crowd below the scaffold, Francesca's venom,
+# and the epitaph: "An assassin, such as yourself -- you have no
+# need of weapons."
+
+remove ring
+put ring on giuseppe
+knock on door
+z
+z
+z
+
+>
+z
+z
+
+>
+>
+quit
