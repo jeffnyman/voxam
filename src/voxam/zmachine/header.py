@@ -34,6 +34,12 @@ TIMED_INPUT_BIT = 0x80
 # back EXCEPT this word (§6.1.2, §6.1.3).
 FLAGS_2 = 0x10
 
+# An interpreter obeying revision n.m of the Standard writes n at
+# $32 and m at $33 (§11.1.5); games check it before using late
+# opcodes like print_unicode.
+STANDARD_MAJOR_ADDRESS = 0x32
+STANDARD_MINOR_ADDRESS = 0x33
+
 # From Version 4 the interpreter also introduces itself: a platform
 # number at $1e with a revision letter at $1f (§11.1.3), and the
 # screen size in lines at $20 and characters at $21, where 255
@@ -314,6 +320,22 @@ class Header:
             return False
 
         return bool(self.data[FLAGS_1] & TIME_STATUS_BIT)
+
+    def declare_standard_revision(self, major: int, minor: int) -> None:
+        """Record which Standard revision the interpreter obeys (§11.1.5).
+
+        Args:
+            major: The revision's major number, written at $32.
+            minor: The minor number, written at $33.
+
+        Raises:
+            ZMachineHeaderError: Over the pristine story bytes, which
+                never change.
+        """
+
+        live = self._live()
+        live[STANDARD_MAJOR_ADDRESS] = major
+        live[STANDARD_MINOR_ADDRESS] = minor
 
     def declare_status_line(self, *, available: bool) -> None:
         """Record whether the interpreter offers a status line (§11.1).

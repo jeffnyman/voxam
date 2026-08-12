@@ -284,3 +284,25 @@ def test_reads_field_values_from_spec_offsets() -> None:
     assert_that(header.static_memory_base).is_equal_to(0x0700)
     assert_that(header.abbreviations_table_address).is_equal_to(0x0800)
     assert_that(header.stored_checksum).is_equal_to(0xBEEF)
+
+
+# An interpreter obeying revision n.m writes n at $32 and m at $33
+# (§11.1.5) -- on the working image only; the pristine story never
+# changes.
+def test_the_standard_revision_is_declared() -> None:
+    data = bytearray(64)
+    data[0] = 3
+    header = Header(data)
+
+    header.declare_standard_revision(1, 0)
+
+    assert_that(data[0x32]).is_equal_to(1)
+    assert_that(data[0x33]).is_equal_to(0)
+
+
+def test_the_revision_cannot_be_declared_on_the_pristine_story() -> None:
+    data = bytes(64)
+    header = Header(bytes([3]) + data[1:])
+
+    with pytest.raises(ZMachineHeaderError, match="pristine"):
+        header.declare_standard_revision(1, 0)

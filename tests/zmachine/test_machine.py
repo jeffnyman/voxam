@@ -466,3 +466,13 @@ def test_pop_discards_the_stack_top(code_machine: Callable[..., Machine]) -> Non
     machine.run()
 
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
+
+
+# Boot stamps the Standard revision Voxam obeys at $32/$33
+# (§11.1.5), in every version.
+def test_boot_declares_the_standard_revision(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0xBA]))
+
+    assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0100)
