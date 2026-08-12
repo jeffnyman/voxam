@@ -235,3 +235,93 @@ def test_restart_reloads_everything_but_flags_2(
     assert_that(machine.memory.read_word(G1_ADDRESS)).is_zero()
     assert_that(machine.memory.read_word(G2_ADDRESS)).is_equal_to(9)
     assert_that(machine.memory.read_word(FLAGS_2_ADDRESS)).is_equal_to(1)
+
+
+# The undo loop, all in one run: save_undo stores 1, restore_undo
+# rewinds to the save_undo's own store byte, and the resumed
+# save_undo answers 2 -- the only path to the 42 (§15 save_undo,
+# §15 restore_undo).
+#
+#   $40  save_undo -> g0
+#   $44  je g0, 2 [on true -> $4d]
+#   $48  restore_undo -> g1
+#   $4c  quit
+#   $4d  store g2, 42
+#   $50  quit
+def test_save_undo_stores_1_and_restore_undo_answers_2(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xBE, 0x09, 0xFF, 0x10],
+            *[0x41, 0x10, 0x02, 0xC7],
+            *[0xBE, 0x0A, 0xFF, 0x11],
+            *[0xBA],
+            *[0x0D, 0x12, 0x2A],
+            *[0xBA],
+        ]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G0_ADDRESS)).is_equal_to(2)
+    assert_that(machine.memory.read_word(G2_ADDRESS)).is_equal_to(42)
+
+
+# restore_undo with nothing in hand stores 0 and moves on -- the
+# quiet option §15 restore_undo offers an interpreter.
+def test_restore_undo_with_nothing_held_stores_0(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xBE, 0x0A, 0xFF, 0x11],
+            *[0x0D, 0x12, 0x09],
+            *[0xBA],
+        ]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_zero()
+    assert_that(machine.memory.read_word(G2_ADDRESS)).is_equal_to(9)
+
+
+# The undo snapshot is the interpreter's, not the story's: a file
+# restore rewinds the state of play to before save_undo ever ran,
+# yet the held snapshot survives and still answers (§6.1.1.2).
+def test_the_undo_snapshot_survives_a_file_restore(
+    code_machine: Callable[..., Machine],
+) -> None:
+    #   $40  save -> g0            (file, taken before any undo)
+    #   $44  je g0, 2 [on true -> $55]
+    #   $48  save_undo -> g1
+    #   $4c  je g1, 2 [on true -> $5a]
+    #   $50  restore -> g2         (file: rewinds past save_undo)
+    #   $54  quit
+    #   $55  restore_undo -> g3    (the held snapshot still answers)
+    #   $59  quit
+    #   $5a  store g4, 42
+    #   $5d  quit
+    program = bytes(
+        [
+            *[0xBE, 0x00, 0xFF, 0x10],
+            *[0x41, 0x10, 0x02, 0xCF],
+            *[0xBE, 0x09, 0xFF, 0x11],
+            *[0x41, 0x11, 0x02, 0xCC],
+            *[0xBE, 0x01, 0xFF, 0x12],
+            *[0xBA],
+            *[0xBE, 0x0A, 0xFF, 0x13],
+            *[0xBA],
+            *[0x0D, 0x14, 0x2A],
+            *[0xBA],
+        ]
+    )
+    machine = code_machine(program, version=5, saves=MemorySlot())
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_equal_to(2)
+    assert_that(machine.memory.read_word(0x108)).is_equal_to(42)
