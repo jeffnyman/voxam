@@ -167,23 +167,31 @@ def replay(
 # not do what it said. A replay marches straight past them -- this is
 # how a statuette stays in its chest and a Weasel skips his meeting
 # -- so the watch turns each into a loud warning instead. Curated
-# from the Infocom house parser; matching is case-insensitive, and
-# the list grows by experience. A refusal LEADS its line: prose that
-# merely contains the words -- Seastalker's standing "Okay, Jeff,
-# what do you want to do now?" prompt -- stays unremarked.
+# from the Infocom house parser and the Inform library; matching is
+# case-insensitive, and the list grows by experience. A refusal LEADS
+# its line: prose that merely contains the words -- Seastalker's
+# standing "Okay, Jeff, what do you want to do now?" prompt -- stays
+# unremarked. "That's not a verb I recogni" is truncated on purpose:
+# Inform spells the next letters -ise or -ize depending on the
+# game's dialect, and a prefix match covers both.
 REFUSAL_OPENINGS = (
     "I beg your pardon",
+    "I didn't understand that sentence",
     "I don't know the word",
+    "I only understood you as far as",
     "It's not clear what you're referring to",
     "That sentence isn't one I recognize",
+    "That's not a verb I recogni",
     "There was no verb in that sentence",
     "What do you want",
     "You can't do that",
     "You can't go that way",
+    "You can't quite reach",
     "You can't see any",
     "You must use a verb",
     "You should close it first",
     "You should open it first",
+    "Your load is too heavy",
 )
 
 # Disambiguation questions bury their tell mid-line -- "Which door
@@ -204,7 +212,10 @@ def refusal_in(response: str) -> str | None:
 
     for line in response.splitlines():
         candidate = line.strip()
-        lowered = candidate.lower()
+
+        # AMFV brackets its parser messages -- [I don't know the word
+        # "bloody".] -- so the anchor looks past a leading bracket.
+        lowered = candidate.lower().removeprefix("[")
 
         opens = any(lowered.startswith(p.lower()) for p in REFUSAL_OPENINGS)
         tells = any(t in lowered for t in REFUSAL_TELLS)
