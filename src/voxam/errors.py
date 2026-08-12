@@ -29,6 +29,10 @@ class ZMachineObjectError(VoxamError):
     """Raised when the object table is used against its rules (§12)."""
 
 
+class ZMachineQuetzalError(VoxamError):
+    """Raised when a Quetzal save file cannot be written or read."""
+
+
 class ZMachineRoutineError(VoxamError):
     """Raised when bytes cannot be parsed as a routine."""
 
