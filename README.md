@@ -164,6 +164,42 @@ The warning points at the moment it happened, which turns the most
 common recording bug from an archaeology expedition into a one-line
 fix.
 
+### Probing a recording
+
+When a recording goes wrong -- a death that survives every retry, a
+walkthrough command the game will not speak -- the fix is empirical,
+and `voxam.probe` is the instrument. A seeded script is a
+deterministic timeline, so a probe can replay the recorded prefix
+exactly and then ask "what would happen if...?", as many times as it
+takes:
+
+```python
+from voxam.probe import Probe
+
+probe = Probe.load("acceptance/advent.accept")
+run = probe.attempt(["ne", "give eggs to troll", "ne"], drop_last=2)
+
+for step in run.steps:
+    line = step.response.strip().splitlines()[0] if step.response.strip() else ""
+    flag = f"  <<< {step.refusal}" if step.refusal else ""
+    print(f"[{step.command}] {line}{flag}")
+```
+
+Each step pairs a typed command with everything the story said
+back, and flags any response spoken in the refusal dialect --
+which turns a hundred-command stretch into a one-screen diagnosis.
+`attempt` replays the script and tries a variant tail
+(`drop_last` re-tries the ending without editing the file);
+`run` takes the whole command list for surgery the prefix cannot
+express, such as inserting turns mid-timeline; and the returned
+`machine` is left standing for post-mortem reads of globals,
+object parents, or the clock. Every run boots fresh from the seed,
+so no experiment can contaminate another.
+
+Probe scripts themselves are throwaways -- write one in a scratch
+file, find the answer, record the fix in the `.accept` annotations,
+and delete it. The harness is the part worth keeping.
+
 ## Development
 
 Working on Voxam itself needs
