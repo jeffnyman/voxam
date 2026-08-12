@@ -255,3 +255,73 @@ def test_references_can_be_indirect(code_machine: Callable[..., Machine]) -> Non
     machine.memory.write_word(RESULT_ADDRESS, 7)
 
     assert_that(run(machine)).is_equal_to(8)
+
+
+def shifter(opcode: int, number: int, places: int) -> bytes:
+    return bytes(
+        [
+            0xBE,
+            opcode,
+            0x0F,
+            *number.to_bytes(2, "big"),
+            *(places & 0xFFFF).to_bytes(2, "big"),
+            RESULT_VARIABLE,
+            0xBA,
+        ]
+    )
+
+
+# Both shifts move left for positive places and wrap out the top
+# (§15 log_shift, art_shift); leftward they are indistinguishable.
+@pytest.mark.parametrize("opcode", [0x02, 0x03])
+@pytest.mark.parametrize(
+    ("number", "places", "expected"),
+    [(0x0001, 3, 0x0008), (0x8000, 1, 0x0000), (0xFFFF, 1, 0xFFFE), (42, 0, 42)],
+)
+def test_shifts_left_and_wraps(
+    opcode: int,
+    number: int,
+    places: int,
+    expected: int,
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(shifter(opcode, number, places), version=5)
+
+    assert_that(run(machine)).is_equal_to(expected)
+
+
+# Rightward they part ways: log_shift zeroes the sign in, art_shift
+# preserves it on the way down (§15 log_shift, art_shift).
+@pytest.mark.parametrize(
+    ("opcode", "number", "places", "expected"),
+    [
+        (0x02, 0x8000, -1, 0x4000),
+        (0x02, 0xFFFF, -12, 0x000F),
+        (0x03, 0x8000, -1, 0xC000),
+        (0x03, 0xFFFE, -1, 0xFFFF),
+        (0x03, 0x0008, -3, 0x0001),
+    ],
+)
+def test_right_shifts_differ_on_the_sign(
+    opcode: int,
+    number: int,
+    places: int,
+    expected: int,
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(shifter(opcode, number, places), version=5)
+
+    assert_that(run(machine)).is_equal_to(expected)
+
+
+# Beyond -15 to +15 the Standard declares behaviour undefined (§15),
+# and undefined behaviour halts loudly here rather than guessing.
+@pytest.mark.parametrize("opcode", [0x02, 0x03])
+@pytest.mark.parametrize("places", [16, -16])
+def test_shifting_past_the_word_is_refused(
+    opcode: int, places: int, code_machine: Callable[..., Machine]
+) -> None:
+    machine = code_machine(shifter(opcode, 1, places), version=5)
+
+    with pytest.raises(ZMachineArithmeticError, match="behaviour is undefined"):
+        machine.run()

@@ -123,6 +123,11 @@ DEFAULT_SCAN_FORM = 0x82
 SCAN_WORD_BIT = 0x80
 SCAN_FIELD_MASK = 0x7F
 
+# The shift opcodes take places from -15 to +15; beyond that the
+# Standard declares behaviour undefined (§15 log_shift, art_shift),
+# and undefined behaviour halts loudly here rather than guessing.
+SHIFT_LIMIT = 15
+
 # Words hold signed values in two's complement: $8000 and up are
 # negative (§2.2). Results wrap back into a word; the Standard leaves
 # out-of-range results unspecified, and wrapping is the convention
@@ -402,6 +407,50 @@ class Machine:
             self._redirections[-1][1].append(text)
         elif self._screen_selected:
             self._output(text)
+
+    def _op_log_shift(self, instruction: Instruction) -> None:
+        """Shift a word logically: zeros fill from either end (§15)."""
+
+        self._shift(instruction, arithmetic=False)
+
+    def _op_art_shift(self, instruction: Instruction) -> None:
+        """Shift a word arithmetically: right shifts keep the sign (§15)."""
+
+        self._shift(instruction, arithmetic=True)
+
+    def _shift(self, instruction: Instruction, *, arithmetic: bool) -> None:
+        """Shift left for positive places, right for negative (§15).
+
+        The two opcodes differ only rightward: log_shift zeroes the
+        sign in, art_shift preserves it -- which Python's shift on a
+        signed value does natively.
+
+        Raises:
+            ZMachineArithmeticError: For places beyond -15 to +15,
+                where the Standard declares behaviour undefined.
+        """
+
+        number = self._value(instruction.operands[0])
+        places = signed(self._value(instruction.operands[1]))
+
+        if abs(places) > SHIFT_LIMIT:
+            msg = (
+                f"cannot shift by {places}: places runs from -15 to 15, "
+                f"beyond which behaviour is undefined (§15)"
+            )
+
+            raise ZMachineArithmeticError(msg)
+
+        if places >= 0:
+            result = (number << places) & WORD_MASK
+        elif arithmetic:
+            result = (signed(number) >> -places) & WORD_MASK
+        else:
+            result = number >> -places
+
+        self._store_result(instruction.store_variable, result)
+
+        self._pc = instruction.next_address
 
     def _op_call(self, instruction: Instruction) -> None:
         """Call a routine, or return false for address 0 (§6.4)."""
@@ -1664,6 +1713,7 @@ class Machine:
 _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "add": Machine._op_add,
     "and": Machine._op_and,
+    "art_shift": Machine._op_art_shift,
     "aread": Machine._op_sread,
     "buffer_mode": Machine._op_buffer_mode,
     "call": Machine._op_call,
@@ -1700,6 +1750,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "load": Machine._op_load,
     "loadb": Machine._op_loadb,
     "loadw": Machine._op_loadw,
+    "log_shift": Machine._op_log_shift,
     "mod": Machine._op_mod,
     "mul": Machine._op_mul,
     "new_line": Machine._op_new_line,
