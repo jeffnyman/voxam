@@ -314,14 +314,33 @@ def test_right_shifts_differ_on_the_sign(
     assert_that(run(machine)).is_equal_to(expected)
 
 
-# Beyond -15 to +15 the Standard declares behaviour undefined (§15),
-# and undefined behaviour halts loudly here rather than guessing.
-@pytest.mark.parametrize("opcode", [0x02, 0x03])
-@pytest.mark.parametrize("places", [16, -16])
-def test_shifting_past_the_word_is_refused(
-    opcode: int, places: int, code_machine: Callable[..., Machine]
+# Beyond -15 to +15 the Standard declares behaviour undefined
+# (§15); Praxix probes the zone on purpose, marking its assertions
+# "unspecified", so the shifts complete with the conventional
+# answer instead of halting: a word shifted 16 or more places holds
+# nothing -- except the arithmetic right shift, whose sign fills
+# forever. The extreme distances also prove the clamp: no giant
+# intermediate integer, same settled outcome.
+@pytest.mark.parametrize(
+    ("opcode", "number", "places", "expected"),
+    [
+        (0x02, 0x0011, 16, 0x0000),
+        (0x02, 0x4001, -16, 0x0000),
+        (0x02, 0xFFFF, -17, 0x0000),
+        (0x03, 0x0011, 16, 0x0000),
+        (0x03, 0x7FFF, -16, 0x0000),
+        (0x03, 0xFFFF, -16, 0xFFFF),
+        (0x03, 0x8000, -32768, 0xFFFF),
+        (0x02, 0x0001, 32767, 0x0000),
+    ],
+)
+def test_overshifts_settle_instead_of_halting(
+    opcode: int,
+    number: int,
+    places: int,
+    expected: int,
+    code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(shifter(opcode, 1, places), version=5)
+    machine = code_machine(shifter(opcode, number, places), version=5)
 
-    with pytest.raises(ZMachineArithmeticError, match="behaviour is undefined"):
-        machine.run()
+    assert_that(run(machine)).is_equal_to(expected)

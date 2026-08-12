@@ -134,11 +134,6 @@ DEFAULT_SCAN_FORM = 0x82
 SCAN_WORD_BIT = 0x80
 SCAN_FIELD_MASK = 0x7F
 
-# The shift opcodes take places from -15 to +15; beyond that the
-# Standard declares behaviour undefined (§15 log_shift, art_shift),
-# and undefined behaviour halts loudly here rather than guessing.
-SHIFT_LIMIT = 15
-
 # Words hold signed values in two's complement: $8000 and up are
 # negative (§2.2). Results wrap back into a word; the Standard leaves
 # out-of-range results unspecified, and wrapping is the convention
@@ -438,28 +433,30 @@ class Machine:
         sign in, art_shift preserves it -- which Python's shift on a
         signed value does natively.
 
-        Raises:
-            ZMachineArithmeticError: For places beyond -15 to +15,
-                where the Standard declares behaviour undefined.
+        §15 declares places beyond -15 to +15 undefined, and this
+        used to halt loudly there -- until Praxix probed the zone on
+        purpose, marking its own assertions "unspecified". The house
+        rule, first written for object 0: an undefined zone completes
+        with the coherent conventional answer when a published
+        checker asserts survival. Shifting a word by 16 or more
+        leaves nothing behind: zeros everywhere, except that the
+        arithmetic right shift sign-fills forever.
         """
 
         number = self._value(instruction.operands[0])
         places = signed(self._value(instruction.operands[1]))
 
-        if abs(places) > SHIFT_LIMIT:
-            msg = (
-                f"cannot shift by {places}: places runs from -15 to 15, "
-                f"beyond which behaviour is undefined (§15)"
-            )
-
-            raise ZMachineArithmeticError(msg)
+        # Past 16 places every outcome is already settled, so the
+        # distance is clamped before Python builds a giant integer
+        # to throw away.
+        distance = min(abs(places), WORD_SIZE * 8)
 
         if places >= 0:
-            result = (number << places) & WORD_MASK
+            result = (number << distance) & WORD_MASK
         elif arithmetic:
-            result = (signed(number) >> -places) & WORD_MASK
+            result = (signed(number) >> distance) & WORD_MASK
         else:
-            result = number >> -places
+            result = number >> distance
 
         self._store_result(instruction.store_variable, result)
 
