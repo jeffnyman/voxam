@@ -8,6 +8,7 @@ the frontier of what remains to build.
 """
 
 import operator
+from collections import deque
 from collections.abc import Callable
 
 from voxam.errors import (
@@ -50,6 +51,13 @@ from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
 FALSE_VALUE = 0
 TRUE_VALUE = 1
+
+# The interpreter keeps a short stack of undo snapshots: games call
+# save_undo once per turn, players unwind several turns, and Praxix
+# tests the levels are distinct. Sixteen bounds the memory spent --
+# a snapshot is at most a dynamic-memory image -- and the deque
+# quietly forgets the oldest beyond that.
+UNDO_DEPTH = 16
 
 # Through Version 3, save and restore branch; from Version 4 they
 # store instead (§14, §15). A save's store byte answers 1 on success,
@@ -223,7 +231,7 @@ class Machine:
         self._screen_selected = True
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
-        self._undo: Snapshot | None = None
+        self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
 
         self._declare_capabilities()
         self._start_execution()
@@ -904,18 +912,22 @@ class Machine:
 
         Like save into memory instead of a file, called once per turn
         by Inform-era games to power UNDO -- which is why it is a
-        plain capture and nothing slower. The held snapshot is not
-        part of the state of play (§6.1.1.2): it lives outside the
-        memory map, so a restore cannot resurrect it and an undo
-        cannot be undone into growing forever. The PC captured is
-        this instruction's own store byte, exactly as save records
-        its rider (Quetzal §5.8.2).
+        plain capture and nothing slower. Captures stack up to
+        UNDO_DEPTH deep, oldest quietly forgotten, so several turns
+        can unwind in a row. The held snapshots are not part of the
+        state of play (§6.1.1.2): they live outside the memory map,
+        so a restore cannot resurrect them and an undo cannot be
+        undone into growing forever. The PC captured is this
+        instruction's own store byte, exactly as save records its
+        rider (Quetzal §5.8.2).
         """
 
-        self._undo = Snapshot(
-            dynamic_memory=self._memory.dynamic_snapshot(),
-            pc=instruction.operands_end,
-            frames=self._calls.snapshot(),
+        self._undo.append(
+            Snapshot(
+                dynamic_memory=self._memory.dynamic_snapshot(),
+                pc=instruction.operands_end,
+                frames=self._calls.snapshot(),
+            )
         )
 
         self._store_result(instruction.store_variable, TRUE_VALUE)
@@ -927,22 +939,24 @@ class Machine:
 
         On success the machine resumes at the save_undo's store byte
         and answers 2 there, just as a file restore answers its save
-        (§15 save). With nothing in hand -- which a game may not
-        legally rely on (§15 restore_undo) -- it stores 0 and moves
-        on, the quiet option the spec offers. The held snapshot
-        survives the restore: a single undo slot answers repeated
-        UNDOs with the same turn, as classic interpreters did.
+        (§15 save). Each restore consumes the newest capture, so
+        repeated UNDOs walk backward through distinct turns until
+        the stack runs dry -- and with nothing in hand, which a game
+        may not legally rely on (§15 restore_undo), it stores 0 and
+        moves on, the quiet option the spec offers.
         """
 
-        if self._undo is None:
+        if not self._undo:
             self._store_result(instruction.store_variable, FALSE_VALUE)
 
             self._pc = instruction.next_address
 
             return
 
-        self.restore(self._undo)
-        self._resume_from_save(self._undo.pc)
+        snapshot = self._undo.pop()
+
+        self.restore(snapshot)
+        self._resume_from_save(snapshot.pc)
 
     def _resume_from_save(self, pc: int) -> None:
         """Pick up execution at the rider of the save that made us.
