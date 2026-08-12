@@ -71,6 +71,11 @@ JE_MINIMUM_OPERANDS = 2
 INTERPRETER_PLATFORM = 6
 INTERPRETER_REVISION = ord("V")
 
+# The Standard revision Voxam obeys, written at $32/$33 (§11.1.5).
+# 1.0 until the 1.1 additions -- print_unicode and kin -- all land.
+STANDARD_MAJOR = 1
+STANDARD_MINOR = 0
+
 # read_char's first operand is always 1, the keyboard: no other
 # input device was ever defined (§15 read_char).
 KEYBOARD_DEVICE = 1
@@ -261,6 +266,8 @@ class Machine:
         """
 
         header = self._memory.header
+
+        header.declare_standard_revision(STANDARD_MAJOR, STANDARD_MINOR)
 
         if header.version == STATUS_FLAGS_VERSION:
             header.declare_status_line(available=self._frontend.has_status_line)
