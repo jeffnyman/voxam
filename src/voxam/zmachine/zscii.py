@@ -56,6 +56,15 @@ ALPHABET_A1 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ALPHABET_A2 = "??0123456789.,!?_#'\"/\\-:()"
 ALPHABET_A2_V1 = "?0123456789.,!?_#'\"/\\<-:()"
 
+# From Version 5 the header word at $34 may name a custom alphabet
+# table: 78 bytes as 3 blocks of 26 ZSCII values for Z-characters 6
+# to 31 of A0, A1, and A2 -- except that A2's characters 6 and 7
+# stay the escape and the new-line whatever the table says (§3.5.5,
+# §3.5.5.1).
+CUSTOM_ALPHABET_VERSION = 5
+ALPHABET_LENGTH = 26
+A2_FIXED_ENTRIES = 2
+
 # ZSCII output codes: 13 is new-line, and 32 to 126 agree with ASCII
 # (§3.8.2.5, §3.8.3).
 ZSCII_NEWLINE = 13
@@ -82,21 +91,48 @@ def decode_string(memory: Memory, address: int) -> tuple[str, int]:
         The decoded text and the first address past the string.
 
     Raises:
-        ZMachineTextError: On an abbreviation breaking §3.3.1's rules,
-            or text needing a custom alphabet table, which does not
-            exist yet (§3.5.5).
+        ZMachineTextError: On an abbreviation breaking §3.3.1's rules.
         ZMachineMemoryError: If the string runs outside the
             story file (§1.1).
     """
 
-    if memory.header.alphabet_table_address != 0:
-        msg = "custom alphabet tables are not yet implemented (§3.5.5)"
-
-        raise ZMachineTextError(msg)
-
     zchars, end = _zchars_at(memory, address)
 
     return _text_of(memory, zchars), end
+
+
+def alphabets(memory: Memory) -> tuple[str, str, str]:
+    """The three alphabet rows in force for this story (§3.5).
+
+    The standard rows of §3.5.3, unless a Version 5+ header names a
+    custom table at $34 (§3.5.5) -- read afresh each time, since
+    nothing stops a story keeping its table in dynamic memory.
+
+    Args:
+        memory: The memory image whose header and table to consult.
+
+    Returns:
+        The rows for alphabets A0, A1, and A2, in Z-character order
+        from 6 to 31. A2's first two entries are placeholders: the
+        escape and the new-line are handled before any table lookup,
+        and stay themselves even under a custom table (§3.5.5.1).
+    """
+
+    header = memory.header
+
+    if header.version < CUSTOM_ALPHABET_VERSION or header.alphabet_table_address == 0:
+        return _standard_alphabets(header.version)
+
+    base = header.alphabet_table_address
+    a0, a1, a2 = (
+        "".join(
+            zscii_to_char(memory.fetch_byte(base + row * ALPHABET_LENGTH + index))
+            for index in range(skip, ALPHABET_LENGTH)
+        )
+        for row, skip in ((0, 0), (1, 0), (2, A2_FIXED_ENTRIES))
+    )
+
+    return a0, a1, "?" * A2_FIXED_ENTRIES + a2
 
 
 def zscii_to_char(code: int) -> str:
@@ -124,7 +160,9 @@ def zscii_to_char(code: int) -> str:
     raise ZMachineTextError(msg)
 
 
-def encode_word(version: int, word: str) -> bytes:
+def encode_word(
+    version: int, word: str, rows: tuple[str, str, str] | None = None
+) -> bytes:
     """Encode typed text in dictionary form (§3.7).
 
     The text is lowercased, encoded without abbreviations, padded
@@ -135,13 +173,17 @@ def encode_word(version: int, word: str) -> bytes:
         version: The story's version, which sets the resolution and
             the shift convention.
         word: The typed word to encode.
+        rows: The alphabet rows in force -- a custom table's when the
+            story has one (§3.5.5), since lookups only ever match a
+            dictionary encoded under the same alphabets. None means
+            the version's standard rows.
 
     Returns:
         The encoded bytes: four through Version 3, six after.
     """
 
     resolution = DICTIONARY_ZCHARS[version]
-    zchars = _encode_zchars(version, word.lower())[:resolution]
+    zchars = _encode_zchars(version, word.lower(), rows)[:resolution]
     zchars += [PAD] * (resolution - len(zchars))
 
     encoded = b""
@@ -161,15 +203,19 @@ def encode_word(version: int, word: str) -> bytes:
     return encoded
 
 
-def _encode_zchars(version: int, text: str) -> list[int]:
+def _encode_zchars(
+    version: int, text: str, rows: tuple[str, str, str] | None
+) -> list[int]:
     """Turn lowercased text into shift-laden Z-characters (§3.7).
 
-    From Version 3, each A2 character takes a single shift 5. In
+    From Version 3, each A1 or A2 character takes a single shift. In
     Versions 1 and 2 the shifts are relative, and a lock is used
     instead when the next two characters share an alphabet (§3.7.1).
+    Under the standard alphabets a lowercased character is never in
+    A1, but a custom table may put it nowhere else (§3.5.5).
     """
 
-    a0, _, a2 = _alphabets(version)
+    a0, a1, a2 = rows if rows is not None else _standard_alphabets(version)
     a2_search_start = 1 if version == 1 else 2
 
     targets: list[tuple[int, list[int]]] = []
@@ -177,6 +223,10 @@ def _encode_zchars(version: int, text: str) -> list[int]:
     for character in text:
         if character in a0:
             targets.append((0, [a0.index(character) + FIRST_ALPHABET_CHARACTER]))
+            continue
+
+        if character in a1:
+            targets.append((1, [a1.index(character) + FIRST_ALPHABET_CHARACTER]))
             continue
 
         position = a2.find(character, a2_search_start)
@@ -192,9 +242,10 @@ def _encode_zchars(version: int, text: str) -> list[int]:
         out: list[int] = []
 
         for alphabet, chars in targets:
-            if alphabet == A2:
-                # Z-character 5 selects A2 for one character (§3.2.3).
-                out.append(5)
+            if alphabet:
+                # Z-characters 4 and 5 select A1 and A2 for one
+                # character (§3.2.3).
+                out.append(3 + alphabet)
 
             out.extend(chars)
 
@@ -256,7 +307,7 @@ def _text_of(memory: Memory, zchars: list[int], in_abbreviation: bool = False) -
     """
 
     version = memory.header.version
-    rows = _alphabets(version)
+    rows = alphabets(memory)
     out: list[str] = []
     locked = 0
     current = 0
@@ -333,8 +384,8 @@ def _abbreviation(memory: Memory, bank_char: int, index: int) -> str:
     return _text_of(memory, zchars, in_abbreviation=True)
 
 
-def _alphabets(version: int) -> tuple[str, str, str]:
-    """Pick the version's alphabet rows (§3.5.3, §3.5.4)."""
+def _standard_alphabets(version: int) -> tuple[str, str, str]:
+    """Pick the version's standard alphabet rows (§3.5.3, §3.5.4)."""
 
     if version == 1:
         return ALPHABET_A0, ALPHABET_A1, ALPHABET_A2_V1

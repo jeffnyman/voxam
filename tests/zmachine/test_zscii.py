@@ -206,16 +206,6 @@ def test_a_truncated_abbreviation_is_ignored(
     assert_that(text).is_equal_to("")
 
 
-def test_custom_alphabet_tables_are_a_reported_frontier(
-    code_memory: Callable[..., Memory],
-) -> None:
-    memory = code_memory(encode(13), version=5)
-    memory.write_word(0x34, 0x0100)
-
-    with pytest.raises(ZMachineTextError, match="custom alphabet"):
-        decode_string(memory, CODE)
-
-
 # Dictionary-form encoding (§3.7), all values hand-packed: 'h' and
 # 'i' are 13 and 14; pads are 5s; the last word carries the top bit.
 @pytest.mark.parametrize(
@@ -266,3 +256,85 @@ def test_zscii_output_codes(code: int, expected: str) -> None:
 def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(code)
+
+
+ALPHABET_TABLE = 0x160
+
+
+def plant_alphabet(memory: Memory, a0: str, a1: str, a2: str) -> None:
+    """Point $34 at a custom table built from three 26-char rows."""
+
+    memory.write_word(0x34, ALPHABET_TABLE)
+
+    for row, text in enumerate((a0, a1, a2)):
+        for index, character in enumerate(text):
+            memory.write_byte(ALPHABET_TABLE + row * 26 + index, ord(character))
+
+
+def rot13(text: str) -> str:
+    return "".join(chr((ord(c) - ord("a") + 13) % 26 + ord("a")) for c in text)
+
+
+# From Version 5 the header may name a custom alphabet table: 78
+# bytes of ZSCII giving new meanings to Z-characters 6 to 31
+# (§3.5.5, §3.5.5.1). Under a rot13 A0, the Z-characters that spell
+# "he lo" in the standard rows spell something else entirely.
+def test_a_custom_table_redefines_the_alphabets(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(13, 10, 0, 17, 20), version=5)
+    plant_alphabet(memory, rot13("abcdefghijklmnopqrstuvwxyz"), "?" * 26, "?" * 26)
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("ur yb")
+
+
+# A2's characters 6 and 7 stay the escape and the new-line whatever
+# the table says (§3.5.5.1): with X planted in both slots, the
+# escape still escapes and the new-line still breaks.
+def test_a2_escape_and_newline_defy_the_table(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(5, 6, 3, 1, 5, 7, 13), version=5)
+    plant_alphabet(
+        memory,
+        "abcdefghijklmnopqrstuvwxyz",
+        "?" * 26,
+        "XX" + "?" * 24,
+    )
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("a\nh")
+
+
+# Below Version 5 the word at $34 is not an alphabet table pointer,
+# whatever a story left there (§3.5.5).
+def test_the_table_word_is_ignored_before_version_5(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(13, 10), version=3)
+    memory.write_word(0x34, 0x0160)
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("he")
+
+
+# Typed words must be encoded under the same rows the dictionary was
+# compiled with (§3.5.5): under rot13 rows, "ur" encodes to the
+# Z-characters that spell "he" in the standard rows.
+def test_encoding_follows_the_custom_rows() -> None:
+    rows = (rot13("abcdefghijklmnopqrstuvwxyz"), "?" * 26, "??" + "!" * 24)
+
+    assert_that(encode_word(5, "ur", rows)).is_equal_to(encode_word(5, "he"))
+
+
+# Under the standard alphabets a lowercased character is never in
+# A1, but a custom table may put it nowhere else: the encoder then
+# reaches it with single shift 4 (§3.2.3, §3.5.5).
+def test_encoding_reaches_a_character_only_a1_holds() -> None:
+    rows = ("?" * 26, "z" + "?" * 25, "??" + "!" * 24)
+
+    assert_that(encode_word(5, "z", rows)).is_equal_to(encode(4, 6, 5, 5, 5, 5, 5, 5))
