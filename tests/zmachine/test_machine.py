@@ -476,3 +476,48 @@ def test_boot_declares_the_standard_revision(
     machine = code_machine(bytes([0xBA]))
 
     assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0100)
+
+
+# catch's cookie is specified exactly: the number of frames on the
+# call stack (§15 catch, Quetzal §6.2). At rest, only the base
+# frame stands.
+def test_catch_stores_the_frame_count(code_machine: Callable[..., Machine]) -> None:
+    machine = code_machine(bytes([0xB9, RESULT_VARIABLE, 0xBA]), version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(1)
+
+
+# throw unwinds to the caught frame and returns from it (§15
+# throw): A catches, calls B, B calls C, and C's throw returns 42
+# from A directly -- neither B's 98 nor A's own 99 is ever reached.
+def test_throw_returns_across_intervening_frames(
+    code_machine: Callable[..., Machine],
+) -> None:
+    main = bytes([0xE0, 0x3F, 0x00, 0x18, RESULT_VARIABLE, 0xBA])
+    a = bytes([0x01, 0xB9, 0x01, 0xF9, 0x2F, 0x00, 0x1C, 0x01, 0x9B, 0x63])
+    b = bytes([0x01, 0xF9, 0x2F, 0x00, 0x20, 0x01, 0x9B, 0x62])
+    c = bytes([0x01, 0x3C, 0x2A, 0x01])
+
+    code = bytearray(0x60)
+    code[: len(main)] = main
+    code[0x20 : 0x20 + len(a)] = a
+    code[0x30 : 0x30 + len(b)] = b
+    code[0x40 : 0x40 + len(c)] = c
+    machine = code_machine(bytes(code), version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
+
+
+# A cookie naming more frames than exist belongs to a catch that
+# already returned; nothing can throw back to it (§15 throw).
+def test_throwing_to_a_dead_frame_halts(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0x3C, 0x2A, 0x63, 0xBA]), version=5)
+
+    with pytest.raises(ZMachineStackError, match="already returned"):
+        machine.run()
