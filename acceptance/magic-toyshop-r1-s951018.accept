@@ -1,0 +1,124 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/magic-toyshop-r1-s951018.z5
+
+wait
+wait
+examine box
+open box
+empty box
+shake box
+empty box
+take all
+drop box
+
+wait
+wait
+examine paper
+play o at 2
+play o at 1
+play x at 7
+
+examine glue
+squeeze glue on grey
+put grey on wheeled
+take mouse
+put mouse in hole
+
+wait
+wait
+wait
+wait
+wait
+wait
+
+examine gnomon
+examine sundial
+put gnomon on sundial
+ask catherine about gnomon
+again
+again
+again
+again
+
+examine paper
+play e
+play f
+play l
+play k
+play i
+play c
+play j
+
+wait
+
+examine board
+take small
+
+file gnomon with small
+squeeze glue on small
+put small on medium
+take small
+put medium on middle
+take large
+put large on right
+take small
+put medium on right
+squeeze glue on gnomon
+put gnomon on sundial
+
+wait
+
+# This examine draws one intentional refusal on replay: the dots
+# paper has been cleared away and the dodgems board is not dealt
+# until a turn later. It stays because the timeline counts on its
+# turn, like the statuette warning in the Zork 2 recording.
+
+examine paper
+
+# The walkthroughs' dodgems moves were written for some other board:
+# under this seed every one of them bounced off "You're not allowed
+# to move a piece onto another piece" -- five silent refusals in a
+# dialect the guard does not know yet, which is why the puzzle sat
+# "still working" in every ending. This line instead came from a
+# sixty-run search of Catharine's actual game tree: seven moves to
+# walk both cars off the top while her dodgems are still queuing.
+# "A splendid performance," she says. The stray opening move stays
+# deliberately: she deals out the board and explains the rules
+# during that turn, and every scheduled event downstream counts on
+# the turn budget staying exactly as recorded.
+
+move B up
+move a up
+move b up
+move a up
+move a left
+move a up
+move b up
+move b up
+
+look
+take mushroom, egg, bread
+
+examine sundial
+put mushroom in shadow
+examine sundial
+take rod
+strike rod
+point rod at egg
+drop rod, glue
+
+put bread in hole
+hole, n, w, w, n, n
+hole, e, s, s, s
+hole, e, e, e
+take key, egg
+eat egg
+
+unlock chest with key
+drop key, bread
+
+type 543251543251
+enter chest
+
+full
+quit
