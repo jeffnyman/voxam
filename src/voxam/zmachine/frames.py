@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from voxam.errors import ZMachineStackError
 from voxam.zmachine.memory import WORD_MAX
 from voxam.zmachine.routine import Routine
+from voxam.zmachine.snapshot import FrameSnapshot
 
 # Local variables are numbered 1 to 15 (§4.2.2).
 FIRST_LOCAL = 1
@@ -144,6 +145,73 @@ class CallStack:
         self._usage -= FRAME_USAGE + len(frame.locals) + len(frame.stack)
 
         return frame
+
+    def snapshot(self) -> tuple[FrameSnapshot, ...]:
+        """Capture the whole call chain as immutable frames (§6.1).
+
+        Returns:
+            Every frame from the base up, frozen: mutating the live
+            call state afterward cannot reach into the capture.
+        """
+
+        return tuple(
+            FrameSnapshot(
+                return_address=frame.return_address,
+                store_variable=frame.store_variable,
+                locals=tuple(frame.locals),
+                argument_count=frame.argument_count,
+                stack=tuple(frame.stack),
+            )
+            for frame in self._frames
+        )
+
+    def restore(self, frames: tuple[FrameSnapshot, ...]) -> None:
+        """Write a captured call chain back over the live one (§6.1.2).
+
+        The frames become the entire call state; usage is recomputed
+        from scratch, since nothing of the abandoned state survives.
+
+        Args:
+            frames: The chain to restore, base frame first.
+
+        Raises:
+            ZMachineStackError: If the chain is empty -- even a game
+                at rest stands on the base frame (§5.5) -- or its
+                usage would pass the §6.3.3 ceiling, which no honest
+                capture of this machine can reach.
+        """
+
+        if not frames:
+            msg = (
+                "cannot restore an empty call chain: the base frame "
+                "always exists (§5.5)"
+            )
+
+            raise ZMachineStackError(msg)
+
+        usage = sum(len(frame.stack) for frame in frames) + sum(
+            FRAME_USAGE + len(frame.locals) for frame in frames[1:]
+        )
+
+        if usage > USAGE_LIMIT:
+            msg = (
+                f"restoring this call chain would put stack usage past "
+                f"{USAGE_LIMIT} (§6.3.3): it cannot be an honest capture"
+            )
+
+            raise ZMachineStackError(msg)
+
+        self._frames = [
+            Frame(
+                return_address=frame.return_address,
+                store_variable=frame.store_variable,
+                locals=list(frame.locals),
+                argument_count=frame.argument_count,
+                stack=list(frame.stack),
+            )
+            for frame in frames
+        ]
+        self._usage = usage
 
     def local(self, number: int) -> int:
         """Read a local variable of the current routine (§4.2.2).

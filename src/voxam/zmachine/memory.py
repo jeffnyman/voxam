@@ -108,6 +108,45 @@ class Memory:
 
         return Header(self._data)
 
+    def dynamic_snapshot(self) -> bytes:
+        """Capture dynamic memory whole, header included (§6.1).
+
+        Returns:
+            Every byte below the static memory base, frozen. Static
+            and high memory never change, so this is all of memory a
+            save needs (§6.1.1).
+        """
+
+        return bytes(self._data[: self._static_base])
+
+    def restore_dynamic(self, image: bytes) -> None:
+        """Write a captured dynamic memory image back whole (§6.1.2).
+
+        The finer restore duties -- preserving 'Flags 2', re-stamping
+        the interpreter's header fields -- belong to the machine
+        (§6.1.2, §6.1.2.2); this write is deliberately verbatim.
+
+        Args:
+            image: A capture taken from a memory image of this exact
+                shape.
+
+        Raises:
+            ZMachineMemoryError: If the image's size does not match
+                this story's dynamic memory, which means it was
+                captured from some other game (§6.1.2.1).
+        """
+
+        if len(image) != self._static_base:
+            msg = (
+                f"cannot restore a {len(image)}-byte dynamic memory image "
+                f"over the {self._static_base} bytes this story defines: "
+                f"it was captured from a different game (§6.1.2.1)"
+            )
+
+            raise ZMachineMemoryError(msg)
+
+        self._data[: self._static_base] = image
+
     def read_byte(self, address: int) -> int:
         """Read the byte at an address in dynamic or static memory.
 

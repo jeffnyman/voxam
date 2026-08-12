@@ -28,6 +28,12 @@ ITALIC_BIT = 0x08
 FIXED_PITCH_BIT = 0x10
 TIMED_INPUT_BIT = 0x80
 
+# Flags 2 lives in the word at $10. Its bits describe the player's
+# session -- transcription on, fixed-pitch forced -- rather than the
+# story's state, which is why a restore or restart writes everything
+# back EXCEPT this word (§6.1.2, §6.1.3).
+FLAGS_2 = 0x10
+
 # From Version 4 the interpreter also introduces itself: a platform
 # number at $1e with a revision letter at $1f (§11.1.3), and the
 # screen size in lines at $20 and characters at $21, where 255
