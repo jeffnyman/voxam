@@ -1301,6 +1301,42 @@ class Machine:
 
             block += 4
 
+    def _op_copy_table(self, instruction: Instruction) -> None:
+        """Copy or zero a run of table bytes (§15 copy_table).
+
+        A zero second table means "zero size bytes of first". A
+        positive size copies without corruption however the tables
+        overlap -- the source is read whole before a byte lands. A
+        negative size forces a forward byte-at-a-time copy even
+        through an overlap: Beyond Zork aims that smear at an array
+        to fill it with spaces.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        first = values[0]
+        second = values[1]
+        size = signed(values[2])
+
+        if second == 0:
+            # The zeroing sentence of §15 says only "size bytes";
+            # reading a negative size as its magnitude is the
+            # convention.
+            for offset in range(abs(size)):
+                self._memory.write_byte(first + offset, 0)
+        elif size < 0:
+            for offset in range(-size):
+                self._memory.write_byte(
+                    second + offset, self._memory.read_byte(first + offset)
+                )
+        else:
+            data = [self._memory.read_byte(first + offset) for offset in range(size)]
+
+            for offset, value in enumerate(data):
+                self._memory.write_byte(second + offset, value)
+
+        self._pc = instruction.next_address
+
     def _op_tokenise(self, instruction: Instruction) -> None:
         """Lexically analyse text already in the buffer (§15 tokenise).
 
@@ -1725,6 +1761,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "call_2s": Machine._op_call,
     "call_vn": Machine._op_call,
     "call_vn2": Machine._op_call,
+    "copy_table": Machine._op_copy_table,
     "call_vs": Machine._op_call,
     "call_vs2": Machine._op_call,
     "dec": Machine._op_dec,
