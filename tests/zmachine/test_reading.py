@@ -243,16 +243,25 @@ def test_a_crushed_parse_buffer_halts_loudly(
         machine.run()
 
 
-# Version 4 may pass a time and routine pair; nonzero values would
-# need timed input (§15 read).
-def test_timed_reading_is_a_reported_frontier(
+# A time and routine pair asks for interrupts during real waiting;
+# under the instant typist the line arrives before any interval
+# elapses, so the read completes as an untimed one (§15 read). The
+# routine here is booby-trapped -- it would poison global $11 if it
+# ever ran -- and the untouched global is the proof it never does.
+def test_a_timed_read_completes_as_untimed(
     code_machine: Callable[..., Machine],
 ) -> None:
-    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x00, 0xBA])
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
     machine = reader(code_machine, "go", version=4, program=timed)
+    poison = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 
-    with pytest.raises(ZMachineUnimplementedError, match="timed read"):
-        machine.run()
+    for offset, value in enumerate(poison):
+        machine.memory.write_byte(0x70 + offset, value)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+    assert_that(machine.memory.read_word(0x102)).is_zero()
 
 
 # A zero time and routine are the same as their absence.
@@ -321,15 +330,23 @@ def test_read_char_refuses_unknown_devices(
         machine.run()
 
 
-# A nonzero time and routine pair would need timed input.
-def test_timed_read_char_is_a_reported_frontier(
+# The same instant-typist argument for a single keystroke: the key
+# arrives at once, no interval elapses, the routine never runs, and
+# the keystroke stores as if the read were untimed (§15 read_char).
+def test_a_timed_read_char_completes_as_untimed(
     code_machine: Callable[..., Machine],
 ) -> None:
-    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x02, 0x10, 0xBA])
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
     machine = code_machine(timed, version=4, input_source=lambda: "y")
+    poison = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 
-    with pytest.raises(ZMachineUnimplementedError, match="timed read_char"):
-        machine.run()
+    for offset, value in enumerate(poison):
+        machine.memory.write_byte(0x70 + offset, value)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
+    assert_that(machine.memory.read_word(0x102)).is_zero()
 
 
 # A zero time and routine are the same as their absence.

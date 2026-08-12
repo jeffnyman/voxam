@@ -1194,18 +1194,21 @@ class Machine:
         stores its terminating character -- 13, the return key, since
         input here always ends in a newline (§15 read).
 
+        A time and routine pair asks for interrupts during real
+        waiting (§15); under the instant typist the line arrives
+        before any interval elapses, so the pair is accepted and
+        never consulted -- see read_char for the full argument.
+
         Raises:
-            ZMachineUnimplementedError: For a nonzero time and
-                routine pair, or leftover characters preloaded in the
-                buffer -- timed-input machinery Voxam does not have.
+            ZMachineUnimplementedError: For leftover characters
+                preloaded in the buffer, which only an interrupted
+                timed read can legitimately produce -- and the
+                instant typist is never interrupted.
             ZMachineMemoryError: For a buffer too small to be real,
                 which §15 asks interpreters to halt on.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
-
-        if any(values[2:]):
-            raise ZMachineUnimplementedError("timed read", instruction.address)
 
         # In Versions 1 to 3 the status line is redisplayed before the
         # player types (§8.2, §15 read) -- when there is one to show.
@@ -1641,11 +1644,18 @@ class Machine:
         return key itself, ZSCII 13. A recorded script presses a key
         with a one-character line, or return with an empty one.
 
+        A time and routine pair asks for the routine every time/10
+        seconds of real waiting (§15); under the instant typist no
+        real time ever elapses, so zero intervals pass, the routine
+        is never called, and the read completes as an untimed one.
+        (All Roads gates its title menu behind exactly such a read.)
+        Games whose progress requires interrupts actually firing --
+        Border Zone's real-time clock -- are at odds with seeded
+        replay itself, and wait on a virtual-time seam.
+
         Raises:
             ZMachineInstructionError: If the first operand is not 1,
                 the keyboard, which §15 makes the only input device.
-            ZMachineUnimplementedError: For a nonzero time and
-                routine pair, which would need timed input.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -1658,9 +1668,6 @@ class Machine:
             )
 
             raise ZMachineInstructionError(msg)
-
-        if any(values[1:]):
-            raise ZMachineUnimplementedError("timed read_char", instruction.address)
 
         line = self._input()
         code = ord(line[0]) if line else ZSCII_NEWLINE
