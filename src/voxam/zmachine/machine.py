@@ -1044,12 +1044,20 @@ class Machine:
         self._branch(instruction, self._objects.parent(obj) == parent)
 
     def _op_test_attr(self, instruction: Instruction) -> None:
-        """Branch if the object's attribute is set (§15)."""
+        """Branch if the object's attribute is set (§15).
+
+        Object 0 has no attributes set, because there is nothing to
+        set them on (§12.3): another read the early Inform libraries
+        make in earnest -- Magic Toyshop tests attribute 3 of object
+        0 while emptying a box -- so it answers false rather than
+        halting. set_attr and clear_attr on object 0 stay loud.
+        """
 
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
+        held = bool(obj) and self._objects.attribute(obj, attribute)
 
-        self._branch(instruction, self._objects.attribute(obj, attribute))
+        self._branch(instruction, held)
 
     def _op_set_attr(self, instruction: Instruction) -> None:
         """Set the object's attribute (§15)."""
