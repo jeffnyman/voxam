@@ -564,19 +564,28 @@ class Machine:
 
         self._divide(instruction, _remainder)
 
-    def _op_loadw(self, instruction: Instruction) -> None:
-        """Store the word at array + 2 * word-index (§15).
+    def _table_address(self, array: int, index: int, scale: int) -> int:
+        """The address of a table entry, on a 16-bit bus (§15 loadw).
 
-        Address arithmetic is unsigned: §2.2.1 lists the signed
-        operations, and this is not among them.
+        §15 says only "array + 2*word-index"; the Inform library and
+        the checkers settle what it left open. The index is signed --
+        Inform emits negative indices to step backward from a table
+        -- and the sum wraps to what a 16-bit address can carry.
+        Praxix found both conventions missing in its second minute;
+        eleven recorded games never used either.
         """
+
+        return (array + scale * signed(index)) & WORD_MASK
+
+    def _op_loadw(self, instruction: Instruction) -> None:
+        """Store the word at array + 2 * word-index (§15)."""
 
         array = self._value(instruction.operands[0])
         index = self._value(instruction.operands[1])
 
         self._store_result(
             instruction.store_variable,
-            self._memory.read_word(array + WORD_SIZE * index),
+            self._memory.read_word(self._table_address(array, index, WORD_SIZE)),
         )
 
         self._pc = instruction.next_address
@@ -588,7 +597,8 @@ class Machine:
         index = self._value(instruction.operands[1])
 
         self._store_result(
-            instruction.store_variable, self._memory.read_byte(array + index)
+            instruction.store_variable,
+            self._memory.read_byte(self._table_address(array, index, 1)),
         )
 
         self._pc = instruction.next_address
@@ -600,7 +610,7 @@ class Machine:
         index = self._value(instruction.operands[1])
         value = self._value(instruction.operands[2])
 
-        self._memory.write_word(array + WORD_SIZE * index, value)
+        self._memory.write_word(self._table_address(array, index, WORD_SIZE), value)
         self._pc = instruction.next_address
 
     def _op_storeb(self, instruction: Instruction) -> None:
@@ -610,7 +620,7 @@ class Machine:
         index = self._value(instruction.operands[1])
         value = self._value(instruction.operands[2])
 
-        self._memory.write_byte(array + index, value)
+        self._memory.write_byte(self._table_address(array, index, 1), value)
         self._pc = instruction.next_address
 
     def _op_store(self, instruction: Instruction) -> None:
