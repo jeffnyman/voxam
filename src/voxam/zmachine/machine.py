@@ -13,6 +13,7 @@ from collections.abc import Callable
 from voxam.errors import (
     ZMachineArithmeticError,
     ZMachineInstructionError,
+    ZMachineMemoryError,
     ZMachineQuetzalError,
     ZMachineUnimplementedError,
 )
@@ -73,6 +74,17 @@ INTERPRETER_REVISION = ord("V")
 # read_char's first operand is always 1, the keyboard: no other
 # input device was ever defined (§15 read_char).
 KEYBOARD_DEVICE = 1
+
+# From Version 5, read's text buffer changes shape: byte 0 is the
+# whole capacity, the typed count lands in byte 1, and the letters
+# run from byte 2 with no terminator -- where Versions 1 to 4 put a
+# zero-terminated string from byte 1 (§15 read). §15 also asks for a
+# loud halt when a buffer is too small to be real: a text buffer
+# under 3 bytes or a parse buffer under 6 almost certainly means a
+# previous array overran them.
+COUNTED_TEXT_VERSION = 5
+MINIMUM_TEXT_CAPACITY = {False: 2, True: 1}
+MINIMUM_PARSE_WORDS = 1
 
 # sound_effect's first two numbers are the interpreter's own bleeps;
 # from 3 upward they name sampled sounds, which need Blorb-era
@@ -1048,20 +1060,25 @@ class Machine:
     def _op_sread(self, instruction: Instruction) -> None:
         """Read a typed command into the buffers (§15 read, §13.6).
 
-        Versions 1 to 4 only, and without timed input.
+        One opcode, two eras: through Version 4 the text buffer takes
+        a zero-terminated string from byte 1; from Version 5 the
+        typed count lands in byte 1 with the letters from byte 2, the
+        parse buffer may be zero to skip lexing, and the instruction
+        stores its terminating character -- 13, the return key, since
+        input here always ends in a newline (§15 read).
 
         Raises:
-            ZMachineUnimplementedError: For Version 5's storing aread,
-                or a nonzero time and routine pair.
+            ZMachineUnimplementedError: For a nonzero time and
+                routine pair, or leftover characters preloaded in the
+                buffer -- timed-input machinery Voxam does not have.
+            ZMachineMemoryError: For a buffer too small to be real,
+                which §15 asks interpreters to halt on.
         """
-
-        if instruction.opcode.stores:
-            raise ZMachineUnimplementedError("aread", instruction.address)
 
         values = [self._value(operand) for operand in instruction.operands]
 
         if any(values[2:]):
-            raise ZMachineUnimplementedError("timed sread", instruction.address)
+            raise ZMachineUnimplementedError("timed read", instruction.address)
 
         # In Versions 1 to 3 the status line is redisplayed before the
         # player types (§8.2, §15 read) -- when there is one to show.
@@ -1073,34 +1090,86 @@ class Machine:
 
         text_buffer = values[0]
         parse_buffer = values[1]
+        counted = self._memory.header.version >= COUNTED_TEXT_VERSION
 
-        # Byte 0 holds n where the buffer is a string array of length
-        # n: the typed letters plus the zero terminator fit inside it,
-        # so the capacity is n - 1 (§15 read).
-        capacity = self._memory.read_byte(text_buffer) - 1
-        line = self._input().lower()[:capacity]
+        capacity = self._memory.read_byte(text_buffer)
 
-        position = text_buffer + 1
+        if capacity < MINIMUM_TEXT_CAPACITY[counted]:
+            msg = (
+                f"the text buffer at ${text_buffer:04x} claims a capacity "
+                f"of {capacity}: almost certainly overrun by a previous "
+                f"array (§15 read)"
+            )
+
+            raise ZMachineMemoryError(msg)
+
+        if counted:
+            # A positive count already in byte 1 means characters
+            # left over from an interrupted timed read (§15 read) --
+            # machinery that does not exist here yet, so honoring the
+            # count would type stale bytes nobody entered.
+            if self._memory.read_byte(text_buffer + 1):
+                raise ZMachineUnimplementedError(
+                    "read with leftover input", instruction.address
+                )
+
+            line = self._input().lower()[:capacity]
+
+            self._memory.write_byte(text_buffer + 1, len(line))
+            self._write_text(text_buffer + 2, line, terminate=False)
+        else:
+            # Byte 0 holds n where the buffer is a string array of
+            # length n: the typed letters plus the zero terminator
+            # fit inside it, so the capacity is n - 1 (§15 read).
+            line = self._input().lower()[: capacity - 1]
+
+            self._write_text(text_buffer + 1, line, terminate=True)
+
+        # From Version 5 a zero parse buffer skips lexing (§15 read).
+        if parse_buffer or not counted:
+            self._parse(parse_buffer, line, first_letter=2 if counted else 1)
+
+        if instruction.opcode.stores:
+            self._store_result(instruction.store_variable, ZSCII_NEWLINE)
+
+        self._pc = instruction.next_address
+
+    def _write_text(self, position: int, line: str, *, terminate: bool) -> None:
+        """Lay typed text into the buffer, zero-terminated or not."""
 
         for character in line:
             self._memory.write_byte(position, ord(character))
             position += 1
 
-        self._memory.write_byte(position, 0)
+        if terminate:
+            self._memory.write_byte(position, 0)
 
-        self._parse(parse_buffer, line)
-        self._pc = instruction.next_address
-
-    def _parse(self, parse_buffer: int, line: str) -> None:
+    def _parse(self, parse_buffer: int, line: str, first_letter: int) -> None:
         """Write the lexical analysis into the parse buffer (§15 read).
 
         Each block: the word's dictionary address or 0, its letter
         count, and the position of its first letter in the text
-        buffer, whose text starts at byte 1 (§13.6.3).
+        buffer -- whose text starts at byte 1 through Version 4 and
+        byte 2 from Version 5 (§13.6.3, §15 read).
+
+        Raises:
+            ZMachineMemoryError: For a parse buffer too small to hold
+                a single word, which §15 asks interpreters to halt
+                on.
         """
 
         dictionary = self._dictionary()
         limit = self._memory.read_byte(parse_buffer)
+
+        if limit < MINIMUM_PARSE_WORDS:
+            msg = (
+                f"the parse buffer at ${parse_buffer:04x} claims room for "
+                f"{limit} words: almost certainly overrun by a previous "
+                f"array (§15 read)"
+            )
+
+            raise ZMachineMemoryError(msg)
+
         words = tokenize(line, dictionary.separators)[:limit]
 
         self._memory.write_byte(parse_buffer + 1, len(words))
@@ -1110,7 +1179,7 @@ class Machine:
         for word, offset in words:
             self._memory.write_word(block, dictionary.lookup(word))
             self._memory.write_byte(block + 2, len(word))
-            self._memory.write_byte(block + 3, offset + 1)
+            self._memory.write_byte(block + 3, offset + first_letter)
             block += 4
 
     def _status(self) -> Status:
