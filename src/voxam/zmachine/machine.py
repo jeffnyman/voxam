@@ -999,18 +999,29 @@ class Machine:
         self._declare_capabilities()
         self._start_execution()
 
+    # Object 0 means "nothing" (§12.3), and the tree reads answer
+    # questions about it in kind: nothing's parent, sibling, and
+    # child are nothing. Formally there is no such object -- but the
+    # early Inform libraries walk the tree from object 0 on routine
+    # paths (Magic Toyshop, Library 5/12, does it before the first
+    # command), so a strict halt bricks a generation of shipped
+    # games at their title screens. Reads relax; writes and every
+    # other object opcode stay loud until a real game earns more.
+
     def _op_get_parent(self, instruction: Instruction) -> None:
         """Store an object's parent (§15). No branch, unlike its kin."""
 
         obj = self._value(instruction.operands[0])
+        parent = self._objects.parent(obj) if obj else 0
 
-        self._store_result(instruction.store_variable, self._objects.parent(obj))
+        self._store_result(instruction.store_variable, parent)
         self._pc = instruction.next_address
 
     def _op_get_sibling(self, instruction: Instruction) -> None:
         """Store an object's sibling, branching if one exists (§15)."""
 
-        sibling = self._objects.sibling(self._value(instruction.operands[0]))
+        obj = self._value(instruction.operands[0])
+        sibling = self._objects.sibling(obj) if obj else 0
 
         self._store_result(instruction.store_variable, sibling)
         self._branch(instruction, sibling != 0)
@@ -1018,7 +1029,8 @@ class Machine:
     def _op_get_child(self, instruction: Instruction) -> None:
         """Store an object's first child, branching if one exists (§15)."""
 
-        child = self._objects.child(self._value(instruction.operands[0]))
+        obj = self._value(instruction.operands[0])
+        child = self._objects.child(obj) if obj else 0
 
         self._store_result(instruction.store_variable, child)
         self._branch(instruction, child != 0)
