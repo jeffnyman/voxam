@@ -1805,6 +1805,18 @@ class Machine:
         self._calls.push(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
 
+    def _op_pop(self, instruction: Instruction) -> None:
+        """Discard the top of the stack (§15 pop).
+
+        The 0OP throwaway of Versions 1 to 4; from Version 5 the
+        same number belongs to catch. No game in the corpus ever
+        used it -- Czech found it in seconds.
+        """
+
+        self._calls.pop()
+
+        self._pc = instruction.next_address
+
     def _op_ret_popped(self, _instruction: Instruction) -> None:
         """Return the top of the current routine's stack (§6.4.5)."""
 
@@ -1871,6 +1883,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "or": Machine._op_or,
     "output_stream": Machine._op_output_stream,
     "piracy": Machine._op_piracy,
+    "pop": Machine._op_pop,
     "print": Machine._op_print,
     "print_addr": Machine._op_print_addr,
     "print_char": Machine._op_print_char,
