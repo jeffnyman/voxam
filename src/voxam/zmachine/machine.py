@@ -15,6 +15,7 @@ from voxam.errors import (
     ZMachineInstructionError,
     ZMachineMemoryError,
     ZMachineQuetzalError,
+    ZMachineStackError,
     ZMachineUnimplementedError,
 )
 from voxam.frontend import Frontend, PlainFrontend, Status
@@ -1819,6 +1820,48 @@ class Machine:
         self._calls.push(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
 
+    def _op_catch(self, instruction: Instruction) -> None:
+        """Store the magic cookie naming this stack frame (§15 catch).
+
+        The cookie is specified exactly -- the number of frames on
+        the call stack (Quetzal §6.2) -- so that saved games carry
+        caught cookies between interpreters intact.
+        """
+
+        self._store_result(instruction.store_variable, self._calls.depth)
+
+        self._pc = instruction.next_address
+
+    def _op_throw(self, instruction: Instruction) -> None:
+        """Unwind to a caught frame and return from it (§15 throw).
+
+        The opposite of catch: the call state rewinds to where the
+        cookie was caught, and then returns from that routine with
+        the given value, as if it had executed ret.
+
+        Raises:
+            ZMachineStackError: For a cookie naming more frames than
+                exist -- a catch that has already returned, which
+                nothing can throw back to.
+        """
+
+        value = self._value(instruction.operands[0])
+        frame = self._value(instruction.operands[1])
+
+        if frame > self._calls.depth or frame < 1:
+            msg = (
+                f"cannot throw to stack frame {frame}: the call stack "
+                f"is {self._calls.depth} deep, so that catch has "
+                f"already returned (§15 throw)"
+            )
+
+            raise ZMachineStackError(msg)
+
+        while self._calls.depth > frame:
+            self._calls.pop_frame()
+
+        self._return(value)
+
     def _op_pop(self, instruction: Instruction) -> None:
         """Discard the top of the stack (§15 pop).
 
@@ -1866,6 +1909,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "copy_table": Machine._op_copy_table,
     "call_vs": Machine._op_call,
     "call_vs2": Machine._op_call,
+    "catch": Machine._op_catch,
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
@@ -1937,6 +1981,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "sub": Machine._op_sub,
     "test": Machine._op_test,
     "test_attr": Machine._op_test_attr,
+    "throw": Machine._op_throw,
     "tokenise": Machine._op_tokenise,
     "verify": Machine._op_verify,
 }
