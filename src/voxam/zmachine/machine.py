@@ -108,6 +108,12 @@ REDIRECTION_LIMIT = 16
 REDIRECTION_DATA_OFFSET = 2
 REDIRECTION_OPERANDS = 2
 
+# print_table's optional third and fourth operands: the height of
+# the rectangle, defaulting to one row, and the table characters
+# skipped between rows (§15 print_table).
+PRINT_TABLE_HEIGHT_OPERAND = 2
+PRINT_TABLE_SKIP_OPERAND = 3
+
 # tokenise's optional third and fourth operands: a custom dictionary
 # to consult, and the flag that leaves unrecognised words' slots
 # untouched (§15 tokenise).
@@ -1301,6 +1307,49 @@ class Machine:
 
             block += 4
 
+    def _op_print_table(self, instruction: Instruction) -> None:
+        """Print a rectangle of ZSCII rows from a table (§15).
+
+        Each row is width table bytes, with skip bytes passed over
+        between rows -- a window onto a larger character map. Under
+        the plain screen model each row after the first begins a
+        fresh line; the cursor-true rectangle, right and down from
+        wherever the cursor stands, belongs to a richer frontend.
+        (§15 also declares heights past 1 undefined in the lower
+        window; stacked lines are this interpreter's answer.)
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        table = values[0]
+        width = values[1]
+        height = (
+            values[PRINT_TABLE_HEIGHT_OPERAND]
+            if len(values) > PRINT_TABLE_HEIGHT_OPERAND
+            else 1
+        )
+        skip = (
+            values[PRINT_TABLE_SKIP_OPERAND]
+            if len(values) > PRINT_TABLE_SKIP_OPERAND
+            else 0
+        )
+        position = table
+
+        for row in range(height):
+            if row:
+                self._print("\n")
+
+            self._print(
+                "".join(
+                    zscii_to_char(self._memory.read_byte(position + offset))
+                    for offset in range(width)
+                )
+            )
+
+            position += width + skip
+
+        self._pc = instruction.next_address
+
     def _op_copy_table(self, instruction: Instruction) -> None:
         """Copy or zero a run of table bytes (§15 copy_table).
 
@@ -1801,6 +1850,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "print_num": Machine._op_print_num,
     "print_obj": Machine._op_print_obj,
     "print_paddr": Machine._op_print_paddr,
+    "print_table": Machine._op_print_table,
     "print_ret": Machine._op_print_ret,
     "pull": Machine._op_pull,
     "push": Machine._op_push,
