@@ -19,6 +19,7 @@ from voxam.frontend import Frontend, PlainFrontend, Status
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
+    FLAGS_2,
     PACKED_PC_VERSION,
     SCREEN_FIELDS_VERSION,
     STATUS_FLAGS_VERSION,
@@ -30,6 +31,7 @@ from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
 from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
+from voxam.zmachine.snapshot import Snapshot
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, Variables
 from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
@@ -173,6 +175,32 @@ class Machine:
 
         header = self._memory.header
 
+        self._declare_capabilities()
+
+        if header.version == PACKED_PC_VERSION:
+            address = routine_address(header, header.main_routine_packed_address)
+            routine = Routine.parse(self._memory, address)
+
+            self._calls.call(routine, (), return_address=0, store_variable=None)
+
+            self._pc = routine.first_instruction
+        else:
+            self._pc = header.initial_program_counter
+
+    def _declare_capabilities(self) -> None:
+        """Stamp the frontend's honest capabilities into the header.
+
+        Version 3's Flags 1 carries the status-line and screen-split
+        bits; from Version 4 the header instead takes the interpreter
+        identity, screen size, and typography (§11.1). These are the
+        fields marked Rst in §11's table: set at boot, and reset
+        after every restore and restart, because the state being
+        restored may have been saved under some other interpreter
+        (§6.1.2.2).
+        """
+
+        header = self._memory.header
+
         if header.version == STATUS_FLAGS_VERSION:
             header.declare_status_line(available=self._frontend.has_status_line)
             header.declare_screen_splitting(
@@ -191,15 +219,49 @@ class Machine:
                 timed_input=self._frontend.has_timed_input,
             )
 
-        if header.version == PACKED_PC_VERSION:
-            address = routine_address(header, header.main_routine_packed_address)
-            routine = Routine.parse(self._memory, address)
+    def snapshot(self) -> Snapshot:
+        """Capture the entire state of play (§6.1, §6.1.1).
 
-            self._calls.call(routine, (), return_address=0, store_variable=None)
+        Returns:
+            The four §6.1 ingredients -- dynamic memory, the stack,
+            the PC, and the routine call state -- frozen in the
+            interpreter's private memory. The capture is inert:
+            running the machine afterward cannot alter it.
+        """
 
-            self._pc = routine.first_instruction
-        else:
-            self._pc = header.initial_program_counter
+        return Snapshot(
+            dynamic_memory=self._memory.dynamic_snapshot(),
+            pc=self._pc,
+            frames=self._calls.snapshot(),
+        )
+
+    def restore(self, snapshot: Snapshot) -> None:
+        """Write a captured state of play back whole (§6.1.2).
+
+        Everything is restored except 'Flags 2', whose bits belong to
+        the player's session rather than the story's state (§6.1.2),
+        and the Rst-marked header fields are then re-stamped, since
+        the capture may not have been taken under this interpreter or
+        this frontend (§6.1.2.2).
+
+        Args:
+            snapshot: A state of play captured from this same story.
+
+        Raises:
+            ZMachineMemoryError: If the snapshot's dynamic memory
+                does not match this story's shape, meaning it was
+                captured from a different game (§6.1.2.1).
+            ZMachineStackError: If the snapshot's call chain is not
+                one an honest capture could hold.
+        """
+
+        flags2 = self._memory.read_word(FLAGS_2)
+
+        self._memory.restore_dynamic(snapshot.dynamic_memory)
+        self._memory.write_word(FLAGS_2, flags2)
+        self._calls.restore(snapshot.frames)
+        self._pc = snapshot.pc
+        self._declare_capabilities()
 
     @property
     def memory(self) -> Memory:

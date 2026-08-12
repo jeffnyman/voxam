@@ -2,8 +2,9 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import ZMachineStackError
-from voxam.zmachine.frames import CallStack
+from voxam.zmachine.frames import USAGE_LIMIT, CallStack
 from voxam.zmachine.routine import Routine
+from voxam.zmachine.snapshot import FrameSnapshot
 
 
 def routine_with(initial_locals: tuple[int, ...]) -> Routine:
@@ -175,3 +176,83 @@ def test_rejects_values_that_do_not_fit_in_a_word(value: int) -> None:
 
     with pytest.raises(ZMachineStackError, match="fit in a word"):
         calls.set_local(1, value)
+
+
+# The whole call chain survives a round trip: a snapshot taken with
+# a routine in flight restores its locals, its private stack, and
+# its depth exactly (§6.1, §6.1.2).
+def test_call_chain_survives_a_snapshot_round_trip() -> None:
+    calls = CallStack()
+    calls.call(routine_with((7, 8)), (1,), return_address=0x500, store_variable=3)
+    calls.push(0x2A)
+
+    frames = calls.snapshot()
+
+    calls.set_local(2, 0xBEEF)
+    calls.push(0x99)
+    calls.call(routine_with(()), (), return_address=0x600, store_variable=None)
+
+    calls.restore(frames)
+
+    assert_that(calls.depth).is_equal_to(2)
+    assert_that(calls.local(1)).is_equal_to(1)
+    assert_that(calls.local(2)).is_equal_to(8)
+    assert_that(calls.pop()).is_equal_to(0x2A)
+
+
+# The capture is frozen: mutating the live call state after taking
+# it cannot reach into the captured frames (§6.1).
+def test_frame_snapshot_is_inert_after_capture() -> None:
+    calls = CallStack()
+    calls.call(routine_with((7,)), (), return_address=0x500, store_variable=0)
+    calls.push(0x2A)
+
+    frames = calls.snapshot()
+
+    calls.set_local(1, 0xBEEF)
+    calls.push(0x99)
+
+    assert_that(frames[-1].locals).is_equal_to((7,))
+    assert_that(frames[-1].stack).is_equal_to((0x2A,))
+
+
+# Restoring recomputes stack usage from the frames themselves, so
+# the restored state pays for exactly what it holds: popping back
+# to the base frame works as if the chain had been built by calls.
+def test_restore_recomputes_usage_and_the_chain_still_pops() -> None:
+    calls = CallStack()
+    calls.call(routine_with((5,)), (), return_address=0x500, store_variable=0)
+
+    frames = calls.snapshot()
+    fresh = CallStack()
+    fresh.restore(frames)
+
+    assert_that(fresh.pop_frame().return_address).is_equal_to(0x500)
+    assert_that(fresh.depth).is_equal_to(1)
+
+
+# Even a game at rest stands on the base frame (§5.5), so an empty
+# chain cannot be a state of play.
+def test_restoring_an_empty_call_chain_is_refused() -> None:
+    calls = CallStack()
+
+    with pytest.raises(ZMachineStackError, match="base frame always exists"):
+        calls.restore(())
+
+
+# A chain whose usage passes the §6.3.3 ceiling could never have
+# been captured from this machine, so restoring one is refused.
+def test_restoring_an_impossible_call_chain_is_refused() -> None:
+    base = FrameSnapshot(
+        return_address=0, store_variable=None, locals=(), argument_count=0, stack=()
+    )
+    bloated = FrameSnapshot(
+        return_address=0x500,
+        store_variable=None,
+        locals=(),
+        argument_count=0,
+        stack=(0,) * (USAGE_LIMIT + 1),
+    )
+
+    with pytest.raises(ZMachineStackError, match="cannot be an honest capture"):
+        CallStack().restore((base, bloated))

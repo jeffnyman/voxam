@@ -218,3 +218,46 @@ def test_story_remains_pristine_after_memory_writes(
 
     assert_that(memory.header.release).is_equal_to(original + 1)
     assert_that(story.header.release).is_equal_to(original)
+
+
+# A capture is every byte below the static base and nothing more:
+# static and high memory never change, so dynamic memory is all a
+# save needs (§6.1, §6.1.1).
+def test_dynamic_snapshot_captures_exactly_dynamic_memory() -> None:
+    memory = memory_image(seed={0x50: 0xAB})
+    image = memory.dynamic_snapshot()
+
+    assert_that(len(image)).is_equal_to(STATIC_BASE)
+    assert_that(image[0x50]).is_equal_to(0xAB)
+
+
+# Restoring writes the capture back verbatim: a byte changed since
+# the capture reverts to its captured value (§6.1.2).
+def test_restore_dynamic_writes_the_capture_back() -> None:
+    memory = memory_image(seed={0x50: 0xAB})
+    image = memory.dynamic_snapshot()
+
+    memory.write_byte(0x50, 0xCD)
+    memory.restore_dynamic(image)
+
+    assert_that(memory.read_byte(0x50)).is_equal_to(0xAB)
+
+
+# The capture is frozen at the moment it is taken: writes to live
+# memory afterward cannot reach into it (§6.1).
+def test_dynamic_snapshot_is_inert_after_capture() -> None:
+    memory = memory_image(seed={0x50: 0xAB})
+    image = memory.dynamic_snapshot()
+
+    memory.write_byte(0x50, 0xCD)
+
+    assert_that(image[0x50]).is_equal_to(0xAB)
+
+
+# A capture whose size disagrees with this story's dynamic memory
+# was taken from some other game, which §6.1.2.1 asks us to refuse.
+def test_restoring_a_foreign_capture_is_refused() -> None:
+    memory = memory_image()
+
+    with pytest.raises(ZMachineMemoryError, match="different game"):
+        memory.restore_dynamic(bytes(STATIC_BASE + 1))
