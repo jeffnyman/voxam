@@ -1,0 +1,421 @@
+! SEED=10
+! GAME=../entharion/zcode-inform/advent-r9-s260512.z4
+
+# First Excursion
+
+e
+get keys
+get lamp
+w. s. s. s
+
+unlock grate
+d. w
+
+on
+get cage
+w. w. w
+get bird
+w. d. s
+get gold
+n. n
+
+drop bird
+drop cage
+drop keys
+s
+get jewelry
+n
+
+sw
+w
+kill dragon
+yes
+get rug
+e. e. w
+get coins
+e. n
+
+# Two waits before lifting the silver, and they are the whole
+# difference between life and death later. The dwarves' clock only
+# runs while you are underground -- surface time is frozen for them
+# -- so whoever is loitering at Y2 when you leave is still standing
+# there whenever you return, however long the surface errands take.
+# Under this seed the return plugh landed in a two-dwarf knife
+# volley in the dark, fatally, on every timing of the surface side.
+# Two extra cave-side turns here reshuffle the patrol instead: the
+# same pair still meets the return, but every knife now misses.
+
+wait
+wait
+get silver
+n
+off
+plugh
+
+drop gold
+drop jewelry
+drop coins
+drop silver
+drop rug
+get bottle
+get water
+
+score
+
+# Second Excursion
+#
+# The return arrives in darkness among the same two dwarves, but on
+# the reshuffled timeline their knives all miss; light the lamp and
+# walk on. They tail the descent in shrinking numbers -- three, two,
+# one -- throwing the occasional knife past your ear, and at one
+# point the pirate appears, catches sight of a dwarf, and runs away.
+# Nobody connects. The axe is not in the Low N/S Passage where the
+# walkthroughs grab it: under this seed it is lying one room on, in
+# the Hall of the Mountain King.
+
+plugh
+on
+s
+s
+get axe
+sw
+w
+n
+d
+s
+d
+
+# This is Nelson's port, and it speaks NELS0350: "water plant", not
+# "pour water" -- pour bounces with "The bottled water can't contain
+# things" and the whole watering errand silently fails after it.
+
+water plant
+u
+w
+u
+n
+n
+get water
+s
+s
+d
+s
+d
+water plant
+u
+e
+d
+get oil
+u
+w
+d
+climb plant
+w
+
+n
+oil door
+drop bottle
+n
+get trident
+w. d. se. n. w
+throw axe at dwarf
+drop trident
+drop lamp
+e
+get emerald
+w
+get axe
+get lamp
+get trident
+nw. s
+
+throw axe at dwarf
+get axe
+throw axe at dwarf
+get axe
+get vase
+
+throw axe at dwarf
+get axe
+throw axe at dwarf
+get axe
+se. e
+get pillow
+w. ne. e. n
+open clam with trident
+d. d
+
+# The pirate pounces the instant the pearl is taken: "I'll just
+# take all this booty and hide it away with me chest deep in the
+# maze!" Emerald, trident, vase, and pearl -- thirteen points --
+# gone in one sentence. This is not the disaster it reads as: the
+# pirate's chest is itself one of the game's fifteen treasures,
+# and it only becomes findable after he has robbed you to stock
+# it. The robbery is mandatory; ours merely came early. Everything
+# he took waits in the maze for the third excursion's planned
+# recovery trip, so the surface drop-list below shrinks to the one
+# thing he left us: the pillow. (It still matters -- the vase,
+# when recovered, must land on it.)
+
+get pearl
+u
+u
+s
+u
+e
+u
+n
+off
+plugh
+
+drop pillow
+plugh
+on
+plover
+ne
+get pyramid
+s
+plover
+off
+plugh
+drop pyramid
+get food
+
+# The walkthroughs order a "save" here. A seeded recording has no
+# use for one -- and now that Voxam actually honors save, replaying
+# it would scribble a real .sav beside the story every time.
+
+score
+
+# Third Excursion
+#
+# The long one: keys for the bear's chain, eggs for the troll's
+# toll, spices from beyond the volcano, the diamonds, and the raid
+# on the pirate's chest. Dwarves tail nearly every leg of it and a
+# knife whistles past in the maze; under this timeline nothing
+# lands. Three dialect notes, all caught live by the refusal guard:
+# the troll hides UNDER his bridge until a first ne draws him out,
+# and only then can the eggs be handed over; the bear is tamed with
+# "give food to bear", not "feed bear"; and the diamonds fall to a
+# plain walk along the west side of the fissure -- no magic rod, no
+# crystal bridge, which idles the whole rod errand the walkthroughs
+# spend a excursion on.
+
+plugh
+on
+s
+s
+get keys
+sw
+w
+n
+d
+s
+d
+climb plant
+w
+get eggs
+n
+n
+w
+d
+sw
+u
+ne
+give eggs to troll
+ne
+ne
+e
+ne
+e
+get spices
+w
+s
+se
+s
+e
+give food to bear
+unlock chain
+drop keys
+get chain
+get bear
+w
+w
+n
+w
+w
+sw
+
+# The toll bridge, southbound, with a bear. The troll takes one
+# look, shrieks, and scurries away. Cheapest crossing in the cave.
+
+drop bear
+sw
+sw
+d
+se
+se
+w
+w
+d
+climb plant
+w
+fee
+fie
+foe
+foo
+get eggs
+s
+d
+u
+w
+u
+s
+e
+e
+w
+w
+w
+e
+e
+get diamonds
+w
+
+# Into the maze of twisty little passages, all alike, on the
+# walkthrough's own thread: the pirate's dead end holds the chest,
+# the pearl, and everything he stole at the oyster. Seven things is
+# all these hands can carry, so the chest and the standing load go
+# home first and the stolen four wait for a second trip.
+
+s
+e
+s
+s
+s
+n
+e
+e
+nw
+get chest
+se
+n
+d
+e
+e
+off
+xyzzy
+drop chest
+drop diamonds
+drop eggs
+drop chain
+drop spices
+score
+
+plugh
+on
+s
+s
+w
+w
+w
+e
+s
+e
+s
+s
+s
+n
+e
+e
+nw
+get pearl
+get emerald
+get trident
+get vase
+se
+n
+d
+e
+e
+off
+xyzzy
+drop trident
+drop pearl
+drop emerald
+drop vase
+score
+
+# End Game
+#
+# All fifteen treasures are in the well house, which arms the
+# closing clock the next time the cave is entered. One last point
+# for carrying the magazines to Witt's End, then the waits: the
+# "closing soon" announcement lands midway through them and "The
+# cave is now closed" at the forty-second, teleporting us to the
+# repository. The lamp is dimming by then; there is not much slack
+# left in this timeline. The blast itself is the walkthroughs' one
+# unanimous complaint -- nothing in the game hints at it -- but the
+# choreography is simple: carry the rod to the northeast end, leave
+# it, walk back southwest, and say the word.
+
+plugh
+on
+s
+d
+w
+d
+e
+get magazines
+e
+drop magazines
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+sw
+get rod
+ne
+drop rod
+sw
+blast
+quit
