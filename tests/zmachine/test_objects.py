@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import pytest
@@ -590,4 +591,46 @@ def test_version_6_pull_is_a_reported_frontier() -> None:
     machine = Machine(scene_story([Obj()], version=6, code=code))
 
     with pytest.raises(ZMachineUnimplementedError, match="pull"):
+        machine.run()
+
+
+# Object 0 means "nothing" (§12.3), and the tree reads answer
+# questions about it in kind: the early Inform libraries walk the
+# tree from object 0 on routine paths (Magic Toyshop, Library 5/12,
+# does it before the first command), so these three reads yield 0
+# instead of halting. get_sibling and get_child store their 0 and
+# fail their branch.
+def test_the_tree_reads_answer_nothing_for_object_0(
+    code_machine: Callable[..., Machine],
+) -> None:
+    # get_parent 0 -> g0; get_sibling 0 -> g1 [branch -> quit];
+    # get_child 0 -> g2 [branch -> quit]; store g3, 42; quit
+    program = bytes(
+        [
+            *[0x93, 0x00, 0x10],
+            *[0x91, 0x00, 0x11, 0xC5],
+            *[0x92, 0x00, 0x12, 0xC5],
+            *[0x0D, 0x13, 0x2A],
+            *[0xBA],
+        ]
+    )
+    machine = code_machine(program)
+    machine.memory.write_word(0x100, 0xAAAA)
+    machine.memory.write_word(0x102, 0xAAAA)
+    machine.memory.write_word(0x104, 0xAAAA)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_zero()
+    assert_that(machine.memory.read_word(0x102)).is_zero()
+    assert_that(machine.memory.read_word(0x104)).is_zero()
+    assert_that(machine.memory.read_word(0x106)).is_equal_to(42)
+
+
+# The relaxation is reads-only: mutating the tree at object 0 stays
+# the loud halt §12.3 demands.
+def test_moving_object_0_still_halts(code_machine: Callable[..., Machine]) -> None:
+    machine = code_machine(bytes([0x0E, 0x00, 0x01, 0xBA]))
+
+    with pytest.raises(ZMachineObjectError, match="object 0 does not exist"):
         machine.run()
