@@ -47,21 +47,24 @@ described below.
 
 Version `0.x`: early, honest, and playable.
 
-**Works today:** story file versions 1 through 3, which cover
-Infocom's 1980--1985 catalog and many modern retro-style games. That
-includes the full parser and object machinery, a seeded random
-number generator for reproducible sessions, status line semantics,
-and an acceptance-script harness for recording and replaying whole
-playthroughs.
+**Works today:** story file versions 1 through 4, which cover
+Infocom's 1980--1986 catalog -- including the "Interactive Fiction
+Plus" line -- and many modern retro-style games. That includes the
+full parser and object machinery, a seeded random number generator
+for reproducible sessions, status line semantics, the version 4
+screen model (split windows, single-keystroke input), SAVE, RESTORE,
+and RESTART in the standard
+[Quetzal](https://jeffnyman.github.io/z-machine-standard/quetzal.html)
+format, and an acceptance-script harness for recording, replaying,
+and probing whole playthroughs.
 
-**Under construction:** version 4 support is being built
+**Under construction:** version 5 support is being built
 "frontier-driven" -- games are run until they name the next missing
-piece. Version 4 stories boot and identify the interpreter; the
-screen model (split windows, text styles) is in progress.
+piece.
 
-**Not yet:** SAVE and RESTORE, sound, timed input, versions 5 and
-up, and Glulx. For recorded sessions, seeds substitute for saves:
-a script replays a whole game in moments.
+**Not yet:** sampled sound, timed input, UNDO, version 6, and
+Glulx. For recorded sessions, seeds substitute for saves: a script
+replays a whole game in moments.
 
 ## Installation
 
@@ -96,6 +99,11 @@ same commands produce the same session, every time.
 ```bash
 voxam --seed 1137 path/to/story.z3
 ```
+
+Typing `save` in a game writes a Quetzal file beside the story --
+`zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
+Quetzal is the standard interchange format, so saves travel between
+Voxam and other interpreters.
 
 ## Acceptance scripts
 

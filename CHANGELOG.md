@@ -1,3 +1,19 @@
+## v0.2.0 (2026-08-12)
+
+### Feat
+
+- **probe**: add a probe harness for interrogating recordings (#48)
+- **acceptance**: teach the refusal guard Inform's dialect (#46)
+- **zmachine**: wire save, restore, and restart opcodes (#45)
+- **zmachine**: encode and decode Quetzal saved games (#44)
+- **zmachine**: capture and restore the state of play (#43)
+- **zmachine**: dispatch call_vs2 and call_vn2 through the shared call handler (#41)
+- **frontend**: sound bleeps and render upper-window content (#39)
+- **zmachine**: redirect output through the §7 stream machinery (#38)
+- **zmachine**: read single keystrokes with read_char (#37)
+- **zmachine**: route window operations and mute the upper window (#36)
+- **zmachine**: route screen operations through the frontend (#35)
+
 ## v0.1.0 (2026-08-11)
 
 ### Feat
