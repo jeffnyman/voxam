@@ -108,6 +108,12 @@ REDIRECTION_LIMIT = 16
 REDIRECTION_DATA_OFFSET = 2
 REDIRECTION_OPERANDS = 2
 
+# tokenise's optional third and fourth operands: a custom dictionary
+# to consult, and the flag that leaves unrecognised words' slots
+# untouched (§15 tokenise).
+TOKENISE_DICTIONARY_OPERAND = 2
+TOKENISE_FLAG_OPERAND = 3
+
 # scan_table's optional form byte is its fourth operand and defaults
 # to $82: compare words (the top bit) over two-byte fields (the
 # rest), examining the first word or byte of each field (§15
@@ -1190,13 +1196,25 @@ class Machine:
         if terminate:
             self._memory.write_byte(position, 0)
 
-    def _parse(self, parse_buffer: int, line: str, first_letter: int) -> None:
+    def _parse(
+        self,
+        parse_buffer: int,
+        line: str,
+        first_letter: int,
+        dictionary: Dictionary | None = None,
+        *,
+        keep_unrecognized: bool = False,
+    ) -> None:
         """Write the lexical analysis into the parse buffer (§15 read).
 
         Each block: the word's dictionary address or 0, its letter
         count, and the position of its first letter in the text
         buffer -- whose text starts at byte 1 through Version 4 and
-        byte 2 from Version 5 (§13.6.3, §15 read).
+        byte 2 from Version 5 (§13.6.3, §15 read). With
+        keep_unrecognized, an absent word's block is left untouched
+        instead of zeroed, so successive tokenise passes against
+        different dictionaries each fill in more slots (§15
+        tokenise).
 
         Raises:
             ZMachineMemoryError: For a parse buffer too small to hold
@@ -1204,7 +1222,9 @@ class Machine:
                 on.
         """
 
-        dictionary = self._dictionary()
+        if dictionary is None:
+            dictionary = self._dictionary()
+
         limit = self._memory.read_byte(parse_buffer)
 
         if limit < MINIMUM_PARSE_WORDS:
@@ -1223,10 +1243,55 @@ class Machine:
         block = parse_buffer + 2
 
         for word, offset in words:
-            self._memory.write_word(block, dictionary.lookup(word))
-            self._memory.write_byte(block + 2, len(word))
-            self._memory.write_byte(block + 3, offset + first_letter)
+            address = dictionary.lookup(word)
+
+            if address or not keep_unrecognized:
+                self._memory.write_word(block, address)
+                self._memory.write_byte(block + 2, len(word))
+                self._memory.write_byte(block + 3, offset + first_letter)
+
             block += 4
+
+    def _op_tokenise(self, instruction: Instruction) -> None:
+        """Lexically analyse text already in the buffer (§15 tokenise).
+
+        The lexing half of read as its own opcode, which Inform-era
+        parsers run repeatedly over one typed line. A nonzero third
+        operand names a custom dictionary to consult instead of the
+        game's own -- possibly unsorted (§13.5) -- and a nonzero
+        fourth leaves unrecognised words' slots untouched, so passes
+        accumulate.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        text_buffer = values[0]
+        parse_buffer = values[1]
+        supplied = values[TOKENISE_DICTIONARY_OPERAND:]
+        base = supplied[0] if supplied and supplied[0] else None
+        keep = len(values) > TOKENISE_FLAG_OPERAND and bool(
+            values[TOKENISE_FLAG_OPERAND]
+        )
+
+        # tokenise exists from Version 5, so the buffer is always the
+        # counted layout: length in byte 1, text from byte 2 (§15
+        # read).
+        count = self._memory.read_byte(text_buffer + 1)
+        line = "".join(
+            chr(self._memory.read_byte(text_buffer + 2 + offset))
+            for offset in range(count)
+        )
+        dictionary = Dictionary(self._memory, base) if base is not None else None
+
+        self._parse(
+            parse_buffer,
+            line,
+            first_letter=2,
+            dictionary=dictionary,
+            keep_unrecognized=keep,
+        )
+
+        self._pc = instruction.next_address
 
     def _status(self) -> Status:
         """Assemble what the status line shows (§8.2).
@@ -1680,5 +1745,6 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "sub": Machine._op_sub,
     "test": Machine._op_test,
     "test_attr": Machine._op_test_attr,
+    "tokenise": Machine._op_tokenise,
     "verify": Machine._op_verify,
 }

@@ -19,6 +19,13 @@ V4_TEXT_BYTES = 6
 # An unrecognised word's dictionary address is 0 (§13.6.3).
 NOT_IN_DICTIONARY = 0
 
+# A user dictionary may give its entry count as -n, meaning n
+# entries unsorted (§13.5, §15 tokenise) -- convenient for tables
+# altered in play. A linear hunt does not care about order, so the
+# sign only affects how the count is read.
+COUNT_SIGN_BIT = 0x8000
+COUNT_RANGE = 0x10000
+
 
 class Dictionary:
     """A view of one dictionary table (§13.2).
@@ -47,7 +54,13 @@ class Dictionary:
             for index in range(separator_count)
         )
         self._entry_length = memory.read_byte(self._base + 1 + separator_count)
-        self._count = memory.read_word(self._base + 2 + separator_count)
+
+        count = memory.read_word(self._base + 2 + separator_count)
+
+        if count & COUNT_SIGN_BIT:
+            count = COUNT_RANGE - count
+
+        self._count = count
         self._entries = self._base + 4 + separator_count
         self._text_bytes = (
             V3_TEXT_BYTES if self._version <= V3_LAST_VERSION else V4_TEXT_BYTES
