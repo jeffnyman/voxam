@@ -8,7 +8,7 @@ and separators; lookup encodes each word and hunts for its entry.
 """
 
 from voxam.zmachine.memory import Memory
-from voxam.zmachine.zscii import encode_word, zscii_to_char
+from voxam.zmachine.zscii import alphabets, encode_word, zscii_to_char
 
 # Entry text is 4 bytes through Version 3 and 6 bytes after (§13.3,
 # §13.4).
@@ -45,6 +45,7 @@ class Dictionary:
 
         self._memory = memory
         self._version = memory.header.version
+        self._rows = alphabets(memory)
         self._base = base if base is not None else memory.header.dictionary_address
 
         separator_count = memory.read_byte(self._base)
@@ -92,7 +93,7 @@ class Dictionary:
             The byte address of the entry, or 0 when absent.
         """
 
-        target = encode_word(self._version, word)
+        target = encode_word(self._version, word, self._rows)
 
         for index in range(self._count):
             address = self._entries + index * self._entry_length
