@@ -13,9 +13,11 @@ from collections.abc import Callable
 from voxam.errors import (
     ZMachineArithmeticError,
     ZMachineInstructionError,
+    ZMachineQuetzalError,
     ZMachineUnimplementedError,
 )
 from voxam.frontend import Frontend, PlainFrontend, Status
+from voxam.saves import SaveSlot
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
@@ -28,10 +30,17 @@ from voxam.zmachine.instruction import Instruction, Operand, OperandType
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.objects import ObjectTable
 from voxam.zmachine.packed import routine_address, string_address
-from voxam.zmachine.riders import BRANCH_TARGET_ADJUSTMENT
+from voxam.zmachine.quetzal import read as read_quetzal
+from voxam.zmachine.quetzal import write as write_quetzal
+from voxam.zmachine.riders import (
+    BRANCH_TARGET_ADJUSTMENT,
+    Branch,
+    read_branch,
+    read_store_variable,
+)
 from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
-from voxam.zmachine.snapshot import Snapshot
+from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, Variables
 from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
@@ -39,6 +48,13 @@ from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
 FALSE_VALUE = 0
 TRUE_VALUE = 1
+
+# Through Version 3, save and restore branch; from Version 4 they
+# store instead (§14, §15). A save's store byte answers 1 on success,
+# 0 on failure -- and 2 when the game is picking up from a restore,
+# which resumes at that very byte (§15 save, Quetzal §5.8.2).
+BRANCHING_SAVE_FINAL_VERSION = 3
+RESTORED_VALUE = 2
 
 # A call to packed address 0 does nothing and returns false (§6.4.3).
 NULL_ROUTINE = 0
@@ -137,6 +153,7 @@ class Machine:
         frontend: Frontend | None = None,
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
+        saves: SaveSlot | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -157,6 +174,9 @@ class Machine:
                 when not given.
             seed: A session seed making the dice reproducible; None
                 means true entropy.
+            saves: Where saved games are kept; None means every save
+                and restore reports failure, which is an answer the
+                story already knows how to hear (§15).
         """
 
         self._story = story
@@ -172,10 +192,21 @@ class Machine:
         self._running = True
         self._screen_selected = True
         self._redirections: list[tuple[int, list[str]]] = []
-
-        header = self._memory.header
+        self._saves = saves
 
         self._declare_capabilities()
+        self._start_execution()
+
+    def _start_execution(self) -> None:
+        """Point the machine at its first instruction (§5.4, §5.5).
+
+        Outside Version 6, execution begins at the header's initial
+        address, inside no routine (§5.5); Version 6 instead calls
+        the main routine (§5.4). Boot does this once, and restart
+        does it again over freshly reloaded memory (§6.1.3).
+        """
+
+        header = self._memory.header
 
         if header.version == PACKED_PC_VERSION:
             address = routine_address(header, header.main_routine_packed_address)
@@ -550,21 +581,39 @@ class Machine:
     def _branch(self, instruction: Instruction, condition: bool) -> None:
         """Act on a branch rider after a test (§4.7).
 
-        The branch applies when the condition matches its sense; the
-        sentinel offsets 0 and 1 return from the current routine
-        instead of jumping (§4.7.1, §4.7.2).
+        The branch applies when the condition matches its sense
+        (§4.7.1, §4.7.2).
         """
 
         branch = instruction.branch
 
         if branch is None or condition != branch.on_true:
             self._pc = instruction.next_address
-        elif branch.returns_false:
+        else:
+            self._take_branch(branch, instruction.next_address)
+
+    def _apply_branch(self, branch: Branch, after: int, condition: bool) -> None:
+        """Apply a decoded branch to a tested condition (§4.7).
+
+        The rider-at-hand twin of _branch, for resuming a restore at
+        a save's branch data, where there is no Instruction to hold
+        the rider.
+        """
+
+        if condition != branch.on_true:
+            self._pc = after
+        else:
+            self._take_branch(branch, after)
+
+    def _take_branch(self, branch: Branch, after: int) -> None:
+        """Follow a branch that applies: jump, or return (§4.7.1)."""
+
+        if branch.returns_false:
             self._return(FALSE_VALUE)
         elif branch.returns_true:
             self._return(TRUE_VALUE)
         else:
-            self._pc = branch.target(instruction.next_address)
+            self._pc = branch.target(after)
 
     def _op_je(self, instruction: Instruction) -> None:
         """Branch if the first operand equals any of the others (§15).
@@ -700,6 +749,136 @@ class Machine:
         """Branch, gullibly, as §15 asks interpreters to do."""
 
         self._branch(instruction, condition=True)
+
+    def _op_save(self, instruction: Instruction) -> None:
+        """Save the state of play as a Quetzal file (§15 save, §6.1.1).
+
+        The snapshot's PC is the address of this instruction's own
+        rider -- the branch data through Version 3, the store byte
+        from Version 4 (Quetzal §5.8) -- so a restore resumes right
+        there and answers through the same rider. Success branches or
+        stores 1; failure falls through or stores 0.
+        """
+
+        self._refuse_table_form(instruction)
+
+        snapshot = Snapshot(
+            dynamic_memory=self._memory.dynamic_snapshot(),
+            pc=instruction.operands_end,
+            frames=self._calls.snapshot(),
+        )
+        data = write_quetzal(snapshot, self._story)
+        success = self._saves is not None and self._saves.write(data)
+
+        if self._memory.header.version <= BRANCHING_SAVE_FINAL_VERSION:
+            self._branch(instruction, success)
+        else:
+            self._store_result(instruction.store_variable, int(success))
+
+            self._pc = instruction.next_address
+
+    def _op_restore(self, instruction: Instruction) -> None:
+        """Restore a saved state of play (§15 restore, §6.1.2).
+
+        On success the machine does not continue here at all: the
+        restored state resumes at the save's rider, taking its branch
+        or storing 2 there (§15 save, Quetzal §5.8). Failure is a
+        result the story hears -- no branch through Version 3, a
+        stored 0 from Version 4 -- whether the slot was empty, the
+        bytes were not a save, or the save names another game.
+        """
+
+        self._refuse_table_form(instruction)
+
+        snapshot = None
+        data = self._saves.read() if self._saves is not None else None
+
+        if data is not None:
+            try:
+                snapshot = read_quetzal(data, self._story)
+            except ZMachineQuetzalError:
+                snapshot = None
+
+        if snapshot is None:
+            if self._memory.header.version > BRANCHING_SAVE_FINAL_VERSION:
+                self._store_result(instruction.store_variable, FALSE_VALUE)
+
+            self._pc = instruction.next_address
+
+            return
+
+        self.restore(snapshot)
+        self._resume_from_save(snapshot.pc)
+
+    def _resume_from_save(self, pc: int) -> None:
+        """Pick up execution at the rider of the save that made us.
+
+        A restored PC points at the saving instruction's rider
+        (Quetzal §5.8): through Version 3 the branch data, taken as
+        the successful save it was; from Version 4 the store byte,
+        answered with 2 so the story knows it is being restored
+        rather than saved (§15 save).
+        """
+
+        if self._memory.header.version <= BRANCHING_SAVE_FINAL_VERSION:
+            branch, after = read_branch(self._memory, pc)
+
+            self._apply_branch(branch, after, condition=True)
+        else:
+            variable, after = read_store_variable(self._memory, pc)
+
+            self._variables.write(variable, RESTORED_VALUE)
+
+            self._pc = after
+
+    def _refuse_table_form(self, instruction: Instruction) -> None:
+        """Halt on the Version 5 table-taking save and restore forms.
+
+        From Version 5 the EXT opcodes may take operands naming a
+        table of bytes to save instead of the state of play (§15).
+        That is auxiliary-file machinery Voxam does not have yet, and
+        pretending the operands were not there would quietly save the
+        wrong thing.
+        """
+
+        if instruction.operands:
+            raise ZMachineUnimplementedError(
+                f"{instruction.opcode.name} with table operands",
+                instruction.address,
+            )
+
+    def _op_restart(self, _instruction: Instruction) -> None:
+        """Start the story over from the pristine file (§6.1.3).
+
+        The entire state reloads from the original story and the
+        stack empties -- but 'Flags 2' survives, the Rst header
+        fields are re-stamped, and the interpreter's own bookkeeping
+        (stream selection, memory redirection) returns to its boot
+        state.
+        """
+
+        flags2 = self._memory.read_word(FLAGS_2)
+        pristine = self._story.data[: self._story.header.static_memory_base]
+
+        self._memory.restore_dynamic(pristine)
+        self._memory.write_word(FLAGS_2, flags2)
+        self._calls.restore(
+            (
+                FrameSnapshot(
+                    return_address=0,
+                    store_variable=None,
+                    locals=(),
+                    argument_count=0,
+                    stack=(),
+                ),
+            )
+        )
+        self._redirections.clear()
+
+        self._screen_selected = True
+
+        self._declare_capabilities()
+        self._start_execution()
 
     def _op_get_parent(self, instruction: Instruction) -> None:
         """Store an object's parent (§15). No branch, unlike its kin."""
@@ -1370,10 +1549,13 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "quit": Machine._op_quit,
     "random": Machine._op_random,
     "read_char": Machine._op_read_char,
+    "restart": Machine._op_restart,
+    "restore": Machine._op_restore,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
     "rtrue": Machine._op_rtrue,
+    "save": Machine._op_save,
     "scan_table": Machine._op_scan_table,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,

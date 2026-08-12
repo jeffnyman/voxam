@@ -8,6 +8,7 @@ from pathlib import Path
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
 from voxam.errors import VoxamError, ZMachineUnimplementedError
 from voxam.frontend import Frontend, PlainFrontend
+from voxam.saves import FileSaveSlot
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -151,8 +152,13 @@ def _play(
         f"serial {header.serial_number} (z{header.version})\n"
     )
 
+    # Saved games live beside the story: zork1.z3 saves to zork1.sav.
+    saves = FileSaveSlot(story_path.with_suffix(".sav"))
+
     try:
-        Machine(story, frontend, input_source=input_source, seed=seed).run()
+        Machine(
+            story, frontend, input_source=input_source, seed=seed, saves=saves
+        ).run()
     except EOFError:
         print("\nvoxam: end of input")
 

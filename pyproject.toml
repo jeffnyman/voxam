@@ -100,6 +100,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
   "D",        # test names already say what is being verified
+  "PLR0913",  # fixture builders take one knob per machine seam
+  "PLR0917",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
