@@ -357,3 +357,116 @@ def test_sread_can_loop(code_machine: Callable[..., Machine]) -> None:
 
     assert_that(text_in_buffer(machine.memory)).is_equal_to("hi")
     assert_that(parse_block(machine.memory, 0)[0]).is_equal_to(HI_ADDRESS)
+
+
+CUSTOM_DICTIONARY = 0x160
+
+# tokenise text parse [dictionary [flag]] as VAR:27 (§15 tokenise).
+TOKENISE = bytes([0xFB, 0x0F, 0x01, 0x20, 0x01, 0x40, 0xBA])
+TOKENISE_CUSTOM = bytes([0xFB, 0x03, 0x01, 0x20, 0x01, 0x40, 0x01, 0x60, 0xBA])
+TOKENISE_KEEPING = bytes([0xFB, 0x01, 0x01, 0x20, 0x01, 0x40, 0x01, 0x60, 0x01, 0xBA])
+
+
+def plant_text(memory: Memory, line: str) -> None:
+    """Lay a line into the Version 5 counted text buffer by hand."""
+
+    memory.write_byte(TEXT_BUFFER + 1, len(line))
+
+    for offset, character in enumerate(line):
+        memory.write_byte(TEXT_BUFFER + 2 + offset, ord(character))
+
+
+def plant_custom(memory: Memory, entries: tuple[bytes, ...], count: int) -> None:
+    """Plant a user dictionary with its own (possibly signed) count."""
+
+    position = CUSTOM_DICTIONARY
+    memory.write_byte(position, 0)
+    memory.write_byte(position + 1, 7)
+    memory.write_word(position + 2, count & 0xFFFF)
+    position += 4
+
+    for entry in entries:
+        for offset, value in enumerate(entry):
+            memory.write_byte(position + offset, value)
+
+        position += 7
+
+
+def tokeniser(
+    code_machine: Callable[..., Machine], line: str, program: bytes = TOKENISE
+) -> Machine:
+    machine = code_machine(program, version=5)
+    plant_dictionary(machine.memory, entries=(GO5, HI5))
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_text(machine.memory, line)
+
+    return machine
+
+
+# tokenise is the lexing half of read as its own opcode: it analyses
+# text already sitting in the counted buffer against the game's own
+# dictionary (§15 tokenise).
+def test_tokenise_analyses_the_buffer_in_place(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = tokeniser(code_machine, "go hi")
+
+    machine.run()
+
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_equal_to(2)
+    assert_that(parse_block(machine.memory, 0)).is_equal_to((GO_ADDRESS, 2, 2))
+    assert_that(parse_block(machine.memory, 1)).is_equal_to((HI_ADDRESS, 2, 5))
+
+
+# A nonzero third operand names a custom dictionary to consult
+# instead of the game's own (§15 tokenise).
+def test_tokenise_consults_a_custom_dictionary(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = tokeniser(code_machine, "go hi", program=TOKENISE_CUSTOM)
+    plant_custom(machine.memory, (HI5,), count=1)
+
+    machine.run()
+
+    assert_that(parse_block(machine.memory, 0)).is_equal_to((0, 2, 2))
+    assert_that(parse_block(machine.memory, 1)).is_equal_to(
+        (CUSTOM_DICTIONARY + 4, 2, 5)
+    )
+
+
+# A count of -n means n entries unsorted (§13.5): convenient for a
+# table altered in play, and no obstacle to a linear hunt.
+def test_a_negative_count_reads_as_unsorted_entries(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = tokeniser(code_machine, "hi go", program=TOKENISE_CUSTOM)
+    plant_custom(machine.memory, (HI5, GO5), count=-2)
+
+    machine.run()
+
+    assert_that(parse_block(machine.memory, 0)).is_equal_to(
+        (CUSTOM_DICTIONARY + 4, 2, 2)
+    )
+    assert_that(parse_block(machine.memory, 1)).is_equal_to(
+        (CUSTOM_DICTIONARY + 11, 2, 5)
+    )
+
+
+# With the flag set, unrecognised words leave their slots untouched,
+# so successive passes against different dictionaries accumulate
+# (§15 tokenise). The sentinel poked into "go"'s slot survives the
+# custom-dictionary pass that does not know the word.
+def test_the_flag_leaves_unrecognised_slots_untouched(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = tokeniser(code_machine, "go hi", program=TOKENISE_KEEPING)
+    plant_custom(machine.memory, (HI5,), count=1)
+    machine.memory.write_word(PARSE_BUFFER + 2, 0xBEEF)
+
+    machine.run()
+
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_equal_to(2)
+    assert_that(machine.memory.read_word(PARSE_BUFFER + 2)).is_equal_to(0xBEEF)
+    assert_that(parse_block(machine.memory, 1)).is_equal_to(
+        (CUSTOM_DICTIONARY + 4, 2, 5)
+    )
