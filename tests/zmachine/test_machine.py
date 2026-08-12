@@ -452,3 +452,17 @@ def test_every_fixture_says_hello(
 
     assert_that("".join(output)).is_equal_to("hello from all z machine versions")
     assert_that(machine.running).is_false()
+
+
+# pop throws away the top of the stack without a home for it (§15
+# pop) -- proven by pushing two values, popping one, and pulling
+# what remains.
+def test_pop_discards_the_stack_top(code_machine: Callable[..., Machine]) -> None:
+    program = bytes(
+        [0xE8, 0x7F, 0x2A, 0xE8, 0x7F, 0x63, 0xB9, 0xE9, 0x7F, RESULT_VARIABLE, 0xBA]
+    )
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
