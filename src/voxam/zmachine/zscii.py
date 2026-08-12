@@ -65,8 +65,10 @@ CUSTOM_ALPHABET_VERSION = 5
 ALPHABET_LENGTH = 26
 A2_FIXED_ENTRIES = 2
 
-# ZSCII output codes: 13 is new-line, and 32 to 126 agree with ASCII
-# (§3.8.2.5, §3.8.3).
+# ZSCII output codes: 0 is the null, "defined for output but has no
+# effect in any output stream" (§3.8.2.1); 13 is new-line; and 32 to
+# 126 agree with ASCII (§3.8.2.5, §3.8.3).
+ZSCII_NULL = 0
 ZSCII_NEWLINE = 13
 ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
@@ -124,9 +126,13 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
         return _standard_alphabets(header.version)
 
     base = header.alphabet_table_address
+    # A null in a table slot converts to nothing (§3.8.2.1), which
+    # would shift every later letter's Z-character; a placeholder
+    # keeps the rows exactly 26 wide.
     a0, a1, a2 = (
         "".join(
             zscii_to_char(memory.fetch_byte(base + row * ALPHABET_LENGTH + index))
+            or "?"
             for index in range(skip, ALPHABET_LENGTH)
         )
         for row, skip in ((0, 0), (1, 0), (2, A2_FIXED_ENTRIES))
@@ -148,6 +154,10 @@ def zscii_to_char(code: int) -> str:
         ZMachineTextError: For codes outside new-line and the ASCII
             range, which need the extra-character machinery (§3.8.5).
     """
+
+    if code == ZSCII_NULL:
+        # Defined for output, with no effect in any stream (§3.8.2.1).
+        return ""
 
     if code == ZSCII_NEWLINE:
         return "\n"

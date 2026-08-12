@@ -252,7 +252,7 @@ def test_zscii_output_codes(code: int, expected: str) -> None:
     assert_that(zscii_to_char(code)).is_equal_to(expected)
 
 
-@pytest.mark.parametrize("code", [0, 12, 127, 200])
+@pytest.mark.parametrize("code", [12, 127, 200])
 def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(code)
@@ -338,3 +338,25 @@ def test_encoding_reaches_a_character_only_a1_holds() -> None:
     rows = ("?" * 26, "z" + "?" * 25, "??" + "!" * 24)
 
     assert_that(encode_word(5, "z", rows)).is_equal_to(encode(4, 6, 5, 5, 5, 5, 5, 5))
+
+
+# ZSCII 0 is defined for output with no effect in any stream
+# (§3.8.2.1): converting it yields nothing at all, where every
+# other unprintable still halts.
+def test_the_null_prints_as_nothing() -> None:
+    assert_that(zscii_to_char(0)).is_equal_to("")
+
+
+# A null in a custom alphabet slot converts to nothing, which would
+# shift every later letter's Z-character; the placeholder keeps the
+# row exactly 26 wide, so its neighbours still decode correctly
+# (§3.5.5.1, §3.8.2.1).
+def test_a_null_alphabet_slot_does_not_shift_the_row(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(6, 7), version=5)
+    plant_alphabet(memory, "\x00" + "bcdefghijklmnopqrstuvwxyz", "?" * 26, "?" * 26)
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("?b")
