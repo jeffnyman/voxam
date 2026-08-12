@@ -1,0 +1,47 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/destruct-r1-s021214.z5
+
+i
+examine pen
+examine package
+examine suit
+examine buttonniere
+examine map
+open package
+squeeze bulb
+examine bob
+d. n. w. s
+examine me
+examine bed
+examine grille
+open grille
+enter grille
+e. u
+examine waitress
+ask waitress about anything
+hit waitress
+kiss waitress
+waitress, any-order
+examine grating
+take grating
+n
+
+# Ending 1: The galaxy is your oyster
+
+enter ship
+look
+examine button
+push it
+
+```
+# Ending 2: BOOM!
+
+d
+examine man
+hit man
+
+# Ending 3: You'll never see him again
+
+d
+examine man
+ask man about me
