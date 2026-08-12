@@ -205,6 +205,7 @@ class Machine:
         self._screen_selected = True
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
+        self._undo: Snapshot | None = None
 
         self._declare_capabilities()
         self._start_execution()
@@ -821,6 +822,51 @@ class Machine:
 
         self.restore(snapshot)
         self._resume_from_save(snapshot.pc)
+
+    def _op_save_undo(self, instruction: Instruction) -> None:
+        """Save the state of play into the interpreter's hand (§15).
+
+        Like save into memory instead of a file, called once per turn
+        by Inform-era games to power UNDO -- which is why it is a
+        plain capture and nothing slower. The held snapshot is not
+        part of the state of play (§6.1.1.2): it lives outside the
+        memory map, so a restore cannot resurrect it and an undo
+        cannot be undone into growing forever. The PC captured is
+        this instruction's own store byte, exactly as save records
+        its rider (Quetzal §5.8.2).
+        """
+
+        self._undo = Snapshot(
+            dynamic_memory=self._memory.dynamic_snapshot(),
+            pc=instruction.operands_end,
+            frames=self._calls.snapshot(),
+        )
+
+        self._store_result(instruction.store_variable, TRUE_VALUE)
+
+        self._pc = instruction.next_address
+
+    def _op_restore_undo(self, instruction: Instruction) -> None:
+        """Restore the state save_undo holds (§15).
+
+        On success the machine resumes at the save_undo's store byte
+        and answers 2 there, just as a file restore answers its save
+        (§15 save). With nothing in hand -- which a game may not
+        legally rely on (§15 restore_undo) -- it stores 0 and moves
+        on, the quiet option the spec offers. The held snapshot
+        survives the restore: a single undo slot answers repeated
+        UNDOs with the same turn, as classic interpreters did.
+        """
+
+        if self._undo is None:
+            self._store_result(instruction.store_variable, FALSE_VALUE)
+
+            self._pc = instruction.next_address
+
+            return
+
+        self.restore(self._undo)
+        self._resume_from_save(self._undo.pc)
 
     def _resume_from_save(self, pc: int) -> None:
         """Pick up execution at the rider of the save that made us.
@@ -1620,11 +1666,13 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "read_char": Machine._op_read_char,
     "restart": Machine._op_restart,
     "restore": Machine._op_restore,
+    "restore_undo": Machine._op_restore_undo,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
     "rtrue": Machine._op_rtrue,
     "save": Machine._op_save,
+    "save_undo": Machine._op_save_undo,
     "scan_table": Machine._op_scan_table,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,
