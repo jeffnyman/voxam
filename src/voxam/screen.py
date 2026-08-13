@@ -347,10 +347,13 @@ class ScreenModel:
         self._require_windows()
         self._flush()
 
-        if height < 0 or height > self._lines - self._upper_top():
+        # The upper window may take the whole screen -- Z-Tornado
+        # plays its entire game in a full-height split -- but not
+        # more than exists (§8.7.2.1).
+        if height < 0 or height > self._lines - self._upper_top() + 1:
             msg = (
-                f"an upper window {height} lines tall does not leave a "
-                f"lower window on a {self._lines}-line screen (§8.7.2.1)"
+                f"an upper window {height} lines tall does not fit a "
+                f"{self._lines}-line screen (§8.7.2.1)"
             )
 
             raise ZMachineScreenError(msg)
@@ -364,7 +367,9 @@ class ScreenModel:
         row, _column = self._lower_cursor
 
         if row < self._lower_top():
-            self._lower_cursor = (self._lower_top(), 1)
+            # The line just below the new upper window (§8.7.2.2) --
+            # or the last line there is, when the split took all.
+            self._lower_cursor = (min(self._lower_top(), self._lines), 1)
 
         upper_row, _upper_column = self._upper_cursor
 
@@ -490,7 +495,7 @@ class ScreenModel:
         if self._version <= BOTTOM_HOME_LAST_VERSION:
             self._lower_cursor = (self._lines, 1)
         else:
-            self._lower_cursor = (self._lower_top(), 1)
+            self._lower_cursor = (min(self._lower_top(), self._lines), 1)
 
     def erase_line(self) -> None:
         """Erase from the cursor to the end of the line (§8.7.3.4)."""

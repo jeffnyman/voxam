@@ -185,7 +185,7 @@ def _play(
         return EXIT_UNUSABLE
 
     header = story.header
-    key_source: Callable[[], str] | None = None
+    key_source: Callable[[float | None], str | None] | None = None
 
     if frontend is None and screen:
         painted = _screen_frontend(header.version)

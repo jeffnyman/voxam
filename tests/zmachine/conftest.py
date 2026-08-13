@@ -51,7 +51,7 @@ def code_machine() -> Callable[..., Machine]:
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
         saves: SaveSlot | None = None,
-        key_source: Callable[[], str] | None = None,
+        key_source: Callable[[float | None], str | None] | None = None,
     ) -> Machine:
         frontend = PlainFrontend(output)
 

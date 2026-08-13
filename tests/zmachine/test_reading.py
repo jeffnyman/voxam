@@ -510,12 +510,12 @@ def test_a_key_source_bypasses_the_line_queue(
     keys = bytes(
         [0xF6, 0x7F, 0x01, 0x10, 0xF6, 0x7F, 0x01, 0x11, 0xF6, 0x7F, 0x01, 0x12, 0xBA]
     )
-    strokes = iter(["y", "\N{GRINNING FACE}", "\n", "\x1b"])
+    strokes = iter([None, "y", "\N{GRINNING FACE}", "\n", "\x1b"])
     machine = code_machine(
         keys,
         version=4,
         input_source=lambda: "boom",
-        key_source=lambda: next(strokes),
+        key_source=lambda _timeout: next(strokes),
     )
 
     machine.run()
@@ -523,6 +523,66 @@ def test_a_key_source_bypasses_the_line_queue(
     assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
     assert_that(machine.memory.read_word(0x102)).is_equal_to(13)
     assert_that(machine.memory.read_word(0x104)).is_equal_to(27)
+
+
+# On a raw keyboard a timed read runs on the wall clock: every
+# expired interval -- a None from the key source -- fires the
+# interrupt routine, and the key that finally arrives is stored
+# with the marks of the routine's firings beside it (§15
+# read_char).
+def test_a_timed_read_char_fires_on_the_wall_clock(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    waits = iter([None, None, "y"])
+    seen: list[float | None] = []
+
+    def source(timeout: float | None) -> str | None:
+        seen.append(timeout)
+
+        return next(waits)
+
+    machine = code_machine(timed, version=4, key_source=source)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(ord("y"))
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+    assert_that(seen).is_equal_to([1.0, 1.0, 1.0])
+
+
+# A true return from the wall-clock interrupt ends the read at
+# once, storing 0 without waiting for any key (§15 read_char).
+def test_a_wall_clock_interrupt_can_end_the_read(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    machine = code_machine(timed, version=4, key_source=lambda _timeout: None)
+    machine.memory.write_word(RESULT, 0xBEEF)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# A key ZSCII cannot express inside a timed wait is skipped without
+# firing the interrupt: the player did type, just nothing the story
+# hears (§3.8).
+def test_a_wall_clock_read_skips_unhearable_keys(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    waits = iter(["\N{GRINNING FACE}", "q"])
+    machine = code_machine(timed, version=4, key_source=lambda _timeout: next(waits))
+    plant_routine(machine.memory, MARK_THEN_FALSE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(ord("q"))
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_zero()
 
 
 # The queue never invents a return: enter is an explicit empty line

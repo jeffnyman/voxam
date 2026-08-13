@@ -94,8 +94,11 @@ STANDARD_MAJOR = 1
 STANDARD_MINOR = 1
 
 # read_char's first operand is always 1, the keyboard: no other
-# input device was ever defined (§15 read_char).
+# input device was ever defined (§15 read_char); its optional time
+# and routine follow in the second and third slots (§15).
 KEYBOARD_DEVICE = 1
+READ_CHAR_TIME_OPERAND = 1
+READ_CHAR_ROUTINE_OPERAND = 2
 
 # From Version 4, read and read_char accept a time and routine pair:
 # every time/10 seconds of waiting the routine is called, and a true
@@ -225,7 +228,7 @@ class Machine:
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
         saves: SaveSlot | None = None,
-        key_source: Callable[[], str] | None = None,
+        key_source: Callable[[float | None], str | None] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -251,8 +254,12 @@ class Machine:
                 story already knows how to hear (§15).
             key_source: Where single keystrokes come from, one
                 character per call, when a frontend can read the
-                keyboard raw; None spends input_source lines through
-                the keystroke queue instead.
+                keyboard raw. Called with a timeout in seconds it
+                may answer None when the wait expires, which is how
+                timed reads run on the wall clock; called with None
+                it blocks for a real keystroke. A machine without a
+                key source spends input_source lines through the
+                keystroke queue instead.
         """
 
         self._story = story
@@ -1995,8 +2002,13 @@ class Machine:
             # (§3.8) -- ignored, as every interpreter ignores it,
             # rather than fatal.
             while True:
+                key = self._key_source(None)
+
+                if key is None:
+                    continue
+
                 try:
-                    return char_to_zscii(self._key_source(), self._extras())
+                    return char_to_zscii(key, self._extras())
                 except ZMachineTextError:
                     continue
 
@@ -2052,6 +2064,32 @@ class Machine:
 
             raise ZMachineInstructionError(msg)
 
+        time = (
+            values[READ_CHAR_TIME_OPERAND]
+            if len(values) > READ_CHAR_TIME_OPERAND
+            else 0
+        )
+        routine = (
+            values[READ_CHAR_ROUTINE_OPERAND]
+            if len(values) > READ_CHAR_ROUTINE_OPERAND
+            else 0
+        )
+
+        if self._key_source is not None and time and routine:
+            # A raw keyboard runs the timed read on the wall clock:
+            # the routine fires every time/10 seconds the player
+            # does not type (§15 read_char), and a true return ends
+            # the read with 0 stored.
+            code = self._timed_keystroke(self._key_source, time, routine)
+
+            if code is None:
+                code = INTERRUPT_TERMINATOR
+
+            self._store_result(instruction.store_variable, code)
+            self._pc = instruction.next_address
+
+            return
+
         if self._timed_out(values, time_index=1):
             self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
             self._pc = instruction.next_address
@@ -2060,6 +2098,35 @@ class Machine:
 
         self._store_result(instruction.store_variable, self._keystroke())
         self._pc = instruction.next_address
+
+    def _timed_keystroke(
+        self, source: Callable[[float | None], str | None], time: int, routine: int
+    ) -> int | None:
+        """Wait for a key against the wall clock (§15 read_char).
+
+        Each expired time/10-second interval fires the interrupt
+        routine; a true return -- or a story that quit inside the
+        interrupt -- ends the read with None. A key that arrives
+        before the interval beats the clock, and the routine does
+        not fire for it. Keys ZSCII cannot express are ignored as
+        ever (§3.8).
+        """
+
+        interval = time / 10
+
+        while True:
+            key = source(interval)
+
+            if key is None:
+                if self._interrupt(routine):
+                    return None
+
+                continue
+
+            try:
+                return char_to_zscii(key, self._extras())
+            except ZMachineTextError:
+                continue
 
     def _op_show_status(self, instruction: Instruction) -> None:
         """Redraw the status line on request (§8.2).

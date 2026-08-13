@@ -33,6 +33,7 @@ class StubTerminal:
 
     def __init__(self, keys: list[StubKey] | None = None) -> None:
         self.keys = list(keys or [])
+        self.timeouts: list[float | None] = []
 
     def move_xy(self, x: int, y: int) -> str:
         return f"<@{x},{y}>"
@@ -40,7 +41,9 @@ class StubTerminal:
     def cbreak(self) -> AbstractContextManager[object]:
         return nullcontext()
 
-    def inkey(self) -> object:
+    def inkey(self, timeout: float | None = None) -> object:
+        self.timeouts.append(timeout)
+
         return self.keys.pop(0)
 
 
@@ -219,6 +222,32 @@ def test_read_key_waits_out_empty_and_unmapped_reads() -> None:
     )
 
     assert_that(frontend.read_key()).is_equal_to("q")
+
+
+# With a timeout, an expired wait answers None -- the machine's
+# cue to fire a wall-clock interrupt -- and the timeout is handed
+# through to the terminal.
+def test_read_key_reports_expired_timeouts() -> None:
+    frontend, _out = painted(keys=[StubKey("")])
+
+    result = frontend.read_key(timeout=0.5)
+
+    assert_that(result).is_none()
+
+
+# An unmapped escape sequence inside a timed wait is no keystroke
+# either: the wait reports as expired rather than pretending.
+def test_read_key_timeout_swallows_unmapped_sequences() -> None:
+    frontend, _out = painted(keys=[StubKey("\x1b[C", "KEY_RIGHT")])
+
+    assert_that(frontend.read_key(timeout=0.5)).is_none()
+
+
+# A key that beats the clock comes back as itself.
+def test_read_key_returns_keys_that_beat_the_clock() -> None:
+    frontend, _out = painted(keys=[StubKey("z")])
+
+    assert_that(frontend.read_key(timeout=0.5)).is_equal_to("z")
 
 
 # Without a terminal handed in, a real blessed Terminal is built;
