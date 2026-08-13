@@ -106,6 +106,7 @@ class ScreenModel:
         self._buffered = True
         self._pending: list[Cell] = []
         self._scroll_due = False
+        self._damage: set[int] = set()
         self._upper_cursor = (1, 1)
         self._lower_cursor = (
             (lines, 1)
@@ -314,6 +315,7 @@ class ScreenModel:
             self._grid[row - 1] = self._grid[row]
 
         self._grid[self._lines - 1] = [self._blank_cell()] * self._columns
+        self._damage.update(range(top, self._lines + 1))
 
     def _blank_cell(self) -> Cell:
         """A blank in the current background (§8.7.3.1, §8.7.3.2)."""
@@ -321,9 +323,10 @@ class ScreenModel:
         return Cell(" ", ROMAN, DEFAULT_COLOUR, self._background)
 
     def _paint(self, row: int, column: int, cell: Cell) -> None:
-        """Set one grid position."""
+        """Set one grid position, remembering the row as damaged."""
 
         self._grid[row - 1][column - 1] = cell
+        self._damage.add(row)
 
     def split_window(self, height: int) -> None:
         """Resize the upper window to the given height (§8.7.2.1).
@@ -356,9 +359,7 @@ class ScreenModel:
 
         if self._version == STATUS_LAST_VERSION and height:
             top = self._upper_top()
-
-            for row in range(top, top + height):
-                self._grid[row - 1] = [self._blank_cell()] * self._columns
+            self._clear_rows(top, top + height - 1)
 
         row, _column = self._lower_cursor
 
@@ -479,6 +480,8 @@ class ScreenModel:
         for row in range(first, last + 1):
             self._grid[row - 1] = [self._blank_cell()] * self._columns
 
+        self._damage.update(range(first, last + 1))
+
     def _home_lower(self) -> None:
         """Home the lower cursor per version (§8.7.3.2.1, §8.7.3.3)."""
 
@@ -502,6 +505,8 @@ class ScreenModel:
 
         for position in range(column, self._columns + 1):
             self._grid[screen_row - 1][position - 1] = self._blank_cell()
+
+        self._damage.add(screen_row)
 
     def set_style(self, style: int) -> None:
         """Change the text style for what follows (§8.7.1).
@@ -578,6 +583,20 @@ class ScreenModel:
         self._grid[0] = [
             Cell(character, REVERSE) for character in line[: self._columns]
         ]
+        self._damage.add(1)
+
+    def sweep(self) -> list[int]:
+        """The rows changed since the last sweep, in screen order.
+
+        The painter's contract: repaint exactly these rows and the
+        grid and glass agree again. Sweeping clears the slate.
+        """
+
+        self._flush()
+        damaged = sorted(self._damage)
+        self._damage.clear()
+
+        return damaged
 
     def cell(self, row: int, column: int) -> Cell:
         """One grid position, pending text flushed first."""

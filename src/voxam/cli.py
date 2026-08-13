@@ -4,6 +4,7 @@ import argparse
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
 from voxam.errors import VoxamError, ZMachineUnimplementedError
@@ -11,6 +12,9 @@ from voxam.frontend import Frontend, PlainFrontend
 from voxam.saves import FileSaveSlot
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
+
+if TYPE_CHECKING:
+    from voxam.painter import ScreenFrontend
 
 # Exit codes: 0 for a story that ran to quit, 1 for halting at a not
 # yet implemented opcode, 2 for a file that could not be run at all.
@@ -54,6 +58,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="replay an acceptance script, then keep playing at the prompt",
     )
+    parser.add_argument(
+        "--plain",
+        action="store_true",
+        help="keep the plain stream frontend even at a terminal",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -76,7 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.story is None:
         return EXIT_OK
 
-    return _play(arguments.story, arguments.seed, None)
+    return _play(arguments.story, arguments.seed, None, screen=not arguments.plain)
 
 
 def _replay_script(
@@ -131,13 +140,42 @@ def _replay_script(
     return code
 
 
+def _screen_frontend(version: int) -> "ScreenFrontend | None":
+    """A painted frontend, when the glass and the extra allow.
+
+    The screen frontend wants a real terminal to paint on and the
+    blessed package the `screen` extra installs; missing either,
+    the caller falls back to the plain stream, which is always
+    there.
+    """
+
+    if not sys.stdout.isatty():
+        return None
+
+    try:
+        # Imported here because the blessed extra is optional: the
+        # plain stream must keep working without it.
+        from voxam.painter import ScreenFrontend  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    return ScreenFrontend(version)
+
+
 def _play(
     story_path: Path,
     seed: int | None,
     input_source: Callable[[], str] | None,
     frontend: Frontend | None = None,
+    *,
+    screen: bool = False,
 ) -> int:
-    """Load and run one story, mapping outcomes to exit codes."""
+    """Load and run one story, mapping outcomes to exit codes.
+
+    With screen requested, a painted frontend is used when the
+    terminal is real and the blessed extra is installed; otherwise
+    play falls back to the plain stream.
+    """
 
     try:
         story = Story.load(story_path)
@@ -147,6 +185,13 @@ def _play(
         return EXIT_UNUSABLE
 
     header = story.header
+
+    if frontend is None and screen:
+        painted = _screen_frontend(header.version)
+
+        if painted is not None:
+            frontend = painted
+            input_source = painted.read_line
     print(
         f"Running {story_path.name}: release {header.release}, "
         f"serial {header.serial_number} (z{header.version})\n"
