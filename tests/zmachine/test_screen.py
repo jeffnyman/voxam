@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import pytest
 from assertpy import assert_that
 
@@ -166,3 +168,19 @@ def test_sampled_sounds_are_a_reported_frontier() -> None:
 
     with pytest.raises(ZMachineUnimplementedError, match="sampled sound 3"):
         machine.run()
+
+
+# Colour requests on a frontend that truthfully declares no colour
+# are no-ops by the spec's own conditional -- "if coloured text is
+# available" (§8.3.1) -- for both the classic and the 15-bit form.
+def test_colour_requests_are_no_ops_without_colour(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [0x7B, 0x02, 0x04, 0xBE, 0x0D, 0x2F, 0x7F, 0xFF, 0x00, 0x0D, 0x10, 0x2A, 0xBA]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)

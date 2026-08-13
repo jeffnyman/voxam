@@ -67,9 +67,14 @@ A2_FIXED_ENTRIES = 2
 
 # ZSCII output codes: 0 is the null, "defined for output but has no
 # effect in any output stream" (§3.8.2.1); 13 is new-line; and 32 to
-# 126 agree with ASCII (§3.8.2.5, §3.8.3).
+# 126 agree with ASCII (§3.8.2.5, §3.8.3). Codes 8 (delete) and 27
+# (escape) are defined for input only (§3.8.2.2, §3.8.2 table) --
+# Bureaucracy insists on the delete, and the unicode checker quits
+# by the escape.
 ZSCII_NULL = 0
+ZSCII_DELETE = 8
 ZSCII_NEWLINE = 13
+ZSCII_ESCAPE = 27
 ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
 
@@ -208,12 +213,15 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
         return _standard_alphabets(header.version)
 
     base = header.alphabet_table_address
+    repertoire = extras(memory)
     # A null in a table slot converts to nothing (§3.8.2.1), which
     # would shift every later letter's Z-character; a placeholder
     # keeps the rows exactly 26 wide.
     a0, a1, a2 = (
         "".join(
-            zscii_to_char(memory.fetch_byte(base + row * ALPHABET_LENGTH + index))
+            zscii_to_char(
+                memory.fetch_byte(base + row * ALPHABET_LENGTH + index), repertoire
+            )
             or "?"
             for index in range(skip, ALPHABET_LENGTH)
         )
@@ -223,18 +231,54 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
     return a0, a1, "?" * A2_FIXED_ENTRIES + a2
 
 
-def zscii_to_char(code: int) -> str:
+def extras(memory: Memory) -> str:
+    """The extra-character repertoire in force (§3.8.5).
+
+    The default table of §3.8.5.3, unless a Version 5+ story names
+    its own Unicode translation table through the header extension
+    (§3.8.5.2): a count byte N, then N words of Unicode codepoints
+    for ZSCII 155 to 155+N-1. N may legally be zero, leaving every
+    extra character undefined.
+
+    Args:
+        memory: The memory image whose header and table to consult.
+
+    Returns:
+        The characters ZSCII 155 upward mean, in order.
+    """
+
+    header = memory.header
+
+    if header.version < CUSTOM_ALPHABET_VERSION:
+        return DEFAULT_EXTRAS
+
+    base = header.unicode_translation_address
+
+    if base == 0:
+        return DEFAULT_EXTRAS
+
+    count = memory.fetch_byte(base)
+
+    return "".join(
+        chr(memory.fetch_word(base + 1 + WORD_SIZE * index)) for index in range(count)
+    )
+
+
+def zscii_to_char(code: int, extras_table: str = DEFAULT_EXTRAS) -> str:
     """Convert a ZSCII output code to a character (§3.8).
 
     Args:
         code: The ZSCII code, from an escape or a print_char operand.
+        extras_table: The extra-character repertoire in force -- a
+            custom translation table's when the story has one
+            (§3.8.5.2). The default table when not given.
 
     Returns:
         The character the code means.
 
     Raises:
-        ZMachineTextError: For codes outside new-line and the ASCII
-            range, which need the extra-character machinery (§3.8.5).
+        ZMachineTextError: For codes the repertoire leaves undefined
+            (§3.8.5).
     """
 
     if code == ZSCII_NULL:
@@ -247,15 +291,15 @@ def zscii_to_char(code: int) -> str:
     if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
         return chr(code)
 
-    if ZSCII_EXTRA_START <= code < ZSCII_EXTRA_START + len(DEFAULT_EXTRAS):
-        return DEFAULT_EXTRAS[code - ZSCII_EXTRA_START]
+    if ZSCII_EXTRA_START <= code < ZSCII_EXTRA_START + len(extras_table):
+        return extras_table[code - ZSCII_EXTRA_START]
 
     msg = f"ZSCII code {code} is not yet printable (§3.8)"
 
     raise ZMachineTextError(msg)
 
 
-def char_to_zscii(character: str) -> int:
+def char_to_zscii(character: str, extras_table: str = DEFAULT_EXTRAS) -> int:
     """Convert a typed character to its ZSCII code (§3.8).
 
     The input mirror of zscii_to_char: the extra characters are
@@ -265,6 +309,8 @@ def char_to_zscii(character: str) -> int:
 
     Args:
         character: One typed character.
+        extras_table: The extra-character repertoire in force
+            (§3.8.5.2). The default table when not given.
 
     Returns:
         The ZSCII code the character means.
@@ -276,12 +322,20 @@ def char_to_zscii(character: str) -> int:
     if character == "\n":
         return ZSCII_NEWLINE
 
+    # The input-only codes (§3.8.2.2): both classic delete bytes
+    # mean ZSCII 8, and the terminal escape means ZSCII 27.
+    if character in ("\x08", "\x7f"):
+        return ZSCII_DELETE
+
+    if character == "\x1b":
+        return ZSCII_ESCAPE
+
     code = ord(character)
 
     if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
         return code
 
-    position = DEFAULT_EXTRAS.find(character)
+    position = extras_table.find(character)
 
     if position >= 0:
         return ZSCII_EXTRA_START + position
@@ -292,7 +346,10 @@ def char_to_zscii(character: str) -> int:
 
 
 def encode_word(
-    version: int, word: str, rows: tuple[str, str, str] | None = None
+    version: int,
+    word: str,
+    rows: tuple[str, str, str] | None = None,
+    extras_table: str = DEFAULT_EXTRAS,
 ) -> bytes:
     """Encode typed text in dictionary form (§3.7).
 
@@ -308,13 +365,15 @@ def encode_word(
             story has one (§3.5.5), since lookups only ever match a
             dictionary encoded under the same alphabets. None means
             the version's standard rows.
+        extras_table: The extra-character repertoire in force
+            (§3.8.5.2), for words that need the ten-bit escape.
 
     Returns:
         The encoded bytes: four through Version 3, six after.
     """
 
     resolution = DICTIONARY_ZCHARS[version]
-    zchars = _encode_zchars(version, word.lower(), rows)[:resolution]
+    zchars = _encode_zchars(version, word.lower(), rows, extras_table)[:resolution]
     zchars += [PAD] * (resolution - len(zchars))
 
     encoded = b""
@@ -335,7 +394,10 @@ def encode_word(
 
 
 def _encode_zchars(
-    version: int, text: str, rows: tuple[str, str, str] | None
+    version: int,
+    text: str,
+    rows: tuple[str, str, str] | None,
+    extras_table: str = DEFAULT_EXTRAS,
 ) -> list[int]:
     """Turn lowercased text into shift-laden Z-characters (§3.7).
 
@@ -365,7 +427,7 @@ def _encode_zchars(
         if position >= 0:
             targets.append((A2, [position + FIRST_ALPHABET_CHARACTER]))
         else:
-            code = char_to_zscii(character)
+            code = char_to_zscii(character, extras_table)
             escape = [ESCAPE, (code >> 5) & Z_CHAR_MASK, code & Z_CHAR_MASK]
             targets.append((A2, escape))
 
@@ -475,7 +537,7 @@ def _text_of(memory: Memory, zchars: list[int], in_abbreviation: bool = False) -
                 break
 
             code = (zchars[position] << 5) | zchars[position + 1]
-            out.append(zscii_to_char(code))
+            out.append(zscii_to_char(code, extras(memory)))
             position += 2
             current = locked
         elif current == A2 and version > 1 and char == A2_NEWLINE:
