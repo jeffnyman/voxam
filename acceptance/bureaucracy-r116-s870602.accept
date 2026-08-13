@@ -1,0 +1,551 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/bureaucracy-r116-s870602.z4
+
+# The opening prompt takes any line to start anew, and a keypress
+# begins the Software Licence Application. The form reads by
+# keystroke: each field types as a line of characters with a bare
+# > (an explicit empty line, the return key) to complete it.
+#
+# The form's joke is that the cursor visits the fields in a RANDOM
+# order, freshly shuffled every game. On a screen you simply watch
+# where it lands and type what that field wants; in a recording
+# the shuffle is fixed by the seed, so the values below are listed
+# in seed 1's visit order: State, Colour, Previous companion, Sex,
+# Companion, Phone, Last name, Employer, Middle initial, Zip,
+# City, First name, Street, House number. Type for the field the
+# cursor is on, and the licence comes out right: "Thank you for
+# your cooperation, Ms Nyman."
+
+>
+>
+IL
+>
+Mauve
+>
+Chris
+>
+M
+>
+Pat
+>
+5551212
+>
+Nyman
+>
+Infocom
+>
+A
+>
+62701
+>
+Springfield
+>
+Jeff
+>
+Main
+>
+12
+>
+
+# Home Town, After the Application
+
+w
+take all
+e
+open door
+give the us excess card to the man
+give him the beezer card
+take the bag
+w
+press button
+>
+>
+>
+>
+>
+>
+>
+>
+>
+e
+open door
+e
+open mailbox
+take leaflet
+read leaflet
+n. w
+examine software
+ask clerk about software
+yes
+examine cart
+open case
+take the adventure
+give adventure to clerk
+put recipe cart in case
+e
+drop bag
+e
+wait
+yes
+medium
+no
+no
+no
+no
+salad
+no
+no
+juice
+orange
+no
+
+wait
+wait
+
+yes
+medium
+no
+no
+no
+no
+salad
+no
+no
+juice
+orange
+no
+yes
+wait
+take burger
+s. w. n
+take bag
+eat the burger
+n. e
+knock on door
+s
+give stamp to man
+take the mail
+examine mail
+
+# Notice what letter is printed on the postal service sticker.
+# That should be C.
+
+n. w. w
+give letter to agent
+take ticket
+e. s. s. e. s
+examine the door
+open the door
+w
+
+# Wait for the macaw to say something.
+
+listen
+listen
+listen
+listen
+listen
+
+e. n. w. s
+examine the door
+ring doorbell
+n. e. s. w. s
+take the painting
+n
+show the painting to the macaw
+take the mail
+examine the mail
+
+# Notice what letter is printed on the postal service sticker.
+# That should be D.
+
+e. n. w. s. s
+read notice
+open mailbox
+look in mailbox
+examine the trough
+
+open the bag
+empty bag into mailbox
+take the mail
+examine the mail
+
+# Notice what letter is printed on the postal service sticker.
+# That should be E.
+
+s
+wait
+n. w
+wait
+Unfortunately, there's a radio connected to my brain
+wait
+e. s
+Actually, it's the BBC controlling us from London
+s
+
+# You have to answer the questions. The order is random.
+# The seed provides this ordering.
+
+# What device is used by the banks to keep track of the whereabouts of American citizens?
+
+ATM
+
+# What do Ronald Wilson Reagan, Daniel Miguel Ortega, Dwight Eugene Gooden and Johnny Herman
+# Carson have in common (and are a menace because of it)?
+
+666
+
+# The existence of which one of the fifty states of the union is a fiction invented by the
+# Trilateral Commission for its own nefarious purposes?
+
+Delaware
+
+# What well-meaning legislation was actually a communist-inspired plot to destroy the
+# American family?
+
+GI bill
+
+# What secret FBI surveillance method is masquerading under the guise of a public service?
+
+traffic helicopters
+
+examine door
+cut bar with hacksaw
+examine knife
+press button
+take power saw
+pull lever
+
+plug the power saw into the generator
+sit on the generator
+give the power saw to the weirdo
+sit on the generator
+wait
+stand up
+n. u
+take the mail
+examine the mail
+
+# Notice what letter is printed on the postal service sticker.
+# That should be B.
+
+open the envelope
+read the memo
+read the cheque
+
+n. n. n. n. n. n. n. n
+
+go to window 8
+yes
+
+go to window 2
+yes
+put knife in pocket
+take cheque from envelope
+show cheque to teller
+show passport to teller
+
+go to window 10
+no
+fill out withdrawal slip
+
+# The slips run on the licence form's engine, cursor shuffle and
+# all: each slip deals its fields in a fresh order, deterministic
+# under the seed. This one runs Last name, illegal-activity,
+# Middle initial, Amount, First name -- and the values are simply
+# the truth, because the licence (filled correctly for the
+# shuffle) recorded you as exactly who you are.
+
+Nyman
+>
+n
+>
+A
+>
+75
+>
+Jeff
+>
+
+# The transaction itself is the famous negative algebra: hand her
+# the slip, the -$75 cheque, and the passport, and she reasons "a
+# withdrawal slip is the negative of a deposit slip, negative of
+# -$75 is $75. It all makes perfect sense." Balance: $85.
+
+give slip to teller
+give cheque to teller
+show passport to teller
+
+go to window 8
+ask for slip
+yes
+
+fill out slip
+
+# Second slip, second shuffle: First, initial, Amount, illegal,
+# Last. Same recorded identity, then a plain $75 withdrawal --
+# she hands over the cash, the balance returns to $10, and the
+# score goes up.
+
+Jeff
+>
+A
+>
+75
+>
+n
+>
+Nyman
+>
+
+give slip to teller
+show passport to teller
+
+s. s. s. s. w. w
+read address book
+read first page
+read last page
+
+# "Last name of passenger please." -- the booking must match the
+# passport, and the address must match the licence records: as
+# recorded, Nyman of 12 Main. A booking under any other name
+# summons a driver looking for someone else.
+
+call 977-9070
+Nyman
+airport
+main
+12
+wait
+wait
+wait
+wait
+e. e
+wait
+wait
+enter cab
+yes
+show passport
+
+# Two beats of ride, then the fare -- paid promptly and exactly,
+# because a dawdling passenger gets driven home out of spite and
+# thrown in the gutter.
+
+yes
+wait
+wait
+pay driver $17.50
+
+# Airport
+
+n. n. s. s. e. e. e. n. n
+wait
+wait
+wait
+wait
+give ticket to clerk
+direct flight
+s
+climb pillar
+up
+examine speaker
+pull red wire
+pull black wire
+connect red to black
+open grate
+u. u. u. u
+open grate
+e
+tell controllers to stop flight 42
+w. d. d. d. d. d. d
+
+# Airplane
+
+sit in seat 3c
+take safety card
+read safety card
+take the headphones
+wear headphones
+plug in headphones
+press light button
+take off headphones
+drop headphones
+wait
+wait
+filet
+yes
+no
+stand up
+s. s. s. s. s
+sit in seat 8d
+press the light button
+stand up
+n. n. n. n. n
+sit in seat 3c
+put all in my pocket
+take laminated card
+stand up
+s. s. s. s. s. s. s
+pick up phone
+yes
+yes
+no
+# The magic words must be addressed to her directly ("say X to
+# attendant" earns only a style lecture), and her audience is one
+# beat long: she appears the turn after you hang up and leaves the
+# turn after that. Wait once, speak immediately, receive the
+# parachute -- without which the jump ends as an 11-point Victim.
+
+wait
+attendant, stinglai ka'abi
+open hatch
+lift handle
+pull handle
+e. e. e
+wait
+wait
+knock on window
+pull ripcord
+wait
+take off parachute
+
+# Computer Complex
+
+put recipe cart in computer
+>
+>
+get out of pot
+examine locker
+read the sign
+turn left and middle handles
+turn left and right handles
+turn left and middle handles
+open door
+w
+get key card
+examine key card
+e
+put unlabeled cart in computer
+
+# The Boysenberry terminal is one more keystroke reader: a > for
+# the "Press any key to boot" prompt, then every command typed as
+# its characters plus an explicit > for the return -- without
+# which the commands smear together into LEARNOOZ and PRINTCPRINTD
+# until the input field overflows. The print order C D E B is the
+# order the postal stickers appeared under this seed.
+
+>
+?
+>
+CLEAR
+>
+NOOZ
+>
+PRINTC
+>
+PRINTD
+>
+PRINTE
+>
+PRINTB
+>
+QUIT
+>
+
+# Strike any key, then east into the Switchgear Rooms. The rooms
+# are numbered; subtract the previous room's number from the
+# current and take the last digit of the difference: 0 east, 1
+# south, 2 up, 3 north, 4 down, 5 west -- the rule the NOOZ
+# message spelled out in scattered letters. The first numbered
+# room allows any direction. Under this seed the rooms run 15,
+# 40, 65, 88, 111, 145: east, then west, west, north, north,
+# down, and the nerd asks after your sister on the way out.
+
+>
+e
+e
+w
+w
+n
+n
+d
+
+# The final door is the game's thesis in machinery: it can only be
+# opened ANGRY. Relaxed, it will not move at all; each futile pull
+# raises your blood pressure, and on the fifth the game declares
+# "your current rage level is so great that you have the strength
+# of ten" and the door gives. (The slot must be named as "reader"
+# -- "slot" alone draws a disambiguation question that eats the
+# next pull.)
+
+put key card in reader
+open door
+open door
+open door
+open door
+open door
+n. w. w. w
+examine left screen
+w
+examine computer
+read first page
+
+# The wall plug cannot be taken -- it connects where it stands.
+# The DVH2 terminal is one more keystroke reader: every entry is
+# its characters plus a bare > for the return. Login is the name
+# from the key-card, RANDOM-Q-HACKER, password RAINBOW-TURTLE.
+# TYP DVH2.HAK reads the nerd's own system file; RUN PLANE.EXE
+# quietly orders the flight home.
+
+connect modular plug to jack
+>
+RANDOM-Q-HACKER
+>
+RAINBOW-TURTLE
+>
+TYP
+>
+DVH2.HAK
+>
+RUN
+>
+PLANE.EXE
+>
+
+# One WHO draws the announcement: USER RQH ABOUT TO USE
+# TRAVEL.HAK (this seed's file). The trap: DEL it, then REN
+# DVH2.HAK to its name -- so when the nerd opens TRAVEL.HAK he is
+# actually running his own mainframe's system file. Two more WHOs
+# and the DVH2 announces AUTO SHUTDOWN: he has hacked himself,
+# the plug ejects like a little rat from a tiny drainpipe, and
+# the score goes up.
+
+WHO
+>
+DEL
+>
+TRAVEL.HAK
+>
+REN
+>
+DVH2.HAK
+>
+TRAVEL.HAK
+>
+WHO
+>
+WHO
+>
+WHO
+>
+
+# Home: west and up to the surface, two beats for the aeroplane
+# PLANE.EXE ordered, then west, south, south, west -- and the
+# letter that ends the game.
+
+w. u
+wait
+wait
+w. s. s. w
+read letter
+quit
