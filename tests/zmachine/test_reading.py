@@ -268,25 +268,130 @@ def test_a_crushed_parse_buffer_halts_loudly(
         machine.run()
 
 
+# Timed-read scaffolding: interrupt routines planted at $70, which
+# packs to $1C in Versions 4 and 5. Each routine marks global $11
+# on its way through -- the proof it fired -- before returning true
+# (ending the read) or false (letting the typist finish).
+ROUTINE_BASE = 0x70
+ROUTINE_PACKED = 0x1C
+MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
+MARK_THEN_FALSE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB1])
+QUIT_IN_INTERRUPT = bytes([0x00, 0xBA])
+MARK = 0x63
+MARK_GLOBAL = 0x102
+
+
+def plant_routine(memory: Memory, code: bytes) -> None:
+    for offset, value in enumerate(code):
+        memory.write_byte(ROUTINE_BASE + offset, value)
+
+
 # A time and routine pair asks for interrupts during real waiting;
-# under the instant typist the line arrives before any interval
-# elapses, so the read completes as an untimed one (§15 read). The
-# routine here is booby-trapped -- it would poison global $11 if it
-# ever ran -- and the untouched global is the proof it never does.
-def test_a_timed_read_completes_as_untimed(
+# the patient typist lets one interval elapse before the line
+# arrives, so the routine fires once. Returning true ends the read
+# at once: the input is erased, the lexing sees emptiness, and the
+# input source is never consulted (§15 read). The marked global is
+# the proof the routine ran.
+def test_a_timed_read_ends_when_the_interrupt_returns_true(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    machine = code_machine(timed, version=4, input_source=lambda: "boom")
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_empty()
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# A false return means the typist gets there first: the routine
+# still fires its once, but the line arrives and the read completes
+# as an untimed one (§15 read).
+def test_a_false_interrupt_lets_the_line_arrive(
     code_machine: Callable[..., Machine],
 ) -> None:
     timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
     machine = reader(code_machine, "go", version=4, program=timed)
-    poison = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
-
-    for offset, value in enumerate(poison):
-        machine.memory.write_byte(0x70 + offset, value)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
 
     machine.run()
 
     assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
-    assert_that(machine.memory.read_word(0x102)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# In Version 5 the interrupted erasure speaks the counted dialect: a
+# zero typed count in byte 1, zero parse words, and 0 stored where
+# the terminating character would go (§15 read).
+def test_an_interrupted_aread_erases_the_counted_buffer(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0x10, 0xBA])
+    machine = code_machine(timed, version=5, input_source=lambda: "boom")
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    machine.memory.write_word(RESULT, 0xBEEF)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_byte(TEXT_BUFFER + 1)).is_zero()
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_zero()
+    assert_that(machine.memory.read_word(RESULT)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# An interrupted read honors the zero parse buffer exactly as a
+# completed one would: the erasure is written, but the parse region
+# is never touched (§15 read).
+def test_an_interrupted_aread_skips_a_zero_parse_buffer(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x00, 0x00, 0x0A, 0x1C, 0x10, 0xBA])
+    machine = code_machine(timed, version=5, input_source=lambda: "boom")
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER + 1, 0xAA)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_byte(TEXT_BUFFER + 1)).is_zero()
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_equal_to(0xAA)
+
+
+# Before Version 4 the time and routine operands do not exist (§15
+# read): a Version 3 story that passes them anyway gets an untimed
+# read, and the routine never fires.
+def test_version_3_reads_are_never_timed(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    machine = reader(code_machine, "go", program=timed)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_zero()
+
+
+# A time with no routine to fire is not timed either (§15 read):
+# the third operand alone asks for nothing.
+def test_a_time_without_a_routine_is_not_timed(
+    code_machine: Callable[..., Machine],
+) -> None:
+    lonely = bytes([0xE4, 0x07, 0x01, 0x20, 0x01, 0x40, 0x0A, 0xBA])
+    machine = reader(code_machine, "go", version=4, program=lonely)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
 
 
 # A zero time and routine are the same as their absence.
@@ -355,23 +460,56 @@ def test_read_char_refuses_unknown_devices(
         machine.run()
 
 
-# The same instant-typist argument for a single keystroke: the key
-# arrives at once, no interval elapses, the routine never runs, and
-# the keystroke stores as if the read were untimed (§15 read_char).
-def test_a_timed_read_char_completes_as_untimed(
+# The patient typist for a single keystroke: one interval elapses,
+# the routine fires, and its true return ends the read with 0
+# stored and no input consumed (§15 read_char) -- Z-Tornado's
+# Pause routine in miniature. The stored result starts poisoned to
+# prove the 0 was written, not merely never touched.
+def test_a_timed_read_char_ends_when_the_interrupt_returns_true(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    machine = code_machine(timed, version=4, input_source=lambda: "boom")
+    machine.memory.write_word(RESULT, 0xBEEF)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# A false return means the key arrives after the routine's one
+# firing and stores as if the read were untimed (§15 read_char) --
+# Z-Tornado's SeedRand harvesting entropy while the player types.
+def test_a_false_interrupt_lets_the_key_arrive(
     code_machine: Callable[..., Machine],
 ) -> None:
     timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
     machine = code_machine(timed, version=4, input_source=lambda: "y")
-    poison = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
-
-    for offset, value in enumerate(poison):
-        machine.memory.write_byte(0x70 + offset, value)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
 
     machine.run()
 
-    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
-    assert_that(machine.memory.read_word(0x102)).is_zero()
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(ord("y"))
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# A story may quit inside an interrupt; input has certainly ended
+# then, so the read closes by the interrupted path and the machine
+# stops where it stands.
+def test_a_quit_inside_an_interrupt_stops_the_machine(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    machine = code_machine(timed, version=4, input_source=lambda: "boom")
+    machine.memory.write_word(RESULT, 0xBEEF)
+    plant_routine(machine.memory, QUIT_IN_INTERRUPT)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+    assert_that(machine.memory.read_word(RESULT)).is_zero()
 
 
 # A zero time and routine are the same as their absence.

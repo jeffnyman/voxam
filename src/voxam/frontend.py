@@ -137,7 +137,11 @@ class PlainFrontend:
     has_bold = False
     has_italic = False
     has_fixed_pitch = True
-    has_timed_input = False
+    # Timed input is real, if virtual: the machine fires read
+    # interrupts on the patient typist's deterministic clock rather
+    # than a wall clock, which is what seeded replay can honestly
+    # offer (§15 read).
+    has_timed_input = True
     screen_lines = 255
     screen_columns = 80
 
