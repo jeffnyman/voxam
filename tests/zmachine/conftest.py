@@ -51,9 +51,17 @@ def code_machine() -> Callable[..., Machine]:
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
         saves: SaveSlot | None = None,
+        key_source: Callable[[], str] | None = None,
     ) -> Machine:
         frontend = PlainFrontend(output)
 
-        return Machine(_image(code, version), frontend, input_source, seed, saves)
+        return Machine(
+            _image(code, version),
+            frontend,
+            input_source,
+            seed,
+            saves,
+            key_source=key_source,
+        )
 
     return _build

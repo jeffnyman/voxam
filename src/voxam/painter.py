@@ -17,6 +17,7 @@ terminal at all.
 
 import sys
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from typing import Protocol, cast
 
 from voxam.frontend import Status
@@ -27,6 +28,16 @@ from voxam.screen import (
     Cell,
     ScreenModel,
 )
+
+# Special keys arrive from blessed with names; §3.8.2.2 gives the
+# input-only ZSCII characters they mean. Anything unnamed passes
+# through as the character it already is.
+KEY_CHARACTERS = {
+    "KEY_ENTER": "\n",
+    "KEY_BACKSPACE": "\x7f",
+    "KEY_DELETE": "\x7f",
+    "KEY_ESCAPE": "\x1b",
+}
 
 # The §8.3.1 colour codes the painter can mix, named as blessed
 # knows them. Code 1 is the terminal's own default and needs no
@@ -70,6 +81,12 @@ class Terminal(Protocol):
 
     def move_xy(self, x: int, y: int) -> str:
         """The sequence moving the cursor to (x, y), zero-based."""
+
+    def cbreak(self) -> AbstractContextManager[object]:
+        """A context in which keystrokes arrive raw, one at a time."""
+
+    def inkey(self) -> object:
+        """One keystroke: a str-like, with a .name for special keys."""
 
 
 class ScreenFrontend:
@@ -192,6 +209,34 @@ class ScreenFrontend:
         """Ring the terminal bell: one bell serves both bleeps (§9)."""
 
         self._out("\a")
+
+    def read_key(self) -> str:
+        """Read one raw keystroke at the model's cursor.
+
+        Special keys translate to their §3.8.2.2 input characters;
+        unnamed keys pass through as themselves. Keystrokes are not
+        echoed -- §15 read_char leaves any echoing to the game --
+        and empty reads simply wait for a real one.
+        """
+
+        self._park()
+
+        while True:
+            with self._terminal.cbreak():
+                key = self._terminal.inkey()
+
+            name = getattr(key, "name", None)
+
+            if name in KEY_CHARACTERS:
+                return KEY_CHARACTERS[name]
+
+            character = str(key)
+
+            # Multi-character escape sequences -- arrows and friends
+            # with no §3.8.2.2 mapping yet -- are not keystrokes the
+            # story can hear; wait for one it can.
+            if len(character) == 1:
+                return character
 
     def read_line(self) -> str:
         """Read one typed line at the model's cursor.

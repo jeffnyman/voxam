@@ -1,8 +1,22 @@
+from contextlib import AbstractContextManager, nullcontext
+
 from assertpy import assert_that
 
 from voxam.frontend import Status
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
+
+
+class StubKey(str):
+    """A keystroke: a string wearing an optional special-key name."""
+
+    name: str | None = None
+
+    def __new__(cls, character: str, name: str | None = None) -> "StubKey":
+        key = super().__new__(cls, character)
+        key.name = name
+
+        return key
 
 
 class StubTerminal:
@@ -17,14 +31,25 @@ class StubTerminal:
     red = "<red>"
     on_green = "<on_green>"
 
+    def __init__(self, keys: list[StubKey] | None = None) -> None:
+        self.keys = list(keys or [])
+
     def move_xy(self, x: int, y: int) -> str:
         return f"<@{x},{y}>"
 
+    def cbreak(self) -> AbstractContextManager[object]:
+        return nullcontext()
 
-def painted(version: int = 5, line: str = "look") -> tuple[ScreenFrontend, list[str]]:
+    def inkey(self) -> object:
+        return self.keys.pop(0)
+
+
+def painted(
+    version: int = 5, line: str = "look", keys: list[StubKey] | None = None
+) -> tuple[ScreenFrontend, list[str]]:
     out: list[str] = []
     frontend = ScreenFrontend(
-        version, terminal=StubTerminal(), out=out.append, read=lambda: line
+        version, terminal=StubTerminal(keys), out=out.append, read=lambda: line
     )
 
     return frontend, out
@@ -155,6 +180,45 @@ def test_read_line_echoes_through_the_model() -> None:
 
     assert_that(line).is_equal_to("open mailbox")
     assert_that(frontend.model.row_text(1)).is_equal_to("open mailbox")
+
+
+# A plain keystroke passes through read_key as itself, unechoed --
+# §15 read_char leaves echoing to the game.
+def test_read_key_passes_plain_keys_through() -> None:
+    frontend, out = painted(keys=[StubKey("n")])
+
+    out.clear()
+    key = frontend.read_key()
+
+    assert_that(key).is_equal_to("n")
+    assert_that("".join(out)).does_not_contain("n")
+
+
+# Named special keys translate to their §3.8.2.2 input characters:
+# enter, delete, and escape all have ZSCII meanings.
+def test_read_key_translates_special_keys() -> None:
+    frontend, _out = painted(
+        keys=[
+            StubKey("", "KEY_ENTER"),
+            StubKey("", "KEY_BACKSPACE"),
+            StubKey("", "KEY_ESCAPE"),
+        ]
+    )
+
+    assert_that(frontend.read_key()).is_equal_to("\n")
+    assert_that(frontend.read_key()).is_equal_to("\x7f")
+    assert_that(frontend.read_key()).is_equal_to("\x1b")
+
+
+# An empty read is not a keystroke, and neither is an unmapped
+# multi-character escape sequence -- an arrow key the story cannot
+# hear yet: read_key waits for one it can.
+def test_read_key_waits_out_empty_and_unmapped_reads() -> None:
+    frontend, _out = painted(
+        keys=[StubKey(""), StubKey("\x1b[C", "KEY_RIGHT"), StubKey("q")]
+    )
+
+    assert_that(frontend.read_key()).is_equal_to("q")
 
 
 # Without a terminal handed in, a real blessed Terminal is built;
