@@ -1,0 +1,207 @@
+! SEED=50
+! GAME=../entharion/zcode-infocom/zork1-invclues-r52-s871125.z5
+
+n. n. u
+get egg
+d. s. e
+open window
+w
+get all
+w
+open sack
+get lunch and garlic
+drop all
+get sword and lamp
+move rug
+open trapdoor
+open case
+e. u
+turn on lamp
+get all
+d. w
+drop knife
+d. s. e
+get painting
+w. n. n
+
+# The battle with the troll is random and you have
+# to keep fighting him until you knock him out.
+# Your last hit will kill him. The more damage you
+# take, the more time it takes to recover, which can
+# impact your inventory limit. So this seed makes
+# sure the troll is dispatched quickly.
+
+kill troll
+kill troll
+
+drop sword
+e. e. se. e
+tie rope to railing
+d. s. e
+get coffin
+w. s
+pray
+s. n. w. w. w
+open coffin
+get sceptre
+put coffin and painting in case
+e. e. e. e. d. d. n
+wave sceptre
+e. e. n. n
+get shovel
+ne
+dig sand
+again. again. again
+drop shovel
+get scarab
+sw. s. s. w. w
+get pot
+sw. u. u. nw. w. w. w
+put all but lamp in case
+get all but sack and garlic
+open trapdoor
+d. n. w. s. e. u
+get bag and key
+sw. e. s. se
+give lunch and water to cyclops
+
+# Now we come to the thief. This is a fight where,
+# like the troll, a lot can happen. This seed makes
+# sure the fight is a little more involved than with
+# the troll, but ends with no damage to the player.
+
+u
+give egg to thief
+kill thief
+kill thief
+kill thief
+
+get all but stiletto
+drop knife
+d. nw. s. w. u. d. ne
+unlock grate
+drop key
+open grate
+u. s.
+
+# This is the part where it was crucial to give
+# the egg to the thief because he opened it so
+# you could get at the canary.
+wind up canary
+
+get bauble
+s. e. w. w
+get canary
+put all but lamp in case
+get garlic
+
+d. n. e. n. ne. e. n
+get matchbook
+e
+push yellow
+get wrench and screwdriver
+w. s
+drop garlic and screwdriver
+turn bolt with wrench
+drop wrench
+e
+get plastic
+n
+drop plastic
+s. sw. s. e
+echo
+get bar
+w. se. e. d
+turn off lamp
+get torch
+s
+get bell
+s
+get all
+d. d
+ring bell
+get candles
+light match
+light candles
+read book
+s
+get skull
+
+n. u. n. n. n. w. w. s. u
+put skull and bar in case
+d. n. e. n. ne. e
+get garlic and screwdriver
+w. n
+drop all but torch. get trunk
+n. n
+get trident
+s. s. s. sw. sw. w. s. u
+put trunk and trident in case
+
+d. n. e. n. ne. n
+get all
+n. n. u. n. n. w. n. w
+drop torch
+turn on lamp
+n
+get figurine
+s
+drop figurine
+n. e
+drop all but lamp and garlic
+n. d. e. ne. se. sw. d. d. s
+get coal
+n. u. u. n. e. s. n. u. s
+get all
+put coal and screwdriver in basket
+light match
+light candles with match
+put candles in basket
+lower basket
+drop matchbook
+n. d. e. ne. se. sw. d. d. w
+drop all
+w
+get coal and candles and screwdriver
+s
+open lid
+put coal in machine
+close lid
+turn switch with screwdriver
+drop screwdriver
+open lid
+get diamond
+n
+put diamond in basket
+drop candles
+e
+get all but timber
+e. u. u. n. e. s. n
+get sapphire
+u. s
+raise basket
+get diamond
+w. s
+get all
+
+e. s. d. u
+drop garlic
+put all but lamp in case
+d. n. e. n. ne. n. n
+get pump
+s. s. e
+get plastic
+s. d. e. e. s
+drop plastic
+inflate plastic
+drop pump
+enter boat
+launch
+get buoy
+land
+get out of boat
+s. w. w. sw. u. u. nw. w. w. w
+open buoy
+put emerald in case
+e. e. n. w. sw. w
+quit
