@@ -1,0 +1,74 @@
+! SEED=92
+! GAME=../entharion/zcode-inform/ztuu-r16-s970828.z5
+
+ne. ne. s. s
+get tinsel
+n. n. e. e. e
+open trunk
+get coin
+w. w. w. n. nw
+talk to salesman
+get mask
+get baby rune
+get forever gores
+get multi-implementers
+get ZM$100000
+n
+get razor gloves
+get fish mask
+get glowing suit
+s. se
+drop lantern
+wear gloves
+hit lantern
+wear mask
+wear suit
+n
+get glasses
+s
+get lantern
+s. e. e
+get blue lens
+get red lens
+w. w. s. e
+tie tinsel to coin
+put coin in slot
+get coin
+put coin in slot
+
+# You have to remember the rib that is selected, random per game.
+# For this seed, it will be the fourth.
+
+w. w
+pry fourth rib with sword
+sw
+get can
+ne. e. n
+drop baby rune
+s
+drop forever gores
+s
+
+put blue lens in glasses
+put red lens in glasses
+wear glasses
+drop all
+open cover
+press button
+hit lantern
+
+get can
+get balloon
+get flathead
+get house
+get lantern
+get tree
+get ZM$100000
+put flathead on circle
+put tree on square
+put house on triangle
+put balloon on pentagon
+se
+drop ZM$100000
+nw. n. n. w. sw. sw
+quit
