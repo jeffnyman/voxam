@@ -38,6 +38,7 @@ class Recorder:
     has_italic = False
     has_fixed_pitch = True
     has_timed_input = True
+    has_sounds = False
     screen_lines = 24
     screen_columns = 64
 

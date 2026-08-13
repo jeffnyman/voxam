@@ -31,8 +31,14 @@ TIMED_INPUT_BIT = 0x80
 # Flags 2 lives in the word at $10. Its bits describe the player's
 # session -- transcription on, fixed-pitch forced -- rather than the
 # story's state, which is why a restore or restart writes everything
-# back EXCEPT this word (§6.1.2, §6.1.3).
+# back EXCEPT this word (§6.1.2, §6.1.3). Bit 7, in the word's low
+# byte at $11, is the game asking for sound effects: Version 5
+# games like Sherlock, and exactly one Version 3 -- The Lurking
+# Horror, which §11.1's remarks name for this same bit. The
+# interpreter's only move is to clear the request it cannot oblige.
 FLAGS_2 = 0x10
+FLAGS_2_LOW = 0x11
+SOUND_BIT = 0x80
 
 # An interpreter obeying revision n.m of the Standard writes n at
 # $32 and m at $33 (§11.1.5); games check it before using late
@@ -449,6 +455,26 @@ class Header:
         self._set_flag(ITALIC_BIT, on=italic)
         self._set_flag(FIXED_PITCH_BIT, on=fixed_pitch)
         self._set_flag(TIMED_INPUT_BIT, on=timed_input)
+
+    def declare_sound(self, *, available: bool) -> None:
+        """Clear the game's sound request when it cannot be met (§11.1).
+
+        Flags 2 carries requests rather than capabilities: bit 7 is
+        the game asking for sound effects, and the interpreter
+        either obliges or clears the bit so the game knows to play
+        on in silence -- the conforming quiet The Lurking Horror
+        and Sherlock were both shipped to accept.
+
+        Raises:
+            ZMachineHeaderError: Over the pristine story bytes,
+                which never change.
+        """
+
+        if available:
+            return
+
+        live = self._live()
+        live[FLAGS_2_LOW] &= 0xFF ^ SOUND_BIT
 
     def _require_screen_fields(self) -> None:
         """Refuse the interpreter fields before Version 4 (§11.1)."""

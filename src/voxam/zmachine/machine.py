@@ -306,6 +306,7 @@ class Machine:
         header = self._memory.header
 
         header.declare_standard_revision(STANDARD_MAJOR, STANDARD_MINOR)
+        header.declare_sound(available=self._frontend.has_sounds)
 
         if header.version == STATUS_FLAGS_VERSION:
             header.declare_status_line(available=self._frontend.has_status_line)
@@ -1930,25 +1931,36 @@ class Machine:
         self._memory.write_word(table, len(text))
 
     def _op_sound_effect(self, instruction: Instruction) -> None:
-        """Sound a bleep, the only sound most stories make (§9).
+        """Sound a bleep, or let a sampled sound pass in silence (§9).
 
         A bare sound_effect means bleep 1; 1 and 2 are the high and
-        low bleeps the interpreter itself provides. The extra
-        operands -- effect, volume, routine -- belong to sampled
-        sounds and are ignored for bleeps.
+        low bleeps the interpreter itself provides. From 3 upward
+        the numbers name sampled sounds: on a frontend that has
+        honestly cleared the header's sound request, the request
+        passes in the conforming quiet The Lurking Horror and
+        Sherlock were both shipped to accept -- the extra operands
+        ignored, and the end-of-sound routine of a sound that never
+        plays never called. A frontend that CLAIMS sound must wait
+        for the Blorb-era machinery to arrive.
 
         Raises:
-            ZMachineUnimplementedError: For numbers 3 and up, the
-                sampled sounds.
+            ZMachineUnimplementedError: For a sampled sound on a
+                frontend claiming sound support, which no machinery
+                yet backs.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
         number = values[0] if values else HIGH_BLEEP
 
         if number >= FIRST_SAMPLED_SOUND:
-            raise ZMachineUnimplementedError(
-                f"sampled sound {number}", instruction.address
-            )
+            if self._frontend.has_sounds:
+                raise ZMachineUnimplementedError(
+                    f"sampled sound {number}", instruction.address
+                )
+
+            self._pc = instruction.next_address
+
+            return
 
         self._frontend.bleep(number)
         self._pc = instruction.next_address

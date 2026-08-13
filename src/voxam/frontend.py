@@ -69,6 +69,8 @@ class Frontend(Protocol):
         has_fixed_pitch: Whether a fixed-space style is available.
         has_timed_input: Whether input can be interrupted on a
             timer (§15 read).
+        has_sounds: Whether sampled sound effects can actually
+            play (§9).
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -81,6 +83,7 @@ class Frontend(Protocol):
     has_italic: bool
     has_fixed_pitch: bool
     has_timed_input: bool
+    has_sounds: bool
     screen_lines: int
     screen_columns: int
 
@@ -142,6 +145,9 @@ class PlainFrontend:
     # than a wall clock, which is what seeded replay can honestly
     # offer (§15 read).
     has_timed_input = True
+    # Sampled sounds wait on the blessed frontend and its Blorb-era
+    # machinery; a transcript stream plays nothing, and says so.
+    has_sounds = False
     screen_lines = 255
     screen_columns = 80
 
