@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-title.png" alt="Voxam">
+  <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-title.png" alt="VΘXΔM">
 </h1>
 
 <p align="center">
@@ -34,12 +34,15 @@ with two guiding commitments: fidelity to the
 identically, forever.
 
 Voxam is developed against real games. The *Zork* trilogy,
-*Cutthroats*, *Deadline*, *Seastalker*, *Trinity*, and *A Mind
-Forever Voyaging* have all been played to winning conclusions under
-Voxam -- several across multiple releases, two to perfect scores --
-alongside modern classics from *Colossal Cave* to the IF Comp
-winner *All Roads*, each verified end-to-end by the acceptance
-harness described below.
+*Cutthroats*, *Deadline*, *Seastalker*, *Trinity*, *A Mind Forever
+Voyaging*, *The Hitchhiker's Guide to the Galaxy*, and -- filed in
+triplicate, blood pressure rising -- *Bureaucracy* have all been
+played to winning conclusions under Voxam, several across multiple
+releases and several to perfect scores, alongside modern classics
+from *Colossal Cave* to the IF Comp winner *All Roads*. Twenty-one
+complete recordings verify those endings end-to-end with the
+acceptance harness described below, and their annotations double as
+an archaeology of where the games' published walkthroughs go wrong.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -54,29 +57,37 @@ main-line catalog and the modern Inform and PunyInform games built
 on version 5. That includes the full parser and object machinery, a
 seeded random number generator for reproducible sessions, the
 screen model (split windows, single-keystroke input), custom
-alphabet tables and the accented extra characters, SAVE, RESTORE,
-and RESTART in the standard
+alphabet tables, the accented extra characters, and the Standard
+1.1 Unicode extras -- custom translation tables and print_unicode
+-- so the interpreter declares revision 1.1 in every header it
+touches. SAVE, RESTORE, and RESTART speak the standard
 [Quetzal](https://jeffnyman.github.io/z-machine-standard/quetzal.html)
-format, multi-level UNDO, and an acceptance-script harness for
-recording, replaying, and probing whole playthroughs.
+format, auxiliary files cover the games that save fragments of
+themselves, UNDO is multi-level, and an acceptance-script harness
+records, replays, and probes whole playthroughs.
+
+Input runs deeper than lines. A scripted line reaches
+single-keystroke reads one character at a time, which is how
+cursor-driven forms -- up to and including Bureaucracy's Software
+Licence Application -- fill in correctly from a recording. Timed
+input runs on a virtual clock: the "patient typist" lets one
+interrupt interval elapse before each input arrives, which keeps
+timed games playable while recorded sessions stay deterministic.
+And sampled sounds pass in the conforming silence of an
+interpreter that declares none -- *The Lurking Horror* and
+*Sherlock* play on, exactly as they were shipped to -- while the
+two built-in bleeps remain the machine's whole orchestra.
 
 Voxam is verified against the community's interpreter test suites:
-CZECH (versions 3, 4, and 5), Praxix, TerpEtude, and Strict Z Test
-all pass clean, and every remaining gap halts loudly with a
-citation instead of guessing.
+CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
+included -- TerpEtude, and Strict Z Test all pass clean, and every
+remaining gap halts loudly with a citation instead of guessing.
 
-**Under construction:** the Standard 1.1 extras -- custom Unicode
-translation tables and print_unicode -- and auxiliary-file saves,
-each a named frontier a test suite is already waiting behind.
-
-Timed input runs on a virtual clock -- the "patient typist" lets
-one interrupt interval elapse before each input arrives, which
-keeps timed games playable while recorded sessions stay
-deterministic.
-
-**Not yet:** sampled sound, wall-clock timed input, version 6, and
-Glulx. For recorded sessions, seeds substitute for saves: a script
-replays a whole game in moments.
+**Not yet:** sound playback and the richer screen work (menus,
+visible form cursors, real-time redraw) that belong to a blessed
+frontend, wall-clock timed input, version 6, and Glulx. For
+recorded sessions, seeds substitute for saves: a script replays a
+whole game in moments.
 
 ## Installation
 
@@ -357,6 +368,51 @@ git submodule update --remote entharion
 git add entharion
 git commit -m "chore(deps): update entharion submodule"
 ```
+
+---
+
+## 🪄 The Name
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-symbol.png" height="50" width="50" alt=""><br>
+<img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-glow.png" alt="VΘXΔM">
+</p>
+
+The name VΘXΔM draws from two sources of inspiration:
+
+* From Latin, vox means "voice," evoking the idea of turning a player's command into action, like voice into magic.
+* In _Zork: Grand Inquisitor_, voxam was a spell meaning "to separate the energies of different magics." That maps well to the process of parsing, breaking down a command into meaningful parts, isolating intent from raw text.
+
+So whether seen as linguistic alchemy or parser sorcery, VΘXΔM stands at the intersection of command and consequence; of input and invocation.
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-spell.png" alt="">
+</p>
+
+In terms of a few more historical details, the VOXAM spell has a hilarious relevance in _Zork: Grand Inquisitor_: it's a complete joke and serves absolutely no functional purpose in the main game. When you first receive your spellbook from Y'Gael at the bottom of the well, VOXAM is one of the three starting spells written inside (alongside REZROV and IGRAM). According to the in-game lore, it belongs to the class of High Magic and, as stated earlier, is defined as a spell to "separate the energies of different magics."
+
+Its actual relevance breaks down into two categories:
+
+* In the Main Game: Pure Flavor & Trolling. While you use REZROV to open the very first locked door and IGRAM to turn purple things invisible later on, VOXAM can't be cast successfully on anything.
+* The Developer Joke: The developers included it purely as world-building flavor to pad out your initial spellbook and to trick players into trying it on various magical anomalies throughout the Great Underground Empire.
+
+Also worth mentioning is the "Booznik" System. Later in the game, you discover that the Grand Inquisitor has "Boozniked" (reversed) all magic. If you were theoretically able to reverse VOXAM, it would mean "conjoin the energies of different magics," but the spell remains entirely useless to your inventory.
+
+So: a spell defined as separating the energies of different magics, that generations of players cast hopefully at every anomaly in the Great Underground Empire, and that never once worked on anything -- until now. Point this one at a story file and it separates raw Z-code into opcodes, operands, and intent, exactly as advertised.
+
+*Twenty-nine years later, the spell finally works on something.*
+
+Chris McDonald, in [Techno History](https://technicshistory.com/2016/11/13/about-techno-history/), wrote:
+
+> "Humans are ceaseless borrowers and copiers. Perhaps, contra *Ecclesiastes*,
+> there is an occasional new thing under the sun, but certainly humans think no
+> new thoughts *ex nihilo*. And yet we are also ceaseless inventors. We combine
+> existing ideas in new ways or place them in new surroundings, and suddenly
+> the old becomes new, in a wonderful alchemy of the mind."
+
+A borrowed machine, a borrowed spell, a borrowed voice -- combined in new
+surroundings until the old became new. VΘXΔM is that alchemy, practiced on
+Z-code.
 
 ## 👨‍💻 Author
 
