@@ -33,11 +33,13 @@ with two guiding commitments: fidelity to the
 -- and reproducibility, so that a recorded play session replays
 identically, forever.
 
-Voxam is developed against the real Infocom catalog. The *Zork*
-trilogy, *Cutthroats*, *Deadline*, and *Seastalker* have all been played to
-winning conclusions under Voxam, several of them across multiple
-releases, each verified end-to-end by the acceptance harness
-described below.
+Voxam is developed against real games. The *Zork* trilogy,
+*Cutthroats*, *Deadline*, *Seastalker*, *Trinity*, and *A Mind
+Forever Voyaging* have all been played to winning conclusions under
+Voxam -- several across multiple releases, two to perfect scores --
+alongside modern classics from *Colossal Cave* to the IF Comp
+winner *All Roads*, each verified end-to-end by the acceptance
+harness described below.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -47,22 +49,27 @@ described below.
 
 Version `0.x`: early, honest, and playable.
 
-**Works today:** story file versions 1 through 4, which cover
-Infocom's 1980--1986 catalog -- including the "Interactive Fiction
-Plus" line -- and many modern retro-style games. That includes the
-full parser and object machinery, a seeded random number generator
-for reproducible sessions, status line semantics, the version 4
-screen model (split windows, single-keystroke input), SAVE, RESTORE,
+**Works today:** story file versions 1 through 5 -- Infocom's whole
+main-line catalog and the modern Inform and PunyInform games built
+on version 5. That includes the full parser and object machinery, a
+seeded random number generator for reproducible sessions, the
+screen model (split windows, single-keystroke input), custom
+alphabet tables and the accented extra characters, SAVE, RESTORE,
 and RESTART in the standard
 [Quetzal](https://jeffnyman.github.io/z-machine-standard/quetzal.html)
-format, and an acceptance-script harness for recording, replaying,
-and probing whole playthroughs.
+format, multi-level UNDO, and an acceptance-script harness for
+recording, replaying, and probing whole playthroughs.
 
-**Under construction:** version 5 support is being built
-"frontier-driven" -- games are run until they name the next missing
-piece.
+Voxam is verified against the community's interpreter test suites:
+CZECH (versions 3, 4, and 5), Praxix, TerpEtude, and Strict Z Test
+all pass clean, and every remaining gap halts loudly with a
+citation instead of guessing.
 
-**Not yet:** sampled sound, timed input, UNDO, version 6, and
+**Under construction:** the Standard 1.1 extras -- custom Unicode
+translation tables and print_unicode -- and auxiliary-file saves,
+each a named frontier a test suite is already waiting behind.
+
+**Not yet:** sampled sound, real-time timed input, version 6, and
 Glulx. For recorded sessions, seeds substitute for saves: a script
 replays a whole game in moments.
 

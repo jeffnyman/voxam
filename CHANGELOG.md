@@ -1,3 +1,32 @@
+## v0.3.0 (2026-08-13)
+
+### Feat
+
+- **zmachine**: append typed input after a preloaded line (#72)
+- **zscii**: speak the extra characters of the default table (#70)
+- **zmachine**: stack undo snapshots sixteen turns deep (#69)
+- **zmachine**: unwind the call stack with throw and catch (#68)
+- **zmachine**: declare Standard 1.0 in header (#65)
+- **zmachine**: discard the stack top with pop (#63)
+- **zmachine**: complete timed reads under the instant typist (#61)
+- **zmachine**: print rectangles of table text with print_table (#56)
+- **zmachine**: copy, smear, and zero tables with copy_table (#55)
+- **zmachine**: honor custom alphabet tables in text and lookups (#54)
+- **zmachine**: shift words logically and arithmetically (#53)
+- **zmachine**: lex the buffer on demand with tokenise (#52)
+- **zmachine**: hold and replay an undo snapshot (#51)
+- **zmachine**: read version 5's counted text buffer with aread (#50)
+
+### Fix
+
+- **zmachine**: answer the object-zero family with nothing (#73)
+- **zmachine**: accept a read with the parse buffer omitted (#71)
+- **zmachine**: read table indices as signed on a 16-bit bus (#67)
+- **zmachine**: settle overshifts instead of halting (#66)
+- **zscii**: print the null as nothing, as §3.8.2.1 defines (#64)
+- **zmachine**: answer test_attr on object 0 with false (#59)
+- **zmachine**: answer object-tree reads about object 0 with nothing (#58)
+
 ## v0.2.0 (2026-08-12)
 
 ### Feat
