@@ -265,6 +265,7 @@ class Machine:
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
+        self._pending_keys: deque[str] = deque()
 
         self._declare_capabilities()
         self._start_execution()
@@ -1952,13 +1953,43 @@ class Machine:
         self._frontend.bleep(number)
         self._pc = instruction.next_address
 
+    def _keystroke(self) -> int:
+        """Take one key from the queue, refilled a line at a time.
+
+        An empty queue draws the next scripted line: an empty line
+        is the return key alone, ZSCII 13, and a longer line queues
+        its characters to be typed one read_char at a time. The
+        queue never invents a return -- a script presses enter with
+        an explicit empty line -- so a one-character line remains
+        exactly one keystroke, as every recording before the queue
+        existed assumes. Line reads always fetch fresh lines: a
+        queue left partly spent stays for the next read_char, where
+        a mistyped recording will surface it deterministically.
+
+        Returns:
+            The ZSCII code of the next keystroke.
+        """
+
+        if not self._pending_keys:
+            line = self._input()
+
+            if not line:
+                return ZSCII_NEWLINE
+
+            self._pending_keys.extend(line)
+
+        return char_to_zscii(self._pending_keys.popleft(), self._extras())
+
     def _op_read_char(self, instruction: Instruction) -> None:
         """Read one keystroke, storing its ZSCII code (§15 read_char).
 
-        The input seam speaks in lines, so a keystroke is the first
-        character of the next line -- and a bare return is the
-        return key itself, ZSCII 13. A recorded script presses a key
-        with a one-character line, or return with an empty one.
+        The input seam speaks in lines, so keystrokes come from a
+        queue that spends one scripted line a character at a time: a
+        one-character line is a single key, a longer line is that
+        many keys in sequence, and a bare empty line is the return
+        key itself, ZSCII 13. Bureaucracy's licence form types whole
+        fields this way -- each field a line of keystrokes, each
+        enter an empty line after it.
 
         A time and routine pair asks for the routine every time/10
         seconds of real waiting (§15). The patient typist waits one
@@ -1997,10 +2028,7 @@ class Machine:
 
             return
 
-        line = self._input()
-        code = char_to_zscii(line[0], self._extras()) if line else ZSCII_NEWLINE
-
-        self._store_result(instruction.store_variable, code)
+        self._store_result(instruction.store_variable, self._keystroke())
         self._pc = instruction.next_address
 
     def _op_show_status(self, instruction: Instruction) -> None:

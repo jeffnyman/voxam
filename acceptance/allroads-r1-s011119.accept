@@ -1,7 +1,12 @@
 ! SEED=1
 ! GAME=../entharion/zcode-inform/allroads-r1-s011119.z5
 
-wake up
+# The title menu starts the game on any keypress. This line was
+# "wake up" when the keystroke seam discarded everything after a
+# line's first character; now that a line is a run of keystrokes,
+# the line must mean exactly the one key it always delivered.
+
+w
 i
 >
 >
@@ -29,7 +34,7 @@ listen
 wait
 examine darkness
 jump into the darkness
-examine dust
+e
 blow dust
 
 
@@ -82,7 +87,7 @@ cut manacles on dagger
 talk to captain
 g. g
 enter the darkness
-examine the painting
+e
 examine steps
 i
 x key
@@ -130,7 +135,7 @@ remove ropes
 open door
 x light
 wait
-talk to captain
+t
 examine bars
 look through window
 talk to denizen
