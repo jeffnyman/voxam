@@ -468,16 +468,6 @@ def test_pop_discards_the_stack_top(code_machine: Callable[..., Machine]) -> Non
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
 
 
-# Boot stamps the Standard revision Voxam obeys at $32/$33
-# (§11.1.5), in every version.
-def test_boot_declares_the_standard_revision(
-    code_machine: Callable[..., Machine],
-) -> None:
-    machine = code_machine(bytes([0xBA]))
-
-    assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0100)
-
-
 # catch's cookie is specified exactly: the number of frames on the
 # call stack (§15 catch, Quetzal §6.2). At rest, only the base
 # frame stands.
@@ -523,19 +513,43 @@ def test_throwing_to_a_dead_frame_halts(
         machine.run()
 
 
-# A story naming its own Unicode translation table (§3.8.5.2) would
-# redefine every extra character; the machine refuses at boot until
-# a game earns the table.
-def test_a_custom_unicode_table_is_a_reported_frontier() -> None:
-    data = bytearray(512)
-    data[0] = 5
-    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
-    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
-    data[0x0C:0x0E] = (0x0100).to_bytes(2, "big")
-    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
-    data[0x36:0x38] = (0x0120).to_bytes(2, "big")
-    data[0x120:0x122] = (3).to_bytes(2, "big")
-    data[0x126:0x128] = (0x0150).to_bytes(2, "big")
+# print_unicode prints by codepoint; controls and surrogates get the
+# question mark §3.8.5.4 prescribes for missing letter-forms.
+def test_print_unicode_prints_by_codepoint(
+    code_machine: Callable[..., Machine],
+) -> None:
+    output: list[str] = []
+    program = bytes([0xBE, 0x0B, 0x3F, 0x03, 0xB1, 0xBE, 0x0B, 0x3F, 0xD8, 0x00, 0xBA])
+    machine = code_machine(program, version=5, output=output.append)
 
-    with pytest.raises(ZMachineUnimplementedError, match="Unicode translation"):
-        Machine(Story(bytes(data)), PlainFrontend(lambda _: None))
+    machine.run()
+
+    assert_that("".join(output)).is_equal_to("\u03b1?")
+
+
+# check_unicode answers with a bitmap: bit 0 printable, bit 1
+# receivable from the keyboard (§15 check_unicode). An alpha prints
+# but ZSCII cannot carry it under the default table; a-umlaut does
+# both; a surrogate does neither.
+@pytest.mark.parametrize(
+    ("codepoint", "expected"),
+    [(0x00E4, 3), (0x03B1, 1), (0xD800, 0), (0x0007, 0)],
+)
+def test_check_unicode_reports_print_and_input(
+    codepoint: int, expected: int, code_machine: Callable[..., Machine]
+) -> None:
+    program = bytes(
+        [0xBE, 0x0C, 0x3F, *codepoint.to_bytes(2, "big"), RESULT_VARIABLE, 0xBA]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(expected)
+
+
+# The Standard revision at $32/$33 now reads 1.1 (§11.1.5).
+def test_boot_declares_standard_1_1(code_machine: Callable[..., Machine]) -> None:
+    machine = code_machine(bytes([0xBA]))
+
+    assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0101)

@@ -17,6 +17,7 @@ from voxam.errors import (
     ZMachineMemoryError,
     ZMachineQuetzalError,
     ZMachineStackError,
+    ZMachineTextError,
     ZMachineUnimplementedError,
 )
 from voxam.frontend import Frontend, PlainFrontend, Status
@@ -50,6 +51,7 @@ from voxam.zmachine.zscii import (
     ZSCII_NEWLINE,
     char_to_zscii,
     decode_string,
+    extras,
     zscii_to_char,
 )
 
@@ -86,9 +88,10 @@ INTERPRETER_PLATFORM = 6
 INTERPRETER_REVISION = ord("V")
 
 # The Standard revision Voxam obeys, written at $32/$33 (§11.1.5).
-# 1.0 until the 1.1 additions -- print_unicode and kin -- all land.
+# 1.1: the unicode cluster, the prompt-bearing table saves, and the
+# 1.1 clarifications the checkers certified along the way.
 STANDARD_MAJOR = 1
-STANDARD_MINOR = 0
+STANDARD_MINOR = 1
 
 # read_char's first operand is always 1, the keyboard: no other
 # input device was ever defined (§15 read_char).
@@ -164,6 +167,24 @@ def signed(value: int) -> int:
     return value - WORD_RANGE if value & SIGN_BIT else value
 
 
+# The codepoint ranges no letter-form exists for: the C0 and C1
+# controls and the UTF-16 surrogates (§3.8.5.4.1, §3.8.5.4.3).
+C0_CONTROL_END = 0x20
+C1_CONTROL_START = 0x7F
+C1_CONTROL_END = 0x9F
+SURROGATE_START = 0xD800
+SURROGATE_END = 0xDFFF
+
+
+def _unicode_printable(code: int) -> bool:
+    """Whether a stream frontend has a letter-form for a codepoint."""
+
+    if code < C0_CONTROL_END or C1_CONTROL_START <= code <= C1_CONTROL_END:
+        return False
+
+    return not SURROGATE_START <= code <= SURROGATE_END
+
+
 def _quotient(left: int, right: int) -> int:
     """Divide, truncating toward zero as the Z-machine does (§2.2.1).
 
@@ -237,16 +258,6 @@ class Machine:
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
-
-        # A story naming its own Unicode translation table (§3.8.5.2)
-        # would redefine every extra character; pretending it had not
-        # would print the wrong alphabet. A loud frontier until a
-        # game earns the table.
-        if self._memory.header.unicode_translation_address:
-            raise ZMachineUnimplementedError(
-                "a custom Unicode translation table",
-                self._memory.header.unicode_translation_address,
-            )
 
         self._declare_capabilities()
         self._start_execution()
@@ -1074,7 +1085,7 @@ class Machine:
         length = self._memory.read_byte(address)
 
         return "".join(
-            zscii_to_char(self._memory.read_byte(address + 1 + offset))
+            zscii_to_char(self._memory.read_byte(address + 1 + offset), self._extras())
             for offset in range(length)
         )
 
@@ -1304,6 +1315,54 @@ class Machine:
         self._variables.write_in_place(reference, value)
         self._pc = instruction.next_address
 
+    def _extras(self) -> str:
+        """The extra-character repertoire in force (§3.8.5).
+
+        Read afresh each time, like the alphabet rows: a custom
+        translation table may live in dynamic memory.
+        """
+
+        return extras(self._memory)
+
+    def _op_print_unicode(self, instruction: Instruction) -> None:
+        """Print one Unicode character by codepoint (§15 print_unicode).
+
+        §3.8.5.4.1 requires letter-forms for all of Latin-1 and asks
+        for a question mark where none exists; a stream frontend has
+        forms for everything except the control ranges and the
+        surrogates, which get the question mark.
+        """
+
+        code = self._value(instruction.operands[0])
+
+        self._print(chr(code) if _unicode_printable(code) else "?")
+
+        self._pc = instruction.next_address
+
+    def _op_check_unicode(self, instruction: Instruction) -> None:
+        """Store what the interpreter can do with a codepoint (§15).
+
+        Bit 0: it can be printed. Bit 1: it can arrive from the
+        keyboard -- which for the line-based seam means ZSCII can
+        carry it, through ASCII or the extra characters in force.
+        """
+
+        code = self._value(instruction.operands[0])
+        result = 0
+
+        if _unicode_printable(code):
+            result |= 1
+
+        try:
+            char_to_zscii(chr(code), self._extras())
+            result |= 2
+        except ZMachineTextError:
+            pass
+
+        self._store_result(instruction.store_variable, result)
+
+        self._pc = instruction.next_address
+
     def _dictionary(self) -> Dictionary:
         """The standard dictionary, read once on first use (§13.1)."""
 
@@ -1381,7 +1440,9 @@ class Machine:
         if counted:
             preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
             held = "".join(
-                zscii_to_char(self._memory.read_byte(text_buffer + 2 + offset))
+                zscii_to_char(
+                    self._memory.read_byte(text_buffer + 2 + offset), self._extras()
+                )
                 for offset in range(preloaded)
             )
             typed = self._input().lower()[: capacity - preloaded]
@@ -1414,7 +1475,7 @@ class Machine:
         """
 
         for character in line:
-            self._memory.write_byte(position, char_to_zscii(character))
+            self._memory.write_byte(position, char_to_zscii(character, self._extras()))
             position += 1
 
         if terminate:
@@ -1510,7 +1571,9 @@ class Machine:
 
             self._print(
                 "".join(
-                    zscii_to_char(self._memory.read_byte(position + offset))
+                    zscii_to_char(
+                        self._memory.read_byte(position + offset), self._extras()
+                    )
                     for offset in range(width)
                 )
             )
@@ -1616,6 +1679,19 @@ class Machine:
             turns=self._variables.read(FIRST_GLOBAL + 2),
             time_game=self._memory.header.time_game,
         )
+
+    def _op_set_colour(self, instruction: Instruction) -> None:
+        """Set text colours -- where coloured text is available (§8.3.1).
+
+        The spec's own conditional does the work: this frontend
+        truthfully declares no colour in the header, so the request
+        is legitimately a no-op, exactly as a monochrome terminal of
+        the era would treat it. The blessed frontend will grow a
+        real seam here. Covers set_true_colour too, whose 15-bit
+        colours (§8.3.7) reduce the same way.
+        """
+
+        self._pc = instruction.next_address
 
     def _op_set_text_style(self, instruction: Instruction) -> None:
         """Hand the requested type style to the frontend (§8.7).
@@ -1754,7 +1830,7 @@ class Machine:
         # 3 among the places extra characters legally appear): an
         # oe-ligature lands as code 220, not codepoint 339.
         for character in text:
-            self._memory.write_byte(position, char_to_zscii(character))
+            self._memory.write_byte(position, char_to_zscii(character, self._extras()))
             position += 1
 
         self._memory.write_word(table, len(text))
@@ -1820,7 +1896,7 @@ class Machine:
             raise ZMachineInstructionError(msg)
 
         line = self._input()
-        code = char_to_zscii(line[0]) if line else ZSCII_NEWLINE
+        code = char_to_zscii(line[0], self._extras()) if line else ZSCII_NEWLINE
 
         self._store_result(instruction.store_variable, code)
         self._pc = instruction.next_address
@@ -1934,7 +2010,7 @@ class Machine:
     def _op_print_char(self, instruction: Instruction) -> None:
         """Print the character a ZSCII code means (§3.8)."""
 
-        self._print(zscii_to_char(self._value(instruction.operands[0])))
+        self._print(zscii_to_char(self._value(instruction.operands[0]), self._extras()))
         self._pc = instruction.next_address
 
     def _op_print_num(self, instruction: Instruction) -> None:
@@ -2045,6 +2121,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "call_vs": Machine._op_call,
     "call_vs2": Machine._op_call,
     "catch": Machine._op_catch,
+    "check_unicode": Machine._op_check_unicode,
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
@@ -2084,6 +2161,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "print_obj": Machine._op_print_obj,
     "print_paddr": Machine._op_print_paddr,
     "print_table": Machine._op_print_table,
+    "print_unicode": Machine._op_print_unicode,
     "print_ret": Machine._op_print_ret,
     "pull": Machine._op_pull,
     "push": Machine._op_push,
@@ -2110,6 +2188,8 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "save": Machine._op_save,
     "save_undo": Machine._op_save_undo,
     "scan_table": Machine._op_scan_table,
+    "set_colour": Machine._op_set_colour,
+    "set_true_colour": Machine._op_set_colour,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,
     "storew": Machine._op_storew,

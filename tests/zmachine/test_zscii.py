@@ -9,6 +9,7 @@ from voxam.zmachine.zscii import (
     char_to_zscii,
     decode_string,
     encode_word,
+    extras,
     zscii_to_char,
 )
 
@@ -419,3 +420,76 @@ def test_encoding_escapes_extras_as_zscii() -> None:
     assert_that(encode_word(5, "\u00e4")).is_equal_to(
         encode(5, 6, 4, 27, 5, 5, 5, 5, 5)
     )
+
+
+UNICODE_TABLE = 0x1A0
+
+
+def plant_unicode_table(memory: Memory, codepoints: list[int]) -> None:
+    """Point the header extension's word 3 at a custom repertoire."""
+
+    memory.write_word(0x36, 0x190)
+    memory.write_word(0x190, 3)
+    memory.write_word(0x196, UNICODE_TABLE)
+    memory.write_byte(UNICODE_TABLE, len(codepoints))
+
+    for index, codepoint in enumerate(codepoints):
+        memory.write_word(UNICODE_TABLE + 1 + 2 * index, codepoint)
+
+
+# A custom Unicode translation table redefines the extra characters
+# wholesale (§3.8.5.2): with three Greek letters installed, ZSCII
+# 155 to 157 speak Greek, and 158 -- past the table's count -- is
+# undefined even though the default table went further.
+def test_a_custom_translation_table_redefines_the_extras(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(5, 6, 4, 27), version=5)
+    plant_unicode_table(memory, [0x3B1, 0x3B2, 0x3B3])
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("\u03b1")
+    assert_that(extras(memory)).is_equal_to("\u03b1\u03b2\u03b3")
+
+    with pytest.raises(ZMachineTextError, match="not yet printable"):
+        zscii_to_char(158, extras(memory))
+
+
+# The custom repertoire is defined for input too (§3.8.5.2.2): a
+# typed alpha lands as ZSCII 155 under the Greek table.
+def test_custom_extras_are_defined_for_input(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(b"", version=5)
+    plant_unicode_table(memory, [0x3B1])
+
+    assert_that(char_to_zscii("\u03b1", extras(memory))).is_equal_to(155)
+
+    with pytest.raises(ZMachineTextError, match="no ZSCII code"):
+        char_to_zscii("\u00e4", extras(memory))
+
+
+# A zero-count table is legal and leaves every extra character
+# undefined (§3.8.5.2.2).
+def test_an_empty_translation_table_undefines_all_extras(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(b"", version=5)
+    plant_unicode_table(memory, [])
+
+    assert_that(extras(memory)).is_equal_to("")
+
+    with pytest.raises(ZMachineTextError, match="not yet printable"):
+        zscii_to_char(155, extras(memory))
+
+
+# Delete and escape are defined for input only (§3.8.2.2): both
+# classic delete bytes mean ZSCII 8, and the terminal escape means
+# 27 -- Bureaucracy insists on the former, the unicode checker
+# quits by the latter.
+@pytest.mark.parametrize(
+    ("character", "code"), [("\x08", 8), ("\x7f", 8), ("\x1b", 27)]
+)
+def test_input_only_codes_are_received(character: str, code: int) -> None:
+    assert_that(char_to_zscii(character)).is_equal_to(code)
