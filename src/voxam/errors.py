@@ -37,6 +37,10 @@ class ZMachineRoutineError(VoxamError):
     """Raised when bytes cannot be parsed as a routine."""
 
 
+class ZMachineScreenError(VoxamError):
+    """Raised when the screen model's §8 rules are broken."""
+
+
 class ZMachineStackError(VoxamError):
     """Raised when the routine call state is used against its rules."""
 
