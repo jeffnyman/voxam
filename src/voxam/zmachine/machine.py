@@ -46,7 +46,7 @@ from voxam.zmachine.rng import Randomizer
 from voxam.zmachine.routine import Routine
 from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
-from voxam.zmachine.variables import FIRST_GLOBAL, Variables
+from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
 from voxam.zmachine.zscii import (
     ZSCII_NEWLINE,
     char_to_zscii,
@@ -96,6 +96,13 @@ STANDARD_MINOR = 1
 # read_char's first operand is always 1, the keyboard: no other
 # input device was ever defined (§15 read_char).
 KEYBOARD_DEVICE = 1
+
+# From Version 4, read and read_char accept a time and routine pair:
+# every time/10 seconds of waiting the routine is called, and a true
+# return ends the read at once -- erasing any typed input and storing
+# 0 where a terminating character would go (§15 read, §15 read_char).
+TIMED_READ_VERSION = 4
+INTERRUPT_TERMINATOR = 0
 
 # From Version 5, read's text buffer changes shape: byte 0 is the
 # whole capacity, the typed count lands in byte 1, and the letters
@@ -1371,6 +1378,71 @@ class Machine:
 
         return self._words
 
+    def _interrupt(self, packed: int) -> int:
+        """Run a timed-input interrupt routine to completion (§15 read).
+
+        The routine is called with no arguments through the ordinary
+        call machinery, its result routed through the evaluation
+        stack -- pushed by the return, popped here, leaving the
+        interrupted frame's stack exactly as it was. Nested frames
+        run until the interrupt's own frame unwinds.
+
+        Args:
+            packed: The routine's packed address, already nonzero.
+
+        Returns:
+            The routine's return value -- or true when the story
+            quit mid-interrupt, because input has certainly ended.
+        """
+
+        address = routine_address(self._memory.header, packed)
+        routine = Routine.parse(self._memory, address)
+        floor = self._calls.depth
+
+        self._calls.call(
+            routine, (), return_address=self._pc, store_variable=STACK_VARIABLE
+        )
+
+        self._pc = routine.first_instruction
+
+        while self._running and self._calls.depth > floor:
+            self.step()
+
+        if not self._running:
+            return TRUE_VALUE
+
+        return self._variables.read(STACK_VARIABLE)
+
+    def _timed_out(self, values: list[int], time_index: int) -> bool:
+        """Let the patient typist's one interval elapse (§15 read).
+
+        The instant typist never let real time pass, so a time and
+        routine pair was accepted and ignored. The patient typist
+        waits exactly one interval before finishing the line: the
+        routine fires once, and a true return means the read ends
+        with no input consumed. A false return means the typist got
+        there first, and the read proceeds as an untimed one.
+
+        Args:
+            values: The instruction's resolved operands.
+            time_index: Where the time operand sits, with the
+                routine in the slot after it.
+
+        Returns:
+            Whether the interrupt terminated the read.
+        """
+
+        if self._memory.header.version < TIMED_READ_VERSION:
+            return False
+
+        time = values[time_index] if len(values) > time_index else 0
+        routine = values[time_index + 1] if len(values) > time_index + 1 else 0
+
+        if not time or not routine:
+            return False
+
+        return bool(self._interrupt(routine))
+
     def _op_sread(self, instruction: Instruction) -> None:
         """Read a typed command into the buffers (§15 read, §13.6).
 
@@ -1382,9 +1454,10 @@ class Machine:
         input here always ends in a newline (§15 read).
 
         A time and routine pair asks for interrupts during real
-        waiting (§15); under the instant typist the line arrives
-        before any interval elapses, so the pair is accepted and
-        never consulted -- see read_char for the full argument.
+        waiting (§15); the patient typist lets one interval elapse
+        before the line arrives, so the routine fires once, and a
+        true return erases the input and ends the read with 0 stored
+        -- see read_char for the full argument.
 
         A positive count already in byte 1 is preloaded input (§15
         read): characters the game placed in the buffer and printed
@@ -1436,6 +1509,26 @@ class Machine:
             )
 
             raise ZMachineMemoryError(msg)
+
+        if self._timed_out(values, time_index=2):
+            # All input is erased and the read ends at once (§15
+            # read): a counted buffer reports zero letters typed, a
+            # terminated one an empty string, and the lexing the
+            # normal path would have done sees that emptiness.
+            if counted:
+                self._memory.write_byte(text_buffer + 1, 0)
+            else:
+                self._write_text(text_buffer + 1, "", terminate=True)
+
+            if parse_buffer or not counted:
+                self._parse(parse_buffer, "", first_letter=2 if counted else 1)
+
+            if instruction.opcode.stores:
+                self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
+
+            self._pc = instruction.next_address
+
+            return
 
         if counted:
             preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
@@ -1868,13 +1961,16 @@ class Machine:
         with a one-character line, or return with an empty one.
 
         A time and routine pair asks for the routine every time/10
-        seconds of real waiting (§15); under the instant typist no
-        real time ever elapses, so zero intervals pass, the routine
-        is never called, and the read completes as an untimed one.
-        (All Roads gates its title menu behind exactly such a read.)
-        Games whose progress requires interrupts actually firing --
-        Border Zone's real-time clock -- are at odds with seeded
-        replay itself, and wait on a virtual-time seam.
+        seconds of real waiting (§15). The patient typist waits one
+        interval before pressing the key: the routine fires once,
+        and a true return ends the read at once with 0 stored and no
+        input consumed -- which is how Z-Tornado's Pause routine
+        (an interrupt that just returns true) animates without
+        eating the script. A false return means the key arrives and
+        the read completes as an untimed one. Routines that need
+        MANY intervals -- Border Zone's real-time clock -- would
+        want a longer-suffering typist, a knob left unbuilt until a
+        game demands it.
 
         Raises:
             ZMachineInstructionError: If the first operand is not 1,
@@ -1894,6 +1990,12 @@ class Machine:
             )
 
             raise ZMachineInstructionError(msg)
+
+        if self._timed_out(values, time_index=1):
+            self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
+            self._pc = instruction.next_address
+
+            return
 
         line = self._input()
         code = char_to_zscii(line[0], self._extras()) if line else ZSCII_NEWLINE

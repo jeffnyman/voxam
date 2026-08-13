@@ -69,7 +69,12 @@ citation instead of guessing.
 translation tables and print_unicode -- and auxiliary-file saves,
 each a named frontier a test suite is already waiting behind.
 
-**Not yet:** sampled sound, real-time timed input, version 6, and
+Timed input runs on a virtual clock -- the "patient typist" lets
+one interrupt interval elapse before each input arrives, which
+keeps timed games playable while recorded sessions stay
+deterministic.
+
+**Not yet:** sampled sound, wall-clock timed input, version 6, and
 Glulx. For recorded sessions, seeds substitute for saves: a script
 replays a whole game in moments.
 

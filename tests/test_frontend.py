@@ -142,14 +142,16 @@ def test_unsplitting_erasure_reselects_the_lower_window() -> None:
 
 # The plain frontend's whole self-portrait, as stamped into Version
 # 4+ headers: no typography beyond a stream's inherent fixed pitch,
-# 80 characters wide, and infinitely tall since it never pages
-# (§8.4, §11.1).
+# 80 characters wide, infinitely tall since it never pages, and
+# timed input honestly claimed now that the machine fires read
+# interrupts on the patient typist's virtual clock (§8.4, §11.1,
+# §15 read).
 def test_plain_frontend_claims_a_bare_infinite_stream() -> None:
     frontend = PlainFrontend()
 
     assert_that(frontend.has_bold).is_false()
     assert_that(frontend.has_italic).is_false()
     assert_that(frontend.has_fixed_pitch).is_true()
-    assert_that(frontend.has_timed_input).is_false()
+    assert_that(frontend.has_timed_input).is_true()
     assert_that(frontend.screen_lines).is_equal_to(255)
     assert_that(frontend.screen_columns).is_equal_to(80)
