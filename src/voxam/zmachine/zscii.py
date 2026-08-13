@@ -73,6 +73,88 @@ ZSCII_NEWLINE = 13
 ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
 
+# Codes 155 up are the "extra characters" (§3.8.5), defined for both
+# input and output by the default Unicode translation table of
+# §3.8.5.3 -- the accented Latin repertoire below, codepoint for
+# codepoint from Table 1. A Version 5+ story may substitute its own
+# table through the header extension (§3.8.5.2); that table is a
+# frontier the machine checks for at boot.
+ZSCII_EXTRA_START = 155
+DEFAULT_EXTRAS = "".join(
+    chr(codepoint)
+    for codepoint in (
+        0x0E4,
+        0x0F6,
+        0x0FC,
+        0x0C4,
+        0x0D6,
+        0x0DC,
+        0x0DF,
+        0x0BB,
+        0x0AB,
+        0x0EB,
+        0x0EF,
+        0x0FF,
+        0x0CB,
+        0x0CF,
+        0x0E1,
+        0x0E9,
+        0x0ED,
+        0x0F3,
+        0x0FA,
+        0x0FD,
+        0x0C1,
+        0x0C9,
+        0x0CD,
+        0x0D3,
+        0x0DA,
+        0x0DD,
+        0x0E0,
+        0x0E8,
+        0x0EC,
+        0x0F2,
+        0x0F9,
+        0x0C0,
+        0x0C8,
+        0x0CC,
+        0x0D2,
+        0x0D9,
+        0x0E2,
+        0x0EA,
+        0x0EE,
+        0x0F4,
+        0x0FB,
+        0x0C2,
+        0x0CA,
+        0x0CE,
+        0x0D4,
+        0x0DB,
+        0x0E5,
+        0x0C5,
+        0x0F8,
+        0x0D8,
+        0x0E3,
+        0x0F1,
+        0x0F5,
+        0x0C3,
+        0x0D1,
+        0x0D5,
+        0x0E6,
+        0x0C6,
+        0x0E7,
+        0x0C7,
+        0x0FE,
+        0x0F0,
+        0x0DE,
+        0x0D0,
+        0x0A3,
+        0x153,
+        0x152,
+        0x0A1,
+        0x0BF,
+    )
+)
+
 FIRST_ALPHABET_CHARACTER = 6
 
 # Dictionary-form encoding is fixed-length: 6 Z-characters through
@@ -165,7 +247,46 @@ def zscii_to_char(code: int) -> str:
     if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
         return chr(code)
 
+    if ZSCII_EXTRA_START <= code < ZSCII_EXTRA_START + len(DEFAULT_EXTRAS):
+        return DEFAULT_EXTRAS[code - ZSCII_EXTRA_START]
+
     msg = f"ZSCII code {code} is not yet printable (§3.8)"
+
+    raise ZMachineTextError(msg)
+
+
+def char_to_zscii(character: str) -> int:
+    """Convert a typed character to its ZSCII code (§3.8).
+
+    The input mirror of zscii_to_char: the extra characters are
+    "defined for both input and output" (§3.8.5.2.2), so a typed
+    accented letter lands in the buffer as its ZSCII code, not its
+    Unicode codepoint.
+
+    Args:
+        character: One typed character.
+
+    Returns:
+        The ZSCII code the character means.
+
+    Raises:
+        ZMachineTextError: For characters ZSCII has no code for.
+    """
+
+    if character == "\n":
+        return ZSCII_NEWLINE
+
+    code = ord(character)
+
+    if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
+        return code
+
+    position = DEFAULT_EXTRAS.find(character)
+
+    if position >= 0:
+        return ZSCII_EXTRA_START + position
+
+    msg = f"the character {character!r} has no ZSCII code (§3.8)"
 
     raise ZMachineTextError(msg)
 
@@ -244,7 +365,7 @@ def _encode_zchars(
         if position >= 0:
             targets.append((A2, [position + FIRST_ALPHABET_CHARACTER]))
         else:
-            code = ord(character)
+            code = char_to_zscii(character)
             escape = [ESCAPE, (code >> 5) & Z_CHAR_MASK, code & Z_CHAR_MASK]
             targets.append((A2, escape))
 

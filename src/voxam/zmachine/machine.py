@@ -46,7 +46,12 @@ from voxam.zmachine.routine import Routine
 from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, Variables
-from voxam.zmachine.zscii import ZSCII_NEWLINE, decode_string, zscii_to_char
+from voxam.zmachine.zscii import (
+    ZSCII_NEWLINE,
+    char_to_zscii,
+    decode_string,
+    zscii_to_char,
+)
 
 # Returning "false" means 0 and "true" means 1 (§6.4.5).
 FALSE_VALUE = 0
@@ -232,6 +237,16 @@ class Machine:
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
+
+        # A story naming its own Unicode translation table (§3.8.5.2)
+        # would redefine every extra character; pretending it had not
+        # would print the wrong alphabet. A loud frontier until a
+        # game earns the table.
+        if self._memory.header.unicode_translation_address:
+            raise ZMachineUnimplementedError(
+                "a custom Unicode translation table",
+                self._memory.header.unicode_translation_address,
+            )
 
         self._declare_capabilities()
         self._start_execution()
@@ -1294,10 +1309,14 @@ class Machine:
         self._pc = instruction.next_address
 
     def _write_text(self, position: int, line: str, *, terminate: bool) -> None:
-        """Lay typed text into the buffer, zero-terminated or not."""
+        """Lay typed text into the buffer, zero-terminated or not.
+
+        Characters land as ZSCII codes: a typed accented letter is
+        its §3.8.5 extra-character code, not its Unicode codepoint.
+        """
 
         for character in line:
-            self._memory.write_byte(position, ord(character))
+            self._memory.write_byte(position, char_to_zscii(character))
             position += 1
 
         if terminate:
@@ -1633,10 +1652,11 @@ class Machine:
         text = "".join(pieces)
         position = table + REDIRECTION_DATA_OFFSET
 
+        # The table holds ZSCII, not Unicode (§3.8.5.4 counts stream
+        # 3 among the places extra characters legally appear): an
+        # oe-ligature lands as code 220, not codepoint 339.
         for character in text:
-            code = ZSCII_NEWLINE if character == "\n" else ord(character)
-
-            self._memory.write_byte(position, code)
+            self._memory.write_byte(position, char_to_zscii(character))
             position += 1
 
         self._memory.write_word(table, len(text))
@@ -1699,7 +1719,7 @@ class Machine:
             raise ZMachineInstructionError(msg)
 
         line = self._input()
-        code = ord(line[0]) if line else ZSCII_NEWLINE
+        code = char_to_zscii(line[0]) if line else ZSCII_NEWLINE
 
         self._store_result(instruction.store_variable, code)
         self._pc = instruction.next_address
