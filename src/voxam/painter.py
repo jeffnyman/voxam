@@ -85,8 +85,12 @@ class Terminal(Protocol):
     def cbreak(self) -> AbstractContextManager[object]:
         """A context in which keystrokes arrive raw, one at a time."""
 
-    def inkey(self) -> object:
-        """One keystroke: a str-like, with a .name for special keys."""
+    def inkey(self, timeout: float | None = None) -> object:
+        """One keystroke: a str-like, with a .name for special keys.
+
+        With a timeout in seconds, an empty str-like comes back
+        when it expires with nothing typed.
+        """
 
 
 class ScreenFrontend:
@@ -210,20 +214,23 @@ class ScreenFrontend:
 
         self._out("\a")
 
-    def read_key(self) -> str:
+    def read_key(self, timeout: float | None = None) -> str | None:
         """Read one raw keystroke at the model's cursor.
 
         Special keys translate to their §3.8.2.2 input characters;
         unnamed keys pass through as themselves. Keystrokes are not
-        echoed -- §15 read_char leaves any echoing to the game --
-        and empty reads simply wait for a real one.
+        echoed -- §15 read_char leaves any echoing to the game.
+        Without a timeout, empty and unhearable reads simply wait
+        for a real keystroke; with one, an expired wait answers
+        None, which is the machine's cue to fire a §15 interrupt on
+        the wall clock.
         """
 
         self._park()
 
         while True:
             with self._terminal.cbreak():
-                key = self._terminal.inkey()
+                key = self._terminal.inkey(timeout)
 
             name = getattr(key, "name", None)
 
@@ -234,9 +241,13 @@ class ScreenFrontend:
 
             # Multi-character escape sequences -- arrows and friends
             # with no §3.8.2.2 mapping yet -- are not keystrokes the
-            # story can hear; wait for one it can.
+            # story can hear, and an expired timeout is no keystroke
+            # at all.
             if len(character) == 1:
                 return character
+
+            if timeout is not None:
+                return None
 
     def read_line(self) -> str:
         """Read one typed line at the model's cursor.

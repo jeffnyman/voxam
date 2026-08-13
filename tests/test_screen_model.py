@@ -258,13 +258,21 @@ def test_a_split_over_the_selected_upper_window_keeps_or_homes() -> None:
     assert_that(screen.get_cursor()).is_equal_to((1, 1))
 
 
-# An upper window tall enough to leave no lower window at all is
-# refused (§8.7.2.1), as is a negative one.
-def test_impossible_splits_are_refused() -> None:
+# The upper window may take the whole screen -- Z-Tornado plays
+# its entire game that way -- but not more than exists, and never
+# a negative height (§8.7.2.1).
+def test_a_full_height_split_is_legal_and_larger_is_not() -> None:
     screen = small(version=5)
 
+    screen.split_window(HEIGHT)
+    screen.set_window(UPPER)
+    screen.set_cursor(HEIGHT, 1)
+    screen.write("floor")
+
+    assert_that(screen.row_text(HEIGHT)).is_equal_to("floor")
+
     with pytest.raises(ZMachineScreenError, match=r"§8\.7\.2\.1"):
-        screen.split_window(HEIGHT)
+        screen.split_window(HEIGHT + 1)
 
     with pytest.raises(ZMachineScreenError, match=r"§8\.7\.2\.1"):
         screen.split_window(-1)
