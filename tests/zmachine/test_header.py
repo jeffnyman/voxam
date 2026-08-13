@@ -242,6 +242,31 @@ def test_presentation_bits_spare_their_neighbours() -> None:
     assert_that(header.data[1]).is_equal_to(0xFF ^ 0x9C)
 
 
+# Flags 2 bit 7 is the game asking for sound effects -- Sherlock in
+# Version 5, The Lurking Horror as the one named Version 3 -- and a
+# soundless interpreter clears the request so the game plays on in
+# silence (§11.1). The neighbouring session bits are left alone.
+def test_a_soundless_interpreter_clears_the_sound_request() -> None:
+    data = bytearray(synthetic_header(version=3))
+    data[0x11] = 0xFF
+    header = Header(data)
+
+    header.declare_sound(available=False)
+
+    assert_that(header.data[0x11]).is_equal_to(0x7F)
+
+
+# An interpreter that can oblige leaves the request standing.
+def test_a_sound_interpreter_leaves_the_request_alone() -> None:
+    data = bytearray(synthetic_header(version=5))
+    data[0x11] = 0x80
+    header = Header(data)
+
+    header.declare_sound(available=True)
+
+    assert_that(header.data[0x11]).is_equal_to(0x80)
+
+
 def test_interpreter_fields_begin_at_version_4() -> None:
     header = Header(bytearray(synthetic_header(version=3)))
 

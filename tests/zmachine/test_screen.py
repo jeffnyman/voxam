@@ -18,6 +18,7 @@ class ScreenRecorder:
     has_italic = True
     has_fixed_pitch = True
     has_timed_input = False
+    has_sounds = False
     screen_lines = 24
     screen_columns = 80
 
@@ -158,10 +159,26 @@ def test_bleeps_reach_the_frontend() -> None:
     assert_that(frontend.bleeps).is_equal_to([2, 1])
 
 
-# From number 3 upward, sound_effect names sampled sounds, which
-# need Blorb-era machinery this interpreter does not have yet.
-def test_sampled_sounds_are_a_reported_frontier() -> None:
+# From number 3 upward, sound_effect names sampled sounds. On a
+# frontend that has honestly cleared the header's sound request,
+# they pass in the conforming quiet The Lurking Horror and Sherlock
+# were shipped to accept: no bleep, no halt, play on (§9, §11.1).
+def test_sampled_sounds_pass_in_conforming_silence() -> None:
     frontend = ScreenRecorder()
+    machine = Machine(
+        screen_story(bytes([0xF5, 0x7F, 0x03, 0xBA])), frontend, lambda: ""
+    )
+
+    machine.run()
+
+    assert_that(frontend.bleeps).is_empty()
+
+
+# A frontend that CLAIMS sound support has no machinery behind the
+# claim yet; there the sampled sound stays a loud frontier.
+def test_sampled_sounds_on_a_sound_frontend_are_a_frontier() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_sounds = True
     machine = Machine(
         screen_story(bytes([0xF5, 0x7F, 0x03, 0xBA])), frontend, lambda: ""
     )
