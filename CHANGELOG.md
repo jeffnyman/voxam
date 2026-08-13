@@ -1,3 +1,13 @@
+## v0.4.0 (2026-08-13)
+
+### Feat
+
+- **zmachine**: let sampled sounds pass in conforming silence (#83)
+- **zmachine**: spend read_char lines as queued keystrokes (#81)
+- **zmachine**: fire timed-input interrupts on a virtual clock (#78)
+- **zmachine**: claim Standard 1.1 with the unicode cluster (#76)
+- **zmachine**: save memory regions to named auxiliary files (#75)
+
 ## v0.3.0 (2026-08-13)
 
 ### Feat
