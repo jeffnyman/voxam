@@ -185,6 +185,7 @@ def _play(
         return EXIT_UNUSABLE
 
     header = story.header
+    key_source: Callable[[], str] | None = None
 
     if frontend is None and screen:
         painted = _screen_frontend(header.version)
@@ -192,6 +193,8 @@ def _play(
         if painted is not None:
             frontend = painted
             input_source = painted.read_line
+            key_source = painted.read_key
+
     print(
         f"Running {story_path.name}: release {header.release}, "
         f"serial {header.serial_number} (z{header.version})\n"
@@ -202,7 +205,12 @@ def _play(
 
     try:
         Machine(
-            story, frontend, input_source=input_source, seed=seed, saves=saves
+            story,
+            frontend,
+            input_source=input_source,
+            seed=seed,
+            saves=saves,
+            key_source=key_source,
         ).run()
     except EOFError:
         print("\nvoxam: end of input")

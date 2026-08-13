@@ -499,6 +499,32 @@ def test_a_longer_line_types_one_keystroke_at_a_time(
     assert_that(machine.memory.read_word(0x104)).is_equal_to(ord("c"))
 
 
+# A frontend that reads the keyboard raw hands keystrokes over one
+# at a time through key_source, bypassing the line queue: enter
+# arrives as a real newline character and lands as ZSCII 13, and a
+# key ZSCII has no code for -- the grinning face below -- is a key
+# the story cannot hear, ignored rather than fatal (§3.8).
+def test_a_key_source_bypasses_the_line_queue(
+    code_machine: Callable[..., Machine],
+) -> None:
+    keys = bytes(
+        [0xF6, 0x7F, 0x01, 0x10, 0xF6, 0x7F, 0x01, 0x11, 0xF6, 0x7F, 0x01, 0x12, 0xBA]
+    )
+    strokes = iter(["y", "\N{GRINNING FACE}", "\n", "\x1b"])
+    machine = code_machine(
+        keys,
+        version=4,
+        input_source=lambda: "boom",
+        key_source=lambda: next(strokes),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(13)
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(27)
+
+
 # The queue never invents a return: enter is an explicit empty line
 # after the keystrokes, so a one-character line stays exactly one
 # key -- the assumption every recording made before the queue

@@ -218,13 +218,14 @@ class Machine:
     the program counter, advanced one instruction at a time.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 -- one knob per input seam
         self,
         story: Story,
         frontend: Frontend | None = None,
         input_source: Callable[[], str] | None = None,
         seed: int | None = None,
         saves: SaveSlot | None = None,
+        key_source: Callable[[], str] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -248,6 +249,10 @@ class Machine:
             saves: Where saved games are kept; None means every save
                 and restore reports failure, which is an answer the
                 story already knows how to hear (§15).
+            key_source: Where single keystrokes come from, one
+                character per call, when a frontend can read the
+                keyboard raw; None spends input_source lines through
+                the keystroke queue instead.
         """
 
         self._story = story
@@ -259,6 +264,7 @@ class Machine:
         self._frontend = frontend if frontend is not None else PlainFrontend()
         self._output = self._frontend.write
         self._input = input_source if input_source is not None else input
+        self._key_source = key_source
         self._words: Dictionary | None = None
         self._running = True
         self._screen_selected = True
@@ -1981,6 +1987,18 @@ class Machine:
         Returns:
             The ZSCII code of the next keystroke.
         """
+
+        if self._key_source is not None:
+            # A raw keyboard needs no queue: the frontend hands over
+            # one real keystroke at a time, enter and all. A key
+            # ZSCII has no code for is a key the story cannot hear
+            # (§3.8) -- ignored, as every interpreter ignores it,
+            # rather than fatal.
+            while True:
+                try:
+                    return char_to_zscii(self._key_source(), self._extras())
+                except ZMachineTextError:
+                    continue
 
         if not self._pending_keys:
             line = self._input()
