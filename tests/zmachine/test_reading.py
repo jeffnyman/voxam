@@ -6,7 +6,6 @@ from assertpy import assert_that
 from voxam.errors import (
     ZMachineInstructionError,
     ZMachineMemoryError,
-    ZMachineUnimplementedError,
 )
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
@@ -208,17 +207,43 @@ def test_aread_respects_the_counted_capacity(
     assert_that(counted_text(machine.memory)).is_equal_to("mail")
 
 
-# A positive count already in byte 1 means characters left over from
-# an interrupted timed read (§15 read) -- machinery Voxam does not
-# have, so honoring it would type stale bytes nobody entered.
-def test_leftover_input_is_a_reported_frontier(
+# A positive count already in byte 1 is preloaded input (§15 read):
+# the game planted "given " and printed it itself; the typed line
+# appends after it, and the whole line is lexed as one -- so the
+# dictionary finds "go" at its true buffer position past the
+# preload. Beyond Zork restores half-typed commands this way.
+def test_preloaded_input_is_kept_and_appended_to(
     code_machine: Callable[..., Machine],
 ) -> None:
     machine = reader(code_machine, "go", version=5, program=AREAD)
+    plant_dictionary(machine.memory, entries=(GO5, HI5))
+    machine.memory.write_byte(TEXT_BUFFER + 1, 6)
+
+    for offset, character in enumerate("given "):
+        machine.memory.write_byte(TEXT_BUFFER + 2 + offset, ord(character))
+
+    machine.run()
+
+    assert_that(counted_text(machine.memory)).is_equal_to("given go")
+    assert_that(parse_block(machine.memory, 0)).is_equal_to((0, 5, 2))
+    assert_that(parse_block(machine.memory, 1)).is_equal_to((GO_ADDRESS, 2, 8))
+
+
+# The capacity bounds the whole line, preload included: with room
+# for four and three preloaded, only one typed character fits.
+def test_the_preload_counts_against_the_capacity(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = reader(code_machine, "mailbox", version=5, program=AREAD)
+    machine.memory.write_byte(TEXT_BUFFER, 4)
     machine.memory.write_byte(TEXT_BUFFER + 1, 3)
 
-    with pytest.raises(ZMachineUnimplementedError, match="leftover"):
-        machine.run()
+    for offset, character in enumerate("pre"):
+        machine.memory.write_byte(TEXT_BUFFER + 2 + offset, ord(character))
+
+    machine.run()
+
+    assert_that(counted_text(machine.memory)).is_equal_to("prem")
 
 
 # §15 asks for a loud halt when a buffer is too small to be real:

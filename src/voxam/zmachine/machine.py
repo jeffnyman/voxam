@@ -1243,11 +1243,15 @@ class Machine:
         before any interval elapses, so the pair is accepted and
         never consulted -- see read_char for the full argument.
 
+        A positive count already in byte 1 is preloaded input (§15
+        read): characters the game placed in the buffer and printed
+        itself, which Beyond Zork uses to restore a half-typed
+        command after a function key. The typed line appends after
+        them, and the whole line is lexed as one. (A live player
+        could backspace into the preload; a scripted line cannot --
+        the one editing gesture the line-based seam cannot speak.)
+
         Raises:
-            ZMachineUnimplementedError: For leftover characters
-                preloaded in the buffer, which only an interrupted
-                timed read can legitimately produce -- and the
-                instant typist is never interrupted.
             ZMachineMemoryError: For a buffer too small to be real,
                 which §15 asks interpreters to halt on.
         """
@@ -1291,19 +1295,16 @@ class Machine:
             raise ZMachineMemoryError(msg)
 
         if counted:
-            # A positive count already in byte 1 means characters
-            # left over from an interrupted timed read (§15 read) --
-            # machinery that does not exist here yet, so honoring the
-            # count would type stale bytes nobody entered.
-            if self._memory.read_byte(text_buffer + 1):
-                raise ZMachineUnimplementedError(
-                    "read with leftover input", instruction.address
-                )
-
-            line = self._input().lower()[:capacity]
+            preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
+            held = "".join(
+                zscii_to_char(self._memory.read_byte(text_buffer + 2 + offset))
+                for offset in range(preloaded)
+            )
+            typed = self._input().lower()[: capacity - preloaded]
+            line = held + typed
 
             self._memory.write_byte(text_buffer + 1, len(line))
-            self._write_text(text_buffer + 2, line, terminate=False)
+            self._write_text(text_buffer + 2 + preloaded, typed, terminate=False)
         else:
             # Byte 0 holds n where the buffer is a string array of
             # length n: the typed letters plus the zero terminator
