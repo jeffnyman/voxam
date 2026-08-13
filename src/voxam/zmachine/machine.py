@@ -1043,14 +1043,16 @@ class Machine:
         self._declare_capabilities()
         self._start_execution()
 
-    # Object 0 means "nothing" (§12.3), and the tree reads answer
-    # questions about it in kind: nothing's parent, sibling, and
-    # child are nothing. Formally there is no such object -- but the
-    # early Inform libraries walk the tree from object 0 on routine
-    # paths (Magic Toyshop, Library 5/12, does it before the first
-    # command), so a strict halt bricks a generation of shipped
-    # games at their title screens. Reads relax; writes and every
-    # other object opcode stay loud until a real game earns more.
+    # Object 0 means "nothing" (§12.3), and the object opcodes
+    # answer questions about it in kind: nothing's relatives are
+    # nothing, nothing has no attributes or properties, and mutating
+    # nothing changes nothing. The reads were earned by the early
+    # Inform libraries (Magic Toyshop walks the tree from object 0
+    # before the first command); the writes by Strict Z Test, whose
+    # stated assumption is §12.3's own -- operations on object 0
+    # "should either fail or, if that is not an option, do nothing",
+    # and a halt mid-suite is not an option a checker survives.
+    # print_obj 0 and put_prop 0 remain unearned and loud.
 
     def _op_get_parent(self, instruction: Instruction) -> None:
         """Store an object's parent (§15). No branch, unlike its kin."""
@@ -1080,12 +1082,17 @@ class Machine:
         self._branch(instruction, child != 0)
 
     def _op_jin(self, instruction: Instruction) -> None:
-        """Branch if the first object's parent is the second (§15)."""
+        """Branch if the first object's parent is the second (§15).
+
+        Nothing's parent is nothing, so jin 0 0 is true and jin 0 n
+        is false -- exactly what Strict Z Test expects.
+        """
 
         obj = self._value(instruction.operands[0])
         parent = self._value(instruction.operands[1])
+        parent_of = self._objects.parent(obj) if obj else 0
 
-        self._branch(instruction, self._objects.parent(obj) == parent)
+        self._branch(instruction, parent_of == parent)
 
     def _op_test_attr(self, instruction: Instruction) -> None:
         """Branch if the object's attribute is set (§15).
@@ -1109,7 +1116,9 @@ class Machine:
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        self._objects.set_attribute(obj, attribute, on=True)
+        if obj:
+            self._objects.set_attribute(obj, attribute, on=True)
+
         self._pc = instruction.next_address
 
     def _op_clear_attr(self, instruction: Instruction) -> None:
@@ -1118,7 +1127,9 @@ class Machine:
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        self._objects.set_attribute(obj, attribute, on=False)
+        if obj:
+            self._objects.set_attribute(obj, attribute, on=False)
+
         self._pc = instruction.next_address
 
     def _op_insert_obj(self, instruction: Instruction) -> None:
@@ -1127,13 +1138,20 @@ class Machine:
         obj = self._value(instruction.operands[0])
         destination = self._value(instruction.operands[1])
 
-        self._objects.insert(obj, destination)
+        # Moving nothing, or moving into nothing, changes nothing.
+        if obj and destination:
+            self._objects.insert(obj, destination)
+
         self._pc = instruction.next_address
 
     def _op_remove_obj(self, instruction: Instruction) -> None:
         """Detach an object from its parent (§15)."""
 
-        self._objects.remove(self._value(instruction.operands[0]))
+        obj = self._value(instruction.operands[0])
+
+        if obj:
+            self._objects.remove(obj)
+
         self._pc = instruction.next_address
 
     def _op_print_obj(self, instruction: Instruction) -> None:
@@ -1160,10 +1178,9 @@ class Machine:
 
         obj = self._value(instruction.operands[0])
         number = self._value(instruction.operands[1])
+        value = self._objects.property_value(obj, number) if obj else 0
 
-        self._store_result(
-            instruction.store_variable, self._objects.property_value(obj, number)
-        )
+        self._store_result(instruction.store_variable, value)
 
         self._pc = instruction.next_address
 
@@ -1172,7 +1189,7 @@ class Machine:
 
         obj = self._value(instruction.operands[0])
         number = self._value(instruction.operands[1])
-        found = self._objects.find_property(obj, number)
+        found = self._objects.find_property(obj, number) if obj else None
 
         self._store_result(instruction.store_variable, 0 if found is None else found[0])
 
@@ -1196,10 +1213,9 @@ class Machine:
 
         obj = self._value(instruction.operands[0])
         number = self._value(instruction.operands[1])
+        found = self._objects.next_property(obj, number) if obj else 0
 
-        self._store_result(
-            instruction.store_variable, self._objects.next_property(obj, number)
-        )
+        self._store_result(instruction.store_variable, found)
 
         self._pc = instruction.next_address
 
@@ -1723,7 +1739,10 @@ class Machine:
 
         values = [self._value(operand) for operand in instruction.operands]
 
-        if values[0] != KEYBOARD_DEVICE:
+        # The device operand itself may be omitted -- Strict Z Test's
+        # closing keypress compiles bare -- and an absent device is
+        # the keyboard, there being no other (§15 read_char).
+        if values and values[0] != KEYBOARD_DEVICE:
             msg = (
                 f"read_char at ${instruction.address:04x} asks for input "
                 f"device {values[0]}, but the keyboard, 1, is the only "

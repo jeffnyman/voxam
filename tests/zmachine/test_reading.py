@@ -540,3 +540,17 @@ def test_sread_without_a_parse_buffer_halts(
 
     with pytest.raises(ZMachineInstructionError, match="not optional"):
         machine.run()
+
+
+# read_char may omit even its device operand -- Strict Z Test's
+# closing keypress compiles bare -- and an absent device is the
+# keyboard, there being no other (§15 read_char).
+def test_read_char_with_no_operands_reads_the_keyboard(
+    code_machine: Callable[..., Machine],
+) -> None:
+    bare = bytes([0xF6, 0xFF, 0x10, 0xBA])
+    machine = code_machine(bare, version=4, input_source=lambda: "y")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
