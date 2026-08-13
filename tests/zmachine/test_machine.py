@@ -521,3 +521,21 @@ def test_throwing_to_a_dead_frame_halts(
 
     with pytest.raises(ZMachineStackError, match="already returned"):
         machine.run()
+
+
+# A story naming its own Unicode translation table (§3.8.5.2) would
+# redefine every extra character; the machine refuses at boot until
+# a game earns the table.
+def test_a_custom_unicode_table_is_a_reported_frontier() -> None:
+    data = bytearray(512)
+    data[0] = 5
+    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0100).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+    data[0x36:0x38] = (0x0120).to_bytes(2, "big")
+    data[0x120:0x122] = (3).to_bytes(2, "big")
+    data[0x126:0x128] = (0x0150).to_bytes(2, "big")
+
+    with pytest.raises(ZMachineUnimplementedError, match="Unicode translation"):
+        Machine(Story(bytes(data)), PlainFrontend(lambda _: None))

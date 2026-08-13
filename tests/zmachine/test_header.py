@@ -306,3 +306,28 @@ def test_the_revision_cannot_be_declared_on_the_pristine_story() -> None:
 
     with pytest.raises(ZMachineHeaderError, match="pristine"):
         header.declare_standard_revision(1, 0)
+
+
+# Word 3 of the header extension names a custom Unicode translation
+# table; no extension, or one too short, means the default table
+# (§3.8.5.2).
+def test_the_unicode_table_is_found_through_the_extension() -> None:
+    data = bytearray(0x100)
+    data[0] = 5
+    data[0x36:0x38] = (0x80).to_bytes(2, "big")
+    data[0x80:0x82] = (3).to_bytes(2, "big")
+    data[0x86:0x88] = (0xBEEF).to_bytes(2, "big")
+
+    assert_that(Header(data).unicode_translation_address).is_equal_to(0xBEEF)
+
+
+@pytest.mark.parametrize("words", [0, 2])
+def test_a_short_or_absent_extension_means_the_default_table(words: int) -> None:
+    data = bytearray(0x100)
+    data[0] = 5
+
+    if words:
+        data[0x36:0x38] = (0x80).to_bytes(2, "big")
+        data[0x80:0x82] = words.to_bytes(2, "big")
+
+    assert_that(Header(data).unicode_translation_address).is_zero()

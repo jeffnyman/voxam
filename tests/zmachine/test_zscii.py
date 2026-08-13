@@ -5,7 +5,12 @@ from assertpy import assert_that
 
 from voxam.errors import ZMachineTextError
 from voxam.zmachine.memory import Memory
-from voxam.zmachine.zscii import decode_string, encode_word, zscii_to_char
+from voxam.zmachine.zscii import (
+    char_to_zscii,
+    decode_string,
+    encode_word,
+    zscii_to_char,
+)
 
 CODE = 0x40
 
@@ -252,7 +257,7 @@ def test_zscii_output_codes(code: int, expected: str) -> None:
     assert_that(zscii_to_char(code)).is_equal_to(expected)
 
 
-@pytest.mark.parametrize("code", [12, 127, 200])
+@pytest.mark.parametrize("code", [12, 127, 252])
 def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(code)
@@ -360,3 +365,57 @@ def test_a_null_alphabet_slot_does_not_shift_the_row(
     text, _ = decode_string(memory, CODE)
 
     assert_that(text).is_equal_to("?b")
+
+
+# Codes 155 to 223 are the extra characters, mapped by the default
+# Unicode translation table of §3.8.5.3 -- and 224 up stays
+# undefined under the default table.
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [(155, "\u00e4"), (161, "\u00df"), (219, "\u00a3"), (223, "\u00bf")],
+)
+def test_extra_characters_follow_the_default_table(code: int, expected: str) -> None:
+    assert_that(zscii_to_char(code)).is_equal_to(expected)
+
+
+def test_codes_past_the_default_table_still_halt() -> None:
+    with pytest.raises(ZMachineTextError, match="not yet printable"):
+        zscii_to_char(224)
+
+
+# The extras are defined for input as well as output (§3.8.5.2.2):
+# every code from 155 to 223 survives the round trip through its
+# character and back.
+def test_extra_characters_round_trip_through_input() -> None:
+    for code in range(155, 224):
+        assert_that(char_to_zscii(zscii_to_char(code))).is_equal_to(code)
+
+    assert_that(char_to_zscii("a")).is_equal_to(97)
+    assert_that(char_to_zscii("\n")).is_equal_to(13)
+
+
+def test_characters_outside_zscii_are_refused() -> None:
+    with pytest.raises(ZMachineTextError, match="no ZSCII code"):
+        char_to_zscii("\u03b1")
+
+
+# A ten-bit escape naming an extra character decodes through the
+# default table: 155 is 0b100_11011, so hi 4 and lo 27 (§3.4,
+# §3.8.5).
+def test_an_escape_reaches_the_extra_characters(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(5, 6, 4, 27))
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("\u00e4")
+
+
+# Encoding a word with an accented letter escapes to its ZSCII code,
+# not its Unicode codepoint (§3.7, §3.8.5.2.2) -- the difference
+# between finding and missing a dictionary entry in a German game.
+def test_encoding_escapes_extras_as_zscii() -> None:
+    assert_that(encode_word(5, "\u00e4")).is_equal_to(
+        encode(5, 6, 4, 27, 5, 5, 5, 5, 5)
+    )

@@ -74,8 +74,12 @@ STATIC_STRINGS_OFFSET = 0x2A
 OFFSET_VERSIONS = (6, 7)
 
 # From Version 5, the word at $34 may name a custom alphabet table;
-# zero means the standard alphabets (§3.5.5, §11.1).
+# zero means the standard alphabets (§3.5.5, §11.1). The word at $36
+# names the header extension table, whose third word may in turn
+# name a custom Unicode translation table (§3.8.5.2, §11.1).
 ALPHABET_TABLE = 0x34
+HEADER_EXTENSION = 0x36
+UNICODE_TABLE_WORD = 3
 
 # The file length is stored divided by a version-dependent constant
 # (§11.1.6).
@@ -213,6 +217,22 @@ class Header:
         """
 
         return self._word(ALPHABET_TABLE)
+
+    @property
+    def unicode_translation_address(self) -> int:
+        """The custom Unicode translation table's address, or 0 (§3.8.5.2).
+
+        Word 3 of the header extension table, when the extension
+        exists and reaches that far; zero otherwise, meaning the
+        default table of §3.8.5.3.
+        """
+
+        extension = self._word(HEADER_EXTENSION)
+
+        if extension == 0 or self._word(extension) < UNICODE_TABLE_WORD:
+            return 0
+
+        return self._word(extension + 2 * UNICODE_TABLE_WORD)
 
     @property
     def routines_offset(self) -> int:
