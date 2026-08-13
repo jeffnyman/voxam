@@ -1,0 +1,593 @@
+! SEED=42
+! GAME=../entharion/zcode-infocom/hitchhiker-r59-s851108.z3
+
+# Earth
+
+light lamp
+stand
+get gown
+wear gown
+examine pocket
+open pocket
+eat analgesic
+get screwdriver, toothbrush
+s
+get mail
+s
+lie down
+wait
+wait
+wait
+ford, what about my home
+wait
+s. w
+purchase sandwich
+buy beer
+drink beer
+drink beer
+drink beer
+e
+give sandwich to dog
+n
+wait
+wait
+get device
+press green button
+
+examine nothing
+listen to nothing
+feel nothing
+examine nothing
+smell nothing
+examine shadow
+
+# Vogon Hold
+
+eat peanuts
+remove gown
+put gown on hook
+get towel
+put towel on drain
+get satchel
+put satchel on panel
+put mail on satchel
+press dispenser button
+pull switch
+
+# Note the result of pulling the switch, it requires you to
+# remember a specific word in the captain's poem (which will
+# change from game to game). For this seed, it is the third
+# word from the second verse.
+
+wait
+wait
+wait
+wait
+wait
+
+# Oh freddled gruntbuggly, thy nacturations are to me!
+
+enjoy poem
+
+# As plurdled gabbleblotchits on a lurgid bee.
+
+wait
+
+# Groop I implore thee, my foonting turlingdromes.
+
+wait
+
+# And hooptiously drangle me with crinkly bindlewurdles, or I
+# will rend thee in the gobberwarts with my blurglecruncheon,
+# see if I don't!
+
+wait
+
+enjoy poem
+
+# Bleem miserable venchit! Bleem forever mestinglish asunder frapt.
+
+wait
+
+# Fripping lyshus wimbgunts, awhilst moongrovenly kormzibs.
+
+wait
+
+# Gashee morphousite, thou expungiest quoopisk!
+
+wait
+
+# Gerond withoutitude form into formless bloit, why not then? Moose.
+
+wait
+
+# The captain spaces us on the turn after the final verse, and the
+# guard drags us back to the Hold -- where the keyboard is. Typing
+# the word from the poetry chair gets "There's no keyboard in
+# sight." and leaves the plotter (and the small receptacle inside
+# it) sealed in the glass case forever.
+
+wait
+
+type "venchit"
+get plotter
+
+# The guard-stall turns are free: reclaim the towel from the drain
+# and the gown from the hook (pocket fluff still inside it) before
+# the airlock. The towel is the only one in the game, and the
+# Bugblatter Beast of Traal will demand it; the fluff feeds the
+# endgame plant.
+
+get towel
+get gown
+wait
+
+press green button
+
+# Dark is authored sensory deprivation: for four turns the game
+# insists you can sense nothing at all, and one of those denials
+# ("You can't see anything...") happens to speak the refusal
+# dialect, drawing one intentional warning on replay. On the fifth
+# turn a sense returns -- hearing, for this seed -- which names the
+# scenario (a star drive far above: the Heart of Gold).
+
+listen
+listen
+listen
+listen
+listen
+
+# "(We were lying about the exit to port.)"
+
+s
+
+# Heart of Gold
+
+# The plotter must survive this housecleaning: the small receptacle
+# the Drive assembly needs is a part of it. (The towel stayed behind
+# on the drain in the Vogon Hold, so naming it here is a harmless
+# no-op.)
+
+drop all except towel, babel fish and plotter
+d. aft. aft
+yes
+yes
+aft
+no
+look
+look
+take all
+fore. fore. u
+# The plotter goes to the floor with the drive: the small plug's
+# cord is short, and carrying the plotter down the gangway makes
+# the game quietly unplug it ("disconnecting the short cord
+# first"), which is why the switch later did nothing.
+
+drop drive, pliers, rasp and plotter
+put small plug into small receptacle
+d. port
+take carton
+touch pad
+take tea substitute
+sb. u
+drop carton and tea substitute
+put long dangly bit in tea substitute
+press switch
+
+# First improbability jump. Four turns of authored sensory
+# deprivation (whose denials draw a warning or two in the refusal
+# dialect, as in the first Dark), then the returning sense names
+# the destination: smell, and the pungent something is *waving*
+# under your nose, not being waved -- Traal, per the guide's table.
+
+wait
+wait
+wait
+wait
+smell
+look at shadow
+
+# Traal. The Beast demands a name and gets one, so that the name
+# freshly carved on its memorial of victims will convince it that
+# it already ate us. The towel from the Vogon drain earns its
+# keep: wrapped around your head, it bewilders a Beast too dim to
+# realise that seeing works one way at a time.
+
+say arthur
+e
+take stone
+wrap towel around head
+carve arthur on memorial
+remove towel
+w
+sw
+
+# The skeleton of a dead Beasthunter clutches the scenario's prize:
+# the Nutrimat/Computer Interface, which the Galley's Nutrimat
+# needs before it can brew Real Tea.
+
+take interface
+wait
+
+# The wait springs the Fronurbdian Beasthunter epilogue (stun
+# guns, a zoo, Bureaucratic Pirates, a celebrated career in
+# asteroid painting, one small passing black hole) and lands us
+# back in Dark. Hearing returns on the fifth beat -- the star
+# drive hums far above, which the guide's table reads as the
+# Heart of Gold -- and AFT goes home, interface in hand.
+
+wait
+wait
+wait
+wait
+wait
+listen
+aft
+
+# Real Tea, the documented lucky path: because Traal came first,
+# the interface can go into the Nutrimat now, and having Tea
+# before the remaining jumps lets us choose every scenario (the
+# missing sense rotates each turn once Tea powers the drive).
+# Asking the Nutrimat for tea engages all of Eddie's circuits --
+# which is exactly why he cannot dodge the missiles Magrathea is
+# about to launch.
+
+aft
+port
+open nutrimat
+remove circuit board
+put interface in nutrimat
+touch pad
+sb
+u
+drop circuit board
+
+# Eddie: eight turns to atomic fireball. The spare drive answers.
+# The switch must be named in full now: the circuit board on the
+# deck contributes a dipswitch, and a bare "press switch" earns a
+# disambiguation question that eats the next command.
+
+wait
+put large plug into large receptacle
+press generator switch
+
+# Missiles -> one sperm whale and a bowl of petunias ("Oh no, not
+# again"). The tea finished brewing during the crisis. Tea and No
+# Tea are a strict toggle: taking one silently swaps the other
+# away, wherever it lies.
+
+d
+port
+take tea
+sb
+u
+drop tea
+take dangly bit out of tea substitute
+put dangly bit in tea
+
+# The guide's between-jumps ritual -- return to the Bridge and
+# drop what you gained -- is not superstition: items carried into
+# the whale's stomach (barring the unloseable thing, the fish, and
+# no tea) are digested out of the timeline. The chipper is the
+# tool Marvin will demand at the very end, so it waits here.
+
+drop chipper
+drop towel
+press generator switch
+
+# Tea-powered Dark works on a strict clock: the missing sense
+# rotates hear -> smell -> see -> feel, one step per wait, and the
+# matching sense verb connects without advancing the clock. (The
+# words "put dangly bit in tea" also just started an interstellar
+# war via freak wormhole -- the Careless Talk Costs Lives passage,
+# which is required or the War Chamber can never be visited.)
+# Occasional deprivation lines speak the refusal dialect and draw
+# annotated warnings throughout the Dark visits.
+
+wait
+feel
+drink liquid
+
+# Inside the Sperm Whale (nee the missiles). The flowerpot goes
+# into the thing your aunt gave you, which cannot be gotten rid of
+# and therefore cannot be lost -- it will "turn up" back on the
+# ship, pot and all, when the endgame needs it.
+
+take flowerpot
+put flowerpot in thing
+wait
+wait
+wait
+
+# SPLAT. Then home: four beats of Dark, hearing returns, the star
+# drive hums far above.
+
+wait
+wait
+wait
+wait
+listen
+aft
+aft
+u
+press generator switch
+
+# Second chosen jump: eight beats to the see-state that stabs the
+# BACK of your eyes -- Damogran, waking up as Zaphod with a
+# two-headed hangover in the presidential speedboat.
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+see
+look at light
+i
+get toolbox
+search seat
+
+# Steering AT the rocky spire is the trick: the suicide course is
+# what makes the autopilot seize the helm and deliver the boat up
+# the cliff to the dais. (Steering for the channel like a sensible
+# person ends on the rocks.)
+
+steer toward spire
+wait
+wait
+wait
+wait
+wait
+stand
+n
+
+# Trillian leaps out on the fourth beat and points a blaster at
+# the presidential left head. The guards want concrete nouns:
+# "drop rifles", not "drop weapons". Shooting the surrendered
+# rifles with the blaster delights the crowd, and the pair
+# saunter into the Heart of Gold they came to steal.
+
+wait
+wait
+wait
+wait
+guards, drop rifles
+take blaster
+shoot rifles
+e
+
+# Home again; the toolbox, small key, and seat fluff will be
+# waiting in the Hatchway.
+
+wait
+wait
+wait
+wait
+listen
+aft
+i
+
+# Third chosen jump. The Dark clock cycles all eight destinations,
+# so the same sense connects to different places on different
+# beats: this time two waits put the light at the FRONT of your
+# eyes -- Earth, demolition morning, as Ford Prefect. The scenario
+# is the recording's own opening scene played from the other side:
+# Ford returns Arthur's towel, feels like a complete idiot (the
+# game asks for the word), stocks up at the Pub per the Guide's
+# matter-transference tips, and fumbles the Thumb at Arthur's feet
+# so that Arthur -- us, at the top of this file -- can press the
+# right button. The mission: satchel fluff onto the satchel, which
+# carries it home to the Bridge.
+
+aft
+u
+press generator switch
+wait
+see
+look at light
+n
+open satchel
+take fluff and towel and device
+give towel to arthur
+idiot
+wait
+wait
+s
+w
+buy peanuts
+buy beer
+drink beer
+drink beer
+e
+n
+drop satchel
+put fluff on satchel
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+listen
+aft
+i
+
+# Fourth chosen jump: one wait to the feel-state, and the liquid at
+# your fingertips is COLD -- a glass of white wine at the Islington
+# party, as Trillian. Plucking the unsightly fluff off Arthur's
+# jacket improves both his appearance and his conversation (to
+# roughly the level of an averagely interesting wall). The hostess
+# must be relieved of her insistent plate or Phil -- flamboyant,
+# other-worldly, snoring birdcage on his shoulder -- keeps veering
+# away instead of whisking us off on his inter-orbital ion scooter.
+# Jacket fluff rides home in the handbag.
+
+aft
+u
+press generator switch
+wait
+wait
+wait
+feel
+drink liquid
+look at arthur
+drop plate
+take fluff
+open handbag
+put fluff in handbag
+take plate
+look at phil
+wait
+wait
+wait
+wait
+wait
+listen
+aft
+i
+
+# Fifth and final scenario, and the one that only tolerates a
+# single visit: six beats to the hear-state, and the star drive
+# hums from far BELOW -- the War Chamber of the Vl'Hurg battle
+# fleet, mid-flight on the war our teatime words started. The
+# sandwich we bought the dog in the first act now pays off across
+# the galaxy: the fleet spots the dog enjoying it, remembers what
+# happiness looked like, makes peace, and drops us off at the
+# Heart of Gold -- via the Maze of twisty little synapses (our own
+# brain), where the common sense particle (part #31-541, Dent,
+# Arthur) blocks a synapse gap. Removing it is what later lets one
+# hand hold Tea and the other No Tea. Leave nothing in the brain.
+
+aft
+u
+press generator switch
+wait
+wait
+wait
+wait
+wait
+wait
+listen
+aft
+look
+take awl
+wait
+wait
+wait
+wait
+wait
+wait
+n
+e
+s
+examine particle
+take particle
+wait
+wait
+wait
+wait
+wait
+listen
+aft
+i
+
+# Endgame. Harvest all four fluffs: pocket (in the gown, Entry
+# Bay), satchel (spills to the deck when the satchel is lifted),
+# jacket (in the handbag), seat (Hatchway, with the toolbox and
+# key Damogran deposited there). All four get planted in the
+# whale's flowerpot.
+
+take pocket fluff
+aft
+u
+take satchel
+take satchel fluff
+drop satchel
+open handbag
+take fluff from handbag
+d
+aft
+d
+take seat fluff
+take toolbox
+take key
+u
+fore
+u
+take pot out of thing
+put pocket fluff in pot
+put jacket fluff in pot
+put satchel fluff in pot
+put seat fluff in pot
+wait
+wait
+wait
+
+# A sprout appears on the third beat; one trip into the sauna
+# steam ("after several hours, you come out a changed man") turns
+# it into the Tree of Foreknowledge. Its fruit shows the future:
+# Marvin, at the hatch, asking for -- a toothbrush. Arthur's own,
+# lying in Entry Bay since the arrival housecleaning.
+
+port
+eat fruit
+
+# The heresy the Maze made possible: common sense is a particle we
+# no longer possess, so one hand can hold tea while the other
+# holds no tea. The inventory that follows is the proof.
+
+take tea
+take no tea
+i
+d
+fore
+take toothbrush
+aft
+aft
+
+# The intelligent door is almost speechless: "Simultaneous tea and
+# no tea... You are clearly a heavy-duty philosopher." Drinking
+# the tea BEFORE the pantry is survival, not indulgence -- its
+# lingering happiness is what withstands Marvin's tidal waves of
+# depression in there.
+
+open door
+drink tea
+port
+look
+marvin, repair the hatch
+sb
+d
+drop all except toothbrush and no tea
+sb
+
+# Marvin keeps the appointment, bored: "Hand me a toothbrush."
+# The handoff must come the very turn he asks -- one wait more and
+# he stalks back to his pantry to be alone with his grief. Three-
+# tenths of a second of repair, one complaint about the diodes
+# down his left side, and the hatch is open.
+
+wait
+wait
+wait
+wait
+give toothbrush to marvin
+port
+d
+
+# Down the ramp onto the ancient dust of Magrathea: 385 of 400.
+# (The final d answers the peril-sensitive-sunglasses keypress.)
+
+d
