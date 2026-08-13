@@ -872,7 +872,10 @@ class Machine:
         stores 1; failure falls through or stores 0.
         """
 
-        self._refuse_table_form(instruction)
+        if instruction.operands:
+            self._save_table(instruction)
+
+            return
 
         snapshot = Snapshot(
             dynamic_memory=self._memory.dynamic_snapshot(),
@@ -900,7 +903,10 @@ class Machine:
         bytes were not a save, or the save names another game.
         """
 
-        self._refuse_table_form(instruction)
+        if instruction.operands:
+            self._restore_table(instruction)
+
+            return
 
         snapshot = None
         data = self._saves.read() if self._saves is not None else None
@@ -994,21 +1000,83 @@ class Machine:
 
             self._pc = after
 
-    def _refuse_table_form(self, instruction: Instruction) -> None:
-        """Halt on the Version 5 table-taking save and restore forms.
+    # The table forms take at least a table, a length, and a name
+    # (§15 save); Standard 1.1 adds an optional prompt flag, which
+    # is accepted and left to the slot's own location policy --
+    # prompting is a frontend affair the machine cannot see.
+    TABLE_FORM_OPERANDS = 3
 
-        From Version 5 the EXT opcodes may take operands naming a
-        table of bytes to save instead of the state of play (§15).
-        That is auxiliary-file machinery Voxam does not have yet, and
-        pretending the operands were not there would quietly save the
-        wrong thing.
+    def _save_table(self, instruction: Instruction) -> None:
+        """Save a region of memory to a named auxiliary file (§15).
+
+        Not the state of play: a raw run of bytes -- preferences, a
+        map, whatever the game likes -- under a game-chosen name
+        (§7.6). Stores 1 on success and 0 on failure, like the game
+        save it shares an opcode with.
         """
 
-        if instruction.operands:
-            raise ZMachineUnimplementedError(
-                f"{instruction.opcode.name} with table operands",
-                instruction.address,
+        values = [self._value(operand) for operand in instruction.operands]
+
+        self._require_table_form(instruction, values)
+
+        table, count, name = values[:3]
+        data = bytes(self._memory.read_byte(table + offset) for offset in range(count))
+        kept = self._saves is not None and self._saves.write_aux(
+            self._aux_name(name), data
+        )
+
+        self._store_result(instruction.store_variable, int(kept))
+
+        self._pc = instruction.next_address
+
+    def _restore_table(self, instruction: Instruction) -> None:
+        """Load a named auxiliary file back into memory (§15 restore).
+
+        At most the asked-for number of bytes arrive, and the result
+        is the number actually loaded -- 0 for a file the slot does
+        not have.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        self._require_table_form(instruction, values)
+
+        table, count, name = values[:3]
+        data = (
+            self._saves.read_aux(self._aux_name(name))
+            if self._saves is not None
+            else None
+        )
+        loaded = (data or b"")[:count]
+
+        for offset, value in enumerate(loaded):
+            self._memory.write_byte(table + offset, value)
+
+        self._store_result(instruction.store_variable, len(loaded))
+
+        self._pc = instruction.next_address
+
+    def _require_table_form(self, instruction: Instruction, values: list[int]) -> None:
+        """Reject a table form missing its table, length, or name."""
+
+        if len(values) < self.TABLE_FORM_OPERANDS:
+            msg = (
+                f"{instruction.opcode.name} at ${instruction.address:04x} "
+                f"has {len(values)} operand(s), but the table form takes "
+                f"a table, a length, and a name (§15 save)"
             )
+
+            raise ZMachineInstructionError(msg)
+
+    def _aux_name(self, address: int) -> str:
+        """Read a game-supplied filename: a count byte, then text (§15)."""
+
+        length = self._memory.read_byte(address)
+
+        return "".join(
+            zscii_to_char(self._memory.read_byte(address + 1 + offset))
+            for offset in range(length)
+        )
 
     def _op_restart(self, _instruction: Instruction) -> None:
         """Start the story over from the pristine file (§6.1.3).

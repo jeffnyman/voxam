@@ -3,7 +3,7 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import ZMachineUnimplementedError
+from voxam.errors import ZMachineInstructionError
 from voxam.zmachine.machine import Machine
 
 # Globals $10, $11, $12 live at $100, $102, $104 in the conftest
@@ -22,6 +22,7 @@ class MemorySlot:
     def __init__(self, data: bytes | None = None, *, writable: bool = True) -> None:
         self.data = data
         self.writable = writable
+        self.aux: dict[str, bytes] = {}
 
     def write(self, data: bytes) -> bool:
         if not self.writable:
@@ -33,6 +34,17 @@ class MemorySlot:
 
     def read(self) -> bytes | None:
         return self.data
+
+    def write_aux(self, name: str, data: bytes) -> bool:
+        if not self.writable:
+            return False
+
+        self.aux[name] = data
+
+        return True
+
+    def read_aux(self, name: str) -> bytes | None:
+        return self.aux.get(name)
 
 
 # The Version 3 program: save branches to the 9-marker on success
@@ -194,13 +206,87 @@ def test_v5_extended_save_stores_its_result(
     assert_that((slot.data or b"")[:4]).is_equal_to(b"FORM")
 
 
-# The EXT forms may take operands naming a table to save instead of
-# the state of play (§15) -- auxiliary-file machinery Voxam does not
-# have, and a loud frontier beats quietly saving the wrong thing.
-def test_table_form_save_is_a_frontier(code_machine: Callable[..., Machine]) -> None:
+# The table forms save a raw region of memory to a named auxiliary
+# file and load it back (§15 save, §7.6): here four bytes travel
+# out under the name "map" and back into a different table, with
+# save answering 1 and restore answering the byte count.
+def test_a_table_round_trips_through_an_auxiliary_file(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xBE, 0x00, 0x13, 0x01, 0x20, 0x04, 0x01, 0x40, 0x10],
+            *[0xBE, 0x01, 0x13, 0x01, 0x60, 0x04, 0x01, 0x40, 0x11],
+            *[0xBA],
+        ]
+    )
+    slot = MemorySlot()
+    machine = code_machine(program, version=5, saves=slot)
+
+    for offset, value in enumerate([7, 8, 9, 10]):
+        machine.memory.write_byte(0x120 + offset, value)
+
+    for offset, value in enumerate([3, ord("m"), ord("a"), ord("p")]):
+        machine.memory.write_byte(0x140 + offset, value)
+
+    machine.run()
+
+    assert_that(slot.aux).is_equal_to({"map": bytes([7, 8, 9, 10])})
+    assert_that(machine.memory.read_word(G0_ADDRESS)).is_equal_to(1)
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_equal_to(4)
+    assert_that([machine.memory.read_byte(0x160 + i) for i in range(4)]).is_equal_to(
+        [7, 8, 9, 10]
+    )
+
+
+# Restore loads at most the asked-for bytes and answers with the
+# count actually loaded (§15 restore); the rest of the table stays
+# untouched.
+def test_a_table_restore_is_bounded_by_its_length(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xBE, 0x01, 0x13, 0x01, 0x60, 0x02, 0x01, 0x40, 0x11, 0xBA])
+    slot = MemorySlot()
+    slot.aux["map"] = bytes([7, 8, 9, 10])
+    machine = code_machine(program, version=5, saves=slot)
+
+    for offset, value in enumerate([3, ord("m"), ord("a"), ord("p")]):
+        machine.memory.write_byte(0x140 + offset, value)
+
+    for offset in range(4):
+        machine.memory.write_byte(0x160 + offset, 0xAA)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_equal_to(2)
+    assert_that([machine.memory.read_byte(0x160 + i) for i in range(4)]).is_equal_to(
+        [7, 8, 0xAA, 0xAA]
+    )
+
+
+# A file the slot does not have loads nothing and answers 0.
+def test_a_missing_auxiliary_file_answers_0(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xBE, 0x01, 0x13, 0x01, 0x60, 0x04, 0x01, 0x40, 0x11, 0xBA])
+    machine = code_machine(program, version=5, saves=MemorySlot())
+
+    for offset, value in enumerate([3, ord("m"), ord("a"), ord("p")]):
+        machine.memory.write_byte(0x140 + offset, value)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G1_ADDRESS)).is_zero()
+
+
+# The table form takes a table, a length, and a name; fewer is a
+# malformed instruction, refused with a citation (§15 save).
+def test_a_short_table_form_is_refused(
+    code_machine: Callable[..., Machine],
+) -> None:
     machine = code_machine(bytes([0xBE, 0x00, 0x7F, 0x05, 0x10, 0xBA]), version=5)
 
-    with pytest.raises(ZMachineUnimplementedError, match="table operands"):
+    with pytest.raises(ZMachineInstructionError, match="table form takes"):
         machine.run()
 
 
@@ -386,3 +472,19 @@ def test_undo_captures_stop_at_the_depth_cap(
     machine.run()
 
     assert_that(len(machine._undo)).is_equal_to(16)
+
+
+# A slot that refuses the write -- or no slot at all -- makes the
+# table save answer 0, the same failure the game save reports.
+def test_a_refused_table_save_answers_0(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xBE, 0x00, 0x13, 0x01, 0x20, 0x04, 0x01, 0x40, 0x10, 0xBA])
+    machine = code_machine(program, version=5, saves=MemorySlot(writable=False))
+
+    for offset, value in enumerate([3, ord("m"), ord("a"), ord("p")]):
+        machine.memory.write_byte(0x140 + offset, value)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(G0_ADDRESS)).is_zero()
