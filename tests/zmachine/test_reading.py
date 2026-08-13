@@ -487,3 +487,31 @@ def test_the_flag_leaves_unrecognised_slots_untouched(
     assert_that(parse_block(machine.memory, 1)).is_equal_to(
         (CUSTOM_DICTIONARY + 4, 2, 5)
     )
+
+
+# The parse buffer may be omitted outright from Version 5 --
+# TerpEtude reads with the text buffer alone -- and behaves as a
+# zero buffer: text stored, no lexing (§15 read).
+def test_aread_with_no_parse_operand_skips_lexing(
+    code_machine: Callable[..., Machine],
+) -> None:
+    lone = bytes([0xE4, 0x3F, 0x01, 0x20, 0x10, 0xBA])
+    machine = reader(code_machine, "go", version=5, program=lone)
+    machine.memory.write_byte(PARSE_BUFFER + 1, 0xAA)
+
+    machine.run()
+
+    assert_that(counted_text(machine.memory)).is_equal_to("go")
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_equal_to(0xAA)
+
+
+# Through Version 4 the analysis is not optional: a read without a
+# parse buffer refuses with a citation, not an index error.
+def test_sread_without_a_parse_buffer_halts(
+    code_machine: Callable[..., Machine],
+) -> None:
+    lone = bytes([0xE4, 0x3F, 0x01, 0x20, 0xBA])
+    machine = reader(code_machine, "go", version=3, program=lone)
+
+    with pytest.raises(ZMachineInstructionError, match="not optional"):
+        machine.run()

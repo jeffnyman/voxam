@@ -1263,8 +1263,21 @@ class Machine:
             self._frontend.show_status(self._status())
 
         text_buffer = values[0]
-        parse_buffer = values[1]
+        # The parse buffer may be omitted outright from Version 5 --
+        # TerpEtude reads with the text buffer alone -- and an
+        # omitted buffer skips lexing exactly as a zero one does
+        # (§15 read). Through Version 4 the analysis is not optional.
+        parse_buffer = values[1] if len(values) > 1 else 0
         counted = self._memory.header.version >= COUNTED_TEXT_VERSION
+
+        if not counted and not parse_buffer:
+            msg = (
+                f"read at ${instruction.address:04x} names no parse "
+                f"buffer, but lexing is not optional before Version 5 "
+                f"(§15 read)"
+            )
+
+            raise ZMachineInstructionError(msg)
 
         capacity = self._memory.read_byte(text_buffer)
 
