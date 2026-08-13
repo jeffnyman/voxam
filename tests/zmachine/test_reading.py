@@ -479,6 +479,47 @@ def test_a_timed_read_char_ends_when_the_interrupt_returns_true(
     assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
 
 
+# A line longer than one character is a run of keystrokes: the
+# queue spends it one read_char at a time, drawing no new line
+# until it is empty (§15 read_char). The input source is an
+# iterator so a second fetch would fail the test loudly.
+def test_a_longer_line_types_one_keystroke_at_a_time(
+    code_machine: Callable[..., Machine],
+) -> None:
+    keys = bytes(
+        [0xF6, 0x7F, 0x01, 0x10, 0xF6, 0x7F, 0x01, 0x11, 0xF6, 0x7F, 0x01, 0x12, 0xBA]
+    )
+    lines = iter(["abc"])
+    machine = code_machine(keys, version=4, input_source=lambda: next(lines))
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("a"))
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(ord("b"))
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(ord("c"))
+
+
+# The queue never invents a return: enter is an explicit empty line
+# after the keystrokes, so a one-character line stays exactly one
+# key -- the assumption every recording made before the queue
+# existed -- and Bureaucracy's licence form types a field as its
+# line plus the empty line behind it (§15 read_char).
+def test_enter_is_an_explicit_empty_line(
+    code_machine: Callable[..., Machine],
+) -> None:
+    keys = bytes(
+        [0xF6, 0x7F, 0x01, 0x10, 0xF6, 0x7F, 0x01, 0x11, 0xF6, 0x7F, 0x01, 0x12, 0xBA]
+    )
+    lines = iter(["ab", ""])
+    machine = code_machine(keys, version=4, input_source=lambda: next(lines))
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("a"))
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(ord("b"))
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(13)
+
+
 # A false return means the key arrives after the routine's one
 # firing and stores as if the read were untimed (§15 read_char) --
 # Z-Tornado's SeedRand harvesting entropy while the player types.
