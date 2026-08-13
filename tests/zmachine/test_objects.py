@@ -627,15 +627,6 @@ def test_the_tree_reads_answer_nothing_for_object_0(
     assert_that(machine.memory.read_word(0x106)).is_equal_to(42)
 
 
-# The relaxation is reads-only: mutating the tree at object 0 stays
-# the loud halt §12.3 demands.
-def test_moving_object_0_still_halts(code_machine: Callable[..., Machine]) -> None:
-    machine = code_machine(bytes([0x0E, 0x00, 0x01, 0xBA]))
-
-    with pytest.raises(ZMachineObjectError, match="object 0 does not exist"):
-        machine.run()
-
-
 # Nothing has no attributes set (§12.3): test_attr on object 0
 # answers false instead of halting -- Magic Toyshop tests attribute
 # 3 of object 0 while emptying a box. The writing twins keep the
@@ -652,10 +643,81 @@ def test_testing_an_attribute_of_object_0_answers_false(
     assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
 
 
-def test_setting_an_attribute_of_object_0_still_halts(
+# Strict Z Test widened the object-0 family beyond the tree reads:
+# jin answers from nothing's parent (so jin 0 0 is TRUE and jin 0 n
+# FALSE), the property reads of nothing yield 0, and the writes --
+# attributes, inserts, removals -- do nothing, §12.3's own "either
+# fail or do nothing" with the option a running checker survives.
+def test_jin_answers_from_nothings_parent(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(bytes([0x0B, 0x00, 0x03, 0xBA]))
+    # jin 0, 0 [on true -> $46]; quit; store g0, 42; quit
+    program = bytes([0x06, 0x00, 0x00, 0xC3, 0xBA, 0x0D, 0x10, 0x2A, 0xBA])
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+def test_jin_of_nothing_against_a_real_object_is_false(
+    code_machine: Callable[..., Machine],
+) -> None:
+    # jin 0, 5 [on true -> the far quit]; store g0, 42; quit
+    program = bytes([0x06, 0x00, 0x05, 0xC6, 0x0D, 0x10, 0x2A, 0xBA, 0xBA])
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+@pytest.mark.parametrize(
+    ("label", "program"),
+    [
+        ("set_attr", bytes([0x0B, 0x00, 0x03, 0x0D, 0x10, 0x2A, 0xBA])),
+        ("clear_attr", bytes([0x0C, 0x00, 0x03, 0x0D, 0x10, 0x2A, 0xBA])),
+        ("insert into", bytes([0x0E, 0x00, 0x05, 0x0D, 0x10, 0x2A, 0xBA])),
+        ("insert nothing", bytes([0x0E, 0x05, 0x00, 0x0D, 0x10, 0x2A, 0xBA])),
+        ("remove", bytes([0x99, 0x00, 0x0D, 0x10, 0x2A, 0xBA])),
+    ],
+)
+def test_writes_to_object_0_do_nothing(
+    label: str,  # noqa: ARG001 -- names the parametrized crime
+    program: bytes,
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(program)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+@pytest.mark.parametrize(
+    ("label", "opcode"),
+    [("get_prop", 0x11), ("get_prop_addr", 0x12), ("get_next_prop", 0x13)],
+)
+def test_property_reads_of_object_0_yield_0(
+    label: str,  # noqa: ARG001 -- names the parametrized crime
+    opcode: int,
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([opcode, 0x00, 0x01, 0x10, 0xBA])
+    machine = code_machine(program)
+    machine.memory.write_word(0x100, 0xFFFF)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_zero()
+
+
+# put_prop 0 and print_obj 0 remain unearned: no checker or shipped
+# game has asked, so mutating nothing's properties stays loud.
+def test_put_prop_on_object_0_still_halts(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0xE3, 0x57, 0x00, 0x01, 0x05, 0xBA]))
 
     with pytest.raises(ZMachineObjectError, match="object 0 does not exist"):
         machine.run()
