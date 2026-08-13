@@ -35,6 +35,11 @@ Homepage = "https://github.com/jeffnyman/voxam"
 Repository = "https://github.com/jeffnyman/voxam"
 Issues = "https://github.com/jeffnyman/voxam/issues"
 
+[project.optional-dependencies]
+screen = [
+    "blessed>=1.20",
+]
+
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
 build-backend = "uv_build"
@@ -42,6 +47,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "assertpy>=1.1",
+    "blessed>=1.20",
     "commitizen>=4.17.0",
     "mypy>=2.3.0",
     "pre-commit>=4.6.1",

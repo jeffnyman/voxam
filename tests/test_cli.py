@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 from assertpy import assert_that
 
-from voxam.cli import main
+from voxam.cli import _screen_frontend, main
+from voxam.painter import ScreenFrontend
 
 
 def broken_story(tmp_path: Path, code: bytes) -> Path:
@@ -24,10 +25,12 @@ def broken_story(tmp_path: Path, code: bytes) -> Path:
 
 
 # A story that reads one command and quits, with buffers at $50 and
-# $58 and an empty dictionary at $5a.
-def reading_story(tmp_path: Path) -> Path:
+# $58 and an empty dictionary at $5a. The Version 4 variant serves
+# frontends that would otherwise draw a status line from garbage
+# globals (§8.2.2.1).
+def reading_story(tmp_path: Path, version: int = 3) -> Path:
     data = bytearray(96)
-    data[0] = 3
+    data[0] = version
     data[0x04:0x06] = (0x0060).to_bytes(2, "big")
     data[0x06:0x08] = (0x0040).to_bytes(2, "big")
     data[0x08:0x0A] = (0x005A).to_bytes(2, "big")
@@ -310,3 +313,64 @@ def test_reports_a_story_that_breaks_the_rules(
 
     assert_that(exit_code).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("2OP:0")
+
+
+# The painted frontend steps aside without a terminal to paint on:
+# a piped stdout keeps the plain stream (§8.4).
+def test_no_terminal_means_no_screen_frontend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    assert_that(_screen_frontend(3)).is_none()
+
+
+# At a real terminal with the blessed extra installed, the painted
+# frontend takes over.
+def test_a_terminal_selects_the_screen_frontend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    assert_that(_screen_frontend(3)).is_instance_of(ScreenFrontend)
+
+
+# Without the blessed extra the import fails and the plain stream
+# carries on: the screen is optional, the game is not.
+def test_a_missing_extra_falls_back_to_plain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setitem(sys.modules, "voxam.painter", None)
+
+    assert_that(_screen_frontend(3)).is_none()
+
+
+# --plain keeps the stream frontend even where a screen would do.
+def test_plain_flag_keeps_the_stream(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    exit_code = main(["--plain", str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain(chr(27))
+
+
+# With a terminal claimed, play runs through the painted frontend:
+# the story's text arrives wrapped in cursor movements, and typed
+# input reaches the story through read_line.
+def test_screen_play_runs_through_the_painter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    exit_code = main([str(reading_story(tmp_path, version=4))])
+
+    assert_that(exit_code).is_equal_to(0)
