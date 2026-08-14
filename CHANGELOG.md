@@ -1,3 +1,23 @@
+## v0.6.0 (2026-08-14)
+
+### Feat
+
+- **accept**: press the arrows — key tokens in the recording grammar (#103)
+- **blorb**: show cover art before play, in half-blocks or real sixel pixels (#99)
+- **zmachine**: offer the §8.3 colours and stamp the palette honestly (#98)
+- **screen**: the painter owns the keyboard — raw input, rubout, and arrow keys (#97)
+- **zmachine**: grant the §16 font, stamp the v5 unit fields, and print rectangles true (#96)
+- **blorb**: read resource files and boot packaged stories (#93)
+- **cli**: claim interpreter platforms and the legendary Tandy bit (#92)
+
+### Fix
+
+- **screen**: clear the glass before play begins (#102)
+
+### Refactor
+
+- **iff**: lift the IFF container out of quetzal (#91)
+
 ## v0.5.0 (2026-08-14)
 
 ### Feat
