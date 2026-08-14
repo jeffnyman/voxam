@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
-from voxam.errors import VoxamError, ZMachineUnimplementedError
+from voxam.blorb import Blorb
+from voxam.errors import BlorbError, VoxamError, ZMachineUnimplementedError
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.saves import FileSaveSlot
 from voxam.zmachine.machine import Identity, Machine
@@ -72,6 +73,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="set the legendary Tandy bit for version 3 games (§11.1.4)",
     )
+    parser.add_argument(
+        "--resources",
+        type=Path,
+        help="a Blorb resource file; found beside the story by name when omitted",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -108,6 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         None,
         screen=not arguments.plain,
         identity=identity,
+        resources=arguments.resources,
     )
 
 
@@ -241,6 +248,51 @@ def _screen_frontend(version: int) -> "ScreenFrontend | None":
     return ScreenFrontend(version)
 
 
+# A Blorb may be the story itself (a packaged Exec resource) or a
+# sidecar of pictures and sounds beside a plain story file.
+BLORB_SUFFIXES = (".blb", ".blorb", ".zblorb")
+
+
+def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:
+    """Load a story and whatever resources belong to it.
+
+    A path with a Blorb suffix must carry a packaged story; any
+    other path loads as a story file, with resources taken from
+    the explicit path when given, or a like-named Blorb beside the
+    story when one exists.
+
+    Raises:
+        BlorbError: For an unusable resource file, or a Blorb
+            story path with no packaged story inside.
+        VoxamError: For an unusable story file.
+        OSError: For files that cannot be read.
+    """
+
+    if story_path.suffix.lower() in BLORB_SUFFIXES:
+        blorb = Blorb.load(story_path)
+        packaged = blorb.story
+
+        if packaged is None:
+            msg = f"{story_path.name} packages no Z-code story to run"
+
+            raise BlorbError(msg)
+
+        return Story(packaged), blorb
+
+    story = Story.load(story_path)
+
+    if resources is not None:
+        return story, Blorb.load(resources)
+
+    for suffix in BLORB_SUFFIXES:
+        sidecar = story_path.with_suffix(suffix)
+
+        if sidecar.exists():
+            return story, Blorb.load(sidecar)
+
+    return story, None
+
+
 def _play(  # noqa: PLR0913 -- one knob per session seam
     story_path: Path,
     seed: int | None,
@@ -249,16 +301,19 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     *,
     screen: bool = False,
     identity: Identity | None = None,
+    resources: Path | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
     With screen requested, a painted frontend is used when the
     terminal is real and the blessed extra is installed; otherwise
-    play falls back to the plain stream.
+    play falls back to the plain stream. A story may arrive as a
+    Blorb carrying an Exec resource, and a plain story may have a
+    sidecar Blorb found beside it by name or given explicitly.
     """
 
     try:
-        story = Story.load(story_path)
+        story, blorb = _load_story(story_path, resources)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
 
@@ -279,6 +334,15 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         f"Running {story_path.name}: release {header.release}, "
         f"serial {header.serial_number} (z{header.version})\n"
     )
+
+    if blorb is not None:
+        print(f"Resources: {blorb.described()}\n")
+
+        if not blorb.matches(story):
+            # The spec asks for an error but allows the user to
+            # press on (Blorb: Game Identifier Chunk); a warning is
+            # both at once.
+            print("voxam: the resource file names a different story\n")
 
     # Saved games live beside the story: zork1.z3 saves to zork1.sav.
     saves = FileSaveSlot(story_path.with_suffix(".sav"))

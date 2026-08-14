@@ -126,7 +126,7 @@ def read(data: bytes, story: Story) -> Snapshot:
     return Snapshot(dynamic_memory=dynamic, pc=pc, frames=frames)
 
 
-def _identity(story: Story) -> bytes:
+def story_identity(story: Story) -> bytes:
     """The ten bytes naming a story: release, serial, checksum.
 
     Saves are matched to stories by the release number, serial
@@ -148,7 +148,7 @@ def _identity(story: Story) -> bytes:
 def _encode_identity(pc: int, story: Story) -> bytes:
     """Build the 13 IFhd bytes (Quetzal §5.4)."""
 
-    return _identity(story) + _address(pc)
+    return story_identity(story) + _address(pc)
 
 
 def _address(value: int) -> bytes:
@@ -486,7 +486,7 @@ def _check_identity(ifhd: bytes, story: Story) -> int:
 
         raise ZMachineQuetzalError(msg)
 
-    if ifhd[:IDENTITY_SIZE] != _identity(story):
+    if ifhd[:IDENTITY_SIZE] != story_identity(story):
         msg = (
             "this save names a different game: its release, serial, "
             "and checksum do not match the story being played "
