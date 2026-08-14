@@ -533,6 +533,31 @@ class ScreenModel:
         else:
             self._style |= style
 
+    def rub_out(self) -> None:
+        """Erase the last typed character during line input (§15 read).
+
+        Line editing belongs to the interpreter, and its rubout
+        retreats the selected window's cursor one cell and blanks
+        it. At the left edge there is nothing left of the line to
+        rub, and the cursor stays put: the editor never chews into
+        an earlier row.
+        """
+
+        self._flush()
+
+        if self._selected == UPPER:
+            row, column = self._upper_cursor
+
+            if column > 1:
+                self._paint(self._upper_top() + row - 1, column - 1, self._blank_cell())
+                self._upper_cursor = (row, column - 1)
+        else:
+            row, column = self._lower_cursor
+
+            if column > 1:
+                self._paint(row, column - 1, self._blank_cell())
+                self._lower_cursor = (row, column - 1)
+
     def write_rectangle(self, rows: Sequence[str]) -> None:
         """Print a §15 rectangle, right and down from the cursor.
 

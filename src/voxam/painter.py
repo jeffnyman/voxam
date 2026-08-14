@@ -29,15 +29,29 @@ from voxam.screen import (
     ScreenModel,
 )
 
-# Special keys arrive from blessed with names; §3.8.2.2 gives the
-# input-only ZSCII characters they mean. Anything unnamed passes
-# through as the character it already is.
+# Special keys arrive from blessed with names; §3.8.2.2 and §3.8.4
+# give the input-only ZSCII characters they mean. The cursor keys
+# travel as their §3.8.4 codepoints 129 to 132 -- characters no key
+# actually types -- which the machine's input seam passes through
+# whole, so Beyond Zork's menus can hear them. Anything unnamed
+# passes through as the character it already is.
 KEY_CHARACTERS = {
     "KEY_ENTER": "\n",
     "KEY_BACKSPACE": "\x7f",
     "KEY_DELETE": "\x7f",
     "KEY_ESCAPE": "\x1b",
+    "KEY_UP": "\x81",
+    "KEY_DOWN": "\x82",
+    "KEY_LEFT": "\x83",
+    "KEY_RIGHT": "\x84",
 }
+
+# Line-editor vocabulary (§15 read): both classic delete bytes rub
+# out the last character, while escape and the §3.8.4 key codes
+# mean nothing to a line yet and are waited out.
+RUB_OUT_KEYS = ("\x7f", "\x08")
+INPUT_ONLY_FIRST = "\x81"
+INPUT_ONLY_LAST = "\x9a"
 
 # The §8.3.1 colour codes the painter can mix, named as blessed
 # knows them. Code 1 is the terminal's own default and needs no
@@ -238,7 +252,6 @@ class ScreenFrontend:
         version: int,
         terminal: Terminal | None = None,
         out: Callable[[str], None] | None = None,
-        read: Callable[[], str] | None = None,
     ) -> None:
         """Wrap a terminal around a fresh screen model.
 
@@ -249,8 +262,6 @@ class ScreenFrontend:
                 blessed Terminal.
             out: Where escape sequences and text go; None writes to
                 standard output.
-            read: Where typed lines come from; None reads standard
-                input.
         """
 
         if terminal is None:
@@ -262,7 +273,6 @@ class ScreenFrontend:
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write
-        self._read = read if read is not None else input
         self.screen_columns = terminal.width or FALLBACK_COLUMNS
         self.screen_lines = terminal.height or FALLBACK_LINES
         self._model = ScreenModel(
@@ -348,55 +358,96 @@ class ScreenFrontend:
 
         self._out("\a")
 
+    def _translated_key(self, timeout: float | None) -> str | None:
+        """One terminal read, translated; None for nothing usable.
+
+        Named special keys become their §3.8.2.2 and §3.8.4 input
+        characters; unnamed single characters pass through as
+        themselves. An expired timeout and an unmapped escape
+        sequence are both nothing usable.
+        """
+
+        with self._terminal.cbreak():
+            key = self._terminal.inkey(timeout)
+
+        name = getattr(key, "name", None)
+
+        if name in KEY_CHARACTERS:
+            return KEY_CHARACTERS[name]
+
+        character = str(key)
+
+        if len(character) == 1:
+            return character
+
+        return None
+
     def read_key(self, timeout: float | None = None) -> str | None:
         """Read one raw keystroke at the model's cursor.
 
-        Special keys translate to their §3.8.2.2 input characters;
-        unnamed keys pass through as themselves. Keystrokes are not
-        echoed -- §15 read_char leaves any echoing to the game.
-        Without a timeout, empty and unhearable reads simply wait
-        for a real keystroke; with one, an expired wait answers
-        None, which is the machine's cue to fire a §15 interrupt on
-        the wall clock.
+        Keystrokes are not echoed -- §15 read_char leaves any
+        echoing to the game. Without a timeout, empty and
+        unhearable reads simply wait for a real keystroke; with
+        one, an expired wait answers None, which is the machine's
+        cue to fire a §15 interrupt on the wall clock.
         """
 
         self._park()
 
         while True:
-            with self._terminal.cbreak():
-                key = self._terminal.inkey(timeout)
+            key = self._translated_key(timeout)
 
-            name = getattr(key, "name", None)
-
-            if name in KEY_CHARACTERS:
-                return KEY_CHARACTERS[name]
-
-            character = str(key)
-
-            # Multi-character escape sequences -- arrows and friends
-            # with no §3.8.2.2 mapping yet -- are not keystrokes the
-            # story can hear, and an expired timeout is no keystroke
-            # at all.
-            if len(character) == 1:
-                return character
+            if key is not None:
+                return key
 
             if timeout is not None:
                 return None
 
     def read_line(self) -> str:
-        """Read one typed line at the model's cursor.
+        """Read one line of raw typing, echoed through the model.
 
-        The terminal's own echo shows the typing as it happens; the
-        line is then written through the model so the grid agrees
-        with the glass, newline included.
+        The terminal's own echo is never invited: keystrokes arrive
+        raw through the same seam read_char uses, and every visible
+        change to the glass is the painter's doing -- so a prompt
+        on the bottom row can never make the real terminal scroll
+        the screen behind the model's back. Backspace rubs out the
+        last character of the line (§15 read's line editor); escape
+        and the §3.8.4 key codes mean nothing to a line yet and are
+        waited out.
         """
 
         self._park()
-        line = self._read()
-        self._model.write(line + "\n")
-        self._repaint()
+        typed: list[str] = []
 
-        return line
+        while True:
+            key = self._translated_key(None)
+
+            if key is None or key == "\x1b" or self._input_only(key):
+                continue
+
+            if key == "\n":
+                self._model.write("\n")
+                self._repaint()
+
+                return "".join(typed)
+
+            if key in RUB_OUT_KEYS:
+                if typed:
+                    typed.pop()
+                    self._model.rub_out()
+                    self._repaint()
+
+                continue
+
+            typed.append(key)
+            self._model.write(key)
+            self._repaint()
+
+    @staticmethod
+    def _input_only(key: str) -> bool:
+        """Whether a key is one of the §3.8.4 input-only codes."""
+
+        return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
 
     def _repaint(self) -> None:
         """Redraw every damaged row, then park the cursor."""

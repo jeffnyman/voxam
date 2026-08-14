@@ -264,6 +264,17 @@ def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
         zscii_to_char(code)
 
 
+# The cursor, function, and keypad keys travel through the input
+# seam as their §3.8.4 codepoints, defined for input only; their
+# undefined neighbour 128 stays refused (§3.8.3.1).
+def test_the_input_only_keys_pass_through_whole() -> None:
+    assert_that(char_to_zscii("\x81")).is_equal_to(129)
+    assert_that(char_to_zscii("\x9a")).is_equal_to(154)
+
+    with pytest.raises(ZMachineTextError, match="no ZSCII code"):
+        char_to_zscii("\x80")
+
+
 ALPHABET_TABLE = 0x160
 
 

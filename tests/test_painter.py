@@ -48,14 +48,18 @@ class StubTerminal:
 
 
 def painted(
-    version: int = 5, line: str = "look", keys: list[StubKey] | None = None
+    version: int = 5, keys: list[StubKey] | None = None
 ) -> tuple[ScreenFrontend, list[str]]:
     out: list[str] = []
-    frontend = ScreenFrontend(
-        version, terminal=StubTerminal(keys), out=out.append, read=lambda: line
-    )
+    frontend = ScreenFrontend(version, terminal=StubTerminal(keys), out=out.append)
 
     return frontend, out
+
+
+def typing(text: str) -> list[StubKey]:
+    """The keystrokes of a typed line, enter included."""
+
+    return [*(StubKey(character) for character in text), StubKey("", "KEY_ENTER")]
 
 
 # A write lands in the model and the damaged row is repainted at
@@ -245,16 +249,59 @@ def test_bleeps_ring_the_bell() -> None:
     assert_that(out.count("\a")).is_equal_to(2)
 
 
-# read_line hands back the typed line and echoes it through the
-# model, so the grid agrees with what the terminal's cooked echo
-# already showed.
+# read_line reads raw keystrokes and echoes them through the model
+# itself -- the terminal's own echo is never invited, so nothing
+# but the painter ever writes to the glass.
 def test_read_line_echoes_through_the_model() -> None:
-    frontend, _out = painted(line="open mailbox")
+    frontend, _out = painted(keys=typing("open mailbox"))
 
     line = frontend.read_line()
 
     assert_that(line).is_equal_to("open mailbox")
     assert_that(frontend.model.row_text(1)).is_equal_to("open mailbox")
+
+
+# Backspace rubs out the last typed character, on the glass and in
+# the returned line alike (§15 read's line editor).
+def test_read_line_backspace_rubs_out() -> None:
+    keys = [
+        *(StubKey(character) for character in "loox"),
+        StubKey("", "KEY_BACKSPACE"),
+        StubKey("k"),
+        StubKey("", "KEY_ENTER"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    line = frontend.read_line()
+
+    assert_that(line).is_equal_to("look")
+    assert_that(frontend.model.row_text(1)).is_equal_to("look")
+
+
+# With nothing typed there is nothing to rub: backspace at the
+# start of a line is quietly nothing.
+def test_read_line_backspace_stops_at_the_start() -> None:
+    keys = [StubKey("", "KEY_BACKSPACE"), *typing("n")]
+    frontend, _out = painted(keys=keys)
+
+    assert_that(frontend.read_line()).is_equal_to("n")
+
+
+# Escape, the §3.8.4 key codes, and unmapped escape sequences mean
+# nothing to a line editor yet: read_line waits them all out.
+def test_read_line_waits_out_keys_a_line_cannot_use() -> None:
+    keys = [
+        StubKey("", "KEY_ESCAPE"),
+        StubKey("", "KEY_UP"),
+        StubKey("\x1b[15~", "KEY_F5"),
+        *typing("y"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    line = frontend.read_line()
+
+    assert_that(line).is_equal_to("y")
+    assert_that(frontend.model.row_text(1)).is_equal_to("y")
 
 
 # A plain keystroke passes through read_key as itself, unechoed --
@@ -285,12 +332,31 @@ def test_read_key_translates_special_keys() -> None:
     assert_that(frontend.read_key()).is_equal_to("\x1b")
 
 
+# The cursor keys translate to their §3.8.4 codepoints 129 to 132,
+# which the machine's input seam passes through whole -- how Beyond
+# Zork's menus hear an arrow.
+def test_read_key_translates_the_cursor_keys() -> None:
+    frontend, _out = painted(
+        keys=[
+            StubKey("\x1b[A", "KEY_UP"),
+            StubKey("\x1b[B", "KEY_DOWN"),
+            StubKey("\x1b[D", "KEY_LEFT"),
+            StubKey("\x1b[C", "KEY_RIGHT"),
+        ]
+    )
+
+    assert_that(frontend.read_key()).is_equal_to("\x81")
+    assert_that(frontend.read_key()).is_equal_to("\x82")
+    assert_that(frontend.read_key()).is_equal_to("\x83")
+    assert_that(frontend.read_key()).is_equal_to("\x84")
+
+
 # An empty read is not a keystroke, and neither is an unmapped
-# multi-character escape sequence -- an arrow key the story cannot
-# hear yet: read_key waits for one it can.
+# multi-character escape sequence -- a function key the story
+# cannot hear yet: read_key waits for one it can.
 def test_read_key_waits_out_empty_and_unmapped_reads() -> None:
     frontend, _out = painted(
-        keys=[StubKey(""), StubKey("\x1b[C", "KEY_RIGHT"), StubKey("q")]
+        keys=[StubKey(""), StubKey("\x1b[15~", "KEY_F5"), StubKey("q")]
     )
 
     assert_that(frontend.read_key()).is_equal_to("q")
@@ -310,7 +376,7 @@ def test_read_key_reports_expired_timeouts() -> None:
 # An unmapped escape sequence inside a timed wait is no keystroke
 # either: the wait reports as expired rather than pretending.
 def test_read_key_timeout_swallows_unmapped_sequences() -> None:
-    frontend, _out = painted(keys=[StubKey("\x1b[C", "KEY_RIGHT")])
+    frontend, _out = painted(keys=[StubKey("\x1b[15~", "KEY_F5")])
 
     assert_that(frontend.read_key(timeout=0.5)).is_none()
 
@@ -326,7 +392,7 @@ def test_read_key_returns_keys_that_beat_the_clock() -> None:
 # on a captured, un-terminal stream it reports no size and the
 # painter falls back to the classic 80 by 24 (§8.4).
 def test_a_real_terminal_is_built_by_default() -> None:
-    frontend = ScreenFrontend(3, out=lambda _text: None, read=lambda: "")
+    frontend = ScreenFrontend(3, out=lambda _text: None)
 
     assert_that(frontend.screen_columns).is_greater_than_or_equal_to(1)
     assert_that(frontend.screen_lines).is_greater_than_or_equal_to(1)
@@ -339,9 +405,7 @@ def test_a_sizeless_terminal_falls_back() -> None:
         width = 0
         height = 0
 
-    frontend = ScreenFrontend(
-        5, terminal=Sizeless(), out=lambda _text: None, read=lambda: ""
-    )
+    frontend = ScreenFrontend(5, terminal=Sizeless(), out=lambda _text: None)
 
     assert_that(frontend.screen_columns).is_equal_to(FALLBACK_COLUMNS)
     assert_that(frontend.screen_lines).is_equal_to(FALLBACK_LINES)

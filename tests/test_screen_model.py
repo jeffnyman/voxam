@@ -148,6 +148,45 @@ def test_styles_may_change_mid_word() -> None:
     assert_that(screen.cell(1, 3).style).is_equal_to(BOLD)
 
 
+# The line editor's rubout retreats the cursor one cell and blanks
+# it, and stops at the left edge rather than chewing into an
+# earlier row (§15 read).
+def test_rub_out_erases_the_last_typed_character() -> None:
+    screen = small(version=5)
+
+    screen.write("ab")
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("a")
+    assert_that(screen.cursor).is_equal_to((1, 2))
+
+    screen.rub_out()
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("")
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
+# Rubout follows the selected window: upper-window typing is edited
+# in place, and at the window's left edge there is nothing to rub.
+def test_rub_out_works_in_the_upper_window() -> None:
+    screen = small(version=5)
+
+    screen.split_window(2)
+    screen.set_window(UPPER)
+    screen.set_cursor(1, 3)
+    screen.write("x")
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("")
+    assert_that(screen.cursor).is_equal_to((1, 3))
+
+    screen.set_cursor(1, 1)
+    screen.rub_out()
+
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
 # A §15 rectangle in the upper window spreads right and down from
 # the cursor: each row returns to the starting column, so a map can
 # sit beside a story box without erasing its left edge -- which is
