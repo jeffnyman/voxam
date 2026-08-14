@@ -157,6 +157,21 @@ def test_storeb_writes_a_table_byte(code_machine: Callable[..., Machine]) -> Non
     assert_that(machine.memory.read_byte(TABLE + 3)).is_equal_to(0xAB)
 
 
+# storeb's operand is a word, and a large one lands as its least
+# significant byte -- the same rule §15 spells out for put_prop
+# into one-byte properties. Sherlock stores $ffff as a flag while
+# the sun rises over the Abbey, and earned the settlement.
+def test_storeb_keeps_the_least_significant_byte(
+    code_machine: Callable[..., Machine],
+) -> None:
+    main = bytes([0xE2, 0x03, 0x01, 0x20, 0x00, 0x03, 0xFF, 0xFF, 0xBA])
+    machine = code_machine(main)
+
+    machine.run()
+
+    assert_that(machine.memory.read_byte(TABLE + 3)).is_equal_to(0xFF)
+
+
 # The memory guards still govern: a storew aimed at static memory is
 # rejected exactly as a raw write would be (§1.1.2).
 def test_storew_cannot_reach_static_memory(

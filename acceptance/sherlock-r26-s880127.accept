@@ -1,0 +1,488 @@
+! SEED=221
+! GAME=../entharion/zcode-infocom/sherlock-r26-s880127.z5
+
+# The other sound release. Along this recording the game issues 18
+# sound_effect calls in the full four-operand Version 5 form --
+# number, effect, volume, AND an end-of-sound routine -- all
+# passing in the conforming quiet (§9): Big Ben (17) on first
+# arrival, the belfry bell (7) through the sapphire grabs, the
+# girl's heartbeat (13) under the stethoscope, the armour (3)
+# clanking every step through the Tower. The routine of a sound
+# that never plays is never called, and this file proves it for a
+# whole game. Sherlock also earned two engine settlements on the
+# way: storeb keeps a large value's least significant byte, and
+# out-of-range set_attr/clear_attr pass quietly (attribute 48, the
+# bug Frotz pardons by name).
+
+# The banner's [Press any key.] spends the bare > below; then the
+# knock brings Mrs Hudson and the summons story.
+>
+knock on door
+
+# Upstairs to the study. The visitor arrives during the wait, and
+# the "continue waiting?" question is a keystroke read -- the lone
+# n line answers it as a single keypress.
+u
+n
+get newspaper
+show newspaper to holmes
+get pipe
+get slipper
+wait
+n
+
+# The riddle paper, the mantel weapons, and the doctor's kit from
+# the bedroom; Holmes dresses and waits outside, and Watson leads.
+read paper
+take knife
+take gun
+open bag
+put all in bag
+w
+get ampoule
+read ampoule
+take lamp
+take glass
+put ampoule in bag
+put glass in bag
+e
+s
+d
+n
+get matchbook
+s
+open door
+out
+
+# The lamplit walk to Westminster. Big Ben's first toll brings the
+# "$SOUND" notice and an any-key pause -- the bare > spends it.
+# "wait until 7:00" runs the clock; daybreak interrupts with a
+# keystroke question, and the lone y line keeps waiting until the
+# verger opens the Abbey at seven.
+light lamp
+s
+s
+s
+se
+se
+e
+e
+>
+wait until 7:00
+y
+turn off lamp
+in
+
+# The rubbings. The pacquet and crayon come from the gift stand
+# southeast of the Nave; each riddle names its tomb -- Newton for
+# the yellow paper, Elizabeth I for the brown, Henry V for the
+# blue. The blue must be taken out of the pacquet first, and
+# "henry's tomb" (apostrophe and all) is in the dictionary, which
+# ducks the Confessor Chapel's which-tomb question entirely.
+s
+se
+get packet
+get crayon
+open packet
+nw
+n
+examine tomb
+get yellow paper
+put yellow paper on tomb
+rub paper with crayon
+get paper
+e
+n
+e
+examine tomb
+get brown paper
+put brown paper on tomb
+rub brown paper with crayon
+get brown paper
+s
+w
+get blue paper
+put blue paper on henry's tomb
+rub blue paper with crayon
+get blue paper
+
+# The candles north of the chapels develop the rubbings: heat
+# each, turn it over, and the hidden verse appears -- Nelson and
+# the Tower from the blue, Big Ben and King Charles from the
+# brown, London Bridge and the banking riddle from the yellow.
+e
+n
+w
+n
+hold blue paper over flame
+turn blue paper over
+hold brown paper over flame
+turn brown paper over
+hold yellow paper over flame
+turn yellow paper over
+drop packet
+drop crayon
+
+# Scotland Yard's Black Museum yields Captain Bligh's oar, and the
+# Embankment its ancient rowboat. Two rows east anchor us under
+# London Bridge -- a third would drift the pair of you out to sea
+# and into retirement on Pago Pago.
+s
+s
+w
+w
+ne
+n
+e
+light lamp
+d
+take oar
+u
+turn off lamp
+w
+n
+ne
+e
+s
+put oar in oarlock
+get in boat
+raise anchor
+launch boat
+row east
+row east
+drop anchor
+look at bridge
+examine moss
+
+# The moss: take the oar up first, and with the hat off, the
+# knocked clump crumbles into your grip as the opal -- this exact
+# turn order is the one seed 221 blesses; a turn earlier the opal
+# sinks into the murky depths instead.
+get oar
+remove hat
+knock moss with oar
+wear hat
+
+# Home against the current; the glass reads "Password: Swordfish"
+# on the opal, and Holmes hands over the signet ring for Mycroft.
+put oar in oarlock
+raise anchor
+row west
+row west
+land
+drop anchor
+get out
+get glass from bag
+examine opal with glass
+
+# Nelson's column names the "son of Mars"; then up the clock
+# tower with the blue bottle's cotton in both ears. The bell
+# alternates toward and away each turn, and seed 221's rhythm is
+# miss, swing-away, catch: three grabs take the sapphire, and the
+# glass reads "2:00 a.m." on it.
+n
+w
+sw
+examine statue
+s
+s
+se
+u
+get blue bottle from bag
+open blue bottle
+get cotton
+put cotton in ears
+wait until 10:00
+get sapphire
+get sapphire
+get sapphire
+examine sapphire with glass
+d
+remove cotton
+out
+
+# Covent Garden: the collapsed flower girl. Her heartbeat under
+# seed 221 is incredibly fast -- tachycardia -- so the orange
+# digitalis pill from the blue bottle is the right medicine; a
+# gentleman sweeps her off to the ball, grateful eyes and all.
+n
+n
+n
+e
+s
+remove hat
+get stethoscope
+wear stethoscope
+listen to girl
+read blue bottle
+read brown bottle
+get orange pill
+give pill to girl
+remove stethoscope
+put stethoscope in bag
+wear hat
+
+# The pipe is lit Holmes-fashion -- slipper tobacco, matchbook --
+# because the wax museum forbids open lamps; the lamp waits at the
+# door. Inside, Guy Fawkes's torch lights from newspaper lit from
+# pipe, and King Charles the First loses his head a second time:
+# melted, it yields the emerald dated 20/6/87. (This is also where
+# Sherlock touches attribute 48 -- the storied game bug Voxam now
+# pardons as quietly as Frotz does.)
+n
+w
+n
+w
+get tobacco
+get pipe
+put tobacco in pipe
+open matchbook
+get match
+light match
+light pipe with match
+drop match
+drop matchbook
+drop lamp
+n
+w
+examine statues
+examine guy fawkes
+get torch
+get newspaper
+light newspaper with pipe
+light torch with newspaper
+drop newspaper
+examine king charles
+get head
+melt head with torch
+get emerald
+examine emerald with glass
+
+# Jewels and pipe stowed, William the Conqueror admired, and on
+# to Sherman's pet shop for the half-trained pigeon that only
+# fancies red things.
+put pipe in bag
+put opal in bag
+put sapphire in bag
+put emerald in bag
+e
+examine william the conqueror
+s
+get lamp
+e
+s
+e
+e
+s
+w
+ask sherman about pigeon
+ask for pigeon
+
+# The souvenir vendor's telescope: two haggles walk him down from
+# a pound to nineteen shillings, and the change is the very
+# shilling Wiggins will demand later.
+e
+n
+w
+w
+s
+s
+s
+w
+ask man about telescope
+haggle with vendor
+haggle with vendor
+buy telescope
+
+# Trafalgar Square: the telescope finds the ruby in Nelson's
+# blind eye, the pigeon fetches it and flies home to Sherman, who
+# hands it over -- "Wear a carnation" under the glass.
+e
+n
+n
+look at eye through telescope
+show ruby to pigeon
+pigeon, get ruby
+release pigeon
+n
+e
+e
+s
+w
+ask sherman about pigeon
+examine ruby with glass
+
+# Threadneedle Street: the urchin is Wiggins of the Irregulars,
+# whose fixed price is one shilling -- the telescope change --
+# and whose distraction lifts the guard's key. The guard himself
+# charges four jewels for the door, which is fine: they are bait,
+# and Moriarty means us to follow them.
+e
+n
+e
+examine urchin
+examine guard
+wiggins, steal keys
+give shilling to wiggins
+wiggins, steal keys
+examine key
+get opal from bag
+get sapphire from bag
+get emerald from bag
+give opal to guard
+give sapphire to guard
+give ruby to guard
+give emerald to guard
+n
+
+# The vault by stethoscope: the combination under seed 221 is two
+# rights to the click, one left to the click, and two rights to
+# swing the door. Box 600 -- the conquest subtracted from the
+# fire -- holds the topaz: "Bar of Gold".
+get stethoscope from bag
+wear stethoscope
+listen to dial
+turn dial right
+turn dial right
+turn dial left
+turn dial right
+turn dial right
+remove stethoscope
+put stethoscope in bag
+w
+unlock box 600 with key
+get topaz
+examine topaz with glass
+
+# Stepping out of the bank springs the trap: Watson is knocked
+# cold and Holmes is taken. Wiggins stays with you to the end.
+e
+s
+wait
+
+# The signet ring buys Mycroft's counsel at the Diogenes Club:
+# the Tower password is "Boleyn".
+w
+w
+s
+s
+sw
+w
+ask butler about holmes
+give ring to butler
+
+# The Tower of London. The exhibit mace opens the Butt of Malmsey
+# where Clarence drowned; Wiggins fishes the garnet from the empty
+# keg -- "Give me to Akbar" under the glass.
+e
+ne
+e
+s
+e
+e
+e
+e
+e
+guard, boleyn
+n
+n
+se
+u
+examine weapon
+get mace
+d
+nw
+ne
+examine keg
+hit bung with mace
+examine keg
+wiggins, get garnet
+examine garnet with glass
+
+# The armour bears the portcullis chain's weight; the paddle and
+# the old boat leave by Traitors Gate, west along the Thames --
+# and the boat's true owner ends the voyage adrift, shaking his
+# fist.
+sw
+e
+d
+wear armour
+u
+out
+s
+s
+s
+pull chain
+remove armour
+take paddle
+s
+get in boat
+raise anchor
+launch boat
+paddle west
+paddle west
+paddle west
+land
+drop anchor
+get out
+
+# The Bar of Gold vigil. The carry ceiling bites once more, so
+# the done-with tools stay on the doorstep; the etherium ampoule
+# rides hidden in the hat. The clock runs Saturday night through
+# Monday 1:59 a.m. by one long wait and two 1:59 hops, each
+# daylight interruption answered with a lone y keystroke.
+e
+e
+d
+drop paddle
+drop mace
+drop telescope
+drop blue paper
+drop brown paper
+drop yellow paper
+remove hat
+get ampoule from bag
+put ampoule in hat
+wear hat
+wait 24 hours
+y
+y
+wait until 1:59
+y
+wait until 1:59
+
+# In at 1:59 sharp: "proprietor, swordfish" summons Akbar, the
+# garnet buys the blindfold ride, and Akbar confiscates everything
+# -- except what a hat holds.
+in
+proprietor, swordfish
+give garnet to akbar
+
+# The Lair. Held breath beats the broken ampoule; Holmes is
+# untied, Akbar tied to Moriarty, the key taken as the etherium
+# finally wins. On waking: whistle, jewels, out to London Bridge.
+remove hat
+get ampoule
+hold breath
+break ampoule
+untie holmes
+tie akbar to moriarty
+take key
+get whistle
+get jewels
+unlock door with key
+open door
+out
+
+# Two whistle blasts summon the hansom; "palace" is the answer to
+# the cabbie's prompt. The guard takes the regalia, the Queen
+# takes an audience, and Holmes gives Watson the credit: 100 of
+# 100, Consulting Detective. The closing menu reads one keystroke:
+# 1 quits.
+blow whistle
+blow whistle
+get in cab
+palace
+leave cab
+give jewels to guard
+1
