@@ -10,7 +10,7 @@ from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
 from voxam.errors import VoxamError, ZMachineUnimplementedError
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.saves import FileSaveSlot
-from voxam.zmachine.machine import Machine
+from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.story import Story
 
 if TYPE_CHECKING:
@@ -63,12 +63,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
     )
+    parser.add_argument(
+        "--interpreter",
+        help="claim a §11.1.3 platform, by name (amiga, ibm-pc, ...) or number",
+    )
+    parser.add_argument(
+        "--tandy",
+        action="store_true",
+        help="set the legendary Tandy bit for version 3 games (§11.1.4)",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
 
     if arguments.accept is not None and arguments.replay is not None:
         print("voxam: --accept and --replay are one script apiece; pick one")
+
+        return EXIT_UNUSABLE
+
+    try:
+        identity = _identity(arguments.interpreter, tandy=arguments.tandy)
+    except ValueError as error:
+        print(f"voxam: {error}")
 
         return EXIT_UNUSABLE
 
@@ -80,12 +96,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.story,
             arguments.seed,
             handoff=arguments.replay is not None,
+            identity=identity,
         )
 
     if arguments.story is None:
         return EXIT_OK
 
-    return _play(arguments.story, arguments.seed, None, screen=not arguments.plain)
+    return _play(
+        arguments.story,
+        arguments.seed,
+        None,
+        screen=not arguments.plain,
+        identity=identity,
+    )
 
 
 def _replay_script(
@@ -94,6 +117,7 @@ def _replay_script(
     seed_override: int | None,
     *,
     handoff: bool,
+    identity: Identity | None = None,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
@@ -134,10 +158,65 @@ def _replay_script(
         typed=watch.typed,
     )
 
-    code = _play(script.game, seed, source, PlainFrontend(tee))
+    code = _play(script.game, seed, source, PlainFrontend(tee), identity=identity)
     watch.finish()
 
     return code
+
+
+# The §11.1.3 interpreter numbers, by the names Infocom used.
+INTERPRETER_NUMBERS = {
+    "dec-20": 1,
+    "apple-iie": 2,
+    "macintosh": 3,
+    "amiga": 4,
+    "atari-st": 5,
+    "ibm-pc": 6,
+    "commodore-128": 7,
+    "commodore-64": 8,
+    "apple-iic": 9,
+    "apple-iigs": 10,
+    "tandy-color": 11,
+}
+
+
+def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
+    """Build the claimed identity from the command line.
+
+    Args:
+        interpreter: A §11.1.3 platform name or number, or None
+            for Voxam's default introduction.
+        tandy: Whether the legendary Tandy bit is requested.
+
+    Returns:
+        The identity to claim, or None when nothing was asked.
+
+    Raises:
+        ValueError: For an interpreter that is neither a known
+            name nor a number.
+    """
+
+    if interpreter is None and not tandy:
+        return None
+
+    number: int | None = None
+
+    if interpreter is not None:
+        lowered = interpreter.lower()
+
+        if lowered in INTERPRETER_NUMBERS:
+            number = INTERPRETER_NUMBERS[lowered]
+        elif interpreter.isdigit():
+            number = int(interpreter)
+        else:
+            names = ", ".join(sorted(INTERPRETER_NUMBERS))
+            msg = (
+                f"unknown interpreter {interpreter!r}; use a number or one of: {names}"
+            )
+
+            raise ValueError(msg)
+
+    return Identity(interpreter=number, tandy=tandy)
 
 
 def _screen_frontend(version: int) -> "ScreenFrontend | None":
@@ -162,13 +241,14 @@ def _screen_frontend(version: int) -> "ScreenFrontend | None":
     return ScreenFrontend(version)
 
 
-def _play(
+def _play(  # noqa: PLR0913 -- one knob per session seam
     story_path: Path,
     seed: int | None,
     input_source: Callable[[], str] | None,
     frontend: Frontend | None = None,
     *,
     screen: bool = False,
+    identity: Identity | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -211,6 +291,7 @@ def _play(
             seed=seed,
             saves=saves,
             key_source=key_source,
+            identity=identity,
         ).run()
     except EOFError:
         print("\nvoxam: end of input")

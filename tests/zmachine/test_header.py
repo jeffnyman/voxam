@@ -267,6 +267,15 @@ def test_a_sound_interpreter_leaves_the_request_alone() -> None:
     assert_that(header.data[0x11]).is_equal_to(0x80)
 
 
+# The Tandy bit belongs to Version 3's Flags 1 alone: from Version
+# 4 the same bit means italics (§11.1.4).
+def test_the_tandy_bit_ends_at_version_3() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="only version 3"):
+        header.declare_tandy(on=True)
+
+
 def test_interpreter_fields_begin_at_version_4() -> None:
     header = Header(bytearray(synthetic_header(version=3)))
 
