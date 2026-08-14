@@ -41,7 +41,7 @@ from voxam.zmachine.header import (
     STATUS_FLAGS_VERSION,
 )
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
-from voxam.zmachine.memory import Memory
+from voxam.zmachine.memory import BYTE_MAX, Memory
 from voxam.zmachine.objects import ObjectTable
 from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.quetzal import read as read_quetzal
@@ -749,13 +749,22 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_storeb(self, instruction: Instruction) -> None:
-        """Write a byte at array + byte-index (§15)."""
+        """Write a byte at array + byte-index (§15).
+
+        The operand is a word, and §15 does not say which part of a
+        large one lands; the least significant byte is the coherent
+        conventional answer -- the same rule §15 spells out for
+        put_prop into one-byte properties -- and Sherlock depends on
+        it, storing $ffff as a flag while the sun rises over the
+        Abbey. This used to halt loudly; the shipped game earned
+        the settlement.
+        """
 
         array = self._value(instruction.operands[0])
         index = self._value(instruction.operands[1])
         value = self._value(instruction.operands[2])
 
-        self._memory.write_byte(self._table_address(array, index, 1), value)
+        self._memory.write_byte(self._table_address(array, index, 1), value & BYTE_MAX)
         self._pc = instruction.next_address
 
     def _op_store(self, instruction: Instruction) -> None:
@@ -1297,23 +1306,35 @@ class Machine:
         self._branch(instruction, held)
 
     def _op_set_attr(self, instruction: Instruction) -> None:
-        """Set the object's attribute (§15)."""
+        """Set the object's attribute (§15).
+
+        An attribute beyond the version's §12.3.1 range changes
+        nothing. Sherlock touches attribute 48 as the wax head
+        melts -- a game bug so storied that Frotz carries a named
+        pardon for it -- and the quiet no-op is the same settlement
+        without the name. Testing such an attribute stays loud: no
+        game has earned that door.
+        """
 
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        if obj:
+        if obj and self._objects.attribute_exists(attribute):
             self._objects.set_attribute(obj, attribute, on=True)
 
         self._pc = instruction.next_address
 
     def _op_clear_attr(self, instruction: Instruction) -> None:
-        """Clear the object's attribute (§15)."""
+        """Clear the object's attribute (§15).
+
+        The out-of-range quiet of set_attr holds here too; it is
+        clear_attr that Sherlock actually reaches with 48.
+        """
 
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        if obj:
+        if obj and self._objects.attribute_exists(attribute):
             self._objects.set_attribute(obj, attribute, on=False)
 
         self._pc = instruction.next_address

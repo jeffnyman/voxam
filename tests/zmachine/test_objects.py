@@ -406,6 +406,19 @@ def test_jin_branches_on_parenthood() -> None:
     assert_that(result_of(machine)).is_equal_to(NOT_TAKEN)
 
 
+# An attribute beyond the version's §12.3.1 range changes nothing
+# when set or cleared -- Sherlock touches 48 while the wax head
+# melts, a bug so storied that Frotz ships a named pardon for it --
+# but TESTING one stays loud: no game has earned that door.
+def test_out_of_range_attributes_settle_for_writes_only() -> None:
+    machine = run(bytes([0x0B, 1, 32, 0x0C, 1, 32, 0x0A, 1, 3, BRANCH_TAKEN]) + ARMS)
+
+    assert_that(result_of(machine)).is_equal_to(TAKEN)
+
+    with pytest.raises(ZMachineObjectError, match="attribute 32"):
+        run(bytes([0x0A, 1, 32, BRANCH_TAKEN]) + ARMS)
+
+
 def test_test_attr_set_attr_and_clear_attr() -> None:
     machine = run(bytes([0x0A, 1, 3, BRANCH_TAKEN]) + ARMS)
 

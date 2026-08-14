@@ -332,6 +332,11 @@ class ObjectTable:
 
         return self._entries + (obj - 1) * self._entry_size
 
+    def attribute_exists(self, attribute: int) -> bool:
+        """Whether a number names an attribute in this version (§12.3.1)."""
+
+        return 0 <= attribute < self._attribute_count
+
     def _attribute_location(self, obj: int, attribute: int) -> tuple[int, int]:
         """Locate the byte and bit of an attribute flag (§12.3.1)."""
 
