@@ -40,6 +40,11 @@ USAGE_EXEC = b"Exec"
 ZCODE_ID = b"ZCOD"
 EXEC_NUMBER = 0
 
+# Pictures arrive as PNG or JPEG chunks, with Rect placeholders
+# among the Version 6 art (Blorb: Picture Resource Chunks); PNG is
+# the one Voxam can draw.
+PNG_ID = b"PNG "
+
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
 # identifier carries the same release, serial, and checksum bytes
@@ -165,6 +170,27 @@ class Blorb:
             return None
 
         return executable.chunk.payload
+
+    @property
+    def cover(self) -> Resource | None:
+        """The picture to show before play, when one presents itself.
+
+        The Fspc chunk names it outright (Blorb: Frontispiece
+        Chunk). Failing that, a resource file carrying exactly one
+        picture offers that picture -- Beyond Zork ships its splash
+        so -- while the big Version 6 art sets, hundreds of scene
+        pictures with no Fspc, offer nothing rather than a guess.
+        """
+
+        if self.frontispiece is not None:
+            return self.resource(USAGE_PICTURE, self.frontispiece)
+
+        pictures = [piece for piece in self.resources if piece.usage == USAGE_PICTURE]
+
+        if len(pictures) == 1:
+            return pictures[0]
+
+        return None
 
     def matches(self, story: Story) -> bool:
         """Whether the resources name this story.

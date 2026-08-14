@@ -17,6 +17,10 @@ class IFFError(VoxamError):
     """Raised when bytes cannot be read as an IFF container."""
 
 
+class PNGError(VoxamError):
+    """Raised when bytes cannot be read as a PNG picture."""
+
+
 class ZMachineArithmeticError(VoxamError):
     """Raised for arithmetic a story may not perform (§2.3)."""
 

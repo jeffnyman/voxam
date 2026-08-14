@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
-from voxam.blorb import Blorb
-from voxam.errors import BlorbError, VoxamError, ZMachineUnimplementedError
+from voxam.blorb import PNG_ID, Blorb
+from voxam.errors import BlorbError, PNGError, VoxamError, ZMachineUnimplementedError
 from voxam.frontend import Frontend, PlainFrontend
+from voxam.png import decode
 from voxam.saves import FileSaveSlot
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.story import Story
@@ -78,6 +79,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="a Blorb resource file; found beside the story by name when omitted",
     )
+    parser.add_argument(
+        "--pixels",
+        action="store_true",
+        help="draw cover art in real pixels (needs a sixel terminal)",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -115,6 +121,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         screen=not arguments.plain,
         identity=identity,
         resources=arguments.resources,
+        pixels=arguments.pixels,
     )
 
 
@@ -293,6 +300,38 @@ def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb 
     return story, None
 
 
+def _show_cover(
+    blorb: Blorb, frontend: "ScreenFrontend", *, pixels: bool = False
+) -> None:
+    """Show the Blorb's cover picture before play, when there is one.
+
+    Cover art is a courtesy, never a gate: a cover Voxam cannot
+    draw -- Zork 1's JPEG, an exotic PNG -- earns a note and the
+    story plays on. Infocom's own interpreters opened this way:
+    the art, a keypress, the story.
+    """
+
+    cover = blorb.cover
+
+    if cover is None:
+        return
+
+    if cover.chunk.chunk_id != PNG_ID:
+        kind = cover.chunk.chunk_id.decode("latin-1").strip()
+        print(f"voxam: the cover picture is {kind}, which Voxam cannot draw\n")
+
+        return
+
+    try:
+        picture = decode(cover.chunk.payload)
+    except PNGError as error:
+        print(f"voxam: the cover picture cannot be drawn: {error}\n")
+
+        return
+
+    frontend.show_frontispiece(picture, pixels=pixels)
+
+
 def _play(  # noqa: PLR0913 -- one knob per session seam
     story_path: Path,
     seed: int | None,
@@ -302,6 +341,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     screen: bool = False,
     identity: Identity | None = None,
     resources: Path | None = None,
+    pixels: bool = False,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -321,6 +361,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
     header = story.header
     key_source: Callable[[float | None], str | None] | None = None
+    painted = None
 
     if frontend is None and screen:
         painted = _screen_frontend(header.version)
@@ -343,6 +384,9 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             # press on (Blorb: Game Identifier Chunk); a warning is
             # both at once.
             print("voxam: the resource file names a different story\n")
+
+        if painted is not None:
+            _show_cover(blorb, painted, pixels=pixels)
 
     # Saved games live beside the story: zork1.z3 saves to zork1.sav.
     saves = FileSaveSlot(story_path.with_suffix(".sav"))

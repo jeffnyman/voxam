@@ -1,0 +1,375 @@
+"""Reading PNG pictures with nothing but the standard library.
+
+Blorb resource files carry their pictures as PNG (Blorb: Picture
+Resource Chunks), and a cover picture is worth showing before play
+-- but Voxam's core stays pure stdlib, so the decoding is done here
+by hand: chunk walking, zlib inflation, scanline unfiltering, and
+pixel extraction, following the PNG specification (ISO/IEC 15948).
+
+The scope is the census of every picture in the vendored Infocom
+resource files: palette images at bit depths 1 to 8, truecolour,
+greyscale, and the alpha-bearing forms, none interlaced. Adam7
+interlacing and 16-bit depths never appear there and are refused
+with their names given.
+"""
+
+import struct
+import zlib
+from dataclasses import dataclass
+
+from voxam.errors import PNGError
+
+SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+# Chunk layout: a four-byte length, a four-byte name, the payload,
+# and a CRC the reader has no reason to distrust.
+LENGTH_SIZE = 4
+NAME_SIZE = 4
+CRC_SIZE = 4
+
+IHDR = b"IHDR"
+PLTE = b"PLTE"
+TRNS = b"tRNS"
+IDAT = b"IDAT"
+IEND = b"IEND"
+
+# The colour types and their channel counts: greyscale, truecolour,
+# palette indices, greyscale with alpha, truecolour with alpha.
+CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
+GREYSCALE = 0
+TRUECOLOUR = 2
+PALETTE = 3
+GREY_ALPHA = 4
+TRUE_ALPHA = 6
+
+# The bit depths each colour type allows here: the packed depths
+# belong to greyscale and palette images, everything else is one
+# full byte per channel.
+PACKED_TYPES = (GREYSCALE, PALETTE)
+PACKED_DEPTHS = (1, 2, 4, 8)
+BYTE_DEPTH = 8
+
+# Scanline filter types (PNG 9.2): each line names how its bytes
+# were predicted from the pixels to its left and above.
+FILTER_NONE = 0
+FILTER_SUB = 1
+FILTER_UP = 2
+FILTER_AVERAGE = 3
+FILTER_PAETH = 4
+
+OPAQUE = 255
+FULL_SCALE = 255
+
+
+@dataclass(frozen=True)
+class Picture:
+    """A decoded picture: rows of (red, green, blue) pixels.
+
+    Attributes:
+        width: The width in pixels.
+        height: The height in pixels.
+        rows: One tuple of (red, green, blue) triples per row, each
+            channel 0 to 255, alpha already composed over black --
+            the terminal a cover picture is shown on.
+    """
+
+    width: int
+    height: int
+    rows: tuple[tuple[tuple[int, int, int], ...], ...]
+
+
+def decode(data: bytes) -> Picture:
+    """Decode PNG bytes into rows of RGB pixels.
+
+    Raises:
+        PNGError: If the bytes are not a PNG, or use a feature
+            outside the supported scope -- interlacing, 16-bit
+            depths -- or are internally inconsistent.
+    """
+
+    if not data.startswith(SIGNATURE):
+        msg = "the bytes do not begin with the PNG signature"
+
+        raise PNGError(msg)
+
+    header, palette, alphas, compressed = _walk(data)
+    width, height, depth, colour_type = header
+    channels = CHANNELS[colour_type]
+    bits = channels * depth
+    stride = (width * bits + 7) // 8
+    bytes_back = max(1, bits // 8)
+
+    try:
+        inflated = zlib.decompress(compressed)
+    except zlib.error as error:
+        raise PNGError(f"the image data does not inflate: {error}") from error
+
+    if len(inflated) != height * (stride + 1):
+        msg = (
+            f"a {width}x{height} image needs {height * (stride + 1)} "
+            f"bytes of scanlines, but {len(inflated)} inflated"
+        )
+
+        raise PNGError(msg)
+
+    lines = _unfiltered(inflated, height, stride, bytes_back)
+    rows = tuple(
+        _pixels(line, width, depth, colour_type, palette, alphas) for line in lines
+    )
+
+    return Picture(width, height, rows)
+
+
+def _walk(
+    data: bytes,
+) -> tuple[tuple[int, int, int, int], tuple[tuple[int, int, int], ...], bytes, bytes]:
+    """Walk the chunks: header, palette, transparency, image data.
+
+    Chunks outside the reader's business -- gamma, text -- pass
+    unread, as the specification instructs for ancillary chunks.
+
+    Raises:
+        PNGError: For a missing or unsupported header, a palette
+            image without a palette, or truncated chunks.
+    """
+
+    header: tuple[int, int, int, int] | None = None
+    palette: tuple[tuple[int, int, int], ...] = ()
+    alphas = b""
+    compressed = []
+    position = len(SIGNATURE)
+
+    while position + LENGTH_SIZE + NAME_SIZE <= len(data):
+        length = int.from_bytes(data[position : position + LENGTH_SIZE], "big")
+        name = data[position + LENGTH_SIZE : position + LENGTH_SIZE + NAME_SIZE]
+        start = position + LENGTH_SIZE + NAME_SIZE
+        payload = data[start : start + length]
+        position = start + length + CRC_SIZE
+
+        if len(payload) < length:
+            msg = f"the {name.decode('latin-1')} chunk is cut short"
+
+            raise PNGError(msg)
+
+        if name == IHDR:
+            header = _header(payload)
+        elif name == PLTE:
+            triples = struct.iter_unpack("BBB", payload)
+            palette = tuple(triples)
+        elif name == TRNS:
+            alphas = payload
+        elif name == IDAT:
+            compressed.append(payload)
+        elif name == IEND:
+            break
+
+    if header is None:
+        msg = "the picture has no IHDR header chunk"
+
+        raise PNGError(msg)
+
+    if header[3] == PALETTE and not palette:
+        msg = "a palette picture arrived without its PLTE chunk"
+
+        raise PNGError(msg)
+
+    return header, palette, alphas, b"".join(compressed)
+
+
+def _header(payload: bytes) -> tuple[int, int, int, int]:
+    """Read IHDR, refusing what the census says never appears.
+
+    Raises:
+        PNGError: For interlacing, a depth and colour type pairing
+            outside the supported scope, or an empty image.
+    """
+
+    try:
+        width, height, depth, colour_type, _compression, _filter, interlace = (
+            struct.unpack(">IIBBBBB", payload)
+        )
+    except struct.error as error:
+        raise PNGError(f"the IHDR chunk is malformed: {error}") from error
+
+    if interlace:
+        msg = "Adam7 interlaced pictures are not supported"
+
+        raise PNGError(msg)
+
+    if width == 0 or height == 0:
+        msg = "the picture has no pixels"
+
+        raise PNGError(msg)
+
+    supported = (
+        depth in PACKED_DEPTHS
+        if colour_type in PACKED_TYPES
+        else depth == BYTE_DEPTH and colour_type in CHANNELS
+    )
+
+    if not supported:
+        msg = (
+            f"colour type {colour_type} at bit depth {depth} is not a supported pairing"
+        )
+
+        raise PNGError(msg)
+
+    return width, height, depth, colour_type
+
+
+def _unfiltered(data: bytes, height: int, stride: int, back: int) -> list[bytearray]:
+    """Undo the scanline filters (PNG 9.2).
+
+    Each line opens with a filter byte naming how its bytes were
+    predicted -- from the byte one pixel left, the byte above, their
+    average, or Paeth's choice among them -- and reconstruction adds
+    the prediction back, line by line.
+
+    Raises:
+        PNGError: For a filter type the specification does not
+            define.
+    """
+
+    lines: list[bytearray] = []
+    previous = bytearray(stride)
+    position = 0
+
+    for _ in range(height):
+        filter_type = data[position]
+        line = bytearray(data[position + 1 : position + 1 + stride])
+        position += 1 + stride
+
+        if filter_type == FILTER_SUB:
+            for index in range(back, stride):
+                line[index] = (line[index] + line[index - back]) & 0xFF
+        elif filter_type == FILTER_UP:
+            for index in range(stride):
+                line[index] = (line[index] + previous[index]) & 0xFF
+        elif filter_type == FILTER_AVERAGE:
+            for index in range(stride):
+                left = line[index - back] if index >= back else 0
+                line[index] = (line[index] + (left + previous[index]) // 2) & 0xFF
+        elif filter_type == FILTER_PAETH:
+            for index in range(stride):
+                left = line[index - back] if index >= back else 0
+                above = previous[index]
+                corner = previous[index - back] if index >= back else 0
+                line[index] = (line[index] + _paeth(left, above, corner)) & 0xFF
+        elif filter_type != FILTER_NONE:
+            msg = f"scanline filter type {filter_type} is not defined"
+
+            raise PNGError(msg)
+
+        lines.append(line)
+        previous = line
+
+    return lines
+
+
+def _paeth(left: int, above: int, corner: int) -> int:
+    """Paeth's predictor: whichever neighbour is nearest the guess."""
+
+    guess = left + above - corner
+    to_left = abs(guess - left)
+    to_above = abs(guess - above)
+    to_corner = abs(guess - corner)
+
+    if to_left <= to_above and to_left <= to_corner:
+        return left
+
+    if to_above <= to_corner:
+        return above
+
+    return corner
+
+
+def _pixels(  # noqa: PLR0913, PLR0917 -- one argument per PNG ingredient
+    line: bytearray,
+    width: int,
+    depth: int,
+    colour_type: int,
+    palette: tuple[tuple[int, int, int], ...],
+    alphas: bytes,
+) -> tuple[tuple[int, int, int], ...]:
+    """Turn one unfiltered scanline into RGB triples.
+
+    Raises:
+        PNGError: For a palette index beyond the palette.
+    """
+
+    if colour_type == TRUECOLOUR:
+        return tuple(
+            (line[3 * index], line[3 * index + 1], line[3 * index + 2])
+            for index in range(width)
+        )
+
+    if colour_type == TRUE_ALPHA:
+        return tuple(
+            _over_black(
+                line[4 * index : 4 * index + 3],
+                line[4 * index + 3],
+            )
+            for index in range(width)
+        )
+
+    if colour_type == GREY_ALPHA:
+        return tuple(
+            _over_black(
+                bytes([line[2 * index]] * 3),
+                line[2 * index + 1],
+            )
+            for index in range(width)
+        )
+
+    values = _unpacked(line, width, depth)
+
+    if colour_type == GREYSCALE:
+        full = (1 << depth) - 1
+
+        return tuple((value * FULL_SCALE // full,) * 3 for value in values)
+
+    return tuple(_from_palette(value, palette, alphas) for value in values)
+
+
+def _unpacked(line: bytearray, width: int, depth: int) -> list[int]:
+    """Read width values of depth bits each, most significant first."""
+
+    if depth == BYTE_DEPTH:
+        return list(line[:width])
+
+    per_byte = 8 // depth
+    mask = (1 << depth) - 1
+
+    return [
+        (line[index // per_byte] >> (8 - depth * (index % per_byte + 1))) & mask
+        for index in range(width)
+    ]
+
+
+def _from_palette(
+    index: int, palette: tuple[tuple[int, int, int], ...], alphas: bytes
+) -> tuple[int, int, int]:
+    """One palette entry, composed over black where tRNS says so.
+
+    Raises:
+        PNGError: For an index beyond the palette.
+    """
+
+    if index >= len(palette):
+        msg = f"pixel index {index} points beyond the {len(palette)}-entry palette"
+
+        raise PNGError(msg)
+
+    alpha = alphas[index] if index < len(alphas) else OPAQUE
+
+    return _over_black(bytes(palette[index]), alpha)
+
+
+def _over_black(channels: bytes | bytearray, alpha: int) -> tuple[int, int, int]:
+    """Compose one pixel over black, the screen a cover shows on."""
+
+    return (
+        channels[0] * alpha // OPAQUE,
+        channels[1] * alpha // OPAQUE,
+        channels[2] * alpha // OPAQUE,
+    )

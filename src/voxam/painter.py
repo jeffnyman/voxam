@@ -21,6 +21,7 @@ from contextlib import AbstractContextManager
 from typing import Protocol, cast
 
 from voxam.frontend import GRAPHICS_FONT, Status
+from voxam.png import Picture
 from voxam.screen import (
     BOLD,
     ITALIC,
@@ -28,6 +29,7 @@ from voxam.screen import (
     Cell,
     ScreenModel,
 )
+from voxam.sixel import encode as sixel_encode
 
 # Special keys arrive from blessed with names; §3.8.2.2 and §3.8.4
 # give the input-only ZSCII characters they mean. The cursor keys
@@ -72,6 +74,13 @@ DEFAULT_COLOUR = 1
 # paints as the classic 80 by 24 glass.
 FALLBACK_COLUMNS = 80
 FALLBACK_LINES = 24
+
+# Sizing sixel pixels against a glass measured only in cells: no
+# terminal cell is narrower than 8 pixels or shorter than 16 on a
+# modern display, so scaling against these floors magnifies a cover
+# as far as it can certainly fit.
+CELL_WIDTH_FLOOR = 8
+CELL_HEIGHT_FLOOR = 16
 
 # The §16 character graphics font, one Unicode stand-in per 8x8
 # bitmap. Cells in font 3 hold the character code the game printed;
@@ -214,6 +223,12 @@ class Terminal(Protocol):
 
     def move_xy(self, x: int, y: int) -> str:
         """The sequence moving the cursor to (x, y), zero-based."""
+
+    def color_rgb(self, red: int, green: int, blue: int) -> str:
+        """The sequence starting an exact foreground colour."""
+
+    def on_color_rgb(self, red: int, green: int, blue: int) -> str:
+        """The sequence starting an exact background colour."""
 
     def cbreak(self) -> AbstractContextManager[object]:
         """A context in which keystrokes arrive raw, one at a time."""
@@ -452,6 +467,65 @@ class ScreenFrontend:
 
         return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
 
+    def show_frontispiece(self, picture: Picture, *, pixels: bool = False) -> None:
+        """Show a cover picture until a key is pressed, then clear.
+
+        By default the picture is scaled to fit the glass and
+        painted centred in half-block cells: each ▀ carries two
+        pixels, its foreground the upper and its background the
+        lower, so any terminal with exact colours can show a
+        picture at twice its row resolution. With pixels requested,
+        the picture is drawn as sixel graphics instead -- real
+        pixels, magnified as far as the glass certainly holds, on
+        terminals that speak the protocol. Infocom's own
+        interpreters opened this way -- cover art, a keypress, and
+        the story. Afterwards the blank model is repainted whole,
+        leaving the game a clean screen no splash pixel survives
+        on.
+        """
+
+        if pixels:
+            self._blank_glass()
+
+            scale = _pixel_scale(picture, self.screen_columns, self.screen_lines)
+            width_cells = picture.width * scale // CELL_WIDTH_FLOOR
+            left = max(0, (self.screen_columns - width_cells) // 2)
+
+            self._out(self._terminal.move_xy(left, 0) + sixel_encode(picture, scale))
+            self.read_key()
+            self._blank_glass()
+
+            return
+
+        pixels_grid = _fitted(picture, self.screen_columns, self.screen_lines * 2)
+        left = (self.screen_columns - len(pixels_grid[0])) // 2
+        top = (self.screen_lines - (len(pixels_grid) + 1) // 2) // 2
+
+        self._blank_glass()
+
+        for index in range(0, len(pixels_grid), 2):
+            upper = pixels_grid[index]
+            lower = pixels_grid[index + 1] if index + 1 < len(pixels_grid) else None
+            pieces = [self._terminal.move_xy(left, top + index // 2)]
+
+            for column, (red, green, blue) in enumerate(upper):
+                below = lower[column] if lower is not None else (0, 0, 0)
+                pieces.append(self._terminal.color_rgb(red, green, blue))
+                pieces.append(self._terminal.on_color_rgb(*below))
+                pieces.append("▀")
+
+            pieces.append(self._terminal.normal)
+            self._out("".join(pieces))
+
+        self.read_key()
+        self._blank_glass()
+
+    def _blank_glass(self) -> None:
+        """Paint every row of the (still blank) model over the glass."""
+
+        for row in range(1, self._model.lines + 1):
+            self._paint_row(row)
+
     def _repaint(self) -> None:
         """Redraw every damaged row, then park the cursor."""
 
@@ -526,6 +600,65 @@ class ScreenFrontend:
 
         row, column = self._model.cursor
         self._out(self._terminal.move_xy(column - 1, row - 1))
+
+
+def _pixel_scale(picture: Picture, columns: int, lines: int) -> int:
+    """The whole-number magnification a sixel cover certainly fits.
+
+    The glass is measured in cells, its pixel size unknown, so the
+    bound assumes the narrowest cells a modern display shows; a
+    picture too large even unmagnified draws at native size and
+    lets the terminal clip its edge.
+    """
+
+    width_bound = columns * CELL_WIDTH_FLOOR // picture.width
+    height_bound = lines * CELL_HEIGHT_FLOOR // picture.height
+
+    return max(1, min(width_bound, height_bound))
+
+
+def _fitted(
+    picture: Picture, columns: int, rows: int
+) -> list[list[tuple[int, int, int]]]:
+    """Scale a picture onto a pixel canvas, averaging boxes.
+
+    The canvas is the glass in half-block pixels: the screen's
+    columns wide, twice its lines tall. A picture larger than the
+    canvas shrinks to fit, keeping its shape; a smaller one stays
+    its own size.
+    """
+
+    scale = min(columns / picture.width, rows / picture.height, 1.0)
+    width = max(1, int(picture.width * scale))
+    height = max(1, int(picture.height * scale))
+    fitted = []
+
+    for target_row in range(height):
+        row_first = target_row * picture.height // height
+        row_last = max(row_first + 1, (target_row + 1) * picture.height // height)
+        row = []
+
+        for target_column in range(width):
+            first = target_column * picture.width // width
+            last = max(first + 1, (target_column + 1) * picture.width // width)
+            red = 0
+            green = 0
+            blue = 0
+            count = 0
+
+            for source_row in range(row_first, row_last):
+                for source_column in range(first, last):
+                    pixel = picture.rows[source_row][source_column]
+                    red += pixel[0]
+                    green += pixel[1]
+                    blue += pixel[2]
+                    count += 1
+
+            row.append((red // count, green // count, blue // count))
+
+        fitted.append(row)
+
+    return fitted
 
 
 def _stdout_write(text: str) -> None:
