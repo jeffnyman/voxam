@@ -246,6 +246,9 @@ class ScreenFrontend:
     # blocks, arrows, runes -- so character graphics are honestly
     # on offer here (§8.1.5.1).
     has_character_graphics = True
+    # The §8.3.1 codes 2 to 9 paint as the terminal's own eight
+    # colours through COLOUR_NAMES, so the claim is honest (§8.3.3).
+    has_colours = True
 
     def __init__(
         self,

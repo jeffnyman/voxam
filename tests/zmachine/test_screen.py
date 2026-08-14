@@ -20,12 +20,14 @@ class ScreenRecorder:
     has_timed_input = False
     has_sounds = False
     has_character_graphics = False
+    has_colours = False
     screen_lines = 24
     screen_columns = 80
 
     def __init__(self) -> None:
         self.styles: list[int] = []
         self.fonts: list[int] = []
+        self.colours: list[tuple[int, int]] = []
         self.erased: list[int] = []
         self.buffering: list[bool] = []
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
@@ -46,6 +48,9 @@ class ScreenRecorder:
 
     def set_font(self, font: int) -> None:
         self.fonts.append(font)
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        self.colours.append((foreground, background))
 
     def erase_window(self, window: int) -> None:
         self.erased.append(window)
@@ -210,6 +215,34 @@ def test_colour_requests_are_no_ops_without_colour(
     machine.run()
 
     assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+# Where the frontend claims colours, the §8.3.1 pair is forwarded:
+# red type on a cyan screen, exactly as asked.
+def test_colours_reach_a_frontend_that_claims_them() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_colours = True
+    machine = Machine(
+        screen_story(bytes([0x1B, 0x03, 0x08, 0xBA]), version=5), frontend, lambda: ""
+    )
+
+    machine.run()
+
+    assert_that(frontend.colours).is_equal_to([(3, 8)])
+
+
+# The 15-bit form is its own claim, made in the header extension's
+# flags, and Voxam does not make it: set_true_colour stays quiet
+# even where the classic colours are on offer (§8.3.7).
+def test_true_colour_stays_quiet_even_with_colours() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_colours = True
+    program = bytes([0xBE, 0x0D, 0x2F, 0x7F, 0xFF, 0x00, 0xBA])
+    machine = Machine(screen_story(program, version=5), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(frontend.colours).is_empty()
 
 
 # set_font grants the fonts on offer and stores the font each one

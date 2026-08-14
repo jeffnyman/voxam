@@ -42,6 +42,7 @@ class Recorder:
     has_timed_input = True
     has_sounds = False
     has_character_graphics = False
+    has_colours = False
     screen_lines = 24
     screen_columns = 64
 
@@ -63,6 +64,9 @@ class Recorder:
 
     def set_font(self, font: int) -> None:
         """Discard: the status tests never change fonts."""
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Discard: the status tests never change colours."""
 
     def write_rectangle(self, rows: Sequence[str]) -> None:
         """Discard: the status tests never print rectangles."""
@@ -96,6 +100,12 @@ class GraphicsRecorder(Recorder):
     """A frontend that can also draw the §16 font."""
 
     has_character_graphics = True
+
+
+class ColourRecorder(Recorder):
+    """A frontend that can also show coloured text (§8.3)."""
+
+    has_colours = True
 
 
 def status_story(code: bytes, version: int = 3, flags: int = 0) -> Story:
@@ -265,6 +275,25 @@ def test_v5_boot_answers_the_graphics_font_request() -> None:
     graphical = Machine(story, GraphicsRecorder(), lambda: "")
 
     assert_that(graphical.memory.read_byte(0x11) & 0x08).is_equal_to(0x08)
+
+
+# A Version 5 boot answers the colour question both ways: bit 0 of
+# Flags 1 says whether colours are on offer, and the default
+# background and foreground codes land at $2c/$2d either way --
+# black and white are still a background and a foreground (§8.3.2,
+# §8.3.3).
+def test_v5_boot_declares_the_colour_offer() -> None:
+    story = status_story(bytes([0xBA]), version=5)
+
+    plain = Machine(story, Recorder(), lambda: "")
+
+    assert_that(plain.memory.read_byte(FLAGS_1) & 0x01).is_zero()
+    assert_that(plain.memory.read_byte(0x2C)).is_equal_to(2)
+    assert_that(plain.memory.read_byte(0x2D)).is_equal_to(9)
+
+    coloured = Machine(story, ColourRecorder(), lambda: "")
+
+    assert_that(coloured.memory.read_byte(FLAGS_1) & 0x01).is_equal_to(0x01)
 
 
 # Versions 1 and 2 predate every capability bit: their headers boot

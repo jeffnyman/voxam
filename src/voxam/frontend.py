@@ -83,6 +83,7 @@ class Frontend(Protocol):
             play (§9).
         has_character_graphics: Whether the §16 character graphics
             font can be drawn (§8.1.5.1).
+        has_colours: Whether coloured text can be shown (§8.3).
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -97,6 +98,7 @@ class Frontend(Protocol):
     has_timed_input: bool
     has_sounds: bool
     has_character_graphics: bool
+    has_colours: bool
     screen_lines: int
     screen_columns: int
 
@@ -128,6 +130,14 @@ class Frontend(Protocol):
         Only fonts the machine granted arrive here: the normal
         font 1, the fixed-pitch font 4, and -- where character
         graphics were claimed -- the §16 font 3.
+        """
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Change the printing colours for text that follows (§8.3.1).
+
+        The codes are §8.3.1's: 0 keeps a colour current, 1 is the
+        interpreter's default, and 2 to 9 name the colours. Only
+        frontends that claimed colours receive the change.
         """
 
     def erase_window(self, window: int) -> None:
@@ -182,6 +192,9 @@ class PlainFrontend:
     # a map drawn in gibberish letters -- so the stream refuses the
     # font and games draw with plainer characters instead (§8.1.5.1).
     has_character_graphics = False
+    # A transcript prints in ink it does not choose; the header says
+    # so, and colour requests legally pass unanswered (§8.3.2).
+    has_colours = False
     screen_lines = 255
     screen_columns = 80
 
@@ -243,6 +256,14 @@ class PlainFrontend:
         Character graphics were refused in the header, so only the
         normal and fixed-pitch fonts ever arrive -- and a plain
         stream is already fixed-pitch (§8.1).
+        """
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Drop the colours: none were claimed, and §8.3.2 permits that.
+
+        The machine only forwards colours a frontend claimed, so
+        nothing arrives here; the method stands for the protocol's
+        sake.
         """
 
     def erase_window(self, window: int) -> None:
