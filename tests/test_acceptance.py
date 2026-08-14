@@ -52,6 +52,51 @@ plain command
     )
 
 
+# A <key> line presses a special key: the cursor tokens translate
+# to their §3.8.4 input characters, case-blind, and the escape key
+# rides along. The `> <key>` prompt form stays a literal command --
+# the hatch for a game that really wants angle brackets.
+def test_key_tokens_press_their_characters(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=games/bz.z5
+<down>
+<UP>
+<left>
+<right>
+<escape>
+> <down>
+""",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to(
+        ("\x82", "\x81", "\x83", "\x84", "\x1b", "<down>")
+    )
+
+
+# A token naming no known key is a typo, and a typo must not
+# quietly type its letters into the game.
+def test_unknown_key_tokens_fail_loudly(tmp_path: Path) -> None:
+    path = script_file(tmp_path, "! GAME=g.z5\n<f9>\n")
+
+    with pytest.raises(AcceptanceError, match=r"unknown key.*the keys are"):
+        AcceptanceScript.parse(path)
+
+
+# The replay transcript shows a pressed key as its token, never as
+# the raw control character a piped console could not encode.
+def test_replay_echoes_key_tokens_readably() -> None:
+    echoed: list[str] = []
+    source = replay(["\x82", "look"], echoed.append)
+
+    assert_that(source()).is_equal_to("\x82")
+    assert_that(source()).is_equal_to("look")
+    assert_that(echoed).is_equal_to(["<down>\n", "look\n"])
+
+
 # A relative game path counts from the script's own directory, so a
 # script replays identically whatever directory it is run from; an
 # absolute path passes through.
