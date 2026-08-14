@@ -10,13 +10,13 @@ Writing always compresses (CMem); reading accepts both forms, as
 Quetzal §3.6 requires.
 """
 
-from voxam.errors import ZMachineQuetzalError
+from voxam.errors import IFFError, ZMachineQuetzalError
+from voxam.iff import Chunk, parse_form, write_form
 from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
 
-# The FORM type of a saved game is IFZS (Quetzal §2.1); FORM itself
-# is the single outer chunk of any simple IFF file (Quetzal §8.5).
-FORM_ID = b"FORM"
+# The FORM type of a saved game is IFZS (Quetzal §2.1); the FORM
+# container itself is voxam.iff's business.
 SAVE_FORM = b"IFZS"
 
 # The chunks this codec understands. Anything else is skipped
@@ -25,12 +25,7 @@ IFHD_ID = b"IFhd"
 CMEM_ID = b"CMem"
 UMEM_ID = b"UMem"
 STKS_ID = b"Stks"
-
-# A chunk is an ID, a 32-bit big-endian length, and that many bytes
-# of data (Quetzal §8.3, §8.4); odd data gains a pad byte the length
-# does not count (Quetzal §8.4.1).
-CHUNK_HEADER_SIZE = 8
-LENGTH_SIZE = 4
+KNOWN_CHUNKS = (IFHD_ID, CMEM_ID, UMEM_ID, STKS_ID)
 
 # IFhd carries release, serial, checksum, and a 3-byte PC -- 13
 # bytes now, possibly more one day, but the first 13 are guaranteed
@@ -92,14 +87,14 @@ def write(snapshot: Snapshot, story: Story) -> bytes:
 
         raise ZMachineQuetzalError(msg)
 
-    chunks = (
-        _chunk(IFHD_ID, _encode_identity(snapshot.pc, story))
-        + _chunk(CMEM_ID, _compress(dynamic, story))
-        + _chunk(STKS_ID, _encode_frames(snapshot.frames))
+    return write_form(
+        SAVE_FORM,
+        (
+            Chunk(IFHD_ID, _encode_identity(snapshot.pc, story)),
+            Chunk(CMEM_ID, _compress(dynamic, story)),
+            Chunk(STKS_ID, _encode_frames(snapshot.frames)),
+        ),
     )
-    body = SAVE_FORM + chunks
-
-    return FORM_ID + len(body).to_bytes(LENGTH_SIZE, "big") + body
 
 
 def read(data: bytes, story: Story) -> Snapshot:
@@ -129,14 +124,6 @@ def read(data: bytes, story: Story) -> Snapshot:
     frames = _decode_frames(stks)
 
     return Snapshot(dynamic_memory=dynamic, pc=pc, frames=frames)
-
-
-def _chunk(chunk_id: bytes, payload: bytes) -> bytes:
-    """Wrap a payload as an IFF chunk, padding odd data (Quetzal §8.4.1)."""
-
-    pad = b"\x00" if len(payload) % 2 else b""
-
-    return chunk_id + len(payload).to_bytes(LENGTH_SIZE, "big") + payload + pad
 
 
 def _identity(story: Story) -> bytes:
@@ -430,80 +417,54 @@ def _split(data: bytes) -> tuple[bytes, tuple[bytes, bytes], bytes]:
 
 
 def _walk(data: bytes) -> dict[bytes, bytes]:
-    """Walk the IFF container, collecting the chunks this codec knows.
+    """Collect the chunks this codec knows from the IFF container.
 
-    Unknown chunks are skipped unread (Quetzal §7.17, §8.6), and odd
-    chunks stride over their pad byte (Quetzal §8.4.1).
+    The container itself -- FORM framing, chunk lengths, pad bytes
+    -- is voxam.iff's business; this walk applies the Quetzal rules
+    on top: only an IFZS FORM will do, the known chunks may not
+    double, IFhd must come first (Quetzal §5.4), and unknown chunks
+    are skipped unread, as extension chunks must be (Quetzal §7.17,
+    §8.6).
 
     Raises:
         ZMachineQuetzalError: If the bytes are not an IFZS FORM, a
             chunk is truncated or doubled, or IFhd does not come
-            first (Quetzal §5.4).
+            first.
     """
 
-    if len(data) < CHUNK_HEADER_SIZE + LENGTH_SIZE or data[:4] != FORM_ID:
-        msg = "not an IFF file: no FORM chunk to open it (Quetzal §8.5)"
+    try:
+        form_type, chunks = parse_form(data)
+    except IFFError as error:
+        raise ZMachineQuetzalError(str(error)) from error
 
-        raise ZMachineQuetzalError(msg)
-
-    length = int.from_bytes(data[4:8], "big")
-
-    if CHUNK_HEADER_SIZE + length > len(data):
+    if form_type != SAVE_FORM:
         msg = (
-            f"the FORM chunk claims {length} bytes, but the file has "
-            f"only {len(data) - CHUNK_HEADER_SIZE} after its header "
-            f"(Quetzal §8.3.5)"
-        )
-
-        raise ZMachineQuetzalError(msg)
-
-    if data[8:12] != SAVE_FORM:
-        msg = (
-            f"the FORM type is {data[8:12]!r}, not the IFZS of a "
+            f"the FORM type is {form_type!r}, not the IFZS of a "
             f"saved game (Quetzal §2.1)"
         )
 
         raise ZMachineQuetzalError(msg)
 
     found: dict[bytes, bytes] = {}
-    position = 12
-    end = CHUNK_HEADER_SIZE + length
 
-    while position < end:
-        if position + CHUNK_HEADER_SIZE > end:
-            msg = "a chunk is cut short mid-header (Quetzal §8.3.1)"
+    for piece in chunks:
+        if piece.chunk_id not in KNOWN_CHUNKS:
+            continue
+
+        if piece.chunk_id in found:
+            msg = f"the {piece.chunk_id!r} chunk appears twice (Quetzal §7.18)"
 
             raise ZMachineQuetzalError(msg)
 
-        chunk_id = data[position : position + 4]
-        size = int.from_bytes(data[position + 4 : position + 8], "big")
-        position += CHUNK_HEADER_SIZE
-
-        if position + size > end:
+        if piece.chunk_id != IFHD_ID and IFHD_ID not in found:
             msg = (
-                f"the {chunk_id!r} chunk claims {size} bytes, but the "
-                f"FORM ends before them (Quetzal §8.4)"
+                f"the {piece.chunk_id!r} chunk arrives before IFhd, which "
+                f"must come first (Quetzal §5.4)"
             )
 
             raise ZMachineQuetzalError(msg)
 
-        if chunk_id in (IFHD_ID, CMEM_ID, UMEM_ID, STKS_ID):
-            if chunk_id in found:
-                msg = f"the {chunk_id!r} chunk appears twice (Quetzal §7.18)"
-
-                raise ZMachineQuetzalError(msg)
-
-            if chunk_id != IFHD_ID and IFHD_ID not in found:
-                msg = (
-                    f"the {chunk_id!r} chunk arrives before IFhd, which "
-                    f"must come first (Quetzal §5.4)"
-                )
-
-                raise ZMachineQuetzalError(msg)
-
-            found[chunk_id] = data[position : position + size]
-
-        position += size + size % 2
+        found[piece.chunk_id] = piece.payload
 
     return found
 
