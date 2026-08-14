@@ -155,6 +155,7 @@ def test_plain_frontend_claims_a_bare_infinite_stream() -> None:
     assert_that(frontend.has_timed_input).is_true()
     assert_that(frontend.has_sounds).is_false()
     assert_that(frontend.has_character_graphics).is_false()
+    assert_that(frontend.has_colours).is_false()
     assert_that(frontend.screen_lines).is_equal_to(255)
     assert_that(frontend.screen_columns).is_equal_to(80)
 

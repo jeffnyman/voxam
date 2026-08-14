@@ -143,6 +143,11 @@ INTERRUPT_TERMINATOR = 0
 FONT_REFUSED = 0
 FONT_UNIT = 1
 
+# The conventional palette claim at $2c/$2d, as §8.3.1 codes: white
+# type on a black screen (§8.3.3).
+DEFAULT_FOREGROUND_COLOUR = 9
+DEFAULT_BACKGROUND_COLOUR = 2
+
 # From Version 5, read's text buffer changes shape: byte 0 is the
 # whole capacity, the typed count lands in byte 1, and the letters
 # run from byte 2 with no terminator -- where Versions 1 to 4 put a
@@ -405,6 +410,11 @@ class Machine:
                 header.declare_font_size(width=FONT_UNIT, height=FONT_UNIT)
                 header.declare_character_graphics(
                     available=self._frontend.has_character_graphics
+                )
+                header.declare_colours(
+                    available=self._frontend.has_colours,
+                    foreground=DEFAULT_FOREGROUND_COLOUR,
+                    background=DEFAULT_BACKGROUND_COLOUR,
                 )
 
     def snapshot(self) -> Snapshot:
@@ -1875,12 +1885,28 @@ class Machine:
     def _op_set_colour(self, instruction: Instruction) -> None:
         """Set text colours -- where coloured text is available (§8.3.1).
 
-        The spec's own conditional does the work: this frontend
-        truthfully declares no colour in the header, so the request
-        is legitimately a no-op, exactly as a monochrome terminal of
-        the era would treat it. The blessed frontend will grow a
-        real seam here. Covers set_true_colour too, whose 15-bit
-        colours (§8.3.7) reduce the same way.
+        The spec's own conditional does the work both ways: a
+        frontend that claimed colours in the header receives the
+        pair, and one that truthfully declared none makes the
+        request a legitimate no-op, exactly as a monochrome
+        terminal of the era would treat it.
+        """
+
+        if self._frontend.has_colours:
+            self._frontend.set_colour(
+                self._value(instruction.operands[0]),
+                self._value(instruction.operands[1]),
+            )
+
+        self._pc = instruction.next_address
+
+    def _op_set_true_colour(self, instruction: Instruction) -> None:
+        """Let a 15-bit colour request pass unanswered (§8.3.7).
+
+        True colour is its own claim, made in the header
+        extension's flags word, and Voxam does not make it -- so
+        the request reduces to the conforming quiet, with or
+        without the classic §8.3.1 colours on offer.
         """
 
         self._pc = instruction.next_address
@@ -2541,7 +2567,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "save_undo": Machine._op_save_undo,
     "scan_table": Machine._op_scan_table,
     "set_colour": Machine._op_set_colour,
-    "set_true_colour": Machine._op_set_colour,
+    "set_true_colour": Machine._op_set_true_colour,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,
     "storew": Machine._op_storew,

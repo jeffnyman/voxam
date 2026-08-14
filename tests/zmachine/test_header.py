@@ -327,6 +327,30 @@ def test_screen_unit_fields_begin_at_version_5() -> None:
         header.declare_screen_units(width=80, height=24)
 
 
+# The colour offer is bit 0 of Flags 1, written both ways, and the
+# default background and foreground codes land at $2c and $2d
+# (§8.3.2, §8.3.3).
+def test_colour_declarations_write_the_offer_and_defaults() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    header.declare_colours(available=True, foreground=9, background=2)
+
+    assert_that(header.data[1] & 0x01).is_equal_to(0x01)
+    assert_that(header.data[0x2C]).is_equal_to(2)
+    assert_that(header.data[0x2D]).is_equal_to(9)
+
+    header.declare_colours(available=False, foreground=9, background=2)
+
+    assert_that(header.data[1] & 0x01).is_zero()
+
+
+def test_colour_fields_begin_at_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="no colour fields"):
+        header.declare_colours(available=True, foreground=9, background=2)
+
+
 # The Tandy bit belongs to Version 3's Flags 1 alone: from Version
 # 4 the same bit means italics (§11.1.4).
 def test_the_tandy_bit_ends_at_version_3() -> None:
