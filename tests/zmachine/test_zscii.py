@@ -258,7 +258,7 @@ def test_zscii_output_codes(code: int, expected: str) -> None:
     assert_that(zscii_to_char(code)).is_equal_to(expected)
 
 
-@pytest.mark.parametrize("code", [12, 127, 252])
+@pytest.mark.parametrize("code", [9, 11, 12, 127, 252])
 def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(code)

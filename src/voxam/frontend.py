@@ -9,7 +9,7 @@ honestly claimed.
 """
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -27,6 +27,16 @@ UNSPLIT_AND_CLEAR = -1
 # mute the first and show the second, and the split height is the
 # tell (Trinity's status bar is 1 line; its title card is 14).
 STATUS_CHROME_LINES = 2
+
+# The §8.1.2 font IDs: the normal font, a picture font no
+# interpreter should implement (§8.1.4), the §16 character graphics
+# font Beyond Zork draws its maps in, and a fixed-pitch Courier.
+# Selecting font 0 changes nothing and asks which font is current.
+NORMAL_FONT = 1
+PICTURE_FONT = 2
+GRAPHICS_FONT = 3
+COURIER_FONT = 4
+CURRENT_FONT = 0
 
 
 @dataclass(frozen=True)
@@ -71,6 +81,8 @@ class Frontend(Protocol):
             timer (§15 read).
         has_sounds: Whether sampled sound effects can actually
             play (§9).
+        has_character_graphics: Whether the §16 character graphics
+            font can be drawn (§8.1.5.1).
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -84,11 +96,21 @@ class Frontend(Protocol):
     has_fixed_pitch: bool
     has_timed_input: bool
     has_sounds: bool
+    has_character_graphics: bool
     screen_lines: int
     screen_columns: int
 
     def write(self, text: str) -> None:
         """Show story text from the print stream."""
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Print a rectangle of text, right and down from the cursor.
+
+        The shape of §15 print_table: each row after the first
+        begins one line down, at the column where the rectangle
+        began -- how Beyond Zork stamps its map beside the story.
+        A frontend without a cursor renders the rows as lines.
+        """
 
     def show_status(self, status: Status) -> None:
         """Present a freshly assembled status line (§8.2)."""
@@ -98,6 +120,14 @@ class Frontend(Protocol):
 
         The style is a bitmask: 0 returns to roman, 1 is reverse
         video, 2 boldface, 4 italic, 8 fixed pitch.
+        """
+
+    def set_font(self, font: int) -> None:
+        """Change the typeface for text that follows (§8.1.2).
+
+        Only fonts the machine granted arrive here: the normal
+        font 1, the fixed-pitch font 4, and -- where character
+        graphics were claimed -- the §16 font 3.
         """
 
     def erase_window(self, window: int) -> None:
@@ -148,6 +178,10 @@ class PlainFrontend:
     # Sampled sounds wait on the blessed frontend and its Blorb-era
     # machinery; a transcript stream plays nothing, and says so.
     has_sounds = False
+    # Font 3's shapes would print as their Latin stand-ins here --
+    # a map drawn in gibberish letters -- so the stream refuses the
+    # font and games draw with plainer characters instead (§8.1.5.1).
+    has_character_graphics = False
     screen_lines = 255
     screen_columns = 80
 
@@ -177,6 +211,21 @@ class PlainFrontend:
             self._write(text)
             self._upper_column += len(text)
 
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Render the §15 rectangle as stacked lines.
+
+        A stream has no cursor column to return to, so the rows
+        become ordinary lines through the same muting rules as any
+        other text -- exactly the transcript §15's remark expects
+        of a plain screen model.
+        """
+
+        for index, row in enumerate(rows):
+            if index:
+                self.write("\n")
+
+            self.write(row)
+
     def show_status(self, status: Status) -> None:
         """Drop the status: a plain stream has no line to keep it on."""
 
@@ -186,6 +235,14 @@ class PlainFrontend:
         The header declared no boldface and no italic, so a game
         asking for them is asking politely for something it was told
         does not exist.
+        """
+
+    def set_font(self, font: int) -> None:
+        """Drop the change: fonts 1 and 4 are both this one stream.
+
+        Character graphics were refused in the header, so only the
+        normal and fixed-pitch fonts ever arrive -- and a plain
+        stream is already fixed-pitch (§8.1).
         """
 
     def erase_window(self, window: int) -> None:

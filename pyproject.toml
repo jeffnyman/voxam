@@ -103,6 +103,10 @@ ignore = [
   "D202",     # No blank lines allowed after function docstring
 ]
 
+# The §16 character graphics table maps font 3 to Unicode on purpose;
+# these are the glyphs ruff would otherwise read as typos for ASCII.
+allowed-confusables = ["╱", "╳", "ᛖ", "ᚷ", "ᛁ"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
   "D",        # test names already say what is being verified

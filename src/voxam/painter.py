@@ -16,11 +16,11 @@ terminal at all.
 """
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from typing import Protocol, cast
 
-from voxam.frontend import Status
+from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.screen import (
     BOLD,
     ITALIC,
@@ -58,6 +58,125 @@ DEFAULT_COLOUR = 1
 # paints as the classic 80 by 24 glass.
 FALLBACK_COLUMNS = 80
 FALLBACK_LINES = 24
+
+# The §16 character graphics font, one Unicode stand-in per 8x8
+# bitmap. Cells in font 3 hold the character code the game printed;
+# painting translates each to the nearest shape a terminal font
+# already has. The families, reading down the spec's table: arrows,
+# diagonals, single box-drawing lines with every join, the map's
+# solid blocks and their diagonal transitions, cell-edge strokes,
+# Beyond Zork's stat gauge as eighth-blocks, and the late Anglian
+# ("futhorc") runes the §16 remarks decode for a-z. Lossy cells are
+# rounded toward whatever keeps the drawn map connected, a call the
+# eyeball tests settled: a solid mass meeting a diagonal road keeps
+# its mass (a quadrant, not a triangle that bites the room corner),
+# and the single-pixel road tips continue their diagonal rather
+# than leaving a gap where the road reaches the room.
+FONT_3_CHARACTERS = {
+    " ": " ",  # 32: blank
+    "!": "←",  # 33: left arrow
+    '"': "→",  # 34: right arrow
+    "#": "╱",  # 35: diagonal, rising
+    "$": "╲",  # 36: diagonal, falling
+    "%": " ",  # 37: blank
+    "&": "─",  # 38: horizontal line, low
+    "'": "─",  # 39: horizontal line, high
+    "(": "│",  # 40: vertical line, right of centre
+    ")": "│",  # 41: vertical line, left of centre
+    "*": "┴",  # 42: line up, joined to a horizontal
+    "+": "┬",  # 43: line down, joined to a horizontal
+    ",": "├",  # 44: vertical joined rightward
+    "-": "┤",  # 45: vertical joined leftward
+    ".": "└",  # 46: corner, up and right
+    "/": "┌",  # 47: corner, down and right
+    "0": "┐",  # 48: corner, down and left
+    "1": "┘",  # 49: corner, up and left
+    "2": "└",  # 50: up-right corner, diagonal tail dropped
+    "3": "┌",  # 51: down-right corner, diagonal tail dropped
+    "4": "┐",  # 52: down-left corner, diagonal tail dropped
+    "5": "┘",  # 53: up-left corner, diagonal tail dropped
+    "6": "█",  # 54: solid block
+    "7": "▀",  # 55: block, upper five-eighths
+    "8": "▄",  # 56: block, lower five-eighths
+    "9": "▌",  # 57: block, left five-eighths
+    ":": "▐",  # 58: block, right five-eighths
+    ";": "▄",  # 59: lower block, line up dropped
+    "<": "▀",  # 60: upper block, line down dropped
+    "=": "▌",  # 61: left block, line right dropped
+    ">": "▐",  # 62: right block, line left dropped
+    "?": "▝",  # 63: quadrant, upper right
+    "@": "▗",  # 64: quadrant, lower right
+    "A": "▖",  # 65: quadrant, lower left
+    "B": "▘",  # 66: quadrant, upper left
+    "C": "▝",  # 67: upper-right mass meeting a diagonal
+    "D": "▗",  # 68: lower-right mass meeting a diagonal
+    "E": "▖",  # 69: lower-left mass meeting a diagonal
+    "F": "▘",  # 70: upper-left mass meeting a diagonal
+    "G": "╱",  # 71: top-right road tip
+    "H": "╲",  # 72: bottom-right road tip
+    "I": "╱",  # 73: bottom-left road tip
+    "J": "╲",  # 74: top-left road tip
+    "K": "▔",  # 75: top edge stroke
+    "L": "▁",  # 76: bottom edge stroke
+    "M": "▏",  # 77: left edge stroke
+    "N": "▕",  # 78: right edge stroke
+    "O": "═",  # 79: gauge rails, empty
+    "P": "▏",  # 80: gauge, one eighth full
+    "Q": "▎",  # 81: gauge, two eighths
+    "R": "▍",  # 82: gauge, three eighths
+    "S": "▌",  # 83: gauge, four eighths
+    "T": "▋",  # 84: gauge, five eighths
+    "U": "▊",  # 85: gauge, six eighths
+    "V": "▉",  # 86: gauge, seven eighths
+    "W": "█",  # 87: gauge, full
+    "X": "▕",  # 88: gauge, right rim
+    "Y": "▏",  # 89: gauge, left rim
+    "Z": "╳",  # 90: diagonal cross
+    "[": "┼",  # 91: four-way join
+    "\\": "↑",  # 92: up arrow
+    "]": "↓",  # 93: down arrow
+    "^": "↕",  # 94: up-down arrow
+    "_": "□",  # 95: outlined box
+    "`": "?",  # 96: a drawn question mark
+    "a": "ᚪ",  # 97: rune ac
+    "b": "ᛒ",  # 98: rune beorc
+    "c": "ᛇ",  # 99: rune eoh, the eo of the §16 remarks
+    "d": "ᛞ",  # 100: rune daeg
+    "e": "ᛖ",  # 101: rune eh
+    "f": "ᚠ",  # 102: rune feoh
+    "g": "ᚷ",  # 103: rune gyfu
+    "h": "ᚻ",  # 104: rune haegl
+    "i": "ᛁ",  # 105: rune is
+    "j": "ᛄ",  # 106: rune ger
+    "k": "ᛣ",  # 107: rune calc, the "other k"
+    "l": "ᛚ",  # 108: rune lagu
+    "m": "ᛗ",  # 109: rune man
+    "n": "ᚾ",  # 110: rune nyd
+    "o": "ᚩ",  # 111: rune os
+    "p": "ᛈ",  # 112: rune peorth
+    "q": "ᚳ",  # 113: rune cen, the Anglian k
+    "r": "ᚱ",  # 114: rune rad
+    "s": "ᛋ",  # 115: rune sigel
+    "t": "ᛏ",  # 116: rune tir
+    "u": "ᚢ",  # 117: rune ur
+    "v": "ᛠ",  # 118: rune ear
+    "w": "ᚹ",  # 119: rune wynn
+    "x": "ᛉ",  # 120: rune eolh, standing in for z
+    "y": "ᚣ",  # 121: rune yr
+    "z": "ᛟ",  # 122: rune ethel, standing in for oe
+}
+
+# Codes 123 to 126 are the reverse-video twins of the up arrow, the
+# down arrow, the double arrow, and the question mark -- the §16
+# bitmaps invert them pixel for pixel. Beyond Zork highlights its
+# scrolling markers with them, so the painter draws the same shape
+# and flips reverse video instead.
+FONT_3_REVERSED = {
+    "{": "↑",  # 123: up arrow, reversed
+    "|": "↓",  # 124: down arrow, reversed
+    "}": "↕",  # 125: up-down arrow, reversed
+    "~": "?",  # 126: question mark, reversed
+}
 
 
 class Terminal(Protocol):
@@ -109,6 +228,10 @@ class ScreenFrontend:
     has_fixed_pitch = True
     has_timed_input = True
     has_sounds = False
+    # The §16 font paints as Unicode stand-ins -- box drawing,
+    # blocks, arrows, runes -- so character graphics are honestly
+    # on offer here (§8.1.5.1).
+    has_character_graphics = True
 
     def __init__(
         self,
@@ -158,6 +281,12 @@ class ScreenFrontend:
         self._model.write(text)
         self._repaint()
 
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Print a §15 rectangle through the model, then repaint."""
+
+        self._model.write_rectangle(rows)
+        self._repaint()
+
     def show_status(self, status: Status) -> None:
         """Draw the Version 3 status line (§8.2)."""
 
@@ -168,6 +297,11 @@ class ScreenFrontend:
         """Change the style for text that follows (§8.7.1)."""
 
         self._model.set_style(style)
+
+    def set_font(self, font: int) -> None:
+        """Change the font for text that follows (§8.1.2)."""
+
+        self._model.set_font(font)
 
     def set_colour(self, foreground: int, background: int) -> None:
         """Change the colours for text that follows (§8.3.1)."""
@@ -280,29 +414,47 @@ class ScreenFrontend:
 
         for column in range(1, self._model.columns + 1):
             cell = self._model.cell(row, column)
-            wanted = (cell.style, cell.foreground, cell.background)
+            character, style = self._appearance(cell)
+            wanted = (style, cell.foreground, cell.background)
 
             if wanted != dress:
-                pieces.append(self._sequences(cell))
+                pieces.append(self._sequences(style, cell))
                 dress = wanted
 
-            pieces.append(cell.character)
+            pieces.append(character)
 
         pieces.append(self._terminal.normal)
         self._out("".join(pieces))
 
-    def _sequences(self, cell: Cell) -> str:
-        """The style and colour sequences dressing one cell."""
+    def _appearance(self, cell: Cell) -> tuple[str, int]:
+        """The character and style one cell paints as (§16).
+
+        Cells in the character graphics font translate to their
+        Unicode stand-ins; the four reverse-video shapes flip
+        reverse instead of carrying it in the glyph. Every other
+        font paints its characters as they are.
+        """
+
+        if cell.font != GRAPHICS_FONT:
+            return cell.character, cell.style
+
+        if cell.character in FONT_3_REVERSED:
+            return FONT_3_REVERSED[cell.character], cell.style ^ REVERSE
+
+        return FONT_3_CHARACTERS.get(cell.character, cell.character), cell.style
+
+    def _sequences(self, style: int, cell: Cell) -> str:
+        """The sequences dressing one cell, in its painted style."""
 
         pieces = [self._terminal.normal]
 
-        if cell.style & REVERSE:
+        if style & REVERSE:
             pieces.append(self._terminal.reverse)
 
-        if cell.style & BOLD:
+        if style & BOLD:
             pieces.append(self._terminal.bold)
 
-        if cell.style & ITALIC:
+        if style & ITALIC:
             pieces.append(self._terminal.italic)
 
         if cell.foreground in COLOUR_NAMES:

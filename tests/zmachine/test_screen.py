@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 import pytest
 from assertpy import assert_that
@@ -19,24 +19,33 @@ class ScreenRecorder:
     has_fixed_pitch = True
     has_timed_input = False
     has_sounds = False
+    has_character_graphics = False
     screen_lines = 24
     screen_columns = 80
 
     def __init__(self) -> None:
         self.styles: list[int] = []
+        self.fonts: list[int] = []
         self.erased: list[int] = []
         self.buffering: list[bool] = []
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
         self.bleeps: list[int] = []
+        self.rectangles: list[tuple[str, ...]] = []
 
     def write(self, text: str) -> None:
         """Discard: these programs print nothing."""
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        self.rectangles.append(tuple(rows))
 
     def show_status(self, status: Status) -> None:
         """Discard: version 4 has no status line to show."""
 
     def set_style(self, style: int) -> None:
         self.styles.append(style)
+
+    def set_font(self, font: int) -> None:
+        self.fonts.append(font)
 
     def erase_window(self, window: int) -> None:
         self.erased.append(window)
@@ -201,3 +210,104 @@ def test_colour_requests_are_no_ops_without_colour(
     machine.run()
 
     assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+
+
+# set_font grants the fonts on offer and stores the font each one
+# replaced, always positive: font 3 on a graphics-claiming frontend
+# stores the normal font 1 it displaced, font 0 asks which font is
+# current without changing it, and returning to font 1 stores the 3
+# it replaces (§15 set_font). Only the granted changes reach the
+# frontend.
+def test_set_font_stores_the_font_it_replaces() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_character_graphics = True
+    program = bytes(
+        [
+            *[0xBE, 0x04, 0x7F, 0x03, 0x10],
+            *[0xBE, 0x04, 0x7F, 0x00, 0x11],
+            *[0xBE, 0x04, 0x7F, 0x01, 0x12],
+            0xBA,
+        ]
+    )
+    machine = Machine(screen_story(program, version=5), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(1)
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(3)
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(3)
+    assert_that(frontend.fonts).is_equal_to([3, 1])
+
+
+# The refusals all store 0 and change nothing: character graphics
+# where none were claimed (§8.1.5.1), the picture font by
+# instruction (§8.1.4), and the numbers no Standard has yet defined
+# (§8.1.6). The fixed-pitch font is always granted -- a character
+# terminal is Courier all the way down (§8.1.2).
+def test_set_font_refuses_what_is_not_on_offer(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xBE, 0x04, 0x7F, 0x03, 0x10],
+            *[0xBE, 0x04, 0x7F, 0x02, 0x11],
+            *[0xBE, 0x04, 0x7F, 0x63, 0x12],
+            *[0xBE, 0x04, 0x7F, 0x04, 0x13],
+            0xBA,
+        ]
+    )
+    machine = code_machine(program, version=5)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(0)
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(0)
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(0)
+    assert_that(machine.memory.read_word(0x106)).is_equal_to(1)
+
+
+# §15 print_table: the rectangle reaches a screen frontend as rows,
+# to spread right and down from wherever its cursor stands -- the
+# shape Beyond Zork's map is stamped in.
+def test_print_table_hands_the_frontend_a_rectangle() -> None:
+    frontend = ScreenRecorder()
+    machine = Machine(
+        screen_story(bytes([0xFE, 0x17, 0x01, 0x20, 0x02, 0x02, 0xBA]), version=5),
+        frontend,
+        lambda: "",
+    )
+
+    for offset, character in enumerate("ABCD"):
+        machine.memory.write_byte(0x120 + offset, ord(character))
+
+    machine.run()
+
+    assert_that(frontend.rectangles).is_equal_to([("AB", "CD")])
+
+
+# A restart returns the font to normal along with the rest of the
+# interpreter's bookkeeping, and tells the frontend so its screen
+# agrees (§6.1.3). The program rides Flags 2, the one word restart
+# preserves: the first run sets a spare bit, chooses font 3, and
+# restarts; the second finds the bit, asks set_font 0 which font
+# survived, and quits.
+def test_restart_returns_the_font_to_normal() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_character_graphics = True
+    program = bytes(
+        [
+            *[0x10, 0x00, 0x11, 0x00],  # loadb 0 $11 -> sp
+            *[0xA0, 0x00, 0xC8],  # jz sp ?first-run
+            *[0xBE, 0x04, 0x7F, 0x00, 0x10],  # set_font 0 -> g0
+            0xBA,  # quit
+            *[0xE2, 0x57, 0x00, 0x11, 0x01],  # storeb 0 $11 1
+            *[0xBE, 0x04, 0x7F, 0x03, 0x00],  # set_font 3 -> sp
+            0xB7,  # restart
+        ]
+    )
+    machine = Machine(screen_story(program, version=5), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(1)
+    assert_that(frontend.fonts).is_equal_to([3, 1])
