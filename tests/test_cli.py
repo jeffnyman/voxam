@@ -57,6 +57,18 @@ def test_main_prints_banner(capsys: pytest.CaptureFixture[str]) -> None:
     assert_that(capsys.readouterr().out).contains("Voxam")
 
 
+# A stream without the encoding knob -- a bare StringIO -- is left
+# as it is; everything Voxam prints is unicode-clean already.
+def test_main_survives_a_stream_without_reconfigure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stream)
+
+    assert_that(main([])).is_equal_to(0)
+    assert_that(stream.getvalue()).contains("Voxam")
+
+
 def test_running_as_module_invokes_the_cli(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

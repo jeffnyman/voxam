@@ -35,6 +35,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         The process exit code.
     """
 
+    # Voxam speaks UTF-8 on the stream it owns: a piped Windows
+    # console otherwise defaults to a legacy code page that cannot
+    # carry so much as an arrow, and a recording must replay
+    # identically everywhere. Streams without the knob -- test
+    # doubles -- are already unicode-clean.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(
         prog="voxam",
         description="An interpreter for Z-Machine (and, one day, Glulx) stories.",

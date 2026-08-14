@@ -13,11 +13,15 @@ The grammar, line by line:
     ```              a fence: toggles skipping of whole sections
     > command        a typed command, transcript style
     command          the same, without the prompt sugar
+    <key>            a special key: <up> <down> <left> <right>
+                     for the cursor keys, <escape> for the escape
+                     key -- one press per line
     (blank)          skipped
 
 An inline comment starts at whitespace followed by #. A command that
-must genuinely begin with # or ! can be written with the > prefix,
-which is otherwise optional. A > alone types an empty line.
+must genuinely begin with # or ! -- or look like a <key> -- can be
+written with the > prefix, which is otherwise optional. A > alone
+types an empty line: the enter key.
 
 Everything between a pair of fences is skipped raw, directives
 included; text after the backticks labels the fence and is ignored.
@@ -39,6 +43,24 @@ PROMPT = ">"
 FENCE = "```"
 
 _INLINE_COMMENT = re.compile(r"\s+#")
+
+# The special keys a recording can press, one line each. The
+# translated command is the key's own input character -- the §3.8.4
+# cursor codes Beyond Zork's menus listen for, and the §3.8.2.6
+# escape -- which the keystroke seam spends as a single press. The
+# enter key stays what it always was: a bare >.
+KEY_TOKENS = {
+    "<up>": "\x81",
+    "<down>": "\x82",
+    "<left>": "\x83",
+    "<right>": "\x84",
+    "<escape>": "\x1b",
+}
+
+# What the replay transcript shows for a pressed key: the token,
+# never the raw control character, which a piped Windows console
+# could not even encode.
+KEY_ECHOES = {character: token for token, character in KEY_TOKENS.items()}
 
 
 @dataclass(frozen=True)
@@ -103,7 +125,8 @@ class AcceptanceScript:
 
                     raise AcceptanceError(msg)
             else:
-                commands.append(_command(line))
+                pressed = _key_token(line, number)
+                commands.append(pressed if pressed is not None else _command(line))
                 numbers.append(number)
 
         if game is None:
@@ -156,7 +179,7 @@ def replay(
         if typed is not None:
             typed(index)
 
-        echo(command + "\n")
+        echo(KEY_ECHOES.get(command, command) + "\n")
 
         return command
 
@@ -321,6 +344,35 @@ def _seed(value: str, number: int) -> int:
         msg = f"line {number}: the seed {value!r} is not a number"
 
         raise AcceptanceError(msg) from None
+
+
+def _key_token(line: str, number: int) -> str | None:
+    """Translate a <key> line into the character it presses.
+
+    A line that is not shaped like a key token belongs to the
+    command grammar instead; one that is shaped like a token but
+    names no known key fails loudly -- a typo must not quietly
+    type its letters into the game. The `> <key>` prompt form
+    stays a literal command, the escape for a game that really
+    wants angle brackets.
+
+    Raises:
+        AcceptanceError: For an angle-bracketed token naming no
+            known key.
+    """
+
+    if not (line.startswith("<") and line.endswith(">")):
+        return None
+
+    token = line.lower()
+
+    if token in KEY_TOKENS:
+        return KEY_TOKENS[token]
+
+    known = ", ".join(sorted(KEY_TOKENS))
+    msg = f"line {number}: unknown key {line!r}; the keys are: {known}"
+
+    raise AcceptanceError(msg)
 
 
 def _command(line: str) -> str:
