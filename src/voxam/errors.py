@@ -9,6 +9,10 @@ class AcceptanceError(VoxamError):
     """Raised when an acceptance script cannot be used."""
 
 
+class IFFError(VoxamError):
+    """Raised when bytes cannot be read as an IFF container."""
+
+
 class ZMachineArithmeticError(VoxamError):
     """Raised for arithmetic a story may not perform (§2.3)."""
 
