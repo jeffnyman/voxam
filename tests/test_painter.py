@@ -2,7 +2,7 @@ from contextlib import AbstractContextManager, nullcontext
 
 from assertpy import assert_that
 
-from voxam.frontend import Status
+from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
 
@@ -114,6 +114,78 @@ def test_reverse_video_reaches_the_glass() -> None:
     frontend.write("dark")
 
     assert_that("".join(out)).contains("<rev>")
+
+
+# A §15 rectangle flows through the model and repaints, each row
+# returning to the column where the rectangle began.
+def test_rectangles_paint_right_and_down() -> None:
+    frontend, _out = painted()
+
+    frontend.split_window(3)
+    frontend.set_window(UPPER)
+    frontend.set_cursor(1, 4)
+    frontend.write_rectangle(["ab", "cd"])
+
+    assert_that(frontend.model.row_text(1)).is_equal_to("   ab")
+    assert_that(frontend.model.row_text(2)).is_equal_to("   cd")
+
+
+# Cells in the character graphics font paint as their §16 Unicode
+# stand-ins: box-drawing for the map lines, runes for the letters.
+def test_font_3_paints_its_unicode_stand_ins() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("(f")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("│")
+    assert_that(stream).contains("ᚠ")
+
+
+# Codes 123 to 126 are the reverse-video twins of the arrows and
+# the drawn question mark -- the §16 bitmaps invert them pixel for
+# pixel -- so the painter draws the same shape and flips reverse
+# video instead of carrying it in the glyph.
+def test_font_3_reversed_shapes_flip_reverse_video() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("{")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("↑")
+    assert_that(stream).contains("<rev>")
+
+
+# The map-connectivity calls the Beyond Zork eyeball tests settled:
+# a solid mass meeting a diagonal road stays a quadrant block, so
+# room corners keep their shape, and the single-pixel road tips
+# continue their diagonal, so a road reaches its room without a
+# gap (§16).
+def test_font_3_keeps_the_map_connected() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("CG")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("▝")
+    assert_that(stream).contains("╱")
+
+
+# A font 3 character beyond the §16 table -- an accented letter,
+# say -- passes through as itself rather than vanishing.
+def test_font_3_passes_unknown_characters_through() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("é")
+
+    assert_that("".join(out)).contains("é")
 
 
 # Window operations flow through the model and park the terminal

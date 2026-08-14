@@ -1,7 +1,7 @@
 import pytest
 from assertpy import assert_that
 
-from voxam.frontend import PlainFrontend, Status
+from voxam.frontend import COURIER_FONT, PlainFrontend, Status
 
 
 # With no stream given, story text lands on standard output: the
@@ -154,5 +154,30 @@ def test_plain_frontend_claims_a_bare_infinite_stream() -> None:
     assert_that(frontend.has_fixed_pitch).is_true()
     assert_that(frontend.has_timed_input).is_true()
     assert_that(frontend.has_sounds).is_false()
+    assert_that(frontend.has_character_graphics).is_false()
     assert_that(frontend.screen_lines).is_equal_to(255)
     assert_that(frontend.screen_columns).is_equal_to(80)
+
+
+# Only granted fonts arrive at a frontend, and on a plain stream
+# the two on offer -- normal and fixed-pitch -- are both the one
+# stream it already is, so the change drops silently (§8.1).
+def test_plain_frontend_drops_font_changes() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.set_font(COURIER_FONT)
+    frontend.write("unchanged")
+
+    assert_that(pieces).is_equal_to(["unchanged"])
+
+
+# A §15 rectangle becomes stacked lines on a stream, which has no
+# cursor column to return to.
+def test_plain_rectangles_stack_as_lines() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.write_rectangle(["ab", "cd"])
+
+    assert_that(pieces).is_equal_to(["ab", "\n", "cd"])

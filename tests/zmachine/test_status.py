@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from assertpy import assert_that
 
 from voxam.frontend import Status
@@ -39,6 +41,7 @@ class Recorder:
     has_fixed_pitch = True
     has_timed_input = True
     has_sounds = False
+    has_character_graphics = False
     screen_lines = 24
     screen_columns = 64
 
@@ -57,6 +60,12 @@ class Recorder:
 
     def set_style(self, style: int) -> None:
         """Discard: the status tests never change styles."""
+
+    def set_font(self, font: int) -> None:
+        """Discard: the status tests never change fonts."""
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Discard: the status tests never print rectangles."""
 
     def erase_window(self, window: int) -> None:
         """Discard: the status tests never erase."""
@@ -81,6 +90,12 @@ class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""
 
     has_screen_splitting = True
+
+
+class GraphicsRecorder(Recorder):
+    """A frontend that can also draw the §16 font."""
+
+    has_character_graphics = True
 
 
 def status_story(code: bytes, version: int = 3, flags: int = 0) -> Story:
@@ -225,6 +240,31 @@ def test_v4_boot_introduces_the_interpreter() -> None:
     assert_that(machine.memory.read_byte(0x20)).is_equal_to(24)
     assert_that(machine.memory.read_byte(0x21)).is_equal_to(64)
     assert_that(machine.memory.read_byte(FLAGS_1)).is_equal_to(0x94)
+
+
+# A Version 5 game may arrive asking for the §16 character graphics
+# font in Flags 2. The boot stamp answers honestly: the request is
+# cleared on a frontend without the font and left standing on one
+# with it, and the unit measurements -- screen size in units at
+# $22/$24, the 1-by-1 font at $26/$27 -- are recorded either way.
+# Beyond Zork lays out its windows from the unit words (§8.1.5.1,
+# §8.4.3, §8.1.1).
+def test_v5_boot_answers_the_graphics_font_request() -> None:
+    data = bytearray(status_story(bytes([0xBA]), version=5).data)
+    data[0x11] = 0x08
+    story = Story(bytes(data))
+
+    plain = Machine(story, Recorder(), lambda: "")
+
+    assert_that(plain.memory.read_byte(0x11) & 0x08).is_zero()
+    assert_that(plain.memory.read_word(0x22)).is_equal_to(64)
+    assert_that(plain.memory.read_word(0x24)).is_equal_to(24)
+    assert_that(plain.memory.read_byte(0x26)).is_equal_to(1)
+    assert_that(plain.memory.read_byte(0x27)).is_equal_to(1)
+
+    graphical = Machine(story, GraphicsRecorder(), lambda: "")
+
+    assert_that(graphical.memory.read_byte(0x11) & 0x08).is_equal_to(0x08)
 
 
 # Versions 1 and 2 predate every capability bit: their headers boot

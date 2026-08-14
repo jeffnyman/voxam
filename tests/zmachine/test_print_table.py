@@ -60,3 +60,47 @@ def test_skip_carves_a_window_from_a_wider_map(
     machine.run()
 
     assert_that("".join(output)).is_equal_to("AB\nCD")
+
+
+# Into a stream 3 table the rectangle travels as newline-separated
+# rows: ZSCII 13 between them, exactly as the plain screen shows
+# them (§7.1.2.2.1, §15 print_table).
+def test_rectangles_redirect_into_stream_3_as_lines(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xF3, 0x4F, 0x03, 0x01, 0x40],  # output_stream 3 $140
+            *[0xFE, 0x17, 0x01, 0x20, 0x02, 0x02],  # print_table $120 2 2
+            *[0xF3, 0x3F, 0xFF, 0xFD],  # output_stream -3
+            0xBA,
+        ]
+    )
+    machine, output = machine_with(code_machine, program, "ABCD")
+
+    machine.run()
+
+    assert_that(output).is_empty()
+    assert_that(machine.memory.read_word(0x140)).is_equal_to(5)
+    assert_that(
+        bytes(machine.memory.read_byte(0x142 + offset) for offset in range(5))
+    ).is_equal_to(b"AB\rCD")
+
+
+# With the screen deselected the rectangle vanishes as asked (§7).
+def test_rectangles_respect_a_deselected_screen(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xF3, 0x3F, 0xFF, 0xFF],  # output_stream -1
+            *[0xFE, 0x17, 0x01, 0x20, 0x02, 0x02],  # print_table $120 2 2
+            *[0xF3, 0x7F, 0x01],  # output_stream 1
+            0xBA,
+        ]
+    )
+    machine, output = machine_with(code_machine, program, "ABCD")
+
+    machine.run()
+
+    assert_that("".join(output)).is_empty()

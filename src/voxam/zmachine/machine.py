@@ -21,12 +21,21 @@ from voxam.errors import (
     ZMachineTextError,
     ZMachineUnimplementedError,
 )
-from voxam.frontend import Frontend, PlainFrontend, Status
+from voxam.frontend import (
+    COURIER_FONT,
+    CURRENT_FONT,
+    GRAPHICS_FONT,
+    NORMAL_FONT,
+    Frontend,
+    PlainFrontend,
+    Status,
+)
 from voxam.saves import SaveSlot
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
     FLAGS_2,
+    FONT_FIELDS_VERSION,
     PACKED_PC_VERSION,
     SCREEN_FIELDS_VERSION,
     STATUS_FLAGS_VERSION,
@@ -127,6 +136,12 @@ READ_CHAR_ROUTINE_OPERAND = 2
 # 0 where a terminating character would go (§15 read, §15 read_char).
 TIMED_READ_VERSION = 4
 INTERRUPT_TERMINATOR = 0
+
+# set_font stores 0 for a font it will not grant (§15 set_font), and
+# a character terminal's screen units are characters, so every font
+# it offers is 1 by 1 (§8.1.1).
+FONT_REFUSED = 0
+FONT_UNIT = 1
 
 # From Version 5, read's text buffer changes shape: byte 0 is the
 # whole capacity, the typed count lands in byte 1, and the letters
@@ -301,6 +316,7 @@ class Machine:
         self._words: Dictionary | None = None
         self._running = True
         self._screen_selected = True
+        self._font = NORMAL_FONT
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
@@ -370,6 +386,26 @@ class Machine:
                 fixed_pitch=self._frontend.has_fixed_pitch,
                 timed_input=self._frontend.has_timed_input,
             )
+
+            # The unit fields and the §8.1.5.1 graphics-font honesty
+            # belong to the Version 5 family; Version 6 gives the
+            # same Flags 2 bit to pictures, and its pixel units and
+            # swapped font bytes wait on a Version 6 screen worth
+            # measuring. A character terminal's unit is one
+            # character (§8.4.2), so the unit words mirror the line
+            # and column bytes.
+            if (
+                header.version >= FONT_FIELDS_VERSION
+                and header.version != PACKED_PC_VERSION
+            ):
+                header.declare_screen_units(
+                    width=self._frontend.screen_columns,
+                    height=self._frontend.screen_lines,
+                )
+                header.declare_font_size(width=FONT_UNIT, height=FONT_UNIT)
+                header.declare_character_graphics(
+                    available=self._frontend.has_character_graphics
+                )
 
     def snapshot(self) -> Snapshot:
         """Capture the entire state of play (§6.1, §6.1.1).
@@ -1173,6 +1209,13 @@ class Machine:
 
         self._screen_selected = True
 
+        # The current font is interpreter bookkeeping, so a restart
+        # returns it to normal along with the rest -- and tells the
+        # frontend, or its screen would keep drawing §16 shapes the
+        # machine no longer believes in.
+        self._font = NORMAL_FONT
+        self._frontend.set_font(NORMAL_FONT)
+
         self._declare_capabilities()
         self._start_execution()
 
@@ -1681,12 +1724,13 @@ class Machine:
         """Print a rectangle of ZSCII rows from a table (§15).
 
         Each row is width table bytes, with skip bytes passed over
-        between rows -- a window onto a larger character map. Under
-        the plain screen model each row after the first begins a
-        fresh line; the cursor-true rectangle, right and down from
-        wherever the cursor stands, belongs to a richer frontend.
-        (§15 also declares heights past 1 undefined in the lower
-        window; stacked lines are this interpreter's answer.)
+        between rows -- a window onto a larger character map. On
+        the screen the rectangle spreads right and down from the
+        cursor, each row returning to the column where it began
+        (§15 print_table): Beyond Zork stamps its map beside the
+        story box this way. Into a stream 3 table, or with the
+        screen deselected, the rows travel as newline-separated
+        lines instead, which is also what a plain transcript shows.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -1703,13 +1747,12 @@ class Machine:
             if len(values) > PRINT_TABLE_SKIP_OPERAND
             else 0
         )
+
+        rows = []
         position = table
 
-        for row in range(height):
-            if row:
-                self._print("\n")
-
-            self._print(
+        for _row in range(height):
+            rows.append(
                 "".join(
                     zscii_to_char(
                         self._memory.read_byte(position + offset), self._extras()
@@ -1719,6 +1762,15 @@ class Machine:
             )
 
             position += width + skip
+
+        if self._redirections or not self._screen_selected:
+            for index, row_text in enumerate(rows):
+                if index:
+                    self._print("\n")
+
+                self._print(row_text)
+        else:
+            self._frontend.write_rectangle(rows)
 
         self._pc = instruction.next_address
 
@@ -1842,6 +1894,46 @@ class Machine:
 
         self._frontend.set_style(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
+
+    def _op_set_font(self, instruction: Instruction) -> None:
+        """Choose a §8.1.2 font, storing the one it replaces (§15).
+
+        Font 0 asks which font is current without changing it. A
+        font on offer is chosen and the previous font's ID comes
+        back, always positive; one not on offer changes nothing
+        and stores 0, the refusal §8.1.3 builds permission on.
+        """
+
+        font = self._value(instruction.operands[0])
+
+        if font == CURRENT_FONT:
+            self._store_result(instruction.store_variable, self._font)
+        elif self._font_available(font):
+            previous = self._font
+            self._font = font
+
+            self._frontend.set_font(font)
+            self._store_result(instruction.store_variable, previous)
+        else:
+            self._store_result(instruction.store_variable, FONT_REFUSED)
+
+        self._pc = instruction.next_address
+
+    def _font_available(self, font: int) -> bool:
+        """Whether the frontend has a §8.1.2 font to offer.
+
+        The normal and fixed-pitch fonts are one and the same face
+        on a character terminal, so both are always granted; the
+        §16 character graphics font belongs to frontends that
+        claimed it. Everything else is refused: the picture font
+        by instruction (§8.1.4), and the higher numbers because no
+        Standard has yet said what they mean (§8.1.6).
+        """
+
+        if font in (NORMAL_FONT, COURIER_FONT):
+            return True
+
+        return font == GRAPHICS_FONT and self._frontend.has_character_graphics
 
     def _op_erase_window(self, instruction: Instruction) -> None:
         """Hand a window erasure to the frontend (§8.7).
@@ -2428,6 +2520,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
     "set_cursor": Machine._op_set_cursor,
+    "set_font": Machine._op_set_font,
     "set_text_style": Machine._op_set_text_style,
     "set_window": Machine._op_set_window,
     "show_status": Machine._op_show_status,
