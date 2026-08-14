@@ -10,6 +10,7 @@ the frontier of what remains to build.
 import operator
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from voxam.errors import (
     ZMachineArithmeticError,
@@ -86,6 +87,26 @@ JE_MINIMUM_OPERANDS = 2
 # letter is Voxam's own.
 INTERPRETER_PLATFORM = 6
 INTERPRETER_REVISION = ord("V")
+
+
+@dataclass(frozen=True)
+class Identity:
+    """Who the interpreter claims to be (§11.1.3, §11.1.4).
+
+    Attributes:
+        interpreter: The §11.1.3 platform number to introduce in
+            Version 4 and later headers; None claims Voxam's
+            default, the IBM PC.
+        tandy: Whether to set Version 3's legendary Tandy bit,
+            which some early Infocom games answer with altered
+            text (§11.1 Remarks).
+    """
+
+    interpreter: int | None = None
+    tandy: bool = False
+
+
+DEFAULT_IDENTITY = Identity()
 
 # The Standard revision Voxam obeys, written at $32/$33 (§11.1.5).
 # 1.1: the unicode cluster, the prompt-bearing table saves, and the
@@ -229,6 +250,7 @@ class Machine:
         seed: int | None = None,
         saves: SaveSlot | None = None,
         key_source: Callable[[float | None], str | None] | None = None,
+        identity: Identity | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -260,6 +282,9 @@ class Machine:
                 it blocks for a real keystroke. A machine without a
                 key source spends input_source lines through the
                 keystroke queue instead.
+            identity: Who the interpreter claims to be -- platform
+                number and Tandy bit; None claims the defaults
+                (§11.1.3, §11.1.4).
         """
 
         self._story = story
@@ -272,6 +297,7 @@ class Machine:
         self._output = self._frontend.write
         self._input = input_source if input_source is not None else input
         self._key_source = key_source
+        self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
         self._screen_selected = True
@@ -326,8 +352,14 @@ class Machine:
             header.declare_screen_splitting(
                 available=self._frontend.has_screen_splitting
             )
+            header.declare_tandy(on=self._identity.tandy)
         elif header.version >= SCREEN_FIELDS_VERSION:
-            header.introduce_interpreter(INTERPRETER_PLATFORM, INTERPRETER_REVISION)
+            platform = (
+                self._identity.interpreter
+                if self._identity.interpreter is not None
+                else INTERPRETER_PLATFORM
+            )
+            header.introduce_interpreter(platform, INTERPRETER_REVISION)
             header.declare_screen_size(
                 lines=self._frontend.screen_lines,
                 columns=self._frontend.screen_columns,

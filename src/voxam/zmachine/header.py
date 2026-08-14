@@ -15,6 +15,7 @@ HEADER_SIZE = 64
 # Version 3's Flags 1 defines these bits.
 FLAGS_1 = 0x01
 TIME_STATUS_BIT = 0x02
+TANDY_BIT = 0x08
 NO_STATUS_LINE_BIT = 0x10
 SCREEN_SPLIT_BIT = 0x20
 STATUS_FLAGS_VERSION = 3
@@ -377,6 +378,25 @@ class Header:
 
         self._require_version_3()
         self._set_flag(NO_STATUS_LINE_BIT, on=not available)
+
+    def declare_tandy(self, *, on: bool) -> None:
+        """Claim, or decline to claim, a Tandy machine (§11.1.4).
+
+        Bit 3 of Version 3's Flags 1 is "the legendary 'Tandy'
+        bit": some early Infocom games were sold by the Tandy
+        Corporation and answer it -- Zork I pretends not to have
+        sequels, The Witness mutes some of its prose (§11.1
+        Remarks). The bit belongs to the interpreter, so it is
+        written both ways.
+
+        Raises:
+            ZMachineHeaderError: Outside Version 3, where the same
+                bit means other things; or over the pristine story
+                bytes, which never change.
+        """
+
+        self._require_version_3()
+        self._set_flag(TANDY_BIT, on=on)
 
     def declare_screen_splitting(self, *, available: bool) -> None:
         """Record whether the interpreter can split the screen (§11.1).

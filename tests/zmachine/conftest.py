@@ -6,7 +6,7 @@ import pytest
 
 from voxam.frontend import PlainFrontend
 from voxam.saves import SaveSlot
-from voxam.zmachine.machine import Machine
+from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
 
@@ -52,6 +52,7 @@ def code_machine() -> Callable[..., Machine]:
         seed: int | None = None,
         saves: SaveSlot | None = None,
         key_source: Callable[[float | None], str | None] | None = None,
+        identity: Identity | None = None,
     ) -> Machine:
         frontend = PlainFrontend(output)
 
@@ -62,6 +63,7 @@ def code_machine() -> Callable[..., Machine]:
             seed,
             saves,
             key_source=key_source,
+            identity=identity,
         )
 
     return _build
