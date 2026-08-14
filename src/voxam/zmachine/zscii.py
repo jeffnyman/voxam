@@ -79,8 +79,10 @@ ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
 
 # Beyond Zork prints its menu key hints as IBM display codes: in
-# the CP437 character set 24 and 25 are the up and down arrows.
-IBM_ARROWS = {24: "↑", 25: "↓"}
+# the CP437 character set 24 to 27 are the arrows -- up and down
+# for its selection menus, right and left for the character
+# builder's point allocation.
+IBM_ARROWS = {24: "↑", 25: "↓", 26: "→", 27: "←"}
 
 # Codes 129 to 154 are defined for input only (§3.8.4): the cursor
 # keys 129-132, the function keys 133-144, and the keypad digits
