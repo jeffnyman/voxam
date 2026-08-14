@@ -395,6 +395,20 @@ def test_read_key_returns_keys_that_beat_the_clock() -> None:
     assert_that(frontend.read_key(timeout=0.5)).is_equal_to("z")
 
 
+# clear() paints the blank model over the whole glass, so a story
+# starts on a clean screen with no shell output showing through
+# the rows it has not yet painted.
+def test_clear_wipes_every_row() -> None:
+    frontend, out = painted()
+
+    frontend.clear()
+
+    stream = "".join(out)
+
+    for row in range(StubTerminal.height):
+        assert_that(stream).contains(f"<@0,{row}>")
+
+
 # A cover paints centred in half-block cells -- each ▀ carries two
 # pixels, the upper as ink and the lower as ground, an odd bottom
 # row grounding on black -- then a keypress dismisses it and the

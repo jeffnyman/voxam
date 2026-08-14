@@ -388,6 +388,12 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         if painted is not None:
             _show_cover(blorb, painted, pixels=pixels)
 
+    if painted is not None:
+        # The story deserves a clean glass: anything the shell left
+        # on screen would otherwise show through every row the game
+        # has not yet painted.
+        painted.clear()
+
     # Saved games live beside the story: zork1.z3 saves to zork1.sav.
     saves = FileSaveSlot(story_path.with_suffix(".sav"))
 

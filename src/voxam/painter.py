@@ -485,7 +485,7 @@ class ScreenFrontend:
         """
 
         if pixels:
-            self._blank_glass()
+            self.clear()
 
             scale = _pixel_scale(picture, self.screen_columns, self.screen_lines)
             width_cells = picture.width * scale // CELL_WIDTH_FLOOR
@@ -493,7 +493,7 @@ class ScreenFrontend:
 
             self._out(self._terminal.move_xy(left, 0) + sixel_encode(picture, scale))
             self.read_key()
-            self._blank_glass()
+            self.clear()
 
             return
 
@@ -501,7 +501,7 @@ class ScreenFrontend:
         left = (self.screen_columns - len(pixels_grid[0])) // 2
         top = (self.screen_lines - (len(pixels_grid) + 1) // 2) // 2
 
-        self._blank_glass()
+        self.clear()
 
         for index in range(0, len(pixels_grid), 2):
             upper = pixels_grid[index]
@@ -518,10 +518,17 @@ class ScreenFrontend:
             self._out("".join(pieces))
 
         self.read_key()
-        self._blank_glass()
+        self.clear()
 
-    def _blank_glass(self) -> None:
-        """Paint every row of the (still blank) model over the glass."""
+    def clear(self) -> None:
+        """Paint the model's every row over the glass.
+
+        At the start of a session the model is blank, so this
+        wipes whatever the shell left on the terminal: the story
+        begins on a clean screen instead of shingling its rows
+        between old output. The cover flow uses it on both sides
+        of the picture for the same reason.
+        """
 
         for row in range(1, self._model.lines + 1):
             self._paint_row(row)
