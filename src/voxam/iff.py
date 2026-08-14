@@ -34,10 +34,14 @@ class Chunk:
     Attributes:
         chunk_id: The four-byte chunk type.
         payload: The chunk's data, pad byte excluded.
+        offset: Where the chunk's header begins in its file --
+            the address a Blorb resource index speaks (Blorb:
+            Resource Index Chunk). Zero on chunks built by hand.
     """
 
     chunk_id: bytes
     payload: bytes
+    offset: int = 0
 
 
 def chunk(chunk_id: bytes, payload: bytes) -> bytes:
@@ -120,6 +124,7 @@ def parse_form(data: bytes) -> tuple[bytes, tuple[Chunk, ...]]:
 
             raise IFFError(msg)
 
+        header_offset = position
         chunk_id = data[position : position + 4]
         size = int.from_bytes(data[position + 4 : position + 8], "big")
         position += CHUNK_HEADER_SIZE
@@ -132,7 +137,7 @@ def parse_form(data: bytes) -> tuple[bytes, tuple[Chunk, ...]]:
 
             raise IFFError(msg)
 
-        found.append(Chunk(chunk_id, data[position : position + size]))
+        found.append(Chunk(chunk_id, data[position : position + size], header_offset))
         position += size + size % 2
 
     return form_type, tuple(found)
