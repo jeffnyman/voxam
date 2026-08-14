@@ -362,14 +362,19 @@ def test_plain_flag_keeps_the_stream(
 
 
 # With a terminal claimed, play runs through the painted frontend:
-# the story's text arrives wrapped in cursor movements, and typed
-# input reaches the story through read_line.
+# the story's text arrives wrapped in cursor movements, and typing
+# reaches the story as raw keystrokes through read_line's own line
+# editor -- the terminal's cooked input is never consulted.
 def test_screen_play_runs_through_the_painter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    keys = iter("look\n")
+
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
 
     exit_code = main([str(reading_story(tmp_path, version=4))])
 

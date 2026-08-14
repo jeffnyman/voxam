@@ -78,6 +78,14 @@ ZSCII_ESCAPE = 27
 ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
 
+# Codes 129 to 154 are defined for input only (§3.8.4): the cursor
+# keys 129-132, the function keys 133-144, and the keypad digits
+# 145-154. A raw keyboard hands them over as their own codepoints
+# -- characters no key actually types -- so they pass through the
+# input seam as themselves.
+ZSCII_INPUT_KEYS_START = 129
+ZSCII_INPUT_KEYS_END = 154
+
 # Codes 155 up are the "extra characters" (§3.8.5), defined for both
 # input and output by the default Unicode translation table of
 # §3.8.5.3 -- the accented Latin repertoire below, codepoint for
@@ -333,6 +341,11 @@ def char_to_zscii(character: str, extras_table: str = DEFAULT_EXTRAS) -> int:
     code = ord(character)
 
     if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
+        return code
+
+    # The cursor, function, and keypad keys travel as their §3.8.4
+    # codepoints, defined for input only.
+    if ZSCII_INPUT_KEYS_START <= code <= ZSCII_INPUT_KEYS_END:
         return code
 
     position = extras_table.find(character)
