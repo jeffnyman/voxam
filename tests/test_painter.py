@@ -4,6 +4,7 @@ from assertpy import assert_that
 
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
+from voxam.png import Picture
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
 
 
@@ -37,6 +38,12 @@ class StubTerminal:
 
     def move_xy(self, x: int, y: int) -> str:
         return f"<@{x},{y}>"
+
+    def color_rgb(self, red: int, green: int, blue: int) -> str:
+        return f"<fg {red},{green},{blue}>"
+
+    def on_color_rgb(self, red: int, green: int, blue: int) -> str:
+        return f"<bg {red},{green},{blue}>"
 
     def cbreak(self) -> AbstractContextManager[object]:
         return nullcontext()
@@ -386,6 +393,71 @@ def test_read_key_returns_keys_that_beat_the_clock() -> None:
     frontend, _out = painted(keys=[StubKey("z")])
 
     assert_that(frontend.read_key(timeout=0.5)).is_equal_to("z")
+
+
+# A cover paints centred in half-block cells -- each ▀ carries two
+# pixels, the upper as ink and the lower as ground, an odd bottom
+# row grounding on black -- then a keypress dismisses it and the
+# glass is left clean for the story.
+def test_the_frontispiece_paints_in_half_blocks() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(
+        2,
+        3,
+        (
+            ((255, 0, 0), (0, 255, 0)),
+            ((0, 0, 255), (255, 255, 255)),
+            ((10, 20, 30), (40, 50, 60)),
+        ),
+    )
+
+    frontend.show_frontispiece(picture)
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("▀")
+    assert_that(stream).contains("<@14,3>")
+    assert_that(stream).contains("<fg 255,0,0>")
+    assert_that(stream).contains("<bg 0,0,255>")
+    assert_that(stream).contains("<bg 0,0,0>")
+    assert_that(terminal.keys).is_empty()
+
+
+# With pixels requested, the cover draws as sixel graphics --
+# real pixels between the enter and leave sequences -- magnified
+# by whole steps, dismissed by the same keypress.
+def test_the_frontispiece_can_paint_in_sixel_pixels() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("\x1bPq")
+    assert_that(stream).contains("\x1b\\")
+    assert_that(stream).does_not_contain("▀")
+    assert_that(terminal.keys).is_empty()
+
+
+# A cover larger than the glass shrinks to fit, keeping its shape;
+# the box average of a uniform picture is itself.
+def test_large_covers_shrink_to_the_glass() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    rows = tuple(tuple((100, 150, 200) for _ in range(60)) for _ in range(32))
+
+    frontend.show_frontispiece(Picture(60, 32, rows))
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("<fg 100,150,200>")
+    assert_that(stream).contains("<@0,0>")
 
 
 # Without a terminal handed in, a real blessed Terminal is built;

@@ -109,6 +109,46 @@ def test_the_frontispiece_is_read_and_policed() -> None:
         Blorb.parse(stunted)
 
 
+def _payload(resource: Resource | None) -> bytes:
+    """The resource's chunk payload, empty when there is none."""
+
+    return resource.chunk.payload if resource is not None else b""
+
+
+# The cover is the Fspc picture when one is named; failing that, a
+# resource file carrying exactly one picture offers that picture --
+# Beyond Zork ships its splash so -- while bigger art sets offer
+# nothing rather than a guess (Blorb: Frontispiece Chunk).
+def test_the_cover_is_the_frontispiece_or_the_lone_picture() -> None:
+    named = Blorb.parse(
+        build_blorb(
+            [
+                (b"Pict", 1, Chunk(b"PNG ", b"one")),
+                (b"Pict", 2, Chunk(b"PNG ", b"two")),
+            ],
+            extra=chunk(b"Fspc", (2).to_bytes(4, "big")),
+        )
+    )
+
+    assert_that(_payload(named.cover)).is_equal_to(b"two")
+
+    lone = Blorb.parse(build_blorb([(b"Pict", 5, Chunk(b"PNG ", b"solo"))]))
+
+    assert_that(_payload(lone.cover)).is_equal_to(b"solo")
+
+    crowd = Blorb.parse(
+        build_blorb(
+            [
+                (b"Pict", 1, Chunk(b"PNG ", b"one")),
+                (b"Pict", 2, Chunk(b"PNG ", b"two")),
+            ]
+        )
+    )
+
+    assert_that(crowd.cover).is_none()
+    assert_that(Blorb.parse(build_blorb([])).cover).is_none()
+
+
 # Only an IFRS FORM is a resource file, exactly one index must
 # appear, and entries must point at real chunks.
 def test_malformed_blorbs_are_refused() -> None:

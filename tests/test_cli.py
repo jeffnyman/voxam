@@ -1,6 +1,8 @@
 import io
 import runpy
+import struct
 import sys
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -8,7 +10,9 @@ import pytest
 from assertpy import assert_that
 
 from voxam.cli import _screen_frontend, main
+from voxam.iff import Chunk, chunk
 from voxam.painter import ScreenFrontend
+from voxam.png import SIGNATURE
 
 
 def broken_story(tmp_path: Path, code: bytes) -> Path:
@@ -359,6 +363,169 @@ def test_plain_flag_keeps_the_stream(
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(capsys.readouterr().out).does_not_contain(chr(27))
+
+
+def _png_chunk(name: bytes, payload: bytes) -> bytes:
+    return (
+        len(payload).to_bytes(4, "big")
+        + name
+        + payload
+        + zlib.crc32(name + payload).to_bytes(4, "big")
+    )
+
+
+def tiny_png() -> bytes:
+    """One red truecolour pixel."""
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+
+    return (
+        SIGNATURE
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(bytes([0, 255, 0, 0])))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def covered_story(
+    tmp_path: Path,
+    pictures: list[tuple[int, Chunk]],
+    fspc: int | None = None,
+) -> Path:
+    """Package the reading story and pictures into one .zblorb."""
+
+    story = reading_story(tmp_path, version=4).read_bytes()
+    entries = [(b"Exec", 0, Chunk(b"ZCOD", story))] + [
+        (b"Pict", number, piece) for number, piece in pictures
+    ]
+    body = bytearray(b"IFRS")
+    index_chunk_size = 8 + 4 + len(entries) * 12
+    position = 8 + 4 + index_chunk_size
+    index = bytearray(len(entries).to_bytes(4, "big"))
+    pieces = bytearray()
+
+    for usage, number, piece in entries:
+        framed = chunk(piece.chunk_id, piece.payload)
+        index += usage + number.to_bytes(4, "big") + position.to_bytes(4, "big")
+        pieces += framed
+        position += len(framed)
+
+    body += chunk(b"RIdx", bytes(index)) + pieces
+
+    if fspc is not None:
+        body += chunk(b"Fspc", fspc.to_bytes(4, "big"))
+
+    path = tmp_path / "covered.zblorb"
+    path.write_bytes(chunk(b"FORM", bytes(body)))
+
+    return path
+
+
+# A PNG cover in the story's Blorb shows before play at a painted
+# terminal: half-block art, a keypress, then the story.
+def test_a_png_cover_shows_before_play(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter(["x", *"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", tiny_png()))])
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("▀")
+
+
+# --pixels draws the same cover as sixel graphics: real pixels for
+# terminals that speak the protocol.
+def test_pixels_draws_the_cover_as_sixel(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter(["x", *"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", tiny_png()))])
+    exit_code = main(["--pixels", str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("\x1bPq")
+
+
+# A cover Voxam cannot draw -- Zork 1 ships a JPEG -- earns a note
+# and the story plays on: art is a courtesy, never a gate.
+def test_a_foreign_cover_earns_a_note(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"JPEG", b"\xff\xd8jpeg"))], fspc=1)
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("cannot draw")
+
+
+# A PNG that will not decode earns the same note.
+def test_an_unreadable_cover_earns_a_note(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", b"not a png"))], fspc=1)
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("cannot be drawn")
+
+
+# A crowd of pictures with no Fspc offers no cover at all: play
+# begins without ceremony.
+def test_a_crowd_of_pictures_offers_no_cover(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(
+        tmp_path,
+        [(1, Chunk(b"PNG ", tiny_png())), (2, Chunk(b"PNG ", tiny_png()))],
+    )
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("▀")
 
 
 # With a terminal claimed, play runs through the painted frontend:
