@@ -66,28 +66,41 @@ format, auxiliary files cover the games that save fragments of
 themselves, UNDO is multi-level, and an acceptance-script harness
 records, replays, and probes whole playthroughs.
 
+At a real terminal, Voxam paints the screen: the blessed frontend
+(an optional extra, named for both its temperament and the
+[blessed](https://pypi.org/project/blessed/) package behind it)
+renders the §8 screen model live -- a reverse-video status line
+that holds the top of the screen, split windows, character-input
+menus like Zork's InvisiClues browsed by single keypresses, bold,
+italic, and the §8.3.1 colours. Timed input runs on the real wall
+clock there, so a game like Z-Tornado plays in genuine real time.
+The architecture keeps a strict split between a pure screen model
+-- a grid of attributed cells held to §8 by golden-grid tests --
+and a thin painter that only repaints what changed, so the screen
+is as testable as the machine beneath it.
+
 Input runs deeper than lines. A scripted line reaches
 single-keystroke reads one character at a time, which is how
 cursor-driven forms -- up to and including Bureaucracy's Software
-Licence Application -- fill in correctly from a recording. Timed
-input runs on a virtual clock: the "patient typist" lets one
-interrupt interval elapse before each input arrives, which keeps
-timed games playable while recorded sessions stay deterministic.
-And sampled sounds pass in the conforming silence of an
-interpreter that declares none -- *The Lurking Horror* and
-*Sherlock* play on, exactly as they were shipped to -- while the
-two built-in bleeps remain the machine's whole orchestra.
+Licence Application -- fill in correctly from a recording. In
+recorded sessions timed input runs on a virtual clock instead: the
+"patient typist" lets one interrupt interval elapse before each
+input arrives, which keeps timed games replayable while recordings
+stay deterministic. And sampled sounds pass in the conforming
+silence of an interpreter that declares none -- *The Lurking
+Horror* and *Sherlock* play on, exactly as they were shipped to --
+while the two built-in bleeps remain the machine's whole
+orchestra.
 
 Voxam is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
 included -- TerpEtude, and Strict Z Test all pass clean, and every
 remaining gap halts loudly with a citation instead of guessing.
 
-**Not yet:** sound playback and the richer screen work (menus,
-visible form cursors, real-time redraw) that belong to a blessed
-frontend, wall-clock timed input, version 6, and Glulx. For
-recorded sessions, seeds substitute for saves: a script replays a
-whole game in moments.
+**Not yet:** sound playback (the Blorb era), font 3's character
+graphics (the road to *Beyond Zork*, which gets a release of its
+own), version 6, and Glulx. For recorded sessions, seeds
+substitute for saves: a script replays a whole game in moments.
 
 ## Installation
 
@@ -103,6 +116,15 @@ or, as an isolated tool:
 pipx install voxam        # or: uv tool install voxam
 ```
 
+The painted screen frontend rides in the `screen` extra:
+
+```bash
+pip install "voxam[screen]"    # or: uv tool install "voxam[screen]"
+```
+
+Without the extra, Voxam plays as a plain text stream -- every
+game still works; the status line simply stays imaginary.
+
 Voxam ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts thousands of freely
 available games, and story files you own from commercial collections
@@ -115,6 +137,12 @@ Point Voxam at a story file and play at the terminal:
 ```bash
 voxam path/to/story.z3
 ```
+
+At a terminal with the `screen` extra installed, the painted
+frontend takes over automatically -- status line, windows, menus,
+real-time input. Pass `--plain` to keep the classic stream
+instead; pipes and scripted replays always use the stream, which
+is what keeps recordings deterministic.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.

@@ -1,3 +1,12 @@
+## v0.5.0 (2026-08-14)
+
+### Feat
+
+- **painter**: run timed reads on the wall clock (#88)
+- **painter**: read raw keystrokes through the frontend (#87)
+- **painter**: paint the screen model through blessed (#86)
+- **screen**: model the §8 windows as a pure cell grid (#85)
+
 ## v0.4.0 (2026-08-13)
 
 ### Feat
