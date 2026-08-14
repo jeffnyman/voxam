@@ -1,0 +1,442 @@
+! SEED=190
+! GAME=../entharion/zcode-infocom/lurkinghorror-r221-s870918.z3
+
+# The sound release. Along this exact recording the game issues 35
+# sound_effect calls, every number present in the sidecar blb, all
+# passing in the conforming quiet (§9, §11.1): the dream chant
+# (10) crescendos volume 2-4-6-8 and stops at the wake-up; the
+# rats (4) swell until the valve blast silences them; the lab
+# summoning (13) rises until the trapdoor; the wires' hum (15)
+# starts in the Large Chamber and is stopped by the bolt cutter;
+# the finale layers 11/16 at the socket, 12 (with a prepare) for
+# the creature, 8/9 over the hatching, then a global stop and
+# unload. When sound playback arrives, this file is its test plan.
+
+i
+read assignment
+drop assignment
+sit at pc
+examine pc
+turn on pc
+
+# The PC session is literal typing: TYPE is the game's verb for
+# the keyboard, and the on-screen controls are clicked by name.
+type 872325412
+type uhlersoth
+click box
+click paper
+read paper
+
+# Four MOREs page through the summoning text; the fourth faints
+# you into the dream. The wake-up there is also where the r221
+# sound release announces itself: "[Use $SOUND to toggle sound
+# usage on and off.]"
+click more
+click more
+click more
+click more
+
+# The dream: down to the platform, take the glowing stone, and
+# two waits while the thing takes you -- fainting awake at the
+# terminal with the stone still in hand.
+d
+d
+get stone
+wait
+wait
+
+# Two waits bring the hacker over to pronounce the paper gone.
+examine pc
+wait
+wait
+
+# The Kitchen run. The microwave is set 5-0-0 on HI and must run
+# its full five minutes -- one wait per timer minute -- or the
+# hacker rejects the carton as not warm enough.
+s
+w
+open fridge
+get carton
+get coke
+open carton
+open microwave
+put carton in microwave
+close microwave
+press 5
+press 0
+press 0
+press hi
+press start
+wait
+wait
+wait
+wait
+wait
+open microwave
+get carton
+
+# "Ah! Serious food!" -- the fed hacker answers everything and
+# loans the master key.
+e
+n
+give carton to hacker
+ask hacker about missing students
+ask hacker about stone
+ask hacker about pc
+ask hacker about urchins
+ask hacker about keyring
+ask hacker for master key
+
+# Down the elevator with the flashlight from its access panel;
+# five waits ride it to the basement.
+s
+press down
+wait
+wait
+s
+open access panel
+get flashlight
+press b
+wait
+wait
+wait
+wait
+wait
+n
+
+# Gloves and crowbar from Temporary Basement, then the forklift.
+# On the drive back east an urchin is slouching in Temporary
+# Basement -- watched, in this seed he only slouches.
+e
+get gloves
+get crowbar
+wear gloves
+w
+w
+get in forklift
+turn on forklift
+turn on flashlight
+e
+e
+e
+
+# Four moves of junk carve the "fairly narrow" path through Dead
+# Storage.
+move junk with forklift
+move junk with forklift
+move junk with forklift
+move junk with forklift
+turn off forklift
+get out
+
+# Under the manhole to the altar for the knife, then the long way
+# round to the Tomb: the master key opens the padlock over the
+# steam tunnel hatch.
+e
+move manhole cover with crowbar
+d
+n
+d
+take knife
+u
+s
+u
+w
+w
+w
+w
+w
+d
+nw
+unlock padlock with key
+take padlock
+open hatch
+
+# The steam tunnels. The valve sits one east of the hatch; hitting
+# it wakes the rats. Retreat west, let them swarm back after you,
+# then the valve blast steams the pack -- one dead rat remains.
+d
+e
+hit valve with crowbar
+w
+w
+e
+e
+open valve
+close valve
+
+# Two more east, the tunnel dead-ends where the pipe turns up;
+# two pried bricks open the hole with the reinforcing rod for
+# later. Then out and up to the Infinite Corridor.
+e
+e
+break wall with crowbar
+pry brick with crowbar
+pry new brick with crowbar
+w
+w
+w
+u
+se
+u
+u
+s
+
+# The floor waxer dance, seed 190's exact rhythm: the maintenance
+# man waxes east ahead of you, and the third east is his "deft
+# maneuver" block -- a spent turn the timeline needs, not a
+# mistake. The emergency cabinet is three rooms east.
+get plastic container
+e
+wait
+e
+wait
+wait
+e
+wait
+wait
+e
+wait
+break glass
+get axe
+
+# Back one room to the wall socket: the axe severs the waxer's
+# power cord, and the stairway there climbs to the Great Dome.
+w
+cut cord with axe
+u
+
+# The wax pours down like Quasimodo's molten lead; the slipping
+# maintenance man is out of the chase. The "rope" up to the
+# catwalk is nothing of the kind -- it leaves a ladder behind.
+open container
+wait
+pour wax on maintenance man
+drop container
+climb rope
+
+# The roof: lift and drop the bronze plug, take the paper -- the
+# suicide note whose signature will shortly make sense -- and
+# bring the ladder down for the return.
+open door
+n
+u
+lift bronze plug
+drop plug
+get paper
+d
+s
+close door
+read note
+lower ladder
+d
+d
+
+# East to the Chemistry Building and the Department of Alchemy.
+# The sign-up sheet names the note's author; showing the note
+# turns the professor's bored gaze "distinctly predatory".
+e
+e
+s
+read door
+knock on door
+wait
+examine sign-up sheet
+ask professor about hyrax
+ask professor about sign-up sheet
+ask professor about missing students
+ask professor about lovecraft
+show note to professor
+
+# The lab trap: pushed into a pentagram while the professor
+# begins his rite. The moment he enters his own, cut the chalk
+# line and run -- opening the trapdoor breaks his circle and the
+# summoned thing takes him instead. The trip down to the
+# Cinderblock Tunnel and back up is the escape the ritual needs.
+s
+read label
+ask professor about vat
+cut chalk line with knife
+leave pentagram
+move lab bench
+open trapdoor
+d
+open trapdoor
+u
+get brass hyrax
+
+# Out through the wreckage, north past the disabled waxer to the
+# Nutrition Building.
+n
+open door
+n
+n
+n
+
+# Brown Building. The carry ceiling is real: the knife (its chalk
+# work done, never needed again) is left in the Brown Basement so
+# the rubber boots can be picked up AND WORN -- they are the only
+# thing between you and the electrified water at the very end.
+d
+se
+drop knife
+get boots
+wear boots
+u
+u
+read sign
+unlock door with key
+open door
+w
+u
+dig in earth
+get hand
+
+# The winged thing hunts you on the roof; the stone thrown at it
+# passes clean through and over the south edge, and the creature
+# chases it into the storm. Retrieve the stone from the Small
+# Courtyard below.
+d
+throw stone at creature
+e
+close door
+d
+s
+get stone
+n
+
+# Back to the Alchemy lab the long way. "You are feeling tired"
+# arrives on this leg -- the Coke answers it, as held since the
+# kitchen.
+d
+nw
+u
+s
+s
+s
+drink coke
+s
+
+# The vat's elixir reanimates the mummified hand over two waits;
+# drawn out, it perches on your shoulder. (The put must happen
+# with the dead hand in inventory, or the parser reads "hand" as
+# your own and answers "Nice try.")
+put hand in vat
+wait
+wait
+get hand
+
+# Back to the Basement. The elevator car is parked here from the
+# earlier ride, so it is lured up to the Computer Center first;
+# with the shaft empty, the doors force open by hand onto the
+# tangle of machinery with its hook.
+d
+n
+u
+w
+w
+w
+u
+press down
+d
+wait
+wait
+open elevator doors
+
+# The hack: chain from the shaft bottom, padlocked to the exposed
+# reinforcing rod behind the pried bricks, hooked to the car --
+# then press UP two floors above, and the elevator tears the
+# brick wall down with a rumbling crash.
+wedge doors with crowbar
+d
+get chain
+attach chain to rod
+lock chain with padlock
+u
+attach chain to hook
+take crowbar
+u
+u
+press up
+wait
+
+# The liquid nitrogen flask from the Temporary Lab.
+d
+d
+e
+u
+get flask
+d
+w
+
+# The urchin hunt, seed 190: he saunters through Aero Lobby and
+# slouches at the Infinite Corridor's west end. The twitching hand
+# terrifies him into dropping the bolt cutter as he flees.
+e
+w
+w
+w
+u
+s
+ask urchin about urchin
+ask urchin about missing students
+ask urchin about missing urchins
+show hand to urchin
+get bolt cutter
+n
+d
+e
+e
+
+# Down the shaft and west to the lair's doorstep. The bolt cutter
+# severs the thing's wires; below, the hyrax rides the hand and
+# the hand knows the way through the maze: n, d, s, s, d.
+open elevator doors
+d
+n
+w
+w
+w
+w
+w
+w
+d
+cut wires with bolt cutter
+d
+put hyrax on hand
+n
+d
+s
+s
+d
+
+# The liquid nitrogen freezes the slime curtain; the master key
+# opens one last ancient door.
+open flask
+pour liquid on curtain
+unlock ancient door with key
+open door
+s
+
+# The Inner Lair. Cutting the coax and the power line while the
+# hacker arrives -- and is engulfed. Three axe blows part the
+# line; the socket electrifies the water THE RUBBER BOOTS keep at
+# bay, and the freed mass compacts into the Lurking Horror itself.
+open box
+disconnect coaxial cable
+reach into pool
+get power line
+cut line with axe
+cut line with axe
+cut line with axe
+plug line into socket
+
+# One wait brings the stone to red heat; thrown, it makes the
+# creature swallow itself. The cracked stone hatches something
+# small and winged, the hacker rises from the mud asking for his
+# key back, and the score stands at 100 of 100 in 312 moves:
+# President of the Institute.
+wait
+throw stone at creature
+get stone
+quit
