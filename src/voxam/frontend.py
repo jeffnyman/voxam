@@ -163,6 +163,39 @@ class Frontend(Protocol):
     def bleep(self, number: int) -> None:
         """Sound a bleep: 1 is high, 2 is low (§9)."""
 
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Start a sampled sound in the background (§9.4).
+
+        The volume runs 1 to 8 (§9.3). Repeats count total plays,
+        0 repeating until stopped (§9.4.3); None plays as the
+        resource file's Loop chunk says -- the Version 3 case,
+        where the opcode cannot say. Only frontends that claimed
+        sound receive the call. Answers whether a sound actually
+        started -- False for a number no resource holds, which
+        decides if an end-of-sound routine is worth keeping.
+        """
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop a sampled sound, or all of them when None (§9.4)."""
+
+    def sound_playing(self) -> bool:
+        """Whether a sampled sound is still sounding (§9 remarks)."""
+
+    def sound_finished(self) -> bool:
+        """Whether a sound just ended of its own accord (§9.4.4).
+
+        True once per natural ending; a stopped or replaced sound
+        never reports, so its end-of-sound routine never runs.
+        """
+
+    def wait_for_sound(self) -> None:
+        """Block until the playing sound finishes a cycle.
+
+        The §9 remarks' pacing rule for The Lurking Horror, which
+        fires several sounds in one game round and assumes an
+        interpreter as slow as Infocom's Amiga one.
+        """
+
 
 class PlainFrontend:
     """A dumb-terminal presentation: one unadorned stream of text.
@@ -185,8 +218,9 @@ class PlainFrontend:
     # than a wall clock, which is what seeded replay can honestly
     # offer (§15 read).
     has_timed_input = True
-    # Sampled sounds wait on the blessed frontend and its Blorb-era
-    # machinery; a transcript stream plays nothing, and says so.
+    # Sampled sounds live behind the painted frontend's speaker; a
+    # transcript stream plays nothing and says so -- which is what
+    # keeps recorded sessions deterministic (§9).
     has_sounds = False
     # Font 3's shapes would print as their Latin stand-ins here --
     # a map drawn in gibberish letters -- so the stream refuses the
@@ -341,3 +375,31 @@ class PlainFrontend:
         also embed control characters in every recorded session; the
         blessed frontend is where sound belongs.
         """
+
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Play nothing: this frontend claimed no sound (§9).
+
+        The machine never sends a sound here -- has_sounds is
+        False -- and a stray call changes nothing, which is the
+        silence every recording replays in.
+        """
+
+        del number, volume, repeats
+
+        return False
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop nothing: nothing ever played."""
+
+    def sound_playing(self) -> bool:
+        """No sound is ever sounding here."""
+
+        return False
+
+    def sound_finished(self) -> bool:
+        """No sound ever ends here, naturally or otherwise."""
+
+        return False
+
+    def wait_for_sound(self) -> None:
+        """Return at once: there is never a cycle to wait out."""

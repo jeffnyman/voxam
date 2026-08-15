@@ -2,6 +2,7 @@ import io
 import runpy
 import struct
 import sys
+import types
 import zlib
 from collections.abc import Callable
 from pathlib import Path
@@ -9,10 +10,12 @@ from pathlib import Path
 import pytest
 from assertpy import assert_that
 
-from voxam.cli import _screen_frontend, main
-from voxam.iff import Chunk, chunk
+from voxam.blorb import Blorb, Resource
+from voxam.cli import _screen_frontend, _speaker, main
+from voxam.iff import Chunk, chunk, write_form
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
+from voxam.speaker import Speaker
 
 
 def broken_story(tmp_path: Path, code: bytes) -> Path:
@@ -558,3 +561,66 @@ def test_screen_play_runs_through_the_painter(
     exit_code = main([str(reading_story(tmp_path, version=4))])
 
     assert_that(exit_code).is_equal_to(0)
+
+
+def sounded_blorb() -> Blorb:
+    """A Blorb holding one tiny decodable AIFF sound."""
+
+    common = Chunk(
+        b"COMM",
+        struct.pack(">hLh", 1, 1, 8) + struct.pack(">HQ", 16383 + 14, 22050 << 49),
+    )
+    sound_data = Chunk(b"SSND", bytes(8) + b"\x01")
+    form = Chunk(b"FORM", write_form(b"AIFF", (common, sound_data))[8:])
+
+    return Blorb((Resource(b"Snd ", 3, form),), None, None, frozenset())
+
+
+# The speaker wants a Blorb with decodable sounds, the sounddevice
+# extra, and a real output device; each miss is silence, never a
+# halt -- and an undecodable sound earns its note first.
+def test_the_speaker_needs_sounds_a_package_and_a_device(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert_that(_speaker(None)).is_none()
+    assert_that(_speaker(Blorb((), None, None, frozenset()))).is_none()
+
+    foreign = Blorb(
+        (Resource(b"Snd ", 3, Chunk(b"OGGV", b"ogg")),), None, None, frozenset()
+    )
+
+    assert_that(_speaker(foreign)).is_none()
+    assert_that(capsys.readouterr().out).contains("cannot be decoded")
+
+    monkeypatch.setitem(sys.modules, "sounddevice", None)
+
+    assert_that(_speaker(sounded_blorb())).is_none()
+
+
+# With sounddevice present, a device-less box stays silent and a
+# real output device earns a speaker.
+def test_the_speaker_arrives_with_a_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakePortAudioError(Exception):
+        pass
+
+    def refuse(**_arguments: str) -> None:
+        raise FakePortAudioError
+
+    deaf = types.SimpleNamespace(
+        PortAudioError=FakePortAudioError, query_devices=refuse
+    )
+
+    monkeypatch.setitem(sys.modules, "sounddevice", deaf)
+
+    assert_that(_speaker(sounded_blorb())).is_none()
+
+    hearing = types.SimpleNamespace(
+        PortAudioError=FakePortAudioError,
+        query_devices=lambda **_arguments: {"name": "stub"},
+    )
+
+    monkeypatch.setitem(sys.modules, "sounddevice", hearing)
+
+    assert_that(_speaker(sounded_blorb())).is_instance_of(Speaker)

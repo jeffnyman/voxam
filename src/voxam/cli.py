@@ -8,10 +8,17 @@ from typing import TYPE_CHECKING
 
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
 from voxam.blorb import PNG_ID, Blorb
-from voxam.errors import BlorbError, PNGError, VoxamError, ZMachineUnimplementedError
+from voxam.errors import (
+    AIFFError,
+    BlorbError,
+    PNGError,
+    VoxamError,
+    ZMachineUnimplementedError,
+)
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.png import decode
 from voxam.saves import FileSaveSlot
+from voxam.speaker import Speaker, open_sounddevice_stream
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.story import Story
 
@@ -243,13 +250,16 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
     return Identity(interpreter=number, tandy=tandy)
 
 
-def _screen_frontend(version: int) -> "ScreenFrontend | None":
+def _screen_frontend(
+    version: int, blorb: Blorb | None = None
+) -> "ScreenFrontend | None":
     """A painted frontend, when the glass and the extra allow.
 
     The screen frontend wants a real terminal to paint on and the
     blessed package the `screen` extra installs; missing either,
     the caller falls back to the plain stream, which is always
-    there.
+    there. A Blorb with sounds may also bring a speaker along --
+    see _speaker for what that takes.
     """
 
     if not sys.stdout.isatty():
@@ -262,7 +272,46 @@ def _screen_frontend(version: int) -> "ScreenFrontend | None":
     except ImportError:
         return None
 
-    return ScreenFrontend(version)
+    return ScreenFrontend(version, speaker=_speaker(blorb))
+
+
+def _speaker(blorb: Blorb | None) -> Speaker | None:
+    """A speaker over the Blorb's sounds, when everything allows.
+
+    Sound wants decodable AIFF resources, the sounddevice package
+    the `sound` extra installs, and a real output device; missing
+    any of them, play is silent -- a courtesy missed, never a gate
+    closed (§9.1.2 lets the header say so honestly).
+    """
+
+    if blorb is None:
+        return None
+
+    try:
+        sounds = blorb.sounds()
+    except AIFFError as error:
+        print(f"voxam: the sounds cannot be decoded: {error}\n")
+
+        return None
+
+    if not sounds:
+        return None
+
+    try:
+        # Imported here because the sound extra is optional: the
+        # screen must keep painting without it.
+        import sounddevice  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    try:
+        sounddevice.query_devices(kind="output")
+    except (sounddevice.PortAudioError, ValueError):
+        # No output device -- a headless box, a bare CI runner --
+        # is silence, not failure.
+        return None
+
+    return Speaker(sounds, blorb.loops, open_sounddevice_stream)
 
 
 # A Blorb may be the story itself (a packaged Exec resource) or a
@@ -374,7 +423,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     painted = None
 
     if frontend is None and screen:
-        painted = _screen_frontend(header.version)
+        painted = _screen_frontend(header.version, blorb)
 
         if painted is not None:
             frontend = painted
@@ -429,6 +478,11 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         print(f"\nvoxam: {error}")
 
         return EXIT_UNUSABLE
+    finally:
+        if painted is not None:
+            # A looping sound would otherwise play on past quit:
+            # the session ends, the speaker falls silent with it.
+            painted.stop_sound(None)
 
     print()
 

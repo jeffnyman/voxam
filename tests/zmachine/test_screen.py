@@ -1,9 +1,7 @@
 from collections.abc import Callable, Sequence
 
-import pytest
 from assertpy import assert_that
 
-from voxam.errors import ZMachineUnimplementedError
 from voxam.frontend import Status
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -33,6 +31,12 @@ class ScreenRecorder:
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
         self.bleeps: list[int] = []
         self.rectangles: list[tuple[str, ...]] = []
+        self.sounds: list[tuple[int, int, int | None]] = []
+        self.stops: list[int | None] = []
+        self.waits = 0
+        self.playing = False
+        self.refuses: set[int] = set()
+        self.finishes: list[bool] = []
 
     def write(self, text: str) -> None:
         """Discard: these programs print nothing."""
@@ -69,6 +73,23 @@ class ScreenRecorder:
 
     def bleep(self, number: int) -> None:
         self.bleeps.append(number)
+
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        self.sounds.append((number, volume, repeats))
+
+        return number not in self.refuses
+
+    def stop_sound(self, number: int | None) -> None:
+        self.stops.append(number)
+
+    def sound_playing(self) -> bool:
+        return self.playing
+
+    def sound_finished(self) -> bool:
+        return self.finishes.pop(0) if self.finishes else False
+
+    def wait_for_sound(self) -> None:
+        self.waits += 1
 
 
 def screen_story(code: bytes, version: int = 4) -> Story:
@@ -188,17 +209,133 @@ def test_sampled_sounds_pass_in_conforming_silence() -> None:
     assert_that(frontend.bleeps).is_empty()
 
 
-# A frontend that CLAIMS sound support has no machinery behind the
-# claim yet; there the sampled sound stays a loud frontier.
-def test_sampled_sounds_on_a_sound_frontend_are_a_frontier() -> None:
+def sounded_run(code: bytes, version: int = 5) -> ScreenRecorder:
+    """Run code on a frontend claiming sound, and hand it back."""
+
     frontend = ScreenRecorder()
     frontend.has_sounds = True
-    machine = Machine(
-        screen_story(bytes([0xF5, 0x7F, 0x03, 0xBA])), frontend, lambda: ""
+    machine = Machine(screen_story(code, version=version), frontend, lambda: "")
+
+    machine.run()
+
+    return frontend
+
+
+# The full §9.4 forms reach a frontend with a speaker: a start
+# decodes its volume word -- 255 is loudest, the high byte counts
+# total plays with 255 meaning until stopped, 15 clamps to §9.3's
+# 8 -- a stop names its sound, number 0 stops them all, and The
+# Lurking Horror's bogus effect 8 pardons to nothing (§15
+# sound_effect, §9 remarks).
+def test_sampled_sound_effects_drive_the_frontend() -> None:
+    frontend = sounded_run(
+        bytes(
+            [
+                *[0xF5, 0x51, 0x03, 0x02, 0x00, 0xFF, 0x00],
+                *[0xF5, 0x51, 0x04, 0x02, 0xFF, 0x0F, 0x00],
+                *[0xF5, 0x5F, 0x05, 0x02],
+                *[0xF5, 0x5F, 0x03, 0x03],
+                *[0xF5, 0x5F, 0x00, 0x04],
+                *[0xF5, 0x5F, 0x04, 0x08],
+                0xBA,
+            ]
+        )
     )
 
-    with pytest.raises(ZMachineUnimplementedError, match="sampled sound 3"):
-        machine.run()
+    assert_that(frontend.sounds).is_equal_to([(3, 8, 1), (4, 8, 0), (5, 8, 1)])
+    assert_that(frontend.stops).is_equal_to([3, None])
+
+
+# A Version 3 game cannot speak repeats -- §15 keeps the high byte
+# zero -- so the machine passes None and the Blorb's Loop chunk
+# decides; a volume of zero clamps up to §9.3's quietest 1.
+def test_version_3_sounds_leave_repeats_to_the_blorb() -> None:
+    frontend = sounded_run(
+        bytes(
+            [
+                *[0xF5, 0x57, 0x03, 0x02, 0x08],
+                *[0xF5, 0x57, 0x04, 0x02, 0x00],
+                0xBA,
+            ]
+        ),
+        version=3,
+    )
+
+    assert_that(frontend.sounds).is_equal_to([(3, 8, None), (4, 1, None)])
+
+
+# The §9 remarks' pacing rule: a second sound started while one
+# begun since the last keyboard input still plays waits for that
+# one to finish a cycle before replacing it.
+def test_a_second_sound_in_one_round_waits_a_cycle() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_sounds = True
+    frontend.playing = True
+    machine = Machine(
+        screen_story(
+            bytes(
+                [
+                    *[0xF5, 0x51, 0x03, 0x02, 0x00, 0xFF, 0x00],
+                    *[0xF5, 0x51, 0x04, 0x02, 0x00, 0xFF, 0x00],
+                    0xBA,
+                ]
+            ),
+            version=5,
+        ),
+        frontend,
+        lambda: "",
+    )
+
+    machine.run()
+
+    assert_that(frontend.waits).is_equal_to(1)
+    assert_that(frontend.sounds).is_length(2)
+
+
+# A sound that ends of its own accord calls its end-of-sound
+# routine, once, between instructions (§9.4.4); a start the
+# frontend refused -- The Lurking Horror asks for sound 4095 --
+# arms no routine at all.
+def test_the_end_of_sound_routine_fires_on_natural_endings() -> None:
+    routine = bytes([0x00, 0xF1, 0x7F, 0x02, 0xB0])
+    heard = screen_story(
+        bytes(
+            [
+                *[0xF5, 0x51, 0x03, 0x02, 0x00, 0xFF, 0x70],
+                *[0xF1, 0x7F, 0x00],
+                0xBA,
+            ]
+        ),
+        version=5,
+    )
+    data = bytearray(heard.data)
+    data[0x1C0 : 0x1C0 + len(routine)] = routine
+    frontend = ScreenRecorder()
+    frontend.has_sounds = True
+    frontend.finishes = [False, True]
+    machine = Machine(Story(bytes(data)), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(frontend.styles).is_equal_to([0, 2])
+
+    refused = ScreenRecorder()
+    refused.has_sounds = True
+    refused.refuses = {4095}
+    refused.finishes = [True]
+    machine = Machine(
+        screen_story(
+            bytes([*[0xF5, 0x11, 0x0F, 0xFF, 0x02, 0x00, 0xFF, 0x70], 0xBA]),
+            version=5,
+        ),
+        refused,
+        lambda: "",
+    )
+
+    machine.run()
+
+    assert_that(refused.sounds).is_equal_to([(4095, 8, 1)])
+    assert_that(refused.styles).is_empty()
 
 
 # Colour requests on a frontend that truthfully declares no colour

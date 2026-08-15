@@ -2,10 +2,12 @@ from contextlib import AbstractContextManager, nullcontext
 
 from assertpy import assert_that
 
+from voxam.aiff import Sound
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
 from voxam.png import Picture
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
+from voxam.speaker import Fill, Finished, Speaker, Stream
 
 
 class StubKey(str):
@@ -495,3 +497,86 @@ def test_a_sizeless_terminal_falls_back() -> None:
 
     assert_that(frontend.screen_columns).is_equal_to(FALLBACK_COLUMNS)
     assert_that(frontend.screen_lines).is_equal_to(FALLBACK_LINES)
+
+
+class SoundStream:
+    """Captures the speaker's callbacks so a test can drive them."""
+
+    def __init__(self, fill: Fill, finished: Finished) -> None:
+        self.fill = fill
+        self.finished = finished
+        self.aborted = False
+
+    def start(self) -> None:
+        pass
+
+    def abort(self) -> None:
+        self.aborted = True
+
+    def close(self) -> None:
+        pass
+
+
+def sounded() -> tuple[Speaker, list[SoundStream]]:
+    """A speaker holding one two-byte sound, with its streams."""
+
+    streams: list[SoundStream] = []
+
+    def opener(rate: float, fill: Fill, finished: Finished) -> Stream:
+        del rate
+        stream = SoundStream(fill, finished)
+        streams.append(stream)
+
+        return stream
+
+    speaker = Speaker({3: Sound(1, 8, 1000.0, 2, b"\x01\x02")}, frozenset(), opener)
+
+    return speaker, streams
+
+
+# With a speaker aboard the painted frontend claims sound and the
+# seam delegates every call; a natural ending surfaces through
+# sound_finished, a manual stop never does (§9.4.4).
+def test_the_sound_seam_delegates_to_the_speaker() -> None:
+    speaker, streams = sounded()
+    out: list[str] = []
+    frontend = ScreenFrontend(
+        5, terminal=StubTerminal(None), out=out.append, speaker=speaker
+    )
+
+    assert_that(frontend.has_sounds).is_true()
+
+    frontend.play_sound(3, 8, 1)
+
+    assert_that(streams).is_length(1)
+    assert_that(frontend.sound_playing()).is_true()
+
+    frontend.stop_sound(3)
+
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(streams[0].aborted).is_true()
+
+    frontend.wait_for_sound()
+
+    assert_that(frontend.sound_finished()).is_false()
+
+    frontend.play_sound(3, 8, 1)
+    streams[1].fill(bytearray(4))
+    streams[1].finished()
+
+    assert_that(frontend.sound_finished()).is_true()
+
+
+# Without a speaker the painted frontend claims no sound and the
+# seam is inert.
+def test_the_sound_seam_is_inert_without_a_speaker() -> None:
+    frontend, _ = painted()
+
+    assert_that(frontend.has_sounds).is_false()
+
+    frontend.play_sound(3, 8, 1)
+    frontend.stop_sound(None)
+    frontend.wait_for_sound()
+
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(frontend.sound_finished()).is_false()

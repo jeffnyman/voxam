@@ -182,3 +182,18 @@ def test_plain_rectangles_stack_as_lines() -> None:
     frontend.write_rectangle(["ab", "cd"])
 
     assert_that(pieces).is_equal_to(["ab", "\n", "cd"])
+
+
+# The plain frontend claims no sound and stays inert when the seam
+# is poked anyway -- the silence every recording replays in (§9).
+def test_the_plain_sound_seam_is_inert() -> None:
+    pieces: list[str] = []
+    frontend = PlainFrontend(pieces.append)
+
+    frontend.play_sound(3, 8, 1)
+    frontend.stop_sound(None)
+    frontend.wait_for_sound()
+
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(frontend.sound_finished()).is_false()
+    assert_that(pieces).is_empty()
