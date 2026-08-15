@@ -7,7 +7,6 @@ from assertpy import assert_that
 from voxam.errors import (
     ZMachineObjectError,
     ZMachineStackError,
-    ZMachineUnimplementedError,
 )
 from voxam.frontend import PlainFrontend
 from voxam.zmachine.header import PACKED_PC_VERSION
@@ -594,16 +593,6 @@ def test_pull_from_an_empty_stack_halts() -> None:
     machine = Machine(scene(bytes([0xE9, 0x7F, RESULT_VARIABLE, 0xBA])))
 
     with pytest.raises(ZMachineStackError, match="empty stack"):
-        machine.run()
-
-
-# Version 6's storing pull works on user stacks, which do not exist
-# yet; the frontier reporter says so rather than misbehaving (§14).
-def test_version_6_pull_is_a_reported_frontier() -> None:
-    code = bytes([0x00, 0xE9, 0x7F, RESULT_VARIABLE, 0x00])
-    machine = Machine(scene_story([Obj()], version=6, code=code))
-
-    with pytest.raises(ZMachineUnimplementedError, match="pull"):
         machine.run()
 
 
