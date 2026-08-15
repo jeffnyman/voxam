@@ -62,6 +62,7 @@ from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
 from voxam.zmachine.windows import (
     CURRENT_WINDOW,
     X_CURSOR,
+    X_SIZE,
     Y_CURSOR,
     WindowLedger,
 )
@@ -200,6 +201,15 @@ MARGIN_WINDOW_OPERAND = 2
 # read_mouse fills four words: y, x, button bits, menu word (§15).
 MOUSE_WORDS = 4
 
+# Version 6's output_stream may add a width as its third operand:
+# the redirected text is then word-wrapped -- to a window's width
+# if the operand is zero or positive, to a box of -width units if
+# negative -- and the table takes print_form's line shape instead
+# of the flat count-and-bytes (§15 output_stream). The total width
+# of printing lands in the header word at $30 (§7.1.2.1).
+REDIRECTION_WIDTH_OPERAND = 2
+TOTAL_WIDTH_ADDRESS = 0x30
+
 # Version 6 set_cursor: -1 turns the cursor off, -2 turns it back
 # on, and an ordinary move may name its window third (§15).
 CURSOR_OFF = 0xFFFF
@@ -275,6 +285,43 @@ def _unicode_printable(code: int) -> bool:
         return False
 
     return not SURROGATE_START <= code <= SURROGATE_END
+
+
+def _wrapped(text: str, limit: int) -> list[str]:
+    """Greedy word-wrap onto lines at most limit units wide (§7.2).
+
+    Forced new-lines end their lines; a word longer than the whole
+    limit breaks at the limit, which is §8.8.3.1.1's unbuffered
+    fallback.
+    """
+
+    lines = []
+
+    for paragraph in text.split("\n"):
+        current = ""
+
+        for word in paragraph.split(" "):
+            candidate = f"{current} {word}" if current else word
+
+            if len(candidate) <= limit:
+                current = candidate
+
+                continue
+
+            if current:
+                lines.append(current)
+
+            remainder = word
+
+            while len(remainder) > limit:
+                lines.append(remainder[:limit])
+                remainder = remainder[limit:]
+
+            current = remainder
+
+        lines.append(current)
+
+    return lines
 
 
 def _quotient(left: int, right: int) -> int:
@@ -363,7 +410,7 @@ class Machine:
         self._running = True
         self._screen_selected = True
         self._font = NORMAL_FONT
-        self._redirections: list[tuple[int, list[str]]] = []
+        self._redirections: list[tuple[int, list[str], int | None]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
         self._pending_keys: deque[str] = deque()
@@ -2398,13 +2445,38 @@ class Machine:
 
             raise ZMachineInstructionError(msg)
 
-        self._redirections.append((values[1], []))
+        self._redirections.append((values[1], [], self._redirection_limit(values)))
+
+    def _redirection_limit(self, values: list[int]) -> int | None:
+        """The wrap width a Version 6 redirection asked for, if any.
+
+        Zero or positive names a window, whose current width in
+        units is the limit; negative means a box of -width units
+        (§15 output_stream). No width -- or any version but 6 --
+        is the flat, unformatted table.
+        """
+
+        if (
+            len(values) <= REDIRECTION_WIDTH_OPERAND
+            or self._memory.header.version != PACKED_PC_VERSION
+        ):
+            return None
+
+        width = signed(values[REDIRECTION_WIDTH_OPERAND])
+
+        if width < 0:
+            return max(1, -width)
+
+        return max(1, self._windows.property(width, X_SIZE))
 
     def _end_redirection(self, instruction: Instruction) -> None:
         """Close the newest stream 3 table, writing its count (§7.1.2.1).
 
         New-lines are written as ZSCII 13 (§7.1.2.2.1); other
-        characters carry their ZSCII codes.
+        characters carry their ZSCII codes. A redirection opened
+        with a width writes print_form's line shape instead, and
+        in Version 6 the longest line's width lands in the header
+        word at $30 (§7.1.2.1).
         """
 
         if not self._redirections:
@@ -2415,18 +2487,62 @@ class Machine:
 
             raise ZMachineInstructionError(msg)
 
-        table, pieces = self._redirections.pop()
+        table, pieces, limit = self._redirections.pop()
         text = "".join(pieces)
-        position = table + REDIRECTION_DATA_OFFSET
 
-        # The table holds ZSCII, not Unicode (§3.8.5.4 counts stream
-        # 3 among the places extra characters legally appear): an
-        # oe-ligature lands as code 220, not codepoint 339.
-        for character in text:
-            self._memory.write_byte(position, char_to_zscii(character, self._extras()))
-            position += 1
+        if limit is None:
+            position = table + REDIRECTION_DATA_OFFSET
 
-        self._memory.write_word(table, len(text))
+            # The table holds ZSCII, not Unicode (§3.8.5.4 counts
+            # stream 3 among the places extra characters legally
+            # appear): an oe-ligature lands as code 220, not
+            # codepoint 339.
+            for character in text:
+                self._memory.write_byte(
+                    position, char_to_zscii(character, self._extras())
+                )
+                position += 1
+
+            self._memory.write_word(table, len(text))
+            widest = max((len(part) for part in text.split("\n")), default=0)
+        else:
+            widest = self._write_formatted(table, text, limit)
+
+        if self._memory.header.version == PACKED_PC_VERSION:
+            self._memory.write_word(TOTAL_WIDTH_ADDRESS, widest)
+
+    def _write_formatted(self, table: int, text: str, limit: int) -> int:
+        """Write print_form's line shape: counted lines, a zero end.
+
+        Each line is a word holding its character count, then the
+        characters (§15 print_form). The count doubles as the
+        terminator, so a truly empty line cannot be carried; a
+        blank line travels as a single space, the nearest printable
+        truth.
+
+        Returns:
+            The widest line written, for the header's $30 word.
+        """
+
+        position = table
+        widest = 0
+
+        for line in _wrapped(text, limit):
+            carried = line if line else " "
+            widest = max(widest, len(carried))
+
+            self._memory.write_word(position, len(carried))
+            position += REDIRECTION_DATA_OFFSET
+
+            for character in carried:
+                self._memory.write_byte(
+                    position, char_to_zscii(character, self._extras())
+                )
+                position += 1
+
+        self._memory.write_word(position, 0)
+
+        return widest
 
     def _op_sound_effect(self, instruction: Instruction) -> None:
         """Sound a bleep, or drive a sampled sound (§9).
@@ -2825,6 +2941,42 @@ class Machine:
         self._memory.write_word(array + 2, column)
         self._pc = instruction.next_address
 
+    def _op_print_form(self, instruction: Instruction) -> None:
+        """Print a formatted table, line by line (§15 print_form).
+
+        The table is the shape a width-bearing output_stream 3
+        writes: each line a word holding its character count then
+        the characters themselves, the sequence ending at a zero
+        word. Each line prints followed by a new-line --
+        print_table's elaborated cousin flows down the screen, not
+        rightward across it. Arthur formats even its parser errors
+        this way.
+        """
+
+        position = self._value(instruction.operands[0])
+
+        while True:
+            count = self._memory.read_word(position)
+
+            if count == 0:
+                break
+
+            position += REDIRECTION_DATA_OFFSET
+            line = "".join(
+                zscii_to_char(
+                    self._memory.read_byte(position + offset),
+                    self._extras(),
+                    self._memory.header.version,
+                )
+                for offset in range(count)
+            )
+
+            self._print(line + "\n")
+
+            position += count
+
+        self._pc = instruction.next_address
+
     def _op_picture_quiet(self, instruction: Instruction) -> None:
         """Let a picture operation pass in the conforming quiet.
 
@@ -3084,6 +3236,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "nop": Machine._op_nop,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,
+    "print_form": Machine._op_print_form,
     "put_wind_prop": Machine._op_put_wind_prop,
     "read_mouse": Machine._op_read_mouse,
     "set_margins": Machine._op_set_margins,
