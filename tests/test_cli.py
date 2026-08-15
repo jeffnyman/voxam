@@ -10,8 +10,9 @@ from pathlib import Path
 import pytest
 from assertpy import assert_that
 
+from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
-from voxam.cli import _screen_frontend, _speaker, main
+from voxam.cli import _recorded_keys, _screen_frontend, _speaker, main
 from voxam.iff import Chunk, chunk, write_form
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
@@ -624,3 +625,116 @@ def test_the_speaker_arrives_with_a_device(
     monkeypatch.setitem(sys.modules, "sounddevice", hearing)
 
     assert_that(_speaker(sounded_blorb())).is_instance_of(Speaker)
+
+
+# --record captures live play: it cannot join a replay, and it
+# needs a story to record.
+def test_record_refuses_scripts_and_bare_banners(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "out.accept"
+
+    exit_code = main(["--record", str(target), "--accept", "x.accept"])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("a script already is one")
+
+    exit_code = main(["--record", str(target)])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("needs a story")
+
+
+# A recorded plain session becomes a replayable script: the game,
+# a freshly rolled seed, and the typed commands -- and replaying
+# it draws no warnings.
+def test_a_recorded_session_replays(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+    target = tmp_path / "session.accept"
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+
+    exit_code = main(["--plain", "--record", str(target), str(story)])
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(out).contains("Recording to")
+
+    content = target.read_text(encoding="utf-8")
+
+    assert_that(content).contains("! GAME=reads.z3")
+    assert_that(content).contains("! SEED=")
+    assert_that(content).contains("look")
+
+    exit_code = main(["--accept", str(target)])
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(out).does_not_contain("looks refused")
+
+
+# An explicit --seed is the one written down, and an existing
+# target file is refused before any play begins.
+def test_recording_honours_the_seed_and_refuses_overwrites(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+    target = tmp_path / "session.accept"
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+
+    exit_code = main(["--plain", "--seed", "42", "--record", str(target), str(story)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(target.read_text(encoding="utf-8")).contains("! SEED=42")
+
+    exit_code = main(["--plain", "--record", str(target), str(story)])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("never overwrites")
+
+
+# The key tee writes presses into the script and lets an expired
+# timeout pass unrecorded.
+def test_recorded_keys_tee_into_the_script(tmp_path: Path) -> None:
+    target = tmp_path / "keys.accept"
+    recorder = Recorder(target, game=tmp_path / "story.z5", seed=7, warn=print)
+    presses = iter([None, "\x81", "\n"])
+    source = _recorded_keys(recorder, lambda _timeout: next(presses))
+
+    assert_that(source(0.5)).is_none()
+    assert_that(source(None)).is_equal_to("\x81")
+    assert_that(source(None)).is_equal_to("\n")
+
+    recorder.close()
+
+    lines = target.read_text(encoding="utf-8").splitlines()
+
+    assert_that(lines).contains("<up>")
+    assert_that(lines[-1]).is_equal_to(">")
+
+
+# Painted play records through the same tees: the line assembled
+# by the painter's own editor lands in the script.
+def test_a_painted_session_records_its_lines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    target = tmp_path / "painted.accept"
+    exit_code = main(["--record", str(target), str(reading_story(tmp_path, version=4))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(target.read_text(encoding="utf-8")).contains("look")

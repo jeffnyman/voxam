@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 from assertpy import assert_that
 
-from voxam.acceptance import AcceptanceScript, RefusalWatch, refusal_in, replay
+from voxam.acceptance import (
+    AcceptanceScript,
+    Recorder,
+    RefusalWatch,
+    refusal_in,
+    replay,
+)
 from voxam.errors import AcceptanceError
 
 
@@ -360,3 +366,86 @@ def test_finishing_twice_warns_once(tmp_path: Path) -> None:
     watch.finish()
 
     assert_that(warnings).is_length(1)
+
+
+# The recorder is parse()'s inverse: directives first, then every
+# input in the grammar the replayer reads, and the round trip
+# through parse() gives back exactly what was typed and pressed.
+def test_the_recorder_round_trips_through_parse(tmp_path: Path) -> None:
+    story = tmp_path / "cellar.z5"
+    target = tmp_path / "session.accept"
+    warnings: list[str] = []
+    recorder = Recorder(target, game=story, seed=999, warn=warnings.append)
+
+    recorder.line("look")
+    recorder.line("")
+    recorder.line("# leading marker")
+    recorder.line("<up>")
+    recorder.key("\x82")
+    recorder.key("\n")
+    recorder.key("y")
+    recorder.key("#")
+    recorder.key(">")
+    recorder.close()
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.seed).is_equal_to(999)
+    assert_that(script.game.name).is_equal_to("cellar.z5")
+    assert_that(script.commands).is_equal_to(
+        ("look", "", "# leading marker", "<up>", "\x82", "", "y", "#", ">")
+    )
+    assert_that(warnings).is_empty()
+
+
+# A recording never overwrites: an existing file is refused loudly.
+def test_the_recorder_refuses_an_existing_file(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    target.write_text("precious", encoding="utf-8")
+
+    with pytest.raises(AcceptanceError, match="never overwrites"):
+        Recorder(target, game=tmp_path / "story.z3", seed=1, warn=print)
+
+
+# What the grammar cannot spell exactly is warned about, never
+# silently mangled: an inline-comment tail replays trimmed, and a
+# key with no token is not recorded at all.
+def test_the_recorder_warns_what_it_cannot_spell(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    warnings: list[str] = []
+    recorder = Recorder(
+        target, game=tmp_path / "story.z3", seed=1, warn=warnings.append
+    )
+
+    recorder.line("get lamp  # the brass one")
+    recorder.key("\x7f")
+    recorder.close()
+
+    assert_that(warnings).is_length(2)
+    assert_that(warnings[0]).contains("will replay as 'get lamp'")
+    assert_that(warnings[1]).contains("key 127 has no token")
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.commands).is_equal_to(("get lamp",))
+
+
+# A story with no relative spelling -- another drive -- is named
+# absolutely; the recording still replays, it just cannot move.
+def test_the_recorder_survives_an_unrelatable_game_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "session.accept"
+
+    def unrelatable(*_arguments: object, **_keywords: object) -> Path:
+        raise ValueError
+
+    monkeypatch.setattr(Path, "relative_to", unrelatable)
+
+    recorder = Recorder(target, game=tmp_path / "story.z3", seed=1, warn=print)
+    recorder.close()
+
+    content = target.read_text(encoding="utf-8")
+
+    assert_that(content).contains("! GAME=")
+    assert_that(content).contains("story.z3")

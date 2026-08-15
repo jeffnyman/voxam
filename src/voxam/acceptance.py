@@ -320,6 +320,136 @@ class RefusalWatch:
             self._warn(f"line {line}: {command!r} looks refused: {offense.strip()}")
 
 
+# The enter key, which the grammar spells as a bare prompt: an
+# empty command line is one press of return (§3.8.2.1).
+ENTER_KEYS = ("\n", "\r")
+
+
+class Recorder:
+    """Writes a live session as an acceptance script, as it happens.
+
+    The inverse of parse(): every line the player types and every
+    key they press is written in the grammar the replayer reads,
+    flushed input by input, so a session that ends badly -- a
+    death, a crash, a closed terminal -- still leaves a replayable
+    script up to its last keystroke. What the grammar cannot spell
+    exactly is warned about, never silently mangled.
+    """
+
+    def __init__(
+        self, path: Path, game: Path, seed: int, warn: Callable[[str], None]
+    ) -> None:
+        """Open a fresh script and stamp its directives.
+
+        Args:
+            path: Where the script is written. An existing file is
+                refused: a recording never overwrites one.
+            game: The story file being played, written relative to
+                the script when it can be, so the pair travels
+                together.
+            seed: The session's seed -- the directive that makes
+                the recording replayable at all.
+            warn: Receives one message per input that could not be
+                written exactly.
+
+        Raises:
+            AcceptanceError: If the path already exists.
+            OSError: If the file cannot be created.
+        """
+
+        if path.exists():
+            msg = f"{path} already exists; a recording never overwrites"
+
+            raise AcceptanceError(msg)
+
+        self._warn = warn
+        self._handle = path.open("w", encoding="utf-8", newline="\n")
+
+        try:
+            where = game.resolve().relative_to(path.resolve().parent, walk_up=True)
+        except ValueError:
+            # A story with no relative spelling -- another drive --
+            # is named absolutely; the pair just cannot move.
+            where = game.resolve()
+
+        self._write(f"! GAME={where.as_posix()}")
+        self._write(f"! SEED={seed}")
+        self._write("")
+
+    def line(self, text: str) -> None:
+        """Record one whole typed line."""
+
+        encoded = _scripted(text)
+        replayed = _replays_as(encoded)
+
+        if replayed != text:
+            self._warn(
+                f"recorded {text!r} will replay as {replayed!r}; "
+                f"the script grammar cannot spell it exactly"
+            )
+
+        self._write(encoded)
+
+    def key(self, character: str) -> None:
+        """Record one pressed key."""
+
+        if character in KEY_ECHOES:
+            self._write(KEY_ECHOES[character])
+
+            return
+
+        if character in ENTER_KEYS:
+            self._write(PROMPT)
+
+            return
+
+        if not character.isprintable():
+            self._warn(
+                f"key {ord(character)} has no token in the grammar; not recorded"
+            )
+
+            return
+
+        self.line(character)
+
+    def close(self) -> None:
+        """Finish the script file."""
+
+        self._handle.close()
+
+    def _write(self, line: str) -> None:
+        """Put one script line on disk, immediately."""
+
+        self._handle.write(line + "\n")
+        self._handle.flush()
+
+
+def _scripted(text: str) -> str:
+    """Spell a typed line in the script grammar.
+
+    Most lines are themselves. An empty line is the enter key, a
+    bare prompt. A line the parser would read as something else --
+    a comment, a directive, a fence, a key token, a prompt -- takes
+    the literal-command prompt prefix.
+    """
+
+    if not text:
+        return PROMPT
+
+    marked = text.startswith((COMMENT, DIRECTIVE, PROMPT, FENCE))
+    keyish = text.startswith("<") and text.endswith(">")
+
+    return f"{PROMPT} {text}" if marked or keyish else text
+
+
+def _replays_as(line: str) -> str:
+    """What parse() will make of one written line: the round trip."""
+
+    pressed = _key_token(line, 0)
+
+    return pressed if pressed is not None else _command(line)
+
+
 def _game_path(script: Path, value: str) -> Path:
     """Resolve GAME against the script's own directory.
 
