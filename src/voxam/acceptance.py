@@ -196,17 +196,28 @@ def replay(
 # standing "Okay, Jeff, what do you want to do now?" prompt -- stays
 # unremarked. "That's not a verb I recogni" is truncated on purpose:
 # Inform spells the next letters -ise or -ize depending on the
-# game's dialect, and a prefix match covers both.
+# game's dialect, and a prefix match covers both. The commented
+# entries were each paid for by a 0.6.0 recording campaign: a
+# refusal the watch could not yet speak, discovered forty turns
+# later as a missing side effect. Every entry needs an earner --
+# an observed refusal, or a message the house libraries document --
+# because a guessed sibling collides with honest prose: a bare
+# "You're not holding" was tried here and withdrawn the same hour,
+# when Trinity's empty-inventory report turned out to open with it.
 REFUSAL_OPENINGS = (
     "I beg your pardon",
     "I didn't understand that sentence",
     "I don't know the word",
     "I only understood you as far as",
     "It's not clear what you're referring to",
+    "Nice try",  # The Lurking Horror: a bare hand in the vat
     "That sentence isn't one I recognize",
     "That's not a verb I recogni",
     "There was no verb in that sentence",
     "What do you want",
+    "You are not holding",  # Sherlock: the rubbing that came up blank
+    "You aren't holding that",  # the Inform library's spelling of it
+    "You can't be serious",  # The Lurking Horror's flat disbelief
     "You can't do that",
     "You can't go that way",
     "You can't quite reach",
@@ -214,6 +225,7 @@ REFUSAL_OPENINGS = (
     "You must use a verb",
     "You should close it first",
     "You should open it first",
+    "You're holding too many",  # The Lurking Horror's carry ceiling
     "Your load is too heavy",
 )
 
