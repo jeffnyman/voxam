@@ -76,6 +76,12 @@ DEFAULT_COLOUR = 1
 FALLBACK_COLUMNS = 80
 FALLBACK_LINES = 24
 
+# How often an infinite wait surfaces for air, in seconds. Each
+# heartbeat lets the machine attend to background work -- an ended
+# sound's §9.4.4 routine -- while the player thinks at a prompt;
+# between heartbeats the wait costs nothing.
+IDLE_HEARTBEAT = 0.2
+
 # Sizing sixel pixels against a glass measured only in cells: no
 # terminal cell is narrower than 8 pixels or shorter than 16 on a
 # modern display, so scaling against these floors magnifies a cover
@@ -298,6 +304,10 @@ class ScreenFrontend:
         # The header hears the truth: sound is on offer exactly
         # when a speaker arrived to make it true (§9.1.2).
         self.has_sounds = speaker is not None
+        # The machine's between-keystrokes attention, wired by the
+        # session once a machine exists: called on each heartbeat
+        # of an infinite wait. None waits the old blocking way.
+        self.idle: Callable[[], None] | None = None
         self.screen_columns = terminal.width or FALLBACK_COLUMNS
         self.screen_lines = terminal.height or FALLBACK_LINES
         self._model = ScreenModel(
@@ -434,6 +444,28 @@ class ScreenFrontend:
 
         return None
 
+    def _waited_key(self) -> str | None:
+        """One read of an infinite wait, attentive while it lasts.
+
+        Without an idle callback this is a plain blocking read.
+        With one, the wait is chopped into heartbeats: each expiry
+        lets the machine attend to background work -- an ended
+        sound's routine (§9.4.4) -- before listening again. One
+        heartbeat's answer comes back as it is; None still means
+        "nothing usable yet", and every caller already waits that
+        out.
+        """
+
+        if self.idle is None:
+            return self._translated_key(None)
+
+        key = self._translated_key(IDLE_HEARTBEAT)
+
+        if key is None:
+            self.idle()
+
+        return key
+
     def read_key(self, timeout: float | None = None) -> str | None:
         """Read one raw keystroke at the model's cursor.
 
@@ -441,13 +473,17 @@ class ScreenFrontend:
         echoing to the game. Without a timeout, empty and
         unhearable reads simply wait for a real keystroke; with
         one, an expired wait answers None, which is the machine's
-        cue to fire a §15 interrupt on the wall clock.
+        cue to fire a §15 interrupt on the wall clock -- so a timed
+        read keeps its own clock, and only the infinite wait is
+        chopped into attentive heartbeats.
         """
 
         self._park()
 
         while True:
-            key = self._translated_key(timeout)
+            key = (
+                self._waited_key() if timeout is None else self._translated_key(timeout)
+            )
 
             if key is not None:
                 return key
@@ -472,7 +508,7 @@ class ScreenFrontend:
         typed: list[str] = []
 
         while True:
-            key = self._translated_key(None)
+            key = self._waited_key()
 
             if key is None or key == "\x1b" or self._input_only(key):
                 continue

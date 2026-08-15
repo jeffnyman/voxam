@@ -509,7 +509,7 @@ class Machine:
         """
 
         while self._running:
-            self._poll_sound()
+            self.poll_sound()
             self.step()
 
     def step(self) -> None:
@@ -2234,7 +2234,7 @@ class Machine:
             self._sound_routine = routine
             self._sound_since_input = True
 
-    def _poll_sound(self) -> None:
+    def poll_sound(self) -> None:
         """Fire the end-of-sound routine of a sound that just ended.
 
         The routine runs only after the sound has played its
@@ -2243,6 +2243,13 @@ class Machine:
         stopped or replaced (§9.4.4). The result is discarded: an
         end-of-sound routine is not a §15 read interrupt, and
         terminates nothing.
+
+        The run loop polls between instructions, and a painted
+        session wires this into the painter's idle heartbeat too,
+        so a sound ending while the player thinks at a prompt is
+        attended to there and then -- the routine is cleared
+        before it fires, so a poll from inside the routine's own
+        nested execution finds nothing to do.
         """
 
         if self._sound_routine and self._frontend.sound_finished():

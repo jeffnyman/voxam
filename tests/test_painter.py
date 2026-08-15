@@ -1,10 +1,16 @@
 from contextlib import AbstractContextManager, nullcontext
 
+import pytest
 from assertpy import assert_that
 
 from voxam.aiff import Sound
 from voxam.frontend import GRAPHICS_FONT, Status
-from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
+from voxam.painter import (
+    FALLBACK_COLUMNS,
+    FALLBACK_LINES,
+    IDLE_HEARTBEAT,
+    ScreenFrontend,
+)
 from voxam.png import Picture
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
 from voxam.speaker import Fill, Finished, Speaker, Stream
@@ -580,3 +586,43 @@ def test_the_sound_seam_is_inert_without_a_speaker() -> None:
 
     assert_that(frontend.sound_playing()).is_false()
     assert_that(frontend.sound_finished()).is_false()
+
+
+# With an idle callback wired, an infinite wait is chopped into
+# heartbeats: each expiry lets the machine attend to background
+# work, and the typed line is unaffected.
+def test_read_line_heartbeats_through_its_idle_callback() -> None:
+    terminal = StubTerminal([StubKey(""), *typing("go")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    beats: list[int] = []
+    frontend.idle = lambda: beats.append(1)
+
+    assert_that(frontend.read_line()).is_equal_to("go")
+    assert_that(beats).is_length(1)
+    assert_that(set(terminal.timeouts)).is_equal_to({IDLE_HEARTBEAT})
+
+
+# An infinite single-key wait heartbeats the same way.
+def test_read_key_heartbeats_while_waiting_forever() -> None:
+    terminal = StubTerminal([StubKey(""), StubKey("n")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    beats: list[int] = []
+    frontend.idle = lambda: beats.append(1)
+
+    assert_that(frontend.read_key()).is_equal_to("n")
+    assert_that(beats).is_length(1)
+    assert_that(terminal.timeouts).is_equal_to([IDLE_HEARTBEAT, IDLE_HEARTBEAT])
+
+
+# A timed read keeps its own clock: the game's timeout passes
+# through untouched and the idle callback never fires there.
+def test_timed_read_keys_keep_their_own_clock() -> None:
+    terminal = StubTerminal([StubKey("y")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    frontend.idle = lambda: pytest.fail("a timed read must not idle")
+
+    assert_that(frontend.read_key(0.5)).is_equal_to("y")
+    assert_that(terminal.timeouts).is_equal_to([0.5])
