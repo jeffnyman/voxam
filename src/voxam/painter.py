@@ -85,9 +85,26 @@ IDLE_HEARTBEAT = 0.2
 # Sizing sixel pixels against a glass measured only in cells: no
 # terminal cell is narrower than 8 pixels or shorter than 16 on a
 # modern display, so scaling against these floors magnifies a cover
-# as far as it can certainly fit.
+# as far as it can certainly fit when the terminal will not say
+# more.
 CELL_WIDTH_FLOOR = 8
 CELL_HEIGHT_FLOOR = 16
+
+# Terminal interrogation for the sixel path: a query is written to
+# the glass and the answer comes back through the keyboard. The
+# DEC primary device attributes query answers CSI ? <attributes> c
+# with attribute 4 declaring sixel graphics; the XTWINOPS report
+# 16 answers CSI 6 ; <height> ; <width> t, the pixel size of one
+# character cell. A terminal that stays quiet past the patience
+# window has said no.
+DEVICE_ATTRIBUTES_QUERY = "\x1b[c"
+DEVICE_ATTRIBUTES_END = "c"
+SIXEL_ATTRIBUTE = "4"
+CELL_SIZE_QUERY = "\x1b[16t"
+CELL_SIZE_END = "t"
+CELL_SIZE_REPORT = "6"
+CELL_SIZE_FIELDS = 3
+QUERY_PATIENCE = 0.15
 
 # The §16 character graphics font, one Unicode stand-in per 8x8
 # bitmap. Cells in font 3 hold the character code the game printed;
@@ -537,6 +554,72 @@ class ScreenFrontend:
 
         return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
 
+    def _answered(self, query: str, end: str) -> str:
+        """Ask the terminal a question and collect its escape answer.
+
+        The answer arrives back through the keyboard, gathered a
+        keystroke at a time until its final character. A terminal
+        that stays quiet past the patience window answers nothing,
+        and a partial answer is discarded rather than believed.
+        """
+
+        self._out(query)
+
+        pieces: list[str] = []
+
+        with self._terminal.cbreak():
+            while True:
+                piece = str(self._terminal.inkey(QUERY_PATIENCE))
+
+                if not piece:
+                    return ""
+
+                pieces.append(piece)
+
+                if piece.endswith(end):
+                    return "".join(pieces)
+
+    def _sixel_capable(self) -> bool:
+        """Whether the terminal declares sixel among its attributes.
+
+        Detection is a safety net, not a gate: a --pixels request
+        on a terminal that never learned sixel falls back to the
+        half-block painting instead of spraying escape garbage
+        across the glass.
+        """
+
+        answer = self._answered(DEVICE_ATTRIBUTES_QUERY, DEVICE_ATTRIBUTES_END)
+        start = answer.find("?")
+
+        if start < 0:
+            return False
+
+        return SIXEL_ATTRIBUTE in answer[start + 1 : -1].split(";")
+
+    def _cell_size(self) -> tuple[int, int]:
+        """One character cell's pixel width and height.
+
+        The terminal's own report replaces the conservative floors
+        when it answers, so a cover magnifies to the glass as it
+        actually measures; a quiet or garbled answer keeps the
+        floors.
+        """
+
+        answer = self._answered(CELL_SIZE_QUERY, CELL_SIZE_END)
+        parts = answer.removeprefix("\x1b[").removesuffix(CELL_SIZE_END).split(";")
+
+        if (
+            len(parts) == CELL_SIZE_FIELDS
+            and parts[0] == CELL_SIZE_REPORT
+            and parts[1].isdigit()
+            and parts[2].isdigit()
+            and int(parts[1]) > 0
+            and int(parts[2]) > 0
+        ):
+            return int(parts[2]), int(parts[1])
+
+        return CELL_WIDTH_FLOOR, CELL_HEIGHT_FLOOR
+
     def show_frontispiece(self, picture: Picture, *, pixels: bool = False) -> None:
         """Show a cover picture until a key is pressed, then clear.
 
@@ -545,20 +628,26 @@ class ScreenFrontend:
         pixels, its foreground the upper and its background the
         lower, so any terminal with exact colours can show a
         picture at twice its row resolution. With pixels requested,
-        the picture is drawn as sixel graphics instead -- real
-        pixels, magnified as far as the glass certainly holds, on
-        terminals that speak the protocol. Infocom's own
+        the terminal is asked first: one that declares sixel draws
+        the picture as real pixels, magnified to the glass's own
+        measured cell size, and one that does not gets the
+        half-block painting -- never garbage. Infocom's own
         interpreters opened this way -- cover art, a keypress, and
         the story. Afterwards the blank model is repainted whole,
         leaving the game a clean screen no splash pixel survives
         on.
         """
 
-        if pixels:
+        if pixels and self._sixel_capable():
             self.clear()
 
-            scale = _pixel_scale(picture, self.screen_columns, self.screen_lines)
-            width_cells = picture.width * scale // CELL_WIDTH_FLOOR
+            cell_width, cell_height = self._cell_size()
+            scale = _pixel_scale(
+                picture,
+                self.screen_columns * cell_width,
+                self.screen_lines * cell_height,
+            )
+            width_cells = picture.width * scale // cell_width
             left = max(0, (self.screen_columns - width_cells) // 2)
 
             self._out(self._terminal.move_xy(left, 0) + sixel_encode(picture, scale))
@@ -679,17 +768,18 @@ class ScreenFrontend:
         self._out(self._terminal.move_xy(column - 1, row - 1))
 
 
-def _pixel_scale(picture: Picture, columns: int, lines: int) -> int:
+def _pixel_scale(picture: Picture, width_pixels: int, height_pixels: int) -> int:
     """The whole-number magnification a sixel cover certainly fits.
 
-    The glass is measured in cells, its pixel size unknown, so the
-    bound assumes the narrowest cells a modern display shows; a
-    picture too large even unmagnified draws at native size and
-    lets the terminal clip its edge.
+    The bounds are the glass's pixel dimensions: the queried cell
+    size times the cells when the terminal answered, or the
+    conservative floors when it kept quiet. A picture too large
+    even unmagnified draws at native size and lets the terminal
+    clip its edge.
     """
 
-    width_bound = columns * CELL_WIDTH_FLOOR // picture.width
-    height_bound = lines * CELL_HEIGHT_FLOOR // picture.height
+    width_bound = width_pixels // picture.width
+    height_bound = height_pixels // picture.height
 
     return max(1, min(width_bound, height_bound))
 

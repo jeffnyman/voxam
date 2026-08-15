@@ -447,11 +447,19 @@ def test_the_frontispiece_paints_in_half_blocks() -> None:
     assert_that(terminal.keys).is_empty()
 
 
-# With pixels requested, the cover draws as sixel graphics --
-# real pixels between the enter and leave sequences -- magnified
-# by whole steps, dismissed by the same keypress.
+def response(text: str) -> list[StubKey]:
+    """A terminal's escape answer, one keystroke per character."""
+
+    return [StubKey(character) for character in text]
+
+
+# With pixels requested, the terminal is asked first; one that
+# declares sixel (attribute 4) draws the cover as real pixels
+# between the enter and leave sequences, dismissed by a keypress.
 def test_the_frontispiece_can_paint_in_sixel_pixels() -> None:
-    terminal = StubTerminal([StubKey("x")])
+    terminal = StubTerminal(
+        [*response("\x1b[?61;4c"), *response("\x1b[6;16;8t"), StubKey("x")]
+    )
     out: list[str] = []
     frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
     picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
@@ -460,10 +468,75 @@ def test_the_frontispiece_can_paint_in_sixel_pixels() -> None:
 
     stream = "".join(out)
 
+    assert_that(stream).contains("\x1b[c")
+    assert_that(stream).contains("\x1b[16t")
     assert_that(stream).contains("\x1bPq")
     assert_that(stream).contains("\x1b\\")
     assert_that(stream).does_not_contain("▀")
     assert_that(terminal.keys).is_empty()
+
+
+# A terminal without sixel among its attributes gets the
+# half-block painting instead -- never garbage -- and the cell
+# size is never even asked for.
+def test_pixels_fall_back_without_the_sixel_attribute() -> None:
+    terminal = StubTerminal([*response("\x1b[?61c"), StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    stream = "".join(out)
+
+    assert_that(stream).does_not_contain("\x1b[16t")
+    assert_that(stream).does_not_contain("\x1bPq")
+    assert_that(stream).contains("▀")
+    assert_that(terminal.keys).is_empty()
+
+
+# A terminal that never answers has said no: the patience window
+# expires once and the half-block painting takes over.
+def test_pixels_fall_back_on_a_silent_terminal() -> None:
+    terminal = StubTerminal([StubKey(""), StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    stream = "".join(out)
+
+    assert_that(stream).does_not_contain("\x1bPq")
+    assert_that(stream).contains("▀")
+
+
+# The terminal's own cell-size report replaces the conservative
+# floors, so the same cover magnifies and centres differently on
+# glass that measures differently; a garbled report keeps the
+# floors.
+def test_the_cell_size_report_drives_the_magnification() -> None:
+    picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
+
+    floored = StubTerminal(
+        [*response("\x1b[?4c"), *response("\x1b[8;5;5t"), StubKey("x")]
+    )
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=floored, out=out.append)
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    assert_that("".join(out)).contains("<@7,0>")
+
+    measured = StubTerminal(
+        [*response("\x1b[?4c"), *response("\x1b[6;32;10t"), StubKey("x")]
+    )
+    out = []
+    frontend = ScreenFrontend(5, terminal=measured, out=out.append)
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    assert_that("".join(out)).contains("<@2,0>")
 
 
 # A cover larger than the glass shrinks to fit, keeping its shape;

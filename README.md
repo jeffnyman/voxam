@@ -102,8 +102,12 @@ and a sidecar `.blb` found beside a story by name announces its
 pictures and sounds at the banner. A cover picture -- *Beyond
 Zork* ships one -- is shown before play at a painted terminal,
 scaled into half-block cells on any colour terminal or drawn at
-its true resolution with `--pixels` on a sixel terminal, decoded
-by a pure-stdlib PNG reader. Art is a courtesy, never a gate: a
+real resolution with `--pixels`, decoded by a pure-stdlib PNG
+reader. The pixels path asks the terminal first: one that
+declares sixel graphics also reports its cell size, so the art
+magnifies to the glass as it actually measures, and one that
+never learned sixel quietly gets the half-block painting instead
+of escape garbage. Art is a courtesy, never a gate: a
 cover Voxam cannot draw earns a note and the story plays on. And
 Voxam can claim any classic machine identity (`--interpreter
 amiga`, or the legendary Tandy bit via `--tandy`), which some
@@ -208,8 +212,9 @@ Blorb resources ride along automatically: a `.zblorb` story boots
 from its package, and a like-named `.blb` beside a story file is
 found on its own -- `--resources` names one explicitly. At a
 painted terminal a packaged cover picture shows before play;
-`--pixels` draws it in real pixels where the terminal speaks
-sixel. `--interpreter` claims any §11.1.3 platform by name or
+`--pixels` draws it in real pixels after asking whether the
+terminal speaks sixel, falling back to half-blocks when it
+does not. `--interpreter` claims any §11.1.3 platform by name or
 number, and `--tandy` sets the bit that makes early Infocom games
 mind their manners.
 
