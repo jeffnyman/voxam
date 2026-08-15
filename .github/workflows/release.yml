@@ -111,10 +111,17 @@ jobs:
           name: dist
           path: dist/
 
+      # skip-existing makes a rerun idempotent: when a release run
+      # fails downstream of a successful upload -- the smoke test
+      # outwaited by TestPyPI's index lag, say -- rerunning must not
+      # trip over the files already there. The PyPI publish below
+      # stays strict on purpose: a duplicate upload there means
+      # something is genuinely wrong.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
 
   smoke:
     name: Smoke test from TestPyPI
@@ -128,18 +135,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      # TestPyPI can take a moment to serve a fresh upload, hence the
-      # retry. The install must come from TestPyPI alone: with no
-      # dependencies to resolve, no PyPI fallback index is needed.
+      # TestPyPI can take its time serving a fresh upload -- the
+      # 0.7.0 release outlasted a three-minute window -- so the
+      # retry allows about six. The install must come from TestPyPI
+      # alone: with no dependencies to resolve, no PyPI fallback
+      # index is needed.
       - name: Install the released package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          for attempt in 1 2 3 4 5 6 7 8; do
+          for attempt in $(seq 1 12); do
             if pip install --index-url https://test.pypi.org/simple/ "voxam==${VERSION}"; then
               exit 0
             fi
             echo "not yet available (attempt ${attempt}); waiting..."
-            sleep 20
+            sleep 30
           done
           exit 1
 
