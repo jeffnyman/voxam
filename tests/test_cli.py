@@ -459,13 +459,14 @@ def test_a_png_cover_shows_before_play(
 
 
 # --pixels draws the same cover as sixel graphics: real pixels for
-# terminals that speak the protocol.
+# a terminal that answers the capability question and reports its
+# cell size.
 def test_pixels_draws_the_cover_as_sixel(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    keys = iter(["x", *"look\n"])
+    keys = iter([*"\x1b[?4c", *"\x1b[6;16;8t", "x", *"look\n"])
 
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     monkeypatch.setattr(
