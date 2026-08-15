@@ -699,3 +699,15 @@ def test_timed_read_keys_keep_their_own_clock() -> None:
 
     assert_that(frontend.read_key(0.5)).is_equal_to("y")
     assert_that(terminal.timeouts).is_equal_to([0.5])
+
+
+# The painted answer for get_cursor is the model's own
+# (§8.7.2.3.2).
+def test_cursor_position_reads_the_model() -> None:
+    frontend, _out = painted()
+
+    frontend.split_window(3)
+    frontend.set_window(UPPER)
+    frontend.set_cursor(2, 5)
+
+    assert_that(frontend.cursor_position()).is_equal_to((2, 5))

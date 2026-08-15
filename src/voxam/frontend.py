@@ -160,6 +160,13 @@ class Frontend(Protocol):
     def set_cursor(self, line: int, column: int) -> None:
         """Move the upper window's cursor (§8.7.2)."""
 
+    def cursor_position(self) -> tuple[int, int]:
+        """The cursor's row and column (§8.7.2.3.2).
+
+        The upper window's cursor -- the one set_cursor can move
+        -- which is what get_cursor reads back.
+        """
+
     def bleep(self, number: int) -> None:
         """Sound a bleep: 1 is high, 2 is low (§9)."""
 
@@ -362,6 +369,16 @@ class PlainFrontend:
         if column > self._upper_column:
             self._write(" " * (column - self._upper_column))
             self._upper_column = column
+
+    def cursor_position(self) -> tuple[int, int]:
+        """The stream's upper-window bookkeeping, read back (§8.7.2.3.2).
+
+        A stream has no real cursor, but it tracks where the upper
+        window's pen would be to reconstruct layout; get_cursor
+        reads the same ledger.
+        """
+
+        return (self._upper_row, self._upper_column)
 
     def _upper_holds_content(self) -> bool:
         """Whether the upper window is tall enough to be content."""

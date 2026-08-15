@@ -164,7 +164,7 @@ def test_a_result_stored_to_variable_0_lands_on_the_callers_stack(
 def test_unimplemented_opcodes_report_the_frontier(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xF0, 0x7F, 0x00])), version=4)
+    machine = code_machine(layout(bytes([0xF4, 0x7F, 0x00])))
 
     with pytest.raises(ZMachineUnimplementedError, match="not yet implemented"):
         machine.run()
@@ -175,12 +175,12 @@ def test_unimplemented_opcodes_report_the_frontier(
 def test_the_frontier_report_names_the_opcode_and_address(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xF0, 0x7F, 0x00])), version=4)
+    machine = code_machine(layout(bytes([0xF4, 0x7F, 0x00])))
 
     with pytest.raises(ZMachineUnimplementedError) as excinfo:
         machine.run()
 
-    assert_that(excinfo.value.opcode_name).is_equal_to("get_cursor")
+    assert_that(excinfo.value.opcode_name).is_equal_to("input_stream")
     assert_that(excinfo.value.address).is_equal_to(CODE)
     assert_that(machine.pc).is_equal_to(CODE)
 
