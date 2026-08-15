@@ -553,3 +553,118 @@ def test_boot_declares_standard_1_1(code_machine: Callable[..., Machine]) -> Non
     machine = code_machine(bytes([0xBA]))
 
     assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0101)
+
+
+def stacked_v6_machine(code: bytes, words: dict[int, int] | None = None) -> Machine:
+    """A Version 6 machine: main routine at $100, globals at $80.
+
+    Version 6 boots by calling a packed main routine (§5.4), so
+    the code goes inside one; extra words seed user-stack tables.
+    """
+
+    data = bytearray(512)
+    data[0] = 6
+    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0080).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+    data[0x100] = 0x00
+    data[0x101 : 0x101 + len(code)] = code
+
+    for offset, value in (words or {}).items():
+        data[offset : offset + 2] = value.to_bytes(2, "big")
+
+    return Machine(Story(bytes(data)), None, lambda: "")
+
+
+# A §6.6 user stack counts spare slots downward from its capacity,
+# and the count doubles as the write index: pushing 42 onto a
+# three-slot stack lands it in word 3, and the Version 6 pull --
+# which stores, unlike its elders -- reads it back and walks the
+# count up again (§15 push_stack, §15 pull).
+def test_a_user_stack_round_trips_through_push_and_pull() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x18, 0x5F, 0x2A, 0x60, 0xC2],
+                *[0xE9, 0x7F, 0x60, 0x10],
+                0xBA,
+            ]
+        ),
+        words={0x60: 3},
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(42)
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(3)
+    assert_that(machine.memory.read_word(0x66)).is_equal_to(42)
+
+
+# A full stack refuses quietly: nothing is written, the count does
+# not move, and the branch is not taken -- §15 says overflow "is
+# not an error condition". With a slot free, the same push takes
+# its branch over the marker.
+def test_push_stack_branches_only_on_success() -> None:
+    overflowing = bytes(
+        [
+            *[0xBE, 0x18, 0x5F, 0x07, 0x60, 0xC5],
+            *[0x0D, 0x11, 0x63],
+            0xBA,
+        ]
+    )
+    full = stacked_v6_machine(overflowing, words={0x60: 0})
+
+    full.run()
+
+    assert_that(full.memory.read_word(0x82)).is_equal_to(0x63)
+    assert_that(full.memory.read_word(0x60)).is_zero()
+
+    roomy = stacked_v6_machine(overflowing, words={0x60: 1})
+
+    roomy.run()
+
+    assert_that(roomy.memory.read_word(0x82)).is_zero()
+    assert_that(roomy.memory.read_word(0x60)).is_zero()
+    assert_that(roomy.memory.read_word(0x62)).is_equal_to(7)
+
+
+# pop_stack discards from the game stack by default -- here two
+# pushes vanish so the bare Version 6 pull reads the first -- and
+# from a named user stack via its second operand, where discarding
+# just walks the spare count up (§15 pop_stack).
+def test_pop_stack_discards_from_either_stack() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xE8, 0x7F, 0x05],
+                *[0xE8, 0x7F, 0x06],
+                *[0xE8, 0x7F, 0x07],
+                *[0xBE, 0x15, 0x7F, 0x02],
+                *[0xE9, 0xFF, 0x10],
+                *[0xBE, 0x15, 0x5F, 0x02, 0x60],
+                0xBA,
+            ]
+        ),
+        words={0x60: 1},
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(5)
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(3)
+
+
+# §6.6 is explicit that nothing checks under-flow: pulling from a
+# fresh stack walks the count past its capacity and reads whatever
+# lies beyond the table.
+def test_user_stack_underflow_is_unchecked_by_design() -> None:
+    machine = stacked_v6_machine(
+        bytes([*[0xE9, 0x7F, 0x60, 0x10], 0xBA]),
+        words={0x60: 3, 0x68: 0xBEEF},
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(4)
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(0xBEEF)

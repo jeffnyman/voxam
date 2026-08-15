@@ -1474,17 +1474,88 @@ class Machine:
         """Pull the stack into a referenced variable (§15, §6.3.4).
 
         The seventh indirect-reference opcode: pulling into variable
-        $00 overwrites the new stack top in place. Version 6's user
-        stacks are not yet implemented.
+        $00 overwrites the new stack top in place. Version 6 turns
+        the opcode around: there it stores its result like any
+        other, and an operand names a §6.6 user stack to pull from
+        instead of the game stack.
         """
 
         if instruction.opcode.stores:
-            raise ZMachineUnimplementedError("pull", instruction.address)
+            value = (
+                self._user_pull(self._value(instruction.operands[0]))
+                if instruction.operands
+                else self._calls.pop()
+            )
+
+            self._store_result(instruction.store_variable, value)
+            self._pc = instruction.next_address
+
+            return
 
         reference = self._value(instruction.operands[0])
         value = self._calls.pop()
 
         self._variables.write_in_place(reference, value)
+        self._pc = instruction.next_address
+
+    def _user_pull(self, stack: int) -> int:
+        """Pull the top value from a §6.6 user stack.
+
+        The first word counts the stack's spare slots and doubles
+        as the index of the top value's slot, so a pull walks the
+        count back up and reads the word it then points at. §6.6
+        is explicit that nothing checks under-flow: pulling more
+        than was pushed reads on past the table, exactly as the
+        Z-machine promises.
+        """
+
+        spare = self._memory.read_word(stack) + 1
+
+        self._memory.write_word(stack, spare)
+
+        return self._memory.read_word(stack + 2 * spare)
+
+    def _op_push_stack(self, instruction: Instruction) -> None:
+        """Push onto a user stack, branching on success (§15).
+
+        The stack is a table whose first word counts its spare
+        slots (§6.6); the count is also the write index, so a push
+        stores at the counted slot and walks the count down. A
+        full stack does nothing at all -- overflow "is not an
+        error condition", says §15 -- and the branch simply does
+        not happen. ZIPTEST's user-stacks test pushes 1 to 5 and
+        expects them back in reverse.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        value, stack = values[0], values[1]
+        spare = self._memory.read_word(stack)
+
+        if spare:
+            self._memory.write_word(stack + 2 * spare, value)
+            self._memory.write_word(stack, spare - 1)
+
+        self._branch(instruction, spare != 0)
+
+    def _op_pop_stack(self, instruction: Instruction) -> None:
+        """Throw items away from the top of a stack (§15 pop_stack).
+
+        By default the game stack; with a second operand, a §6.6
+        user stack, where discarding is nothing more than walking
+        the spare count up.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        items = values[0]
+
+        if len(values) > 1:
+            stack = values[1]
+
+            self._memory.write_word(stack, self._memory.read_word(stack) + items)
+        else:
+            for _ in range(items):
+                self._calls.pop()
+
         self._pc = instruction.next_address
 
     def _extras(self) -> str:
@@ -2728,8 +2799,10 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "print_table": Machine._op_print_table,
     "print_unicode": Machine._op_print_unicode,
     "print_ret": Machine._op_print_ret,
+    "pop_stack": Machine._op_pop_stack,
     "pull": Machine._op_pull,
     "push": Machine._op_push,
+    "push_stack": Machine._op_push_stack,
     "put_prop": Machine._op_put_prop,
     "remove_obj": Machine._op_remove_obj,
     "get_cursor": Machine._op_get_cursor,
