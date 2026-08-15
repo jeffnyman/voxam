@@ -2626,6 +2626,56 @@ class Machine:
         self._memory.write_word(array + 2, column)
         self._pc = instruction.next_address
 
+    def _op_picture_quiet(self, instruction: Instruction) -> None:
+        """Let a picture operation pass in the conforming quiet.
+
+        The header honestly declares no picture displaying
+        (§11.1.4), and what was declared unavailable is not
+        performed: draw_picture and erase_picture paint nothing --
+        Infocom's own games draw without consulting the header,
+        the §11.1.4 remarks even name Zork Zero's Macintosh
+        release for it, so a loud halt here would stop Arthur at
+        its title card -- and picture_table is only ever a cache
+        hint (§15). When a real graphics frontend arrives, these
+        become its work.
+        """
+
+        self._pc = instruction.next_address
+
+    def _op_picture_data(self, instruction: Instruction) -> None:
+        """Answer for pictures the interpreter does not have (§15).
+
+        With a valid picture number the opcode would write the
+        picture's height and width and branch; number 0 asks for
+        the census instead, writing the count of available
+        pictures and the picture file's release into the array,
+        branching if any pictures exist. An interpreter with no
+        picture system has one honest answer for both: a census
+        of zero, an invalid number for everything else, and no
+        branch either way -- exactly what the header's cleared
+        pictures bit promised (§11.1.4).
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        number = values[0]
+        array = values[1]
+
+        if number == 0:
+            self._memory.write_word(array, 0)
+            self._memory.write_word(array + 2, 0)
+
+        self._branch(instruction, False)
+
+    def _op_make_menu(self, instruction: Instruction) -> None:
+        """Fail a menu request the header already refused (§15).
+
+        make_menu branches when the menu is successfully built;
+        the Flags 2 menus request was cleared at boot (§11.1.2),
+        and an interpreter without menus simply never succeeds.
+        """
+
+        self._branch(instruction, False)
+
     def _op_nop(self, instruction: Instruction) -> None:
         """Do nothing, on purpose (§15 nop).
 
@@ -2783,8 +2833,13 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "log_shift": Machine._op_log_shift,
     "mod": Machine._op_mod,
     "mul": Machine._op_mul,
+    "draw_picture": Machine._op_picture_quiet,
+    "erase_picture": Machine._op_picture_quiet,
+    "make_menu": Machine._op_make_menu,
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
+    "picture_data": Machine._op_picture_data,
+    "picture_table": Machine._op_picture_quiet,
     "not": Machine._op_not,
     "or": Machine._op_or,
     "output_stream": Machine._op_output_stream,
