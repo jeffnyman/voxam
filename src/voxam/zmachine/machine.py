@@ -58,7 +58,12 @@ from voxam.zmachine.routine import Routine
 from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
-from voxam.zmachine.windows import CURRENT_WINDOW, WindowLedger
+from voxam.zmachine.windows import (
+    CURRENT_WINDOW,
+    X_CURSOR,
+    Y_CURSOR,
+    WindowLedger,
+)
 from voxam.zmachine.zscii import (
     ZSCII_NEWLINE,
     char_to_zscii,
@@ -193,6 +198,12 @@ MARGIN_WINDOW_OPERAND = 2
 
 # read_mouse fills four words: y, x, button bits, menu word (§15).
 MOUSE_WORDS = 4
+
+# Version 6 set_cursor: -1 turns the cursor off, -2 turns it back
+# on, and an ordinary move may name its window third (§15).
+CURSOR_OFF = 0xFFFF
+CURSOR_ON = 0xFFFE
+CURSOR_WINDOW_OPERAND = 2
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -2254,13 +2265,53 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_set_cursor(self, instruction: Instruction) -> None:
-        """Hand an upper-window cursor move to the frontend (§8.7.2)."""
+        """Move the cursor (§8.7.2, §15 set_cursor).
 
-        line = self._value(instruction.operands[0])
-        column = self._value(instruction.operands[1])
+        Outside Version 6 the move goes to the frontend's upper
+        window as it always has. Version 6 multiplies the forms --
+        see _v6_cursor -- and its moves land in the §8.8 ledger,
+        the same place its get_cursor reads, because the v5
+        glass's upper-window policing would halt on windows it
+        does not render.
+        """
 
-        self._frontend.set_cursor(line, column)
+        if self._memory.header.version == PACKED_PC_VERSION:
+            self._v6_cursor([self._value(o) for o in instruction.operands])
+        else:
+            line = self._value(instruction.operands[0])
+            column = self._value(instruction.operands[1])
+
+            self._frontend.set_cursor(line, column)
+
         self._pc = instruction.next_address
+
+    def _v6_cursor(self, values: list[int]) -> None:
+        """The Version 6 set_cursor forms (§15 set_cursor).
+
+        A line of -1 turns the blinking cursor off and -2 -- with
+        or without §15's "mysterious" second operand, 0 in every
+        known case -- turns it back on: chrome a character glass
+        has no cursor of its own to honour, passed quietly. An
+        ordinary move may name any window, defaulting to the
+        current one, and lands in that window's cursor properties;
+        Arthur turns its cursor off before its title chrome.
+        """
+
+        line = values[0]
+
+        if line in (CURSOR_OFF, CURSOR_ON):
+            return
+
+        column = values[1]
+        window = (
+            values[CURSOR_WINDOW_OPERAND]
+            if len(values) > CURSOR_WINDOW_OPERAND
+            else CURRENT_WINDOW
+        )
+        target = self._windows.resolve(window)
+
+        self._windows.write_property(target, Y_CURSOR, line)
+        self._windows.write_property(target, X_CURSOR, column)
 
     def _op_output_stream(self, instruction: Instruction) -> None:
         """Select or deselect an output stream (§7, §15).
@@ -2740,7 +2791,15 @@ class Machine:
         """
 
         array = self._value(instruction.operands[0])
-        row, column = self._frontend.cursor_position()
+
+        if self._memory.header.version == PACKED_PC_VERSION:
+            # Version 6 reads the current window's cursor from the
+            # §8.8 ledger -- the same place its set_cursor writes,
+            # so the round trip is exact.
+            row = self._windows.property(CURRENT_WINDOW, Y_CURSOR)
+            column = self._windows.property(CURRENT_WINDOW, X_CURSOR)
+        else:
+            row, column = self._frontend.cursor_position()
 
         self._memory.write_word(array, row)
         self._memory.write_word(array + 2, column)

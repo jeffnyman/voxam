@@ -821,3 +821,33 @@ def test_the_mouse_courtesies_answer_honestly() -> None:
 
     for offset in (0x60, 0x62, 0x64, 0x66):
         assert_that(machine.memory.read_word(offset)).is_zero()
+
+
+# Version 6's set_cursor forms: -1 turns the cursor off, -2 -- with
+# or without §15's "mysterious" second operand -- turns it back on,
+# both quietly; an ordinary move lands in the current window's
+# ledger properties, where get_cursor reads it back exactly, and a
+# third operand names another window (§15 set_cursor). Arthur
+# switches its cursor off before its title chrome.
+def test_v6_cursor_forms_land_in_the_ledger() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xEF, 0x3F, 0xFF, 0xFF],
+                *[0xEF, 0x1F, 0xFF, 0xFE, 0x00],
+                *[0xEF, 0x5F, 0x02, 0x09],
+                *[0xF0, 0x7F, 0x60],
+                *[0xEF, 0x57, 0x05, 0x07, 0x03],
+                *[0xBE, 0x13, 0x5F, 0x03, 0x04, 0x10],
+                *[0xBE, 0x13, 0x5F, 0x03, 0x05, 0x11],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(2)
+    assert_that(machine.memory.read_word(0x62)).is_equal_to(9)
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(5)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(7)
