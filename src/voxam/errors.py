@@ -9,6 +9,10 @@ class AcceptanceError(VoxamError):
     """Raised when an acceptance script cannot be used."""
 
 
+class AIFFError(VoxamError):
+    """Raised when bytes cannot be read as an AIFF sound."""
+
+
 class BlorbError(VoxamError):
     """Raised when a Blorb resource file cannot be used."""
 
