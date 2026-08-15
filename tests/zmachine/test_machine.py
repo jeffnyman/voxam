@@ -668,3 +668,71 @@ def test_user_stack_underflow_is_unchecked_by_design() -> None:
 
     assert_that(machine.memory.read_word(0x60)).is_equal_to(4)
     assert_that(machine.memory.read_word(0x80)).is_equal_to(0xBEEF)
+
+
+# picture_data's census form -- picture 0 -- writes the count of
+# available pictures and the file release into its array: zero and
+# zero for an interpreter with no picture system, with no branch,
+# since no pictures are available (§15 picture_data). The marker
+# store proves the branch was not taken.
+def test_picture_data_census_answers_zero_pictures() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x06, 0x5F, 0x00, 0x60, 0xC5],
+                *[0x0D, 0x11, 0x63],
+                0xBA,
+            ]
+        ),
+        words={0x60: 0xDEAD, 0x62: 0xBEEF},
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_zero()
+    assert_that(machine.memory.read_word(0x62)).is_zero()
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(0x63)
+
+
+# Any other picture number is invalid where no pictures exist: the
+# array is left alone and the branch fails (§15 picture_data),
+# which is what the header's cleared pictures bit promised.
+def test_picture_data_leaves_invalid_numbers_unanswered() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x06, 0x5F, 0x05, 0x60, 0xC5],
+                *[0x0D, 0x11, 0x63],
+                0xBA,
+            ]
+        ),
+        words={0x60: 0xDEAD},
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(0xDEAD)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(0x63)
+
+
+# The rest of the picture family passes in the conforming quiet --
+# the header declared no pictures, and Infocom's own games draw
+# without checking -- while make_menu fails its branch: the menus
+# request was cleared at boot (§11.1.2, §11.1.4).
+def test_picture_operations_pass_quietly_and_menus_fail() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x05, 0x7F, 0x01],
+                *[0xBE, 0x07, 0x7F, 0x01],
+                *[0xBE, 0x1C, 0x7F, 0x60],
+                *[0xBE, 0x1B, 0x5F, 0x03, 0x00, 0xC5],
+                *[0x0D, 0x11, 0x63],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(0x63)
