@@ -351,6 +351,31 @@ def _screen_frontend(
     return ScreenFrontend(version, speaker=_speaker(blorb))
 
 
+def _recorded_sources(
+    recorder: Recorder | None,
+    input_source: Callable[[], str] | None,
+    key_source: Callable[[float | None], str | None] | None,
+) -> tuple[
+    Callable[[], str] | None,
+    Callable[[float | None], str | None] | None,
+]:
+    """Tee both input seams through the recorder, when there is one.
+
+    Without an input source of its own, a recorded session records
+    the built-in prompt the machine would fall back to anyway.
+    """
+
+    if recorder is None:
+        return input_source, key_source
+
+    lines = _recorded_lines(
+        recorder, input_source if input_source is not None else input
+    )
+    keys = key_source if key_source is None else _recorded_keys(recorder, key_source)
+
+    return lines, keys
+
+
 def _recorded_lines(recorder: Recorder, source: Callable[[], str]) -> Callable[[], str]:
     """Tee typed lines into the recording on their way to the machine."""
 
@@ -565,13 +590,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             input_source = painted.read_line
             key_source = painted.read_key
 
-    if recorder is not None:
-        input_source = _recorded_lines(
-            recorder, input_source if input_source is not None else input
-        )
-
-        if key_source is not None:
-            key_source = _recorded_keys(recorder, key_source)
+    input_source, key_source = _recorded_sources(recorder, input_source, key_source)
 
     print(
         f"Running {story_path.name}: release {header.release}, "
@@ -590,7 +609,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     saves = FileSaveSlot(story_path.with_suffix(".sav"))
 
     try:
-        Machine(
+        machine = Machine(
             story,
             frontend,
             input_source=input_source,
@@ -598,7 +617,15 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             saves=saves,
             key_source=key_source,
             identity=identity,
-        ).run()
+        )
+
+        if painted is not None:
+            # While the player thinks at a prompt, the painter's
+            # idle heartbeat lets an ended sound's routine fire
+            # (§9.4.4) instead of waiting for the next keystroke.
+            painted.idle = machine.poll_sound
+
+        machine.run()
     except EOFError:
         print("\nvoxam: end of input")
 
