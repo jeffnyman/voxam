@@ -1,7 +1,9 @@
 from collections.abc import Callable, Sequence
 
+import pytest
 from assertpy import assert_that
 
+from voxam.errors import ZMachineScreenError
 from voxam.frontend import Status
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -569,3 +571,43 @@ def test_get_cursor_writes_row_and_column() -> None:
 
     assert_that(machine.memory.read_word(0x60)).is_equal_to(3)
     assert_that(machine.memory.read_word(0x62)).is_equal_to(7)
+
+
+# Version 6 erase_window may name any of the eight -- -3 meaning
+# the current one -- but the character glass hears only about the
+# two it renders: erasing a window it never painted is already
+# true, while 0, 1, and the whole-screen forms forward as ever,
+# and a ninth window stays loud (§8.8.3, §15 erase_window). Arthur
+# clears its layout windows right after the prologue.
+def test_v6_erasure_reaches_the_glass_for_two() -> None:
+    frontend = ScreenRecorder()
+    machine = Machine(
+        v6_story(
+            bytes(
+                [
+                    *[0xEB, 0x7F, 0x05],
+                    *[0xED, 0x3F, 0xFF, 0xFD],
+                    *[0xED, 0x7F, 0x02],
+                    *[0xED, 0x7F, 0x01],
+                    *[0xED, 0x3F, 0xFF, 0xFF],
+                    0xBA,
+                ]
+            )
+        ),
+        frontend,
+        lambda: "",
+    )
+
+    machine.run()
+
+    assert_that(frontend.erased).is_equal_to([1, -1])
+
+
+def test_v6_erasure_polices_the_ninth_window() -> None:
+    frontend = ScreenRecorder()
+    machine = Machine(
+        v6_story(bytes([*[0xED, 0x7F, 0x08], 0xBA])), frontend, lambda: ""
+    )
+
+    with pytest.raises(ZMachineScreenError, match="not one of the eight"):
+        machine.run()
