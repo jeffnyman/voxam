@@ -559,7 +559,11 @@ def test_boot_declares_standard_1_1(code_machine: Callable[..., Machine]) -> Non
     assert_that(machine.memory.read_word(0x32)).is_equal_to(0x0101)
 
 
-def stacked_v6_machine(code: bytes, words: dict[int, int] | None = None) -> Machine:
+def stacked_v6_machine(
+    code: bytes,
+    words: dict[int, int] | None = None,
+    frontend: PlainFrontend | None = None,
+) -> Machine:
     """A Version 6 machine: main routine at $100, globals at $80.
 
     Version 6 boots by calling a packed main routine (§5.4), so
@@ -578,7 +582,7 @@ def stacked_v6_machine(code: bytes, words: dict[int, int] | None = None) -> Mach
     for offset, value in (words or {}).items():
         data[offset : offset + 2] = value.to_bytes(2, "big")
 
-    return Machine(Story(bytes(data)), None, lambda: "")
+    return Machine(Story(bytes(data)), frontend, lambda: "")
 
 
 # A §6.6 user stack counts spare slots downward from its capacity,
@@ -863,3 +867,112 @@ def test_scroll_window_passes_quietly() -> None:
     machine.run()
 
     assert_that(machine.running).is_false()
+
+
+# The Version 6 stream-3 width form: text redirected with a width
+# of -8 word-wraps into print_form's line shape -- counted lines,
+# a zero terminator -- and print_form reads it back out, one line
+# per screen line (§15 output_stream, §15 print_form). The header
+# word at $30 takes the widest line (§7.1.2.1). Arthur formats its
+# parser errors exactly this way.
+def test_formatted_redirection_round_trips_through_print_form() -> None:
+    pieces: list[str] = []
+    typed = [0x61, 0x62, 0x63, 0x20, 0x64, 0x65, 0x66, 0x20, 0x67, 0x68, 0x69, 0x6A]
+    presses = [byte for code in typed for byte in (0xE5, 0x7F, code)]
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xF3, 0x53, 0x03, 0x60, 0xFF, 0xF8],
+                *presses,
+                *[0xF3, 0x3F, 0xFF, 0xFD],
+                *[0xBE, 0x1A, 0x7F, 0x60],
+                0xBA,
+            ]
+        ),
+        frontend=PlainFrontend(pieces.append),
+    )
+
+    machine.run()
+
+    assert_that("".join(pieces)).is_equal_to("abc def\nghij\n")
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(7)
+    assert_that(machine.memory.read_word(0x69)).is_equal_to(4)
+    assert_that(machine.memory.read_word(0x6F)).is_zero()
+    assert_that(machine.memory.read_word(0x30)).is_equal_to(7)
+
+
+# A zero-or-positive width names a window, whose ledger width is
+# the wrap limit; and a blank line -- impossible to carry in a
+# format whose terminator is the zero count -- travels as a single
+# space (§15 output_stream).
+def test_window_widths_and_blank_lines_are_handled() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x11, 0x57, 0x03, 0x02, 0x05],
+                *[0xF3, 0x57, 0x03, 0x60, 0x03],
+                *[0xE5, 0x7F, 0x78],
+                0xBB,
+                0xBB,
+                *[0xE5, 0x7F, 0x79],
+                *[0xF3, 0x3F, 0xFF, 0xFD],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(1)
+    assert_that(machine.memory.read_byte(0x62)).is_equal_to(0x78)
+    assert_that(machine.memory.read_word(0x63)).is_equal_to(1)
+    assert_that(machine.memory.read_byte(0x65)).is_equal_to(0x20)
+    assert_that(machine.memory.read_word(0x66)).is_equal_to(1)
+    assert_that(machine.memory.read_byte(0x68)).is_equal_to(0x79)
+    assert_that(machine.memory.read_word(0x69)).is_zero()
+
+
+# A widthless Version 6 redirection keeps the flat count-and-bytes
+# shape, and still reports its width at $30 (§7.1.2.1).
+def test_v6_flat_redirection_reports_its_width() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xF3, 0x5F, 0x03, 0x60],
+                *[0xE5, 0x7F, 0x61],
+                *[0xE5, 0x7F, 0x62],
+                *[0xF3, 0x3F, 0xFF, 0xFD],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(2)
+    assert_that(machine.memory.read_word(0x30)).is_equal_to(2)
+
+
+# A word longer than the whole limit breaks at the limit -- the
+# unbuffered §8.8.3.1.1 fallback -- whether it opens a line or
+# forces the line before it out first.
+def test_overlong_words_break_at_the_limit() -> None:
+    pieces: list[str] = []
+    typed = [0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x20, 0x68, 0x69]
+    presses = [byte for code in typed for byte in (0xE5, 0x7F, code)]
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xF3, 0x53, 0x03, 0x60, 0xFF, 0xFD],
+                *presses,
+                *[0xF3, 0x3F, 0xFF, 0xFD],
+                *[0xBE, 0x1A, 0x7F, 0x60],
+                0xBA,
+            ]
+        ),
+        frontend=PlainFrontend(pieces.append),
+    )
+
+    machine.run()
+
+    assert_that("".join(pieces)).is_equal_to("abc\ndef\ng\nhi\n")
