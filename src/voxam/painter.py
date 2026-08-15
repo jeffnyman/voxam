@@ -30,6 +30,7 @@ from voxam.screen import (
     ScreenModel,
 )
 from voxam.sixel import encode as sixel_encode
+from voxam.speaker import Speaker
 
 # Special keys arrive from blessed with names; §3.8.2.2 and §3.8.4
 # give the input-only ZSCII characters they mean. The cursor keys
@@ -256,7 +257,6 @@ class ScreenFrontend:
     has_italic = True
     has_fixed_pitch = True
     has_timed_input = True
-    has_sounds = False
     # The §16 font paints as Unicode stand-ins -- box drawing,
     # blocks, arrows, runes -- so character graphics are honestly
     # on offer here (§8.1.5.1).
@@ -270,6 +270,7 @@ class ScreenFrontend:
         version: int,
         terminal: Terminal | None = None,
         out: Callable[[str], None] | None = None,
+        speaker: Speaker | None = None,
     ) -> None:
         """Wrap a terminal around a fresh screen model.
 
@@ -280,6 +281,8 @@ class ScreenFrontend:
                 blessed Terminal.
             out: Where escape sequences and text go; None writes to
                 standard output.
+            speaker: The audio device the sound seam plays
+                through; None claims no sound, honestly.
         """
 
         if terminal is None:
@@ -291,6 +294,10 @@ class ScreenFrontend:
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write
+        self._speaker = speaker
+        # The header hears the truth: sound is on offer exactly
+        # when a speaker arrived to make it true (§9.1.2).
+        self.has_sounds = speaker is not None
         self.screen_columns = terminal.width or FALLBACK_COLUMNS
         self.screen_lines = terminal.height or FALLBACK_LINES
         self._model = ScreenModel(
@@ -375,6 +382,33 @@ class ScreenFrontend:
         """Ring the terminal bell: one bell serves both bleeps (§9)."""
 
         self._out("\a")
+
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Hand a sampled sound to the speaker (§9.4)."""
+
+        return self._speaker is not None and self._speaker.play(number, volume, repeats)
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop a sound, or all of them when None (§9.4)."""
+
+        if self._speaker is not None:
+            self._speaker.stop(number)
+
+    def sound_playing(self) -> bool:
+        """Whether the speaker is still sounding (§9 remarks)."""
+
+        return self._speaker is not None and self._speaker.playing()
+
+    def sound_finished(self) -> bool:
+        """Whether a sound just ended naturally (§9.4.4)."""
+
+        return self._speaker is not None and self._speaker.finished()
+
+    def wait_for_sound(self) -> None:
+        """Let the playing sound finish a cycle (§9 remarks)."""
+
+        if self._speaker is not None:
+            self._speaker.wait()
 
     def _translated_key(self, timeout: float | None) -> str | None:
         """One terminal read, translated; None for nothing usable.

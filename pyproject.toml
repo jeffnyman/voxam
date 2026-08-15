@@ -39,6 +39,9 @@ Issues = "https://github.com/jeffnyman/voxam/issues"
 screen = [
     "blessed>=1.20",
 ]
+sound = [
+    "sounddevice>=0.5",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
@@ -48,6 +51,7 @@ build-backend = "uv_build"
 dev = [
     "assertpy>=1.1",
     "blessed>=1.20",
+    "sounddevice>=0.5",
     "commitizen>=4.17.0",
     "mypy>=2.3.0",
     "pre-commit>=4.6.1",
@@ -158,6 +162,12 @@ enable_error_code = [
     "possibly-undefined",
 ]
 pretty = true
+
+# sounddevice ships no py.typed marker; the sliver Voxam touches is
+# wrapped behind the speaker's own Stream protocol instead.
+[[tool.mypy.overrides]]
+module = "sounddevice.*"
+ignore_missing_imports = true
 
 # --------------------------------------------------------------------------- #
 # pytest

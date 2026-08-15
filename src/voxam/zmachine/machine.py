@@ -160,10 +160,28 @@ MINIMUM_TEXT_CAPACITY = {False: 2, True: 1}
 MINIMUM_PARSE_WORDS = 1
 
 # sound_effect's first two numbers are the interpreter's own bleeps;
-# from 3 upward they name sampled sounds, which need Blorb-era
-# machinery (§9). A bare sound_effect means bleep 1.
+# from 3 upward they name sampled sounds (§9.2), and a bare
+# sound_effect means bleep 1. The effects are prepare, start, stop,
+# and finish (§15 sound_effect); number 0 stops or finishes them
+# all. The third operand carries the §9.3 volume in its low byte --
+# 255 meaning loudest -- and, from Version 5, the total play count
+# in its high byte, 255 meaning until stopped (§9.4.3).
 HIGH_BLEEP = 1
 FIRST_SAMPLED_SOUND = 3
+PREPARE_EFFECT = 1
+START_EFFECT = 2
+STOP_EFFECT = 3
+FINISH_EFFECT = 4
+STOP_ALL_SOUNDS = 0
+LOUDEST_VOLUME = 255
+FULL_VOLUME = 8
+LOWEST_VOLUME = 1
+REPEATS_SHIFT = 8
+FOREVER_BYTE = 255
+FOREVER_REPEATS = 0
+SOUND_REPEATS_VERSION = 5
+SOUND_VOLUME_OPERAND = 2
+SOUND_ROUTINE_OPERAND = 3
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -326,6 +344,8 @@ class Machine:
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
         self._pending_keys: deque[str] = deque()
+        self._sound_routine = 0
+        self._sound_since_input = False
 
         self._declare_capabilities()
         self._start_execution()
@@ -489,6 +509,7 @@ class Machine:
         """
 
         while self._running:
+            self._poll_sound()
             self.step()
 
     def step(self) -> None:
@@ -1235,6 +1256,12 @@ class Machine:
         self._font = NORMAL_FONT
         self._frontend.set_font(NORMAL_FONT)
 
+        # Sound is bookkeeping too: the speaker falls silent and any
+        # end-of-sound routine dies with the state that armed it.
+        self._frontend.stop_sound(None)
+        self._sound_routine = 0
+        self._sound_since_input = False
+
         self._declare_capabilities()
         self._start_execution()
 
@@ -1592,6 +1619,10 @@ class Machine:
             ZMachineMemoryError: For a buffer too small to be real,
                 which §15 asks interpreters to halt on.
         """
+
+        # A keyboard input starts a new §9 pacing epoch: sounds
+        # begun before this read no longer make a newer one wait.
+        self._sound_since_input = False
 
         values = [self._value(operand) for operand in instruction.operands]
 
@@ -2115,7 +2146,7 @@ class Machine:
         self._memory.write_word(table, len(text))
 
     def _op_sound_effect(self, instruction: Instruction) -> None:
-        """Sound a bleep, or let a sampled sound pass in silence (§9).
+        """Sound a bleep, or drive a sampled sound (§9).
 
         A bare sound_effect means bleep 1; 1 and 2 are the high and
         low bleeps the interpreter itself provides. From 3 upward
@@ -2124,30 +2155,100 @@ class Machine:
         passes in the conforming quiet The Lurking Horror and
         Sherlock were both shipped to accept -- the extra operands
         ignored, and the end-of-sound routine of a sound that never
-        plays never called. A frontend that CLAIMS sound must wait
-        for the Blorb-era machinery to arrive.
-
-        Raises:
-            ZMachineUnimplementedError: For a sampled sound on a
-                frontend claiming sound support, which no machinery
-                yet backs.
+        plays never called. A frontend with a speaker hears the
+        full §9.4 forms instead, number 0 included, which stops or
+        finishes every sound at once (§15 sound_effect).
         """
 
         values = [self._value(operand) for operand in instruction.operands]
         number = values[0] if values else HIGH_BLEEP
 
-        if number >= FIRST_SAMPLED_SOUND:
-            if self._frontend.has_sounds:
-                raise ZMachineUnimplementedError(
-                    f"sampled sound {number}", instruction.address
-                )
+        if HIGH_BLEEP <= number < FIRST_SAMPLED_SOUND:
+            self._frontend.bleep(number)
+        elif self._frontend.has_sounds:
+            self._sampled_sound(number, values)
 
-            self._pc = instruction.next_address
+        self._pc = instruction.next_address
+
+    def _sampled_sound(self, number: int, values: list[int]) -> None:
+        """Drive one sampled-sound effect through the frontend (§9.4).
+
+        The §9 remarks name The Lurking Horror's own bugs, and
+        those are the pardons here: an effect outside the four
+        (its sound_effect 4 8) passes quietly, a number no
+        resource answers (its sound_effect 4095 2 15) starts
+        nothing and keeps any current sound playing, and the 15 of
+        that same call is a volume clamped to §9.3's 8. The
+        remarks also set the pacing: a new sound, started while
+        one begun since the last keyboard input still plays, waits
+        for that one to finish a cycle first -- The Lurking Horror
+        assumes an interpreter as slow as Infocom's Amiga one.
+        """
+
+        effect = values[1] if len(values) > 1 else START_EFFECT
+
+        if effect in (STOP_EFFECT, FINISH_EFFECT):
+            self._frontend.stop_sound(number if number != STOP_ALL_SOUNDS else None)
 
             return
 
-        self._frontend.bleep(number)
-        self._pc = instruction.next_address
+        if effect != START_EFFECT:
+            # Prepare asks for nothing here -- every sound is
+            # already decoded (§9.4.1) -- and any other effect is
+            # the pardoned bug above.
+            return
+
+        word = (
+            values[SOUND_VOLUME_OPERAND]
+            if len(values) > SOUND_VOLUME_OPERAND
+            else LOUDEST_VOLUME
+        )
+        volume = word & BYTE_MAX
+
+        if volume == LOUDEST_VOLUME:
+            # 255 is "loudest possible" (§9.3, §15 sound_effect).
+            volume = FULL_VOLUME
+        else:
+            volume = min(max(volume, LOWEST_VOLUME), FULL_VOLUME)
+
+        repeats: int | None
+
+        if self._memory.header.version >= SOUND_REPEATS_VERSION:
+            high = word >> REPEATS_SHIFT
+            # 255 repeats until stopped; zero is illegal here, and
+            # §15's own suggestion is to read it as once.
+            repeats = FOREVER_REPEATS if high == FOREVER_BYTE else max(high, 1)
+        else:
+            # Version 3 cannot say -- §15 keeps the high byte 0 --
+            # so None lets the Blorb's Loop chunk decide.
+            repeats = None
+
+        if self._sound_since_input and self._frontend.sound_playing():
+            self._frontend.wait_for_sound()
+
+        routine = (
+            values[SOUND_ROUTINE_OPERAND] if len(values) > SOUND_ROUTINE_OPERAND else 0
+        )
+
+        if self._frontend.play_sound(number, volume, repeats):
+            self._sound_routine = routine
+            self._sound_since_input = True
+
+    def _poll_sound(self) -> None:
+        """Fire the end-of-sound routine of a sound that just ended.
+
+        The routine runs only after the sound has played its
+        requested number of times -- the frontend's finished()
+        answers exactly that, once -- and never for a sound
+        stopped or replaced (§9.4.4). The result is discarded: an
+        end-of-sound routine is not a §15 read interrupt, and
+        terminates nothing.
+        """
+
+        if self._sound_routine and self._frontend.sound_finished():
+            routine, self._sound_routine = self._sound_routine, 0
+
+            self._interrupt(routine)
 
     def _keystroke(self) -> int:
         """Take one key from the queue, refilled a line at a time.
@@ -2220,6 +2321,10 @@ class Machine:
             ZMachineInstructionError: If the first operand is not 1,
                 the keyboard, which §15 makes the only input device.
         """
+
+        # A keystroke is keyboard input too: it starts a new §9
+        # pacing epoch, just as a whole read does.
+        self._sound_since_input = False
 
         values = [self._value(operand) for operand in instruction.operands]
 

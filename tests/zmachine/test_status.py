@@ -89,6 +89,29 @@ class Recorder:
     def bleep(self, number: int) -> None:
         """Discard: the status tests never make a sound."""
 
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Refuse: the status tests never play a sound."""
+
+        del number, volume, repeats
+
+        return False
+
+    def stop_sound(self, number: int | None) -> None:
+        """Discard: nothing ever plays here."""
+
+    def sound_playing(self) -> bool:
+        """No sound is ever sounding here."""
+
+        return False
+
+    def sound_finished(self) -> bool:
+        """No sound ever ends here."""
+
+        return False
+
+    def wait_for_sound(self) -> None:
+        """Return at once: there is never a cycle to wait out."""
+
 
 class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""
@@ -303,3 +326,16 @@ def test_early_boots_leave_the_header_alone() -> None:
 
     assert_that(machine.memory.read_byte(FLAGS_1)).is_zero()
     assert_that(machine.memory.read_byte(0x20)).is_zero()
+
+
+# The recorder's sound seam exists only to satisfy the frontend
+# protocol; poked directly, it refuses and reports nothing.
+def test_the_recorder_sound_seam_is_inert() -> None:
+    frontend = Recorder()
+
+    frontend.stop_sound(None)
+    frontend.wait_for_sound()
+
+    assert_that(frontend.play_sound(3, 8, 1)).is_false()
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(frontend.sound_finished()).is_false()

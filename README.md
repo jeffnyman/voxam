@@ -41,8 +41,9 @@ played to winning conclusions under Voxam, several across multiple
 releases and several to perfect scores, alongside modern classics
 from *Colossal Cave* to the IF Comp winner *All Roads*. The sound
 era is certified too: *The Lurking Horror* and *Sherlock: The
-Riddle of the Crown Jewels* both play to perfect scores, every
-sampled sound cue passing in the conforming quiet -- and *Beyond
+Riddle of the Crown Jewels* both play to perfect scores -- recorded
+in the conforming quiet, and now heard aloud at a painted terminal
+with the sound extra installed -- and *Beyond
 Zork*'s first act is on the record, its hero built point by point
 on the arrow-driven character screen, in what is as far as we know
 the first seeded, replayable *Beyond Zork* session anywhere.
@@ -109,6 +110,23 @@ amiga`, or the legendary Tandy bit via `--tandy`), which some
 early games answer with altered text and *Beyond Zork* answers
 with its whole screen-model personality (§11.1.3, §16).
 
+And the machine has a voice. With the `sound` extra installed, a
+painted session plays the sampled sounds its Blorb carries, in the
+background while play goes on (§9.4): volumes and repeat counts
+decoded from the opcode, a Version 3 game's looping taken from the
+Blorb's own Loop chunk -- which is how *The Lurking Horror*'s rats
+hum until the valve stops them -- and the end-of-sound routines
+*Sherlock* leans on called when a sound truly finishes, never for
+one stopped or replaced. Even the Standard's §9 war stories are
+honoured: *The Lurking Horror* fires several sounds in one game
+round, trusting the interpreter to be as slow as Infocom's Amiga
+was, so a new sound waits for the current one to finish a cycle,
+exactly as the Standard's remarks prescribe -- and its famously
+bugged sound requests are pardoned by name. Sound is a courtesy on
+the same terms as art: a missing package, a missing PortAudio
+library, or a missing audio device each mean a quieter game, never
+a broken one, with the header honestly saying so.
+
 Input runs deeper than lines. A scripted line reaches
 single-keystroke reads one character at a time, which is how
 cursor-driven forms -- up to and including Bureaucracy's Software
@@ -116,22 +134,21 @@ Licence Application -- fill in correctly from a recording. In
 recorded sessions timed input runs on a virtual clock instead: the
 "patient typist" lets one interrupt interval elapse before each
 input arrives, which keeps timed games replayable while recordings
-stay deterministic. And sampled sounds pass in the conforming
-silence of an interpreter that declares none -- *The Lurking
-Horror* and *Sherlock* play on, exactly as they were shipped to --
-while the two built-in bleeps remain the machine's whole
-orchestra.
+stay deterministic. Sampled sounds in recorded sessions likewise
+still pass in the conforming silence of an interpreter that
+declares none -- *The Lurking Horror* and *Sherlock* were both
+shipped to accept exactly that -- because a replay must land on
+the same bytes everywhere, speakers or no speakers.
 
 Voxam is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
 included -- TerpEtude, and Strict Z Test all pass clean, and every
 remaining gap halts loudly with a citation instead of guessing.
 
-**Not yet:** sound playback -- the Blorb AIFFs are already parsed
-and announced, and the cue sheets annotated into the two recorded
-sound games double as the future feature's test plan -- along with
-version 6 and Glulx. For recorded sessions, seeds substitute for
-saves: a script replays a whole game in moments.
+**Not yet:** the Blorb music formats, MOD and OGG -- the entire
+vendored Infocom sound catalog is sampled AIFF and needs neither
+-- along with version 6 and Glulx. For recorded sessions, seeds
+substitute for saves: a script replays a whole game in moments.
 
 ## Installation
 
@@ -147,14 +164,19 @@ or, as an isolated tool:
 pipx install voxam        # or: uv tool install voxam
 ```
 
-The painted screen frontend rides in the `screen` extra:
+The painted screen frontend rides in the `screen` extra, and
+sampled-sound playback in the `sound` extra beside it:
 
 ```bash
-pip install "voxam[screen]"    # or: uv tool install "voxam[screen]"
+pip install "voxam[screen,sound]"    # or: uv tool install "voxam[screen,sound]"
 ```
 
-Without the extra, Voxam plays as a plain text stream -- every
-game still works; the status line simply stays imaginary.
+On Windows and macOS the sound extra is self-contained; on Linux,
+PortAudio comes from the distribution (`apt install libportaudio2`
+or the local equivalent). Without the extras, Voxam plays as a
+plain text stream -- every game still works; the status line
+simply stays imaginary, and the sound games play in the conforming
+silence they were shipped to accept.
 
 Voxam ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts thousands of freely
