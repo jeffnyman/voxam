@@ -1,3 +1,14 @@
+## v0.7.0 (2026-08-15)
+
+### Feat
+
+- **painter**: ask the glass — sixel capability and cell size come from the terminal itself (#111)
+- **painter**: attentive waits — idle heartbeats fire end-of-sound routines at the prompt (#110)
+- **accept**: --record writes live play as a script — the grammar learns to listen (#109)
+- **accept**: pay the refusal-dialect debts — five earned phrases, one withdrawn guess (#108)
+- **sound**: the machine finds its voice — §9 playback through a sounddevice speaker (#107)
+- **aiff**: read the sounds — a pure-stdlib AIFF decoder over the IFF walker (#106)
+
 ## v0.6.0 (2026-08-14)
 
 ### Feat
