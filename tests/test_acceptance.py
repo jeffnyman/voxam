@@ -264,6 +264,11 @@ def test_replay_reports_each_command_position() -> None:
         "I didn't understand that sentence.",
         "I only understood you as far as wanting to go.",
         "You can't see any such thing.",
+        "Nice try.",
+        "You are not holding the brown sheet of paper.",
+        "You aren't holding that!",
+        "You can't be serious.",
+        "You're holding too many things to pick that up.",
     ],
 )
 def test_the_refusal_dialect_is_recognized(response: str) -> None:
@@ -283,6 +288,9 @@ def test_the_refusal_dialect_is_recognized(response: str) -> None:
         "The sign says you can't go that way in winter.",
         "[Your score has just gone up by five points.]",
         "Your load of firewood tumbles onto the hearth.",
+        "The professor mutters that it was a nice try, all things considered.",
+        "The urchin sneers: you aren't holding all the cards, are you?",
+        "You're not holding anything, but you're wearing a wristwatch.",
     ],
 )
 def test_ordinary_responses_pass_unremarked(response: str) -> None:
