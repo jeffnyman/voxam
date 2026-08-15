@@ -25,6 +25,7 @@ from voxam.frontend import (
     COURIER_FONT,
     CURRENT_FONT,
     GRAPHICS_FONT,
+    LOWER_WINDOW,
     NORMAL_FONT,
     UPPER_WINDOW,
     Frontend,
@@ -2136,10 +2137,29 @@ class Machine:
         """Hand a window erasure to the frontend (§8.7).
 
         The operand is signed: -1 unsplits and clears everything,
-        -2 clears everything without unsplitting.
+        -2 clears everything without unsplitting. In Version 6 any
+        of the eight windows may be named, -3 meaning the current
+        one -- but the character glass hears only about the two it
+        renders, and erasing a window it never painted is already
+        true (§8.8.3). Arthur clears its layout windows right
+        after the prologue.
         """
 
-        self._frontend.erase_window(signed(self._value(instruction.operands[0])))
+        window = signed(self._value(instruction.operands[0]))
+
+        if self._memory.header.version == PACKED_PC_VERSION and (
+            window >= LOWER_WINDOW or window == CURRENT_WINDOW
+        ):
+            target = self._windows.resolve(window)
+
+            if target > UPPER_WINDOW:
+                self._pc = instruction.next_address
+
+                return
+
+            window = target
+
+        self._frontend.erase_window(window)
         self._pc = instruction.next_address
 
     def _op_buffer_mode(self, instruction: Instruction) -> None:
