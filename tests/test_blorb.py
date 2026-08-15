@@ -1,4 +1,5 @@
 import io
+import struct
 from pathlib import Path
 
 import pytest
@@ -6,7 +7,7 @@ from assertpy import assert_that
 
 from voxam.blorb import Blorb, Resource
 from voxam.cli import main
-from voxam.errors import BlorbError
+from voxam.errors import AIFFError, BlorbError
 from voxam.iff import Chunk, chunk, write_form
 
 
@@ -107,6 +108,46 @@ def test_the_frontispiece_is_read_and_policed() -> None:
 
     with pytest.raises(BlorbError, match="four picture-number bytes"):
         Blorb.parse(stunted)
+
+
+def _payload(resource: Resource | None) -> bytes:
+    """The resource's chunk payload, empty when there is none."""
+
+    return resource.chunk.payload if resource is not None else b""
+
+
+# The cover is the Fspc picture when one is named; failing that, a
+# resource file carrying exactly one picture offers that picture --
+# Beyond Zork ships its splash so -- while bigger art sets offer
+# nothing rather than a guess (Blorb: Frontispiece Chunk).
+def test_the_cover_is_the_frontispiece_or_the_lone_picture() -> None:
+    named = Blorb.parse(
+        build_blorb(
+            [
+                (b"Pict", 1, Chunk(b"PNG ", b"one")),
+                (b"Pict", 2, Chunk(b"PNG ", b"two")),
+            ],
+            extra=chunk(b"Fspc", (2).to_bytes(4, "big")),
+        )
+    )
+
+    assert_that(_payload(named.cover)).is_equal_to(b"two")
+
+    lone = Blorb.parse(build_blorb([(b"Pict", 5, Chunk(b"PNG ", b"solo"))]))
+
+    assert_that(_payload(lone.cover)).is_equal_to(b"solo")
+
+    crowd = Blorb.parse(
+        build_blorb(
+            [
+                (b"Pict", 1, Chunk(b"PNG ", b"one")),
+                (b"Pict", 2, Chunk(b"PNG ", b"two")),
+            ]
+        )
+    )
+
+    assert_that(crowd.cover).is_none()
+    assert_that(Blorb.parse(build_blorb([])).cover).is_none()
 
 
 # Only an IFRS FORM is a resource file, exactly one index must
@@ -236,6 +277,73 @@ def test_a_mismatched_identity_warns_and_plays_on(
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(out).contains("names a different story")
+
+
+def sound_form(samples: bytes) -> Chunk:
+    """A minimal mono 8-bit AIFF FORM at 22050 Hz, as a Snd chunk."""
+
+    common = Chunk(
+        b"COMM",
+        struct.pack(">hLh", 1, len(samples), 8)
+        + struct.pack(">HQ", 16383 + 14, 22050 << 49),
+    )
+    sound_data = Chunk(b"SSND", bytes(8) + samples)
+
+    return Chunk(b"FORM", write_form(b"AIFF", (common, sound_data))[8:])
+
+
+# A Loop chunk marks which Version 3 sounds repeat until stopped:
+# flag zero loops, anything else -- like an absent entry -- plays
+# once (Blorb: The Looping Chunk).
+def test_the_loop_chunk_names_the_repeating_sounds() -> None:
+    entries = struct.pack(">LL", 4, 0) + struct.pack(">LL", 7, 1)
+    blorb = Blorb.parse(build_blorb([], extra=chunk(b"Loop", entries)))
+
+    assert_that(blorb.loops).is_equal_to(frozenset({4}))
+    assert_that(Blorb.parse(build_blorb([])).loops).is_equal_to(frozenset())
+
+
+# Doubled or ragged Loop chunks are refused.
+def test_malformed_loop_chunks_are_refused() -> None:
+    doubled = build_blorb([], extra=chunk(b"Loop", b"") + chunk(b"Loop", b""))
+
+    with pytest.raises(BlorbError, match="Loop chunks appear"):
+        Blorb.parse(doubled)
+
+    ragged = build_blorb([], extra=chunk(b"Loop", bytes(7)))
+
+    with pytest.raises(BlorbError, match="eight-byte entries"):
+        Blorb.parse(ragged)
+
+
+# sounds() decodes every Snd resource by number, reframing each
+# chunk into the FORM file the AIFF decoder reads (Blorb: Sound
+# Resource Chunks).
+def test_sounds_decode_by_number() -> None:
+    blorb = Blorb.parse(
+        build_blorb(
+            [
+                (b"Snd ", 3, sound_form(b"\x01\x02")),
+                (b"Snd ", 5, sound_form(b"\x03")),
+                (b"Pict", 1, Chunk(b"PNG ", b"not-a-sound")),
+            ]
+        )
+    )
+
+    sounds = blorb.sounds()
+
+    assert_that(sorted(sounds)).is_equal_to([3, 5])
+    assert_that(sounds[3].samples).is_equal_to(b"\x01\x02")
+    assert_that(sounds[5].sample_rate).is_equal_to(22050.0)
+
+
+# A sound in a format other than AIFF is a loud AIFFError for the
+# caller to soften into a courtesy.
+def test_a_foreign_sound_format_is_loud() -> None:
+    blorb = Blorb.parse(build_blorb([(b"Snd ", 3, Chunk(b"OGGV", b"ogg-bytes"))]))
+
+    with pytest.raises(AIFFError):
+        blorb.sounds()
 
 
 # The parse helpers stay honest about padding: an odd chunk before

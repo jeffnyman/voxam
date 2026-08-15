@@ -525,6 +525,40 @@ def test_a_key_source_bypasses_the_line_queue(
     assert_that(machine.memory.read_word(0x104)).is_equal_to(27)
 
 
+# A scripted arrow travels the line queue too: the .accept grammar
+# delivers a <down> line as its §3.8.4 character, and the keystroke
+# seam spends it as the single press read_char hears.
+def test_scripted_arrows_reach_read_char(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(READ_CHAR, version=4, input_source=lambda: "\x82")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(130)
+
+
+# The cursor keys arrive from a raw keyboard as their §3.8.4
+# codepoints, defined for input only, and land in read_char's
+# store as ZSCII 129 to 132 -- how Beyond Zork's menus hear an
+# arrow.
+def test_cursor_keys_reach_read_char_as_their_codes(
+    code_machine: Callable[..., Machine],
+) -> None:
+    keys = bytes([0xF6, 0x7F, 0x01, 0x10, 0xF6, 0x7F, 0x01, 0x11, 0xBA])
+    strokes = iter(["\x81", "\x84"])
+    machine = code_machine(
+        keys,
+        version=4,
+        key_source=lambda _timeout: next(strokes),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(129)
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(132)
+
+
 # On a raw keyboard a timed read runs on the wall clock: every
 # expired interval -- a None from the key source -- fires the
 # interrupt routine, and the key that finally arrives is stored

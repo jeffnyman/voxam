@@ -21,18 +21,27 @@ from voxam.errors import (
     ZMachineTextError,
     ZMachineUnimplementedError,
 )
-from voxam.frontend import Frontend, PlainFrontend, Status
+from voxam.frontend import (
+    COURIER_FONT,
+    CURRENT_FONT,
+    GRAPHICS_FONT,
+    NORMAL_FONT,
+    Frontend,
+    PlainFrontend,
+    Status,
+)
 from voxam.saves import SaveSlot
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
     FLAGS_2,
+    FONT_FIELDS_VERSION,
     PACKED_PC_VERSION,
     SCREEN_FIELDS_VERSION,
     STATUS_FLAGS_VERSION,
 )
 from voxam.zmachine.instruction import Instruction, Operand, OperandType
-from voxam.zmachine.memory import Memory
+from voxam.zmachine.memory import BYTE_MAX, Memory
 from voxam.zmachine.objects import ObjectTable
 from voxam.zmachine.packed import routine_address, string_address
 from voxam.zmachine.quetzal import read as read_quetzal
@@ -128,6 +137,17 @@ READ_CHAR_ROUTINE_OPERAND = 2
 TIMED_READ_VERSION = 4
 INTERRUPT_TERMINATOR = 0
 
+# set_font stores 0 for a font it will not grant (§15 set_font), and
+# a character terminal's screen units are characters, so every font
+# it offers is 1 by 1 (§8.1.1).
+FONT_REFUSED = 0
+FONT_UNIT = 1
+
+# The conventional palette claim at $2c/$2d, as §8.3.1 codes: white
+# type on a black screen (§8.3.3).
+DEFAULT_FOREGROUND_COLOUR = 9
+DEFAULT_BACKGROUND_COLOUR = 2
+
 # From Version 5, read's text buffer changes shape: byte 0 is the
 # whole capacity, the typed count lands in byte 1, and the letters
 # run from byte 2 with no terminator -- where Versions 1 to 4 put a
@@ -140,10 +160,28 @@ MINIMUM_TEXT_CAPACITY = {False: 2, True: 1}
 MINIMUM_PARSE_WORDS = 1
 
 # sound_effect's first two numbers are the interpreter's own bleeps;
-# from 3 upward they name sampled sounds, which need Blorb-era
-# machinery (§9). A bare sound_effect means bleep 1.
+# from 3 upward they name sampled sounds (§9.2), and a bare
+# sound_effect means bleep 1. The effects are prepare, start, stop,
+# and finish (§15 sound_effect); number 0 stops or finishes them
+# all. The third operand carries the §9.3 volume in its low byte --
+# 255 meaning loudest -- and, from Version 5, the total play count
+# in its high byte, 255 meaning until stopped (§9.4.3).
 HIGH_BLEEP = 1
 FIRST_SAMPLED_SOUND = 3
+PREPARE_EFFECT = 1
+START_EFFECT = 2
+STOP_EFFECT = 3
+FINISH_EFFECT = 4
+STOP_ALL_SOUNDS = 0
+LOUDEST_VOLUME = 255
+FULL_VOLUME = 8
+LOWEST_VOLUME = 1
+REPEATS_SHIFT = 8
+FOREVER_BYTE = 255
+FOREVER_REPEATS = 0
+SOUND_REPEATS_VERSION = 5
+SOUND_VOLUME_OPERAND = 2
+SOUND_ROUTINE_OPERAND = 3
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -301,10 +339,13 @@ class Machine:
         self._words: Dictionary | None = None
         self._running = True
         self._screen_selected = True
+        self._font = NORMAL_FONT
         self._redirections: list[tuple[int, list[str]]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
         self._pending_keys: deque[str] = deque()
+        self._sound_routine = 0
+        self._sound_since_input = False
 
         self._declare_capabilities()
         self._start_execution()
@@ -370,6 +411,31 @@ class Machine:
                 fixed_pitch=self._frontend.has_fixed_pitch,
                 timed_input=self._frontend.has_timed_input,
             )
+
+            # The unit fields and the §8.1.5.1 graphics-font honesty
+            # belong to the Version 5 family; Version 6 gives the
+            # same Flags 2 bit to pictures, and its pixel units and
+            # swapped font bytes wait on a Version 6 screen worth
+            # measuring. A character terminal's unit is one
+            # character (§8.4.2), so the unit words mirror the line
+            # and column bytes.
+            if (
+                header.version >= FONT_FIELDS_VERSION
+                and header.version != PACKED_PC_VERSION
+            ):
+                header.declare_screen_units(
+                    width=self._frontend.screen_columns,
+                    height=self._frontend.screen_lines,
+                )
+                header.declare_font_size(width=FONT_UNIT, height=FONT_UNIT)
+                header.declare_character_graphics(
+                    available=self._frontend.has_character_graphics
+                )
+                header.declare_colours(
+                    available=self._frontend.has_colours,
+                    foreground=DEFAULT_FOREGROUND_COLOUR,
+                    background=DEFAULT_BACKGROUND_COLOUR,
+                )
 
     def snapshot(self) -> Snapshot:
         """Capture the entire state of play (§6.1, §6.1.1).
@@ -443,6 +509,7 @@ class Machine:
         """
 
         while self._running:
+            self._poll_sound()
             self.step()
 
     def step(self) -> None:
@@ -703,13 +770,22 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_storeb(self, instruction: Instruction) -> None:
-        """Write a byte at array + byte-index (§15)."""
+        """Write a byte at array + byte-index (§15).
+
+        The operand is a word, and §15 does not say which part of a
+        large one lands; the least significant byte is the coherent
+        conventional answer -- the same rule §15 spells out for
+        put_prop into one-byte properties -- and Sherlock depends on
+        it, storing $ffff as a flag while the sun rises over the
+        Abbey. This used to halt loudly; the shipped game earned
+        the settlement.
+        """
 
         array = self._value(instruction.operands[0])
         index = self._value(instruction.operands[1])
         value = self._value(instruction.operands[2])
 
-        self._memory.write_byte(self._table_address(array, index, 1), value)
+        self._memory.write_byte(self._table_address(array, index, 1), value & BYTE_MAX)
         self._pc = instruction.next_address
 
     def _op_store(self, instruction: Instruction) -> None:
@@ -1173,6 +1249,19 @@ class Machine:
 
         self._screen_selected = True
 
+        # The current font is interpreter bookkeeping, so a restart
+        # returns it to normal along with the rest -- and tells the
+        # frontend, or its screen would keep drawing §16 shapes the
+        # machine no longer believes in.
+        self._font = NORMAL_FONT
+        self._frontend.set_font(NORMAL_FONT)
+
+        # Sound is bookkeeping too: the speaker falls silent and any
+        # end-of-sound routine dies with the state that armed it.
+        self._frontend.stop_sound(None)
+        self._sound_routine = 0
+        self._sound_since_input = False
+
         self._declare_capabilities()
         self._start_execution()
 
@@ -1244,23 +1333,35 @@ class Machine:
         self._branch(instruction, held)
 
     def _op_set_attr(self, instruction: Instruction) -> None:
-        """Set the object's attribute (§15)."""
+        """Set the object's attribute (§15).
+
+        An attribute beyond the version's §12.3.1 range changes
+        nothing. Sherlock touches attribute 48 as the wax head
+        melts -- a game bug so storied that Frotz carries a named
+        pardon for it -- and the quiet no-op is the same settlement
+        without the name. Testing such an attribute stays loud: no
+        game has earned that door.
+        """
 
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        if obj:
+        if obj and self._objects.attribute_exists(attribute):
             self._objects.set_attribute(obj, attribute, on=True)
 
         self._pc = instruction.next_address
 
     def _op_clear_attr(self, instruction: Instruction) -> None:
-        """Clear the object's attribute (§15)."""
+        """Clear the object's attribute (§15).
+
+        The out-of-range quiet of set_attr holds here too; it is
+        clear_attr that Sherlock actually reaches with 48.
+        """
 
         obj = self._value(instruction.operands[0])
         attribute = self._value(instruction.operands[1])
 
-        if obj:
+        if obj and self._objects.attribute_exists(attribute):
             self._objects.set_attribute(obj, attribute, on=False)
 
         self._pc = instruction.next_address
@@ -1519,6 +1620,10 @@ class Machine:
                 which §15 asks interpreters to halt on.
         """
 
+        # A keyboard input starts a new §9 pacing epoch: sounds
+        # begun before this read no longer make a newer one wait.
+        self._sound_since_input = False
+
         values = [self._value(operand) for operand in instruction.operands]
 
         # In Versions 1 to 3 the status line is redisplayed before the
@@ -1681,12 +1786,13 @@ class Machine:
         """Print a rectangle of ZSCII rows from a table (§15).
 
         Each row is width table bytes, with skip bytes passed over
-        between rows -- a window onto a larger character map. Under
-        the plain screen model each row after the first begins a
-        fresh line; the cursor-true rectangle, right and down from
-        wherever the cursor stands, belongs to a richer frontend.
-        (§15 also declares heights past 1 undefined in the lower
-        window; stacked lines are this interpreter's answer.)
+        between rows -- a window onto a larger character map. On
+        the screen the rectangle spreads right and down from the
+        cursor, each row returning to the column where it began
+        (§15 print_table): Beyond Zork stamps its map beside the
+        story box this way. Into a stream 3 table, or with the
+        screen deselected, the rows travel as newline-separated
+        lines instead, which is also what a plain transcript shows.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -1703,13 +1809,12 @@ class Machine:
             if len(values) > PRINT_TABLE_SKIP_OPERAND
             else 0
         )
+
+        rows = []
         position = table
 
-        for row in range(height):
-            if row:
-                self._print("\n")
-
-            self._print(
+        for _row in range(height):
+            rows.append(
                 "".join(
                     zscii_to_char(
                         self._memory.read_byte(position + offset), self._extras()
@@ -1719,6 +1824,15 @@ class Machine:
             )
 
             position += width + skip
+
+        if self._redirections or not self._screen_selected:
+            for index, row_text in enumerate(rows):
+                if index:
+                    self._print("\n")
+
+                self._print(row_text)
+        else:
+            self._frontend.write_rectangle(rows)
 
         self._pc = instruction.next_address
 
@@ -1823,12 +1937,28 @@ class Machine:
     def _op_set_colour(self, instruction: Instruction) -> None:
         """Set text colours -- where coloured text is available (§8.3.1).
 
-        The spec's own conditional does the work: this frontend
-        truthfully declares no colour in the header, so the request
-        is legitimately a no-op, exactly as a monochrome terminal of
-        the era would treat it. The blessed frontend will grow a
-        real seam here. Covers set_true_colour too, whose 15-bit
-        colours (§8.3.7) reduce the same way.
+        The spec's own conditional does the work both ways: a
+        frontend that claimed colours in the header receives the
+        pair, and one that truthfully declared none makes the
+        request a legitimate no-op, exactly as a monochrome
+        terminal of the era would treat it.
+        """
+
+        if self._frontend.has_colours:
+            self._frontend.set_colour(
+                self._value(instruction.operands[0]),
+                self._value(instruction.operands[1]),
+            )
+
+        self._pc = instruction.next_address
+
+    def _op_set_true_colour(self, instruction: Instruction) -> None:
+        """Let a 15-bit colour request pass unanswered (§8.3.7).
+
+        True colour is its own claim, made in the header
+        extension's flags word, and Voxam does not make it -- so
+        the request reduces to the conforming quiet, with or
+        without the classic §8.3.1 colours on offer.
         """
 
         self._pc = instruction.next_address
@@ -1842,6 +1972,46 @@ class Machine:
 
         self._frontend.set_style(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
+
+    def _op_set_font(self, instruction: Instruction) -> None:
+        """Choose a §8.1.2 font, storing the one it replaces (§15).
+
+        Font 0 asks which font is current without changing it. A
+        font on offer is chosen and the previous font's ID comes
+        back, always positive; one not on offer changes nothing
+        and stores 0, the refusal §8.1.3 builds permission on.
+        """
+
+        font = self._value(instruction.operands[0])
+
+        if font == CURRENT_FONT:
+            self._store_result(instruction.store_variable, self._font)
+        elif self._font_available(font):
+            previous = self._font
+            self._font = font
+
+            self._frontend.set_font(font)
+            self._store_result(instruction.store_variable, previous)
+        else:
+            self._store_result(instruction.store_variable, FONT_REFUSED)
+
+        self._pc = instruction.next_address
+
+    def _font_available(self, font: int) -> bool:
+        """Whether the frontend has a §8.1.2 font to offer.
+
+        The normal and fixed-pitch fonts are one and the same face
+        on a character terminal, so both are always granted; the
+        §16 character graphics font belongs to frontends that
+        claimed it. Everything else is refused: the picture font
+        by instruction (§8.1.4), and the higher numbers because no
+        Standard has yet said what they mean (§8.1.6).
+        """
+
+        if font in (NORMAL_FONT, COURIER_FONT):
+            return True
+
+        return font == GRAPHICS_FONT and self._frontend.has_character_graphics
 
     def _op_erase_window(self, instruction: Instruction) -> None:
         """Hand a window erasure to the frontend (§8.7).
@@ -1976,7 +2146,7 @@ class Machine:
         self._memory.write_word(table, len(text))
 
     def _op_sound_effect(self, instruction: Instruction) -> None:
-        """Sound a bleep, or let a sampled sound pass in silence (§9).
+        """Sound a bleep, or drive a sampled sound (§9).
 
         A bare sound_effect means bleep 1; 1 and 2 are the high and
         low bleeps the interpreter itself provides. From 3 upward
@@ -1985,30 +2155,100 @@ class Machine:
         passes in the conforming quiet The Lurking Horror and
         Sherlock were both shipped to accept -- the extra operands
         ignored, and the end-of-sound routine of a sound that never
-        plays never called. A frontend that CLAIMS sound must wait
-        for the Blorb-era machinery to arrive.
-
-        Raises:
-            ZMachineUnimplementedError: For a sampled sound on a
-                frontend claiming sound support, which no machinery
-                yet backs.
+        plays never called. A frontend with a speaker hears the
+        full §9.4 forms instead, number 0 included, which stops or
+        finishes every sound at once (§15 sound_effect).
         """
 
         values = [self._value(operand) for operand in instruction.operands]
         number = values[0] if values else HIGH_BLEEP
 
-        if number >= FIRST_SAMPLED_SOUND:
-            if self._frontend.has_sounds:
-                raise ZMachineUnimplementedError(
-                    f"sampled sound {number}", instruction.address
-                )
+        if HIGH_BLEEP <= number < FIRST_SAMPLED_SOUND:
+            self._frontend.bleep(number)
+        elif self._frontend.has_sounds:
+            self._sampled_sound(number, values)
 
-            self._pc = instruction.next_address
+        self._pc = instruction.next_address
+
+    def _sampled_sound(self, number: int, values: list[int]) -> None:
+        """Drive one sampled-sound effect through the frontend (§9.4).
+
+        The §9 remarks name The Lurking Horror's own bugs, and
+        those are the pardons here: an effect outside the four
+        (its sound_effect 4 8) passes quietly, a number no
+        resource answers (its sound_effect 4095 2 15) starts
+        nothing and keeps any current sound playing, and the 15 of
+        that same call is a volume clamped to §9.3's 8. The
+        remarks also set the pacing: a new sound, started while
+        one begun since the last keyboard input still plays, waits
+        for that one to finish a cycle first -- The Lurking Horror
+        assumes an interpreter as slow as Infocom's Amiga one.
+        """
+
+        effect = values[1] if len(values) > 1 else START_EFFECT
+
+        if effect in (STOP_EFFECT, FINISH_EFFECT):
+            self._frontend.stop_sound(number if number != STOP_ALL_SOUNDS else None)
 
             return
 
-        self._frontend.bleep(number)
-        self._pc = instruction.next_address
+        if effect != START_EFFECT:
+            # Prepare asks for nothing here -- every sound is
+            # already decoded (§9.4.1) -- and any other effect is
+            # the pardoned bug above.
+            return
+
+        word = (
+            values[SOUND_VOLUME_OPERAND]
+            if len(values) > SOUND_VOLUME_OPERAND
+            else LOUDEST_VOLUME
+        )
+        volume = word & BYTE_MAX
+
+        if volume == LOUDEST_VOLUME:
+            # 255 is "loudest possible" (§9.3, §15 sound_effect).
+            volume = FULL_VOLUME
+        else:
+            volume = min(max(volume, LOWEST_VOLUME), FULL_VOLUME)
+
+        repeats: int | None
+
+        if self._memory.header.version >= SOUND_REPEATS_VERSION:
+            high = word >> REPEATS_SHIFT
+            # 255 repeats until stopped; zero is illegal here, and
+            # §15's own suggestion is to read it as once.
+            repeats = FOREVER_REPEATS if high == FOREVER_BYTE else max(high, 1)
+        else:
+            # Version 3 cannot say -- §15 keeps the high byte 0 --
+            # so None lets the Blorb's Loop chunk decide.
+            repeats = None
+
+        if self._sound_since_input and self._frontend.sound_playing():
+            self._frontend.wait_for_sound()
+
+        routine = (
+            values[SOUND_ROUTINE_OPERAND] if len(values) > SOUND_ROUTINE_OPERAND else 0
+        )
+
+        if self._frontend.play_sound(number, volume, repeats):
+            self._sound_routine = routine
+            self._sound_since_input = True
+
+    def _poll_sound(self) -> None:
+        """Fire the end-of-sound routine of a sound that just ended.
+
+        The routine runs only after the sound has played its
+        requested number of times -- the frontend's finished()
+        answers exactly that, once -- and never for a sound
+        stopped or replaced (§9.4.4). The result is discarded: an
+        end-of-sound routine is not a §15 read interrupt, and
+        terminates nothing.
+        """
+
+        if self._sound_routine and self._frontend.sound_finished():
+            routine, self._sound_routine = self._sound_routine, 0
+
+            self._interrupt(routine)
 
     def _keystroke(self) -> int:
         """Take one key from the queue, refilled a line at a time.
@@ -2081,6 +2321,10 @@ class Machine:
             ZMachineInstructionError: If the first operand is not 1,
                 the keyboard, which §15 makes the only input device.
         """
+
+        # A keystroke is keyboard input too: it starts a new §9
+        # pacing epoch, just as a whole read does.
+        self._sound_since_input = False
 
         values = [self._value(operand) for operand in instruction.operands]
 
@@ -2428,6 +2672,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "remove_obj": Machine._op_remove_obj,
     "set_attr": Machine._op_set_attr,
     "set_cursor": Machine._op_set_cursor,
+    "set_font": Machine._op_set_font,
     "set_text_style": Machine._op_set_text_style,
     "set_window": Machine._op_set_window,
     "show_status": Machine._op_show_status,
@@ -2448,7 +2693,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "save_undo": Machine._op_save_undo,
     "scan_table": Machine._op_scan_table,
     "set_colour": Machine._op_set_colour,
-    "set_true_colour": Machine._op_set_colour,
+    "set_true_colour": Machine._op_set_true_colour,
     "store": Machine._op_store,
     "storeb": Machine._op_storeb,
     "storew": Machine._op_storew,

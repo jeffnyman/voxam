@@ -2,7 +2,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import ZMachineScreenError
-from voxam.frontend import Status
+from voxam.frontend import GRAPHICS_FONT, NORMAL_FONT, Status
 from voxam.screen import (
     BOLD,
     ITALIC,
@@ -146,6 +146,103 @@ def test_styles_may_change_mid_word() -> None:
 
     assert_that(screen.cell(1, 2).style).is_equal_to(ROMAN)
     assert_that(screen.cell(1, 3).style).is_equal_to(BOLD)
+
+
+# The line editor's rubout retreats the cursor one cell and blanks
+# it, and stops at the left edge rather than chewing into an
+# earlier row (§15 read).
+def test_rub_out_erases_the_last_typed_character() -> None:
+    screen = small(version=5)
+
+    screen.write("ab")
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("a")
+    assert_that(screen.cursor).is_equal_to((1, 2))
+
+    screen.rub_out()
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("")
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
+# Rubout follows the selected window: upper-window typing is edited
+# in place, and at the window's left edge there is nothing to rub.
+def test_rub_out_works_in_the_upper_window() -> None:
+    screen = small(version=5)
+
+    screen.split_window(2)
+    screen.set_window(UPPER)
+    screen.set_cursor(1, 3)
+    screen.write("x")
+    screen.rub_out()
+
+    assert_that(screen.row_text(1)).is_equal_to("")
+    assert_that(screen.cursor).is_equal_to((1, 3))
+
+    screen.set_cursor(1, 1)
+    screen.rub_out()
+
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
+# A §15 rectangle in the upper window spreads right and down from
+# the cursor: each row returns to the starting column, so a map can
+# sit beside a story box without erasing its left edge -- which is
+# precisely how Beyond Zork stamps its map (§15 print_table).
+def test_upper_rectangles_keep_their_left_edge() -> None:
+    screen = small(version=5)
+
+    screen.split_window(4)
+    screen.set_window(UPPER)
+    screen.set_cursor(2, 5)
+    screen.write_rectangle(["ab", "cd"])
+
+    assert_that(screen.row_text(2)).is_equal_to("    ab")
+    assert_that(screen.row_text(3)).is_equal_to("    cd")
+
+
+# A rectangle taller than the upper window presses its last rows
+# onto the bottom line, as upper-window newlines do (§8.7.2).
+def test_tall_rectangles_press_on_the_window_bottom() -> None:
+    screen = small(version=5)
+
+    screen.split_window(2)
+    screen.set_window(UPPER)
+    screen.set_cursor(1, 1)
+    screen.write_rectangle(["a", "b", "c"])
+
+    assert_that(screen.row_text(1)).is_equal_to("a")
+    assert_that(screen.row_text(2)).is_equal_to("c")
+
+
+# In the lower window, where §15 leaves heights past 1 undefined,
+# the rows are ordinary stacked lines.
+def test_lower_rectangles_stack_as_lines() -> None:
+    screen = small(version=5)
+
+    screen.write_rectangle(["ab", "cd"])
+
+    assert_that(screen.row_text(1)).is_equal_to("ab")
+    assert_that(screen.row_text(2)).is_equal_to("cd")
+
+
+# Cells remember the font they were printed in, and changing font
+# mid-word is as legal as changing style there (§8.1.2, §8.1.3.1);
+# drawing §16's shapes from that record is the painter's business.
+def test_cells_wear_the_current_font() -> None:
+    screen = small(version=5)
+
+    screen.write("ma")
+    screen.set_font(GRAPHICS_FONT)
+    screen.write("p!")
+    screen.set_font(NORMAL_FONT)
+    screen.write("x")
+
+    assert_that(screen.cell(1, 2).font).is_equal_to(NORMAL_FONT)
+    assert_that(screen.cell(1, 3).font).is_equal_to(GRAPHICS_FONT)
+    assert_that(screen.cell(1, 5).font).is_equal_to(NORMAL_FONT)
 
 
 # Colour code 0 keeps the colour already current, on either side

@@ -41,6 +41,35 @@ FLAGS_2 = 0x10
 FLAGS_2_LOW = 0x11
 SOUND_BIT = 0x80
 
+# Bit 3 of Flags 2 is a Version 5 game asking for the §16 character
+# graphics font -- Beyond Zork draws its maps in it -- and an
+# interpreter without the font must clear the request (§8.1.5.1).
+# Version 6 gives the same bit to pictures instead (§11.1).
+GRAPHICS_BIT = 0x08
+
+# From Version 5 the header carries the current font's width at $26
+# and height at $27, in screen units (§8.1.1). Version 6 swaps the
+# two bytes -- moot for a character terminal, whose units make every
+# font 1 by 1.
+FONT_WIDTH = 0x26
+FONT_HEIGHT = 0x27
+FONT_FIELDS_VERSION = 5
+
+# From Version 5 the screen's width and height are also recorded in
+# units, in the words at $22 and $24 (§8.4.3). A character terminal's
+# unit is one character, so these mirror the byte fields at $21 and
+# $20.
+SCREEN_WIDTH_UNITS = 0x22
+SCREEN_HEIGHT_UNITS = 0x24
+
+# From Version 5, bit 0 of Flags 1 answers whether colours are
+# available, and the interpreter's default background and foreground
+# live at $2c and $2d as §8.3.1 codes (§8.3.2, §8.3.3).
+COLOURS_BIT = 0x01
+DEFAULT_BACKGROUND_ADDRESS = 0x2C
+DEFAULT_FOREGROUND_ADDRESS = 0x2D
+COLOURS_VERSION = 5
+
 # An interpreter obeying revision n.m of the Standard writes n at
 # $32 and m at $33 (§11.1.5); games check it before using late
 # opcodes like print_unicode.
@@ -495,6 +524,91 @@ class Header:
 
         live = self._live()
         live[FLAGS_2_LOW] &= 0xFF ^ SOUND_BIT
+
+    def declare_character_graphics(self, *, available: bool) -> None:
+        """Clear the game's font 3 request when it cannot be met (§8.1.5.1).
+
+        Bit 3 of Flags 2 is the game asking for the §16 character
+        graphics font. An interpreter that can draw it leaves the
+        request standing; one that cannot clears the bit, and the
+        game knows to build its maps from plainer characters.
+
+        Raises:
+            ZMachineHeaderError: Over the pristine story bytes,
+                which never change.
+        """
+
+        if available:
+            return
+
+        live = self._live()
+        live[FLAGS_2_LOW] &= 0xFF ^ GRAPHICS_BIT
+
+    def declare_font_size(self, *, width: int, height: int) -> None:
+        """Record the current font's size in screen units (§8.1.1).
+
+        Raises:
+            ZMachineHeaderError: Before Version 5, where the fields
+                do not exist; or over the pristine story bytes.
+        """
+
+        if self.version < FONT_FIELDS_VERSION:
+            msg = f"version {self.version} has no font size fields to write (§8.1.1)"
+
+            raise ZMachineHeaderError(msg)
+
+        live = self._live()
+        live[FONT_WIDTH] = width
+        live[FONT_HEIGHT] = height
+
+    def declare_screen_units(self, *, width: int, height: int) -> None:
+        """Record the screen's size in units (§8.4.3).
+
+        Beyond Zork lays its windows out from these words -- edge
+        positions are computed as width-in-units minus an offset --
+        so leaving them unwritten sends its cursor arithmetic below
+        zero.
+
+        Raises:
+            ZMachineHeaderError: Before Version 5, where the fields
+                do not exist; or over the pristine story bytes.
+        """
+
+        if self.version < FONT_FIELDS_VERSION:
+            msg = f"version {self.version} has no screen unit fields to write (§8.4.3)"
+
+            raise ZMachineHeaderError(msg)
+
+        live = self._live()
+        live[SCREEN_WIDTH_UNITS : SCREEN_WIDTH_UNITS + 2] = width.to_bytes(2, "big")
+        live[SCREEN_HEIGHT_UNITS : SCREEN_HEIGHT_UNITS + 2] = height.to_bytes(2, "big")
+
+    def declare_colours(
+        self, *, available: bool, foreground: int, background: int
+    ) -> None:
+        """Record the colour offer and the default colours (§8.3.2, §8.3.3).
+
+        An interpreter with colours sets bit 0 of Flags 1; one
+        without clears it. The default background and foreground
+        codes are written at $2c and $2d either way -- black and
+        white are still a background and a foreground.
+
+        Raises:
+            ZMachineHeaderError: Before Version 5, where the bit
+                and the fields mean nothing; or over the pristine
+                story bytes.
+        """
+
+        if self.version < COLOURS_VERSION:
+            msg = f"version {self.version} has no colour fields to write (§8.3)"
+
+            raise ZMachineHeaderError(msg)
+
+        self._set_flag(COLOURS_BIT, on=available)
+
+        live = self._live()
+        live[DEFAULT_BACKGROUND_ADDRESS] = background
+        live[DEFAULT_FOREGROUND_ADDRESS] = foreground
 
     def _require_screen_fields(self) -> None:
         """Refuse the interpreter fields before Version 4 (§11.1)."""

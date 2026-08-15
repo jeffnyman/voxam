@@ -2,9 +2,12 @@ from contextlib import AbstractContextManager, nullcontext
 
 from assertpy import assert_that
 
-from voxam.frontend import Status
+from voxam.aiff import Sound
+from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, ScreenFrontend
+from voxam.png import Picture
 from voxam.screen import BOLD, ITALIC, REVERSE, UPPER
+from voxam.speaker import Fill, Finished, Speaker, Stream
 
 
 class StubKey(str):
@@ -38,6 +41,12 @@ class StubTerminal:
     def move_xy(self, x: int, y: int) -> str:
         return f"<@{x},{y}>"
 
+    def color_rgb(self, red: int, green: int, blue: int) -> str:
+        return f"<fg {red},{green},{blue}>"
+
+    def on_color_rgb(self, red: int, green: int, blue: int) -> str:
+        return f"<bg {red},{green},{blue}>"
+
     def cbreak(self) -> AbstractContextManager[object]:
         return nullcontext()
 
@@ -48,14 +57,18 @@ class StubTerminal:
 
 
 def painted(
-    version: int = 5, line: str = "look", keys: list[StubKey] | None = None
+    version: int = 5, keys: list[StubKey] | None = None
 ) -> tuple[ScreenFrontend, list[str]]:
     out: list[str] = []
-    frontend = ScreenFrontend(
-        version, terminal=StubTerminal(keys), out=out.append, read=lambda: line
-    )
+    frontend = ScreenFrontend(version, terminal=StubTerminal(keys), out=out.append)
 
     return frontend, out
+
+
+def typing(text: str) -> list[StubKey]:
+    """The keystrokes of a typed line, enter included."""
+
+    return [*(StubKey(character) for character in text), StubKey("", "KEY_ENTER")]
 
 
 # A write lands in the model and the damaged row is repainted at
@@ -116,6 +129,78 @@ def test_reverse_video_reaches_the_glass() -> None:
     assert_that("".join(out)).contains("<rev>")
 
 
+# A §15 rectangle flows through the model and repaints, each row
+# returning to the column where the rectangle began.
+def test_rectangles_paint_right_and_down() -> None:
+    frontend, _out = painted()
+
+    frontend.split_window(3)
+    frontend.set_window(UPPER)
+    frontend.set_cursor(1, 4)
+    frontend.write_rectangle(["ab", "cd"])
+
+    assert_that(frontend.model.row_text(1)).is_equal_to("   ab")
+    assert_that(frontend.model.row_text(2)).is_equal_to("   cd")
+
+
+# Cells in the character graphics font paint as their §16 Unicode
+# stand-ins: box-drawing for the map lines, runes for the letters.
+def test_font_3_paints_its_unicode_stand_ins() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("(f")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("│")
+    assert_that(stream).contains("ᚠ")
+
+
+# Codes 123 to 126 are the reverse-video twins of the arrows and
+# the drawn question mark -- the §16 bitmaps invert them pixel for
+# pixel -- so the painter draws the same shape and flips reverse
+# video instead of carrying it in the glyph.
+def test_font_3_reversed_shapes_flip_reverse_video() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("{")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("↑")
+    assert_that(stream).contains("<rev>")
+
+
+# The map-connectivity calls the Beyond Zork eyeball tests settled:
+# a solid mass meeting a diagonal road stays a quadrant block, so
+# room corners keep their shape, and the single-pixel road tips
+# continue their diagonal, so a road reaches its room without a
+# gap (§16).
+def test_font_3_keeps_the_map_connected() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("CG")
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("▝")
+    assert_that(stream).contains("╱")
+
+
+# A font 3 character beyond the §16 table -- an accented letter,
+# say -- passes through as itself rather than vanishing.
+def test_font_3_passes_unknown_characters_through() -> None:
+    frontend, out = painted()
+
+    frontend.set_font(GRAPHICS_FONT)
+    frontend.write("é")
+
+    assert_that("".join(out)).contains("é")
+
+
 # Window operations flow through the model and park the terminal
 # cursor where the model's cursor stands.
 def test_window_operations_park_the_cursor() -> None:
@@ -173,16 +258,59 @@ def test_bleeps_ring_the_bell() -> None:
     assert_that(out.count("\a")).is_equal_to(2)
 
 
-# read_line hands back the typed line and echoes it through the
-# model, so the grid agrees with what the terminal's cooked echo
-# already showed.
+# read_line reads raw keystrokes and echoes them through the model
+# itself -- the terminal's own echo is never invited, so nothing
+# but the painter ever writes to the glass.
 def test_read_line_echoes_through_the_model() -> None:
-    frontend, _out = painted(line="open mailbox")
+    frontend, _out = painted(keys=typing("open mailbox"))
 
     line = frontend.read_line()
 
     assert_that(line).is_equal_to("open mailbox")
     assert_that(frontend.model.row_text(1)).is_equal_to("open mailbox")
+
+
+# Backspace rubs out the last typed character, on the glass and in
+# the returned line alike (§15 read's line editor).
+def test_read_line_backspace_rubs_out() -> None:
+    keys = [
+        *(StubKey(character) for character in "loox"),
+        StubKey("", "KEY_BACKSPACE"),
+        StubKey("k"),
+        StubKey("", "KEY_ENTER"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    line = frontend.read_line()
+
+    assert_that(line).is_equal_to("look")
+    assert_that(frontend.model.row_text(1)).is_equal_to("look")
+
+
+# With nothing typed there is nothing to rub: backspace at the
+# start of a line is quietly nothing.
+def test_read_line_backspace_stops_at_the_start() -> None:
+    keys = [StubKey("", "KEY_BACKSPACE"), *typing("n")]
+    frontend, _out = painted(keys=keys)
+
+    assert_that(frontend.read_line()).is_equal_to("n")
+
+
+# Escape, the §3.8.4 key codes, and unmapped escape sequences mean
+# nothing to a line editor yet: read_line waits them all out.
+def test_read_line_waits_out_keys_a_line_cannot_use() -> None:
+    keys = [
+        StubKey("", "KEY_ESCAPE"),
+        StubKey("", "KEY_UP"),
+        StubKey("\x1b[15~", "KEY_F5"),
+        *typing("y"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    line = frontend.read_line()
+
+    assert_that(line).is_equal_to("y")
+    assert_that(frontend.model.row_text(1)).is_equal_to("y")
 
 
 # A plain keystroke passes through read_key as itself, unechoed --
@@ -213,12 +341,31 @@ def test_read_key_translates_special_keys() -> None:
     assert_that(frontend.read_key()).is_equal_to("\x1b")
 
 
+# The cursor keys translate to their §3.8.4 codepoints 129 to 132,
+# which the machine's input seam passes through whole -- how Beyond
+# Zork's menus hear an arrow.
+def test_read_key_translates_the_cursor_keys() -> None:
+    frontend, _out = painted(
+        keys=[
+            StubKey("\x1b[A", "KEY_UP"),
+            StubKey("\x1b[B", "KEY_DOWN"),
+            StubKey("\x1b[D", "KEY_LEFT"),
+            StubKey("\x1b[C", "KEY_RIGHT"),
+        ]
+    )
+
+    assert_that(frontend.read_key()).is_equal_to("\x81")
+    assert_that(frontend.read_key()).is_equal_to("\x82")
+    assert_that(frontend.read_key()).is_equal_to("\x83")
+    assert_that(frontend.read_key()).is_equal_to("\x84")
+
+
 # An empty read is not a keystroke, and neither is an unmapped
-# multi-character escape sequence -- an arrow key the story cannot
-# hear yet: read_key waits for one it can.
+# multi-character escape sequence -- a function key the story
+# cannot hear yet: read_key waits for one it can.
 def test_read_key_waits_out_empty_and_unmapped_reads() -> None:
     frontend, _out = painted(
-        keys=[StubKey(""), StubKey("\x1b[C", "KEY_RIGHT"), StubKey("q")]
+        keys=[StubKey(""), StubKey("\x1b[15~", "KEY_F5"), StubKey("q")]
     )
 
     assert_that(frontend.read_key()).is_equal_to("q")
@@ -238,7 +385,7 @@ def test_read_key_reports_expired_timeouts() -> None:
 # An unmapped escape sequence inside a timed wait is no keystroke
 # either: the wait reports as expired rather than pretending.
 def test_read_key_timeout_swallows_unmapped_sequences() -> None:
-    frontend, _out = painted(keys=[StubKey("\x1b[C", "KEY_RIGHT")])
+    frontend, _out = painted(keys=[StubKey("\x1b[15~", "KEY_F5")])
 
     assert_that(frontend.read_key(timeout=0.5)).is_none()
 
@@ -250,11 +397,90 @@ def test_read_key_returns_keys_that_beat_the_clock() -> None:
     assert_that(frontend.read_key(timeout=0.5)).is_equal_to("z")
 
 
+# clear() paints the blank model over the whole glass, so a story
+# starts on a clean screen with no shell output showing through
+# the rows it has not yet painted.
+def test_clear_wipes_every_row() -> None:
+    frontend, out = painted()
+
+    frontend.clear()
+
+    stream = "".join(out)
+
+    for row in range(StubTerminal.height):
+        assert_that(stream).contains(f"<@0,{row}>")
+
+
+# A cover paints centred in half-block cells -- each ▀ carries two
+# pixels, the upper as ink and the lower as ground, an odd bottom
+# row grounding on black -- then a keypress dismisses it and the
+# glass is left clean for the story.
+def test_the_frontispiece_paints_in_half_blocks() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(
+        2,
+        3,
+        (
+            ((255, 0, 0), (0, 255, 0)),
+            ((0, 0, 255), (255, 255, 255)),
+            ((10, 20, 30), (40, 50, 60)),
+        ),
+    )
+
+    frontend.show_frontispiece(picture)
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("▀")
+    assert_that(stream).contains("<@14,3>")
+    assert_that(stream).contains("<fg 255,0,0>")
+    assert_that(stream).contains("<bg 0,0,255>")
+    assert_that(stream).contains("<bg 0,0,0>")
+    assert_that(terminal.keys).is_empty()
+
+
+# With pixels requested, the cover draws as sixel graphics --
+# real pixels between the enter and leave sequences -- magnified
+# by whole steps, dismissed by the same keypress.
+def test_the_frontispiece_can_paint_in_sixel_pixels() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    picture = Picture(2, 2, (((255, 0, 0),) * 2, ((255, 0, 0),) * 2))
+
+    frontend.show_frontispiece(picture, pixels=True)
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("\x1bPq")
+    assert_that(stream).contains("\x1b\\")
+    assert_that(stream).does_not_contain("▀")
+    assert_that(terminal.keys).is_empty()
+
+
+# A cover larger than the glass shrinks to fit, keeping its shape;
+# the box average of a uniform picture is itself.
+def test_large_covers_shrink_to_the_glass() -> None:
+    terminal = StubTerminal([StubKey("x")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    rows = tuple(tuple((100, 150, 200) for _ in range(60)) for _ in range(32))
+
+    frontend.show_frontispiece(Picture(60, 32, rows))
+
+    stream = "".join(out)
+
+    assert_that(stream).contains("<fg 100,150,200>")
+    assert_that(stream).contains("<@0,0>")
+
+
 # Without a terminal handed in, a real blessed Terminal is built;
 # on a captured, un-terminal stream it reports no size and the
 # painter falls back to the classic 80 by 24 (§8.4).
 def test_a_real_terminal_is_built_by_default() -> None:
-    frontend = ScreenFrontend(3, out=lambda _text: None, read=lambda: "")
+    frontend = ScreenFrontend(3, out=lambda _text: None)
 
     assert_that(frontend.screen_columns).is_greater_than_or_equal_to(1)
     assert_that(frontend.screen_lines).is_greater_than_or_equal_to(1)
@@ -267,9 +493,90 @@ def test_a_sizeless_terminal_falls_back() -> None:
         width = 0
         height = 0
 
-    frontend = ScreenFrontend(
-        5, terminal=Sizeless(), out=lambda _text: None, read=lambda: ""
-    )
+    frontend = ScreenFrontend(5, terminal=Sizeless(), out=lambda _text: None)
 
     assert_that(frontend.screen_columns).is_equal_to(FALLBACK_COLUMNS)
     assert_that(frontend.screen_lines).is_equal_to(FALLBACK_LINES)
+
+
+class SoundStream:
+    """Captures the speaker's callbacks so a test can drive them."""
+
+    def __init__(self, fill: Fill, finished: Finished) -> None:
+        self.fill = fill
+        self.finished = finished
+        self.aborted = False
+
+    def start(self) -> None:
+        pass
+
+    def abort(self) -> None:
+        self.aborted = True
+
+    def close(self) -> None:
+        pass
+
+
+def sounded() -> tuple[Speaker, list[SoundStream]]:
+    """A speaker holding one two-byte sound, with its streams."""
+
+    streams: list[SoundStream] = []
+
+    def opener(rate: float, fill: Fill, finished: Finished) -> Stream:
+        del rate
+        stream = SoundStream(fill, finished)
+        streams.append(stream)
+
+        return stream
+
+    speaker = Speaker({3: Sound(1, 8, 1000.0, 2, b"\x01\x02")}, frozenset(), opener)
+
+    return speaker, streams
+
+
+# With a speaker aboard the painted frontend claims sound and the
+# seam delegates every call; a natural ending surfaces through
+# sound_finished, a manual stop never does (§9.4.4).
+def test_the_sound_seam_delegates_to_the_speaker() -> None:
+    speaker, streams = sounded()
+    out: list[str] = []
+    frontend = ScreenFrontend(
+        5, terminal=StubTerminal(None), out=out.append, speaker=speaker
+    )
+
+    assert_that(frontend.has_sounds).is_true()
+
+    frontend.play_sound(3, 8, 1)
+
+    assert_that(streams).is_length(1)
+    assert_that(frontend.sound_playing()).is_true()
+
+    frontend.stop_sound(3)
+
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(streams[0].aborted).is_true()
+
+    frontend.wait_for_sound()
+
+    assert_that(frontend.sound_finished()).is_false()
+
+    frontend.play_sound(3, 8, 1)
+    streams[1].fill(bytearray(4))
+    streams[1].finished()
+
+    assert_that(frontend.sound_finished()).is_true()
+
+
+# Without a speaker the painted frontend claims no sound and the
+# seam is inert.
+def test_the_sound_seam_is_inert_without_a_speaker() -> None:
+    frontend, _ = painted()
+
+    assert_that(frontend.has_sounds).is_false()
+
+    frontend.play_sound(3, 8, 1)
+    frontend.stop_sound(None)
+    frontend.wait_for_sound()
+
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(frontend.sound_finished()).is_false()

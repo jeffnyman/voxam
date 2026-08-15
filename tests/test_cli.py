@@ -1,14 +1,21 @@
 import io
 import runpy
+import struct
 import sys
+import types
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from assertpy import assert_that
 
-from voxam.cli import _screen_frontend, main
+from voxam.blorb import Blorb, Resource
+from voxam.cli import _screen_frontend, _speaker, main
+from voxam.iff import Chunk, chunk, write_form
 from voxam.painter import ScreenFrontend
+from voxam.png import SIGNATURE
+from voxam.speaker import Speaker
 
 
 def broken_story(tmp_path: Path, code: bytes) -> Path:
@@ -51,6 +58,18 @@ def test_main_prints_banner(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(capsys.readouterr().out).contains("Voxam")
+
+
+# A stream without the encoding knob -- a bare StringIO -- is left
+# as it is; everything Voxam prints is unicode-clean already.
+def test_main_survives_a_stream_without_reconfigure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stream = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stream)
+
+    assert_that(main([])).is_equal_to(0)
+    assert_that(stream.getvalue()).contains("Voxam")
 
 
 def test_running_as_module_invokes_the_cli(
@@ -361,16 +380,247 @@ def test_plain_flag_keeps_the_stream(
     assert_that(capsys.readouterr().out).does_not_contain(chr(27))
 
 
+def _png_chunk(name: bytes, payload: bytes) -> bytes:
+    return (
+        len(payload).to_bytes(4, "big")
+        + name
+        + payload
+        + zlib.crc32(name + payload).to_bytes(4, "big")
+    )
+
+
+def tiny_png() -> bytes:
+    """One red truecolour pixel."""
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+
+    return (
+        SIGNATURE
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(bytes([0, 255, 0, 0])))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def covered_story(
+    tmp_path: Path,
+    pictures: list[tuple[int, Chunk]],
+    fspc: int | None = None,
+) -> Path:
+    """Package the reading story and pictures into one .zblorb."""
+
+    story = reading_story(tmp_path, version=4).read_bytes()
+    entries = [(b"Exec", 0, Chunk(b"ZCOD", story))] + [
+        (b"Pict", number, piece) for number, piece in pictures
+    ]
+    body = bytearray(b"IFRS")
+    index_chunk_size = 8 + 4 + len(entries) * 12
+    position = 8 + 4 + index_chunk_size
+    index = bytearray(len(entries).to_bytes(4, "big"))
+    pieces = bytearray()
+
+    for usage, number, piece in entries:
+        framed = chunk(piece.chunk_id, piece.payload)
+        index += usage + number.to_bytes(4, "big") + position.to_bytes(4, "big")
+        pieces += framed
+        position += len(framed)
+
+    body += chunk(b"RIdx", bytes(index)) + pieces
+
+    if fspc is not None:
+        body += chunk(b"Fspc", fspc.to_bytes(4, "big"))
+
+    path = tmp_path / "covered.zblorb"
+    path.write_bytes(chunk(b"FORM", bytes(body)))
+
+    return path
+
+
+# A PNG cover in the story's Blorb shows before play at a painted
+# terminal: half-block art, a keypress, then the story.
+def test_a_png_cover_shows_before_play(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter(["x", *"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", tiny_png()))])
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("▀")
+
+
+# --pixels draws the same cover as sixel graphics: real pixels for
+# terminals that speak the protocol.
+def test_pixels_draws_the_cover_as_sixel(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter(["x", *"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", tiny_png()))])
+    exit_code = main(["--pixels", str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("\x1bPq")
+
+
+# A cover Voxam cannot draw -- Zork 1 ships a JPEG -- earns a note
+# and the story plays on: art is a courtesy, never a gate.
+def test_a_foreign_cover_earns_a_note(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"JPEG", b"\xff\xd8jpeg"))], fspc=1)
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("cannot draw")
+
+
+# A PNG that will not decode earns the same note.
+def test_an_unreadable_cover_earns_a_note(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(tmp_path, [(1, Chunk(b"PNG ", b"not a png"))], fspc=1)
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("cannot be drawn")
+
+
+# A crowd of pictures with no Fspc offers no cover at all: play
+# begins without ceremony.
+def test_a_crowd_of_pictures_offers_no_cover(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = iter("look\n")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    path = covered_story(
+        tmp_path,
+        [(1, Chunk(b"PNG ", tiny_png())), (2, Chunk(b"PNG ", tiny_png()))],
+    )
+    exit_code = main([str(path)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("▀")
+
+
 # With a terminal claimed, play runs through the painted frontend:
-# the story's text arrives wrapped in cursor movements, and typed
-# input reaches the story through read_line.
+# the story's text arrives wrapped in cursor movements, and typing
+# reaches the story as raw keystrokes through read_line's own line
+# editor -- the terminal's cooked input is never consulted.
 def test_screen_play_runs_through_the_painter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    keys = iter("look\n")
+
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
 
     exit_code = main([str(reading_story(tmp_path, version=4))])
 
     assert_that(exit_code).is_equal_to(0)
+
+
+def sounded_blorb() -> Blorb:
+    """A Blorb holding one tiny decodable AIFF sound."""
+
+    common = Chunk(
+        b"COMM",
+        struct.pack(">hLh", 1, 1, 8) + struct.pack(">HQ", 16383 + 14, 22050 << 49),
+    )
+    sound_data = Chunk(b"SSND", bytes(8) + b"\x01")
+    form = Chunk(b"FORM", write_form(b"AIFF", (common, sound_data))[8:])
+
+    return Blorb((Resource(b"Snd ", 3, form),), None, None, frozenset())
+
+
+# The speaker wants a Blorb with decodable sounds, the sounddevice
+# extra, and a real output device; each miss is silence, never a
+# halt -- and an undecodable sound earns its note first.
+def test_the_speaker_needs_sounds_a_package_and_a_device(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert_that(_speaker(None)).is_none()
+    assert_that(_speaker(Blorb((), None, None, frozenset()))).is_none()
+
+    foreign = Blorb(
+        (Resource(b"Snd ", 3, Chunk(b"OGGV", b"ogg")),), None, None, frozenset()
+    )
+
+    assert_that(_speaker(foreign)).is_none()
+    assert_that(capsys.readouterr().out).contains("cannot be decoded")
+
+    monkeypatch.setitem(sys.modules, "sounddevice", None)
+
+    assert_that(_speaker(sounded_blorb())).is_none()
+
+
+# With sounddevice present, a device-less box stays silent and a
+# real output device earns a speaker.
+def test_the_speaker_arrives_with_a_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakePortAudioError(Exception):
+        pass
+
+    def refuse(**_arguments: str) -> None:
+        raise FakePortAudioError
+
+    deaf = types.SimpleNamespace(
+        PortAudioError=FakePortAudioError, query_devices=refuse
+    )
+
+    monkeypatch.setitem(sys.modules, "sounddevice", deaf)
+
+    assert_that(_speaker(sounded_blorb())).is_none()
+
+    hearing = types.SimpleNamespace(
+        PortAudioError=FakePortAudioError,
+        query_devices=lambda **_arguments: {"name": "stub"},
+    )
+
+    monkeypatch.setitem(sys.modules, "sounddevice", hearing)
+
+    assert_that(_speaker(sounded_blorb())).is_instance_of(Speaker)

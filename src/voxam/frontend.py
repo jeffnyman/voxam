@@ -9,7 +9,7 @@ honestly claimed.
 """
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -27,6 +27,16 @@ UNSPLIT_AND_CLEAR = -1
 # mute the first and show the second, and the split height is the
 # tell (Trinity's status bar is 1 line; its title card is 14).
 STATUS_CHROME_LINES = 2
+
+# The §8.1.2 font IDs: the normal font, a picture font no
+# interpreter should implement (§8.1.4), the §16 character graphics
+# font Beyond Zork draws its maps in, and a fixed-pitch Courier.
+# Selecting font 0 changes nothing and asks which font is current.
+NORMAL_FONT = 1
+PICTURE_FONT = 2
+GRAPHICS_FONT = 3
+COURIER_FONT = 4
+CURRENT_FONT = 0
 
 
 @dataclass(frozen=True)
@@ -71,6 +81,9 @@ class Frontend(Protocol):
             timer (§15 read).
         has_sounds: Whether sampled sound effects can actually
             play (§9).
+        has_character_graphics: Whether the §16 character graphics
+            font can be drawn (§8.1.5.1).
+        has_colours: Whether coloured text can be shown (§8.3).
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -84,11 +97,22 @@ class Frontend(Protocol):
     has_fixed_pitch: bool
     has_timed_input: bool
     has_sounds: bool
+    has_character_graphics: bool
+    has_colours: bool
     screen_lines: int
     screen_columns: int
 
     def write(self, text: str) -> None:
         """Show story text from the print stream."""
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Print a rectangle of text, right and down from the cursor.
+
+        The shape of §15 print_table: each row after the first
+        begins one line down, at the column where the rectangle
+        began -- how Beyond Zork stamps its map beside the story.
+        A frontend without a cursor renders the rows as lines.
+        """
 
     def show_status(self, status: Status) -> None:
         """Present a freshly assembled status line (§8.2)."""
@@ -98,6 +122,22 @@ class Frontend(Protocol):
 
         The style is a bitmask: 0 returns to roman, 1 is reverse
         video, 2 boldface, 4 italic, 8 fixed pitch.
+        """
+
+    def set_font(self, font: int) -> None:
+        """Change the typeface for text that follows (§8.1.2).
+
+        Only fonts the machine granted arrive here: the normal
+        font 1, the fixed-pitch font 4, and -- where character
+        graphics were claimed -- the §16 font 3.
+        """
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Change the printing colours for text that follows (§8.3.1).
+
+        The codes are §8.3.1's: 0 keeps a colour current, 1 is the
+        interpreter's default, and 2 to 9 name the colours. Only
+        frontends that claimed colours receive the change.
         """
 
     def erase_window(self, window: int) -> None:
@@ -123,6 +163,39 @@ class Frontend(Protocol):
     def bleep(self, number: int) -> None:
         """Sound a bleep: 1 is high, 2 is low (§9)."""
 
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Start a sampled sound in the background (§9.4).
+
+        The volume runs 1 to 8 (§9.3). Repeats count total plays,
+        0 repeating until stopped (§9.4.3); None plays as the
+        resource file's Loop chunk says -- the Version 3 case,
+        where the opcode cannot say. Only frontends that claimed
+        sound receive the call. Answers whether a sound actually
+        started -- False for a number no resource holds, which
+        decides if an end-of-sound routine is worth keeping.
+        """
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop a sampled sound, or all of them when None (§9.4)."""
+
+    def sound_playing(self) -> bool:
+        """Whether a sampled sound is still sounding (§9 remarks)."""
+
+    def sound_finished(self) -> bool:
+        """Whether a sound just ended of its own accord (§9.4.4).
+
+        True once per natural ending; a stopped or replaced sound
+        never reports, so its end-of-sound routine never runs.
+        """
+
+    def wait_for_sound(self) -> None:
+        """Block until the playing sound finishes a cycle.
+
+        The §9 remarks' pacing rule for The Lurking Horror, which
+        fires several sounds in one game round and assumes an
+        interpreter as slow as Infocom's Amiga one.
+        """
+
 
 class PlainFrontend:
     """A dumb-terminal presentation: one unadorned stream of text.
@@ -145,9 +218,17 @@ class PlainFrontend:
     # than a wall clock, which is what seeded replay can honestly
     # offer (§15 read).
     has_timed_input = True
-    # Sampled sounds wait on the blessed frontend and its Blorb-era
-    # machinery; a transcript stream plays nothing, and says so.
+    # Sampled sounds live behind the painted frontend's speaker; a
+    # transcript stream plays nothing and says so -- which is what
+    # keeps recorded sessions deterministic (§9).
     has_sounds = False
+    # Font 3's shapes would print as their Latin stand-ins here --
+    # a map drawn in gibberish letters -- so the stream refuses the
+    # font and games draw with plainer characters instead (§8.1.5.1).
+    has_character_graphics = False
+    # A transcript prints in ink it does not choose; the header says
+    # so, and colour requests legally pass unanswered (§8.3.2).
+    has_colours = False
     screen_lines = 255
     screen_columns = 80
 
@@ -177,6 +258,21 @@ class PlainFrontend:
             self._write(text)
             self._upper_column += len(text)
 
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Render the §15 rectangle as stacked lines.
+
+        A stream has no cursor column to return to, so the rows
+        become ordinary lines through the same muting rules as any
+        other text -- exactly the transcript §15's remark expects
+        of a plain screen model.
+        """
+
+        for index, row in enumerate(rows):
+            if index:
+                self.write("\n")
+
+            self.write(row)
+
     def show_status(self, status: Status) -> None:
         """Drop the status: a plain stream has no line to keep it on."""
 
@@ -186,6 +282,22 @@ class PlainFrontend:
         The header declared no boldface and no italic, so a game
         asking for them is asking politely for something it was told
         does not exist.
+        """
+
+    def set_font(self, font: int) -> None:
+        """Drop the change: fonts 1 and 4 are both this one stream.
+
+        Character graphics were refused in the header, so only the
+        normal and fixed-pitch fonts ever arrive -- and a plain
+        stream is already fixed-pitch (§8.1).
+        """
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Drop the colours: none were claimed, and §8.3.2 permits that.
+
+        The machine only forwards colours a frontend claimed, so
+        nothing arrives here; the method stands for the protocol's
+        sake.
         """
 
     def erase_window(self, window: int) -> None:
@@ -263,3 +375,31 @@ class PlainFrontend:
         also embed control characters in every recorded session; the
         blessed frontend is where sound belongs.
         """
+
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Play nothing: this frontend claimed no sound (§9).
+
+        The machine never sends a sound here -- has_sounds is
+        False -- and a stray call changes nothing, which is the
+        silence every recording replays in.
+        """
+
+        del number, volume, repeats
+
+        return False
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop nothing: nothing ever played."""
+
+    def sound_playing(self) -> bool:
+        """No sound is ever sounding here."""
+
+        return False
+
+    def sound_finished(self) -> bool:
+        """No sound ever ends here, naturally or otherwise."""
+
+        return False
+
+    def wait_for_sound(self) -> None:
+        """Return at once: there is never a cycle to wait out."""

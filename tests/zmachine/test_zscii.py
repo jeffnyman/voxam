@@ -258,10 +258,32 @@ def test_zscii_output_codes(code: int, expected: str) -> None:
     assert_that(zscii_to_char(code)).is_equal_to(expected)
 
 
-@pytest.mark.parametrize("code", [12, 127, 252])
+@pytest.mark.parametrize("code", [9, 11, 12, 23, 28, 127, 252])
 def test_unprintable_zscii_codes_are_rejected(code: int) -> None:
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(code)
+
+
+# Beyond Zork prints its menu key hints as IBM display codes --
+# CP437's 24 to 27 are the arrows -- converted back the way the
+# §16 remarks say Zip converted its other IBM codes. The
+# neighbouring codes stay loud, as the test above holds.
+def test_the_ibm_arrow_codes_print_as_arrows() -> None:
+    assert_that(zscii_to_char(24)).is_equal_to("↑")
+    assert_that(zscii_to_char(25)).is_equal_to("↓")
+    assert_that(zscii_to_char(26)).is_equal_to("→")
+    assert_that(zscii_to_char(27)).is_equal_to("←")
+
+
+# The cursor, function, and keypad keys travel through the input
+# seam as their §3.8.4 codepoints, defined for input only; their
+# undefined neighbour 128 stays refused (§3.8.3.1).
+def test_the_input_only_keys_pass_through_whole() -> None:
+    assert_that(char_to_zscii("\x81")).is_equal_to(129)
+    assert_that(char_to_zscii("\x9a")).is_equal_to(154)
+
+    with pytest.raises(ZMachineTextError, match="no ZSCII code"):
+        char_to_zscii("\x80")
 
 
 ALPHABET_TABLE = 0x160

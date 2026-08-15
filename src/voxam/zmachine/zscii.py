@@ -78,6 +78,20 @@ ZSCII_ESCAPE = 27
 ZSCII_PRINTABLE_START = 32
 ZSCII_PRINTABLE_END = 126
 
+# Beyond Zork prints its menu key hints as IBM display codes: in
+# the CP437 character set 24 to 27 are the arrows -- up and down
+# for its selection menus, right and left for the character
+# builder's point allocation.
+IBM_ARROWS = {24: "↑", 25: "↓", 26: "→", 27: "←"}
+
+# Codes 129 to 154 are defined for input only (§3.8.4): the cursor
+# keys 129-132, the function keys 133-144, and the keypad digits
+# 145-154. A raw keyboard hands them over as their own codepoints
+# -- characters no key actually types -- so they pass through the
+# input seam as themselves.
+ZSCII_INPUT_KEYS_START = 129
+ZSCII_INPUT_KEYS_END = 154
+
 # Codes 155 up are the "extra characters" (§3.8.5), defined for both
 # input and output by the default Unicode translation table of
 # §3.8.5.3 -- the accented Latin repertoire below, codepoint for
@@ -285,6 +299,16 @@ def zscii_to_char(code: int, extras_table: str = DEFAULT_EXTRAS) -> str:
         # Defined for output, with no effect in any stream (§3.8.2.1).
         return ""
 
+    if code in IBM_ARROWS:
+        # Undefined for output on paper (§3.8.2) -- but Beyond
+        # Zork's menus print their key hints as IBM display codes,
+        # trusting the interpreter's screen font: in CP437, 24 and
+        # 25 are the up and down arrows. Converted here the way the
+        # §16 remarks say the Zip interpreters converted Beyond
+        # Zork's other IBM codes back. Earned by the Character
+        # Setup screen; the neighbouring codes stay loud.
+        return IBM_ARROWS[code]
+
     if code == ZSCII_NEWLINE:
         return "\n"
 
@@ -333,6 +357,11 @@ def char_to_zscii(character: str, extras_table: str = DEFAULT_EXTRAS) -> int:
     code = ord(character)
 
     if ZSCII_PRINTABLE_START <= code <= ZSCII_PRINTABLE_END:
+        return code
+
+    # The cursor, function, and keypad keys travel as their §3.8.4
+    # codepoints, defined for input only.
+    if ZSCII_INPUT_KEYS_START <= code <= ZSCII_INPUT_KEYS_END:
         return code
 
     position = extras_table.find(character)

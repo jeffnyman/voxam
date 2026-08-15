@@ -1,0 +1,233 @@
+! SEED=999
+! GAME=../entharion/zcode-infocom/beyondzork-r57-s871221.z5
+
+# The first seeded, replayable Beyond Zork line anywhere, as far
+# as it goes. The hero is built by hand on the arrow-driven
+# Character Setup screen -- the .accept <key> tokens pressing the
+# same §3.8.4 codes a keyboard would -- to the walkthrough's
+# recipe: 9 points into Intelligence (enough for the first
+# scroll), the rest split evenly. Base attributes start at 1, so
+# the gauges land on 18/18/18/10.
+
+# Two enters page the intro; three downs walk the menu from
+# "Begin using a preset character" to "Create your own character".
+b
+>
+>
+<down>
+<down>
+<down>
+>
+
+# Seventeen rights into Endurance, then down a row each for
+# Strength, Dexterity, and nine for Intelligence: sixty points.
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<down>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<down>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<down>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+<right>
+
+# RETURN finishes; the game asks its questions -- the attributes,
+# the sex, the name, the name again, the whole character, and a
+# save offer -- and one final any-key begins the story. She is
+# Voxam, Level 0 Female Peasant.
+>
+yes
+female
+Voxam
+yes
+yes
+no
+>
+
+# Grubbo-by-the-Sea. The billboard advertises the Fields of
+# Frotzen; the spenseweed heals; the driftwood is a "genu-ine
+# shillelagh". The sailor's painting shows the galleon to come.
+nw
+read billboard
+examine weeds
+get weed
+se
+e
+e
+examine water
+get driftwood
+examine painting
+
+
+# Into the pub: the rusty lantern by the stairs, the thrown dagger
+# in the kitchen wall, the great onion by the cellar door.
+w
+s
+get rusty lantern
+open door
+w
+w
+get dagger
+wield dagger
+w
+examine onion
+open cellar door
+turn on lantern
+
+# The Wine Cellar, seed 999's first random map. Charted so far:
+#
+#   Wine Cellar --sw-> Throne Room --w-> Reeking Room --w-> Musty Corridor
+#        (up: locked)      (nest)             \--nw-> Bottom of Stack
+#
+# The crinkly scroll (always Refreshment) lies at the stairway
+# bottom; its word on this seed is Squirp, and saying it
+# refreshes the lantern and dagger. The rat-ant attacks at once
+# and falls to the fifth dagger blow.
+d
+get scroll
+read scroll
+squirp
+attack rat-ant
+attack rat-ant
+attack rat-ant
+attack rat-ant
+attack rat-ant
+
+# Rest to full endurance before the crab: one point per waited
+# turn.
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+# The Throne Room. The discipline crab falls to the eighth blow
+# -- the tiny crown drops with a PLINK, and the kill makes Voxam
+# a Level 1 Female Peasant (endurance cap now 20). The nest hides
+# the doubloon.
+sw
+attack crab
+attack crab
+attack crab
+attack crab
+attack crab
+attack crab
+attack crab
+attack crab
+get crown
+search nest
+get doubloon
+
+# West to the Reeking Room, where this seed's wand-family item is
+# a staff.
+w
+get staff
+
+
+# The Musty Corridor's sickly gray moss IS the moss of Mareilon:
+# the squeeze answers only "soft and pliant", but the itchy
+# finger it leaves is the tell, and the +8 dexterity lands a few
+# turns later with "a satisfying scratch" -- DX 18 becomes 26.
+w
+squeeze moss
+
+# The Shadowy Stacks skeleton throttles whoever reaches for its
+# amulet; one kick crumbles it. The full seed-999 cellar:
+#
+#   Wine Cellar --sw-> Throne --w-> Reeking --w-> Musty --nw-> Shadowy Stacks
+#      (up: locked)                    |               |
+#                                     nw------Bottom of Stack---n
+#                                                  u -> Top of Stack
+nw
+take amulet
+kick skeleton
+take amulet
+wear amulet
+
+# Up the crates for the wine bottle (the climb wants Dex 15; the
+# moss has us at 26), then back to the stairway.
+se
+n
+u
+get wine bottle
+d
+se
+e
+ne
+
+# The door overhead locked itself, as promised. The wine bottle
+# is a lens: through it the amulet reads "Watkin" -- seed 999's
+# word -- and the weakened door breaks.
+u
+read amulet through bottle
+watkin
+break cellar door
+u
+turn off lantern
+
+# "Been after this thing for years." The bottle buys the giant
+# onion -- Act 1's milestone, and the key to everything east.
+give bottle to cook
+
+
+# Act 1 rests here, giant onion secured; the road east through
+# Accardi and beyond is the next expedition. A clean quit keeps
+# the replay silent.
+quit
+yes

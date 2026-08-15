@@ -15,10 +15,11 @@ window hangs below it (§8.6.1.1); from Version 4 the upper window
 starts at the top of the screen (§8.7.2.1).
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from voxam.errors import ZMachineScreenError
-from voxam.frontend import Status
+from voxam.frontend import NORMAL_FONT, Status
 
 LOWER = 0
 UPPER = 1
@@ -62,12 +63,14 @@ class Cell:
         style: The §8.7.1 style bitmask it was printed in.
         foreground: Its §8.3.1 foreground colour code.
         background: Its §8.3.1 background colour code.
+        font: The §8.1.2 font it was printed in.
     """
 
     character: str = " "
     style: int = ROMAN
     foreground: int = DEFAULT_COLOUR
     background: int = DEFAULT_COLOUR
+    font: int = NORMAL_FONT
 
 
 BLANK = Cell()
@@ -101,6 +104,7 @@ class ScreenModel:
         self._split = 0
         self._selected = LOWER
         self._style = ROMAN
+        self._font = NORMAL_FONT
         self._foreground = DEFAULT_COLOUR
         self._background = DEFAULT_COLOUR
         self._buffered = True
@@ -219,9 +223,11 @@ class ScreenModel:
             self._pending.append(self._dressed(character))
 
     def _dressed(self, character: str) -> Cell:
-        """One character wearing the current style and colours."""
+        """One character wearing the current style, colours, and font."""
 
-        return Cell(character, self._style, self._foreground, self._background)
+        return Cell(
+            character, self._style, self._foreground, self._background, self._font
+        )
 
     def _flush(self) -> None:
         """Emit the pending word, wrapping it whole if it fits a line.
@@ -526,6 +532,78 @@ class ScreenModel:
             self._style = ROMAN
         else:
             self._style |= style
+
+    def rub_out(self) -> None:
+        """Erase the last typed character during line input (§15 read).
+
+        Line editing belongs to the interpreter, and its rubout
+        retreats the selected window's cursor one cell and blanks
+        it. At the left edge there is nothing left of the line to
+        rub, and the cursor stays put: the editor never chews into
+        an earlier row.
+        """
+
+        self._flush()
+
+        if self._selected == UPPER:
+            row, column = self._upper_cursor
+
+            if column > 1:
+                self._paint(self._upper_top() + row - 1, column - 1, self._blank_cell())
+                self._upper_cursor = (row, column - 1)
+        else:
+            row, column = self._lower_cursor
+
+            if column > 1:
+                self._paint(row, column - 1, self._blank_cell())
+                self._lower_cursor = (row, column - 1)
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Print a §15 rectangle, right and down from the cursor.
+
+        In the upper window each row after the first begins one
+        line down from the last, at the column where the rectangle
+        began -- how Beyond Zork stamps its map beside the story
+        box without touching it. A rectangle taller than the
+        window presses its last rows onto the bottom line, as an
+        upper-window newline would. §15 leaves heights past 1
+        undefined in the lower window; ordinary stacked lines,
+        scrolling and all, are this model's settled answer.
+        """
+
+        self._flush()
+
+        if self._selected != UPPER:
+            for index, row_text in enumerate(rows):
+                if index:
+                    self.write("\n")
+
+                self.write(row_text)
+
+            return
+
+        start_row, start_column = self._upper_cursor
+
+        for index, row_text in enumerate(rows):
+            if index:
+                self._upper_cursor = (
+                    min(start_row + index, max(self._split, 1)),
+                    start_column,
+                )
+
+            for character in row_text:
+                self._write_upper(character)
+
+    def set_font(self, font: int) -> None:
+        """Change the font for what follows (§8.1.2).
+
+        The model records which font dressed each cell and leaves
+        the drawing of §16's shapes to the painter. Changing font
+        mid-word is legal (§8.1.3.1), so the pending buffer stays:
+        its cells are already dressed.
+        """
+
+        self._font = font
 
     def set_buffering(self, buffered: bool) -> None:
         """Turn lower-window word-wrapping on or off (§15 buffer_mode).

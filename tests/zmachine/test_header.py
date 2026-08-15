@@ -267,6 +267,90 @@ def test_a_sound_interpreter_leaves_the_request_alone() -> None:
     assert_that(header.data[0x11]).is_equal_to(0x80)
 
 
+# Flags 2 bit 3 is a Version 5 game asking for the §16 character
+# graphics font; an interpreter without one clears the request
+# and spares the neighbouring bits (§8.1.5.1).
+def test_a_graphicsless_interpreter_clears_the_font_request() -> None:
+    data = bytearray(synthetic_header(version=5))
+    data[0x11] = 0xFF
+    header = Header(data)
+
+    header.declare_character_graphics(available=False)
+
+    assert_that(header.data[0x11]).is_equal_to(0xF7)
+
+
+# An interpreter that can draw the font leaves the request standing.
+def test_a_graphics_interpreter_leaves_the_font_request_alone() -> None:
+    data = bytearray(synthetic_header(version=5))
+    data[0x11] = 0x08
+    header = Header(data)
+
+    header.declare_character_graphics(available=True)
+
+    assert_that(header.data[0x11]).is_equal_to(0x08)
+
+
+# From Version 5 the header carries the current font's width at $26
+# and height at $27, in screen units (§8.1.1).
+def test_the_font_size_is_recorded_from_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    header.declare_font_size(width=1, height=1)
+
+    assert_that(header.data[0x26]).is_equal_to(1)
+    assert_that(header.data[0x27]).is_equal_to(1)
+
+
+def test_font_size_fields_begin_at_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="no font size fields"):
+        header.declare_font_size(width=1, height=1)
+
+
+# From Version 5 the screen's size in units lives in the words at
+# $22 and $24 (§8.4.3); a character terminal's units are characters.
+def test_the_screen_units_are_recorded_from_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    header.declare_screen_units(width=80, height=24)
+
+    assert_that(int.from_bytes(header.data[0x22:0x24], "big")).is_equal_to(80)
+    assert_that(int.from_bytes(header.data[0x24:0x26], "big")).is_equal_to(24)
+
+
+def test_screen_unit_fields_begin_at_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="no screen unit fields"):
+        header.declare_screen_units(width=80, height=24)
+
+
+# The colour offer is bit 0 of Flags 1, written both ways, and the
+# default background and foreground codes land at $2c and $2d
+# (§8.3.2, §8.3.3).
+def test_colour_declarations_write_the_offer_and_defaults() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    header.declare_colours(available=True, foreground=9, background=2)
+
+    assert_that(header.data[1] & 0x01).is_equal_to(0x01)
+    assert_that(header.data[0x2C]).is_equal_to(2)
+    assert_that(header.data[0x2D]).is_equal_to(9)
+
+    header.declare_colours(available=False, foreground=9, background=2)
+
+    assert_that(header.data[1] & 0x01).is_zero()
+
+
+def test_colour_fields_begin_at_version_5() -> None:
+    header = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="no colour fields"):
+        header.declare_colours(available=True, foreground=9, background=2)
+
+
 # The Tandy bit belongs to Version 3's Flags 1 alone: from Version
 # 4 the same bit means italics (§11.1.4).
 def test_the_tandy_bit_ends_at_version_3() -> None:

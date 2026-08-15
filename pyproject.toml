@@ -1,6 +1,6 @@
 [project]
 name = "voxam"
-version = "0.5.0"
+version = "0.6.0"
 description = "An Interpreter for the Z-Machine and Glulx"
 readme = "README.md"
 authors = [
@@ -39,6 +39,9 @@ Issues = "https://github.com/jeffnyman/voxam/issues"
 screen = [
     "blessed>=1.20",
 ]
+sound = [
+    "sounddevice>=0.5",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]
@@ -48,6 +51,7 @@ build-backend = "uv_build"
 dev = [
     "assertpy>=1.1",
     "blessed>=1.20",
+    "sounddevice>=0.5",
     "commitizen>=4.17.0",
     "mypy>=2.3.0",
     "pre-commit>=4.6.1",
@@ -103,6 +107,10 @@ ignore = [
   "D202",     # No blank lines allowed after function docstring
 ]
 
+# The §16 character graphics table maps font 3 to Unicode on purpose;
+# these are the glyphs ruff would otherwise read as typos for ASCII.
+allowed-confusables = ["╱", "╳", "ᛖ", "ᚷ", "ᛁ"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
   "D",        # test names already say what is being verified
@@ -154,6 +162,12 @@ enable_error_code = [
     "possibly-undefined",
 ]
 pretty = true
+
+# sounddevice ships no py.typed marker; the sliver Voxam touches is
+# wrapped behind the speaker's own Stream protocol instead.
+[[tool.mypy.overrides]]
+module = "sounddevice.*"
+ignore_missing_imports = true
 
 # --------------------------------------------------------------------------- #
 # pytest

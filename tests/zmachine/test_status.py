@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from assertpy import assert_that
 
 from voxam.frontend import Status
@@ -39,6 +41,8 @@ class Recorder:
     has_fixed_pitch = True
     has_timed_input = True
     has_sounds = False
+    has_character_graphics = False
+    has_colours = False
     screen_lines = 24
     screen_columns = 64
 
@@ -58,6 +62,15 @@ class Recorder:
     def set_style(self, style: int) -> None:
         """Discard: the status tests never change styles."""
 
+    def set_font(self, font: int) -> None:
+        """Discard: the status tests never change fonts."""
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Discard: the status tests never change colours."""
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """Discard: the status tests never print rectangles."""
+
     def erase_window(self, window: int) -> None:
         """Discard: the status tests never erase."""
 
@@ -76,11 +89,46 @@ class Recorder:
     def bleep(self, number: int) -> None:
         """Discard: the status tests never make a sound."""
 
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Refuse: the status tests never play a sound."""
+
+        del number, volume, repeats
+
+        return False
+
+    def stop_sound(self, number: int | None) -> None:
+        """Discard: nothing ever plays here."""
+
+    def sound_playing(self) -> bool:
+        """No sound is ever sounding here."""
+
+        return False
+
+    def sound_finished(self) -> bool:
+        """No sound ever ends here."""
+
+        return False
+
+    def wait_for_sound(self) -> None:
+        """Return at once: there is never a cycle to wait out."""
+
 
 class Splitter(Recorder):
     """A frontend that can also split the screen (§8.6)."""
 
     has_screen_splitting = True
+
+
+class GraphicsRecorder(Recorder):
+    """A frontend that can also draw the §16 font."""
+
+    has_character_graphics = True
+
+
+class ColourRecorder(Recorder):
+    """A frontend that can also show coloured text (§8.3)."""
+
+    has_colours = True
 
 
 def status_story(code: bytes, version: int = 3, flags: int = 0) -> Story:
@@ -227,6 +275,50 @@ def test_v4_boot_introduces_the_interpreter() -> None:
     assert_that(machine.memory.read_byte(FLAGS_1)).is_equal_to(0x94)
 
 
+# A Version 5 game may arrive asking for the §16 character graphics
+# font in Flags 2. The boot stamp answers honestly: the request is
+# cleared on a frontend without the font and left standing on one
+# with it, and the unit measurements -- screen size in units at
+# $22/$24, the 1-by-1 font at $26/$27 -- are recorded either way.
+# Beyond Zork lays out its windows from the unit words (§8.1.5.1,
+# §8.4.3, §8.1.1).
+def test_v5_boot_answers_the_graphics_font_request() -> None:
+    data = bytearray(status_story(bytes([0xBA]), version=5).data)
+    data[0x11] = 0x08
+    story = Story(bytes(data))
+
+    plain = Machine(story, Recorder(), lambda: "")
+
+    assert_that(plain.memory.read_byte(0x11) & 0x08).is_zero()
+    assert_that(plain.memory.read_word(0x22)).is_equal_to(64)
+    assert_that(plain.memory.read_word(0x24)).is_equal_to(24)
+    assert_that(plain.memory.read_byte(0x26)).is_equal_to(1)
+    assert_that(plain.memory.read_byte(0x27)).is_equal_to(1)
+
+    graphical = Machine(story, GraphicsRecorder(), lambda: "")
+
+    assert_that(graphical.memory.read_byte(0x11) & 0x08).is_equal_to(0x08)
+
+
+# A Version 5 boot answers the colour question both ways: bit 0 of
+# Flags 1 says whether colours are on offer, and the default
+# background and foreground codes land at $2c/$2d either way --
+# black and white are still a background and a foreground (§8.3.2,
+# §8.3.3).
+def test_v5_boot_declares_the_colour_offer() -> None:
+    story = status_story(bytes([0xBA]), version=5)
+
+    plain = Machine(story, Recorder(), lambda: "")
+
+    assert_that(plain.memory.read_byte(FLAGS_1) & 0x01).is_zero()
+    assert_that(plain.memory.read_byte(0x2C)).is_equal_to(2)
+    assert_that(plain.memory.read_byte(0x2D)).is_equal_to(9)
+
+    coloured = Machine(story, ColourRecorder(), lambda: "")
+
+    assert_that(coloured.memory.read_byte(FLAGS_1) & 0x01).is_equal_to(0x01)
+
+
 # Versions 1 and 2 predate every capability bit: their headers boot
 # untouched.
 def test_early_boots_leave_the_header_alone() -> None:
@@ -234,3 +326,16 @@ def test_early_boots_leave_the_header_alone() -> None:
 
     assert_that(machine.memory.read_byte(FLAGS_1)).is_zero()
     assert_that(machine.memory.read_byte(0x20)).is_zero()
+
+
+# The recorder's sound seam exists only to satisfy the frontend
+# protocol; poked directly, it refuses and reports nothing.
+def test_the_recorder_sound_seam_is_inert() -> None:
+    frontend = Recorder()
+
+    frontend.stop_sound(None)
+    frontend.wait_for_sound()
+
+    assert_that(frontend.play_sound(3, 8, 1)).is_false()
+    assert_that(frontend.sound_playing()).is_false()
+    assert_that(frontend.sound_finished()).is_false()

@@ -7,10 +7,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
-from voxam.blorb import Blorb
-from voxam.errors import BlorbError, VoxamError, ZMachineUnimplementedError
+from voxam.blorb import PNG_ID, Blorb
+from voxam.errors import (
+    AIFFError,
+    BlorbError,
+    PNGError,
+    VoxamError,
+    ZMachineUnimplementedError,
+)
 from voxam.frontend import Frontend, PlainFrontend
+from voxam.png import decode
 from voxam.saves import FileSaveSlot
+from voxam.speaker import Speaker, open_sounddevice_stream
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.story import Story
 
@@ -33,6 +41,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns:
         The process exit code.
     """
+
+    # Voxam speaks UTF-8 on the stream it owns: a piped Windows
+    # console otherwise defaults to a legacy code page that cannot
+    # carry so much as an arrow, and a recording must replay
+    # identically everywhere. Streams without the knob -- test
+    # doubles -- are already unicode-clean.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(
         prog="voxam",
@@ -78,6 +96,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="a Blorb resource file; found beside the story by name when omitted",
     )
+    parser.add_argument(
+        "--pixels",
+        action="store_true",
+        help="draw cover art in real pixels (needs a sixel terminal)",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -115,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         screen=not arguments.plain,
         identity=identity,
         resources=arguments.resources,
+        pixels=arguments.pixels,
     )
 
 
@@ -226,13 +250,16 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
     return Identity(interpreter=number, tandy=tandy)
 
 
-def _screen_frontend(version: int) -> "ScreenFrontend | None":
+def _screen_frontend(
+    version: int, blorb: Blorb | None = None
+) -> "ScreenFrontend | None":
     """A painted frontend, when the glass and the extra allow.
 
     The screen frontend wants a real terminal to paint on and the
     blessed package the `screen` extra installs; missing either,
     the caller falls back to the plain stream, which is always
-    there.
+    there. A Blorb with sounds may also bring a speaker along --
+    see _speaker for what that takes.
     """
 
     if not sys.stdout.isatty():
@@ -245,7 +272,46 @@ def _screen_frontend(version: int) -> "ScreenFrontend | None":
     except ImportError:
         return None
 
-    return ScreenFrontend(version)
+    return ScreenFrontend(version, speaker=_speaker(blorb))
+
+
+def _speaker(blorb: Blorb | None) -> Speaker | None:
+    """A speaker over the Blorb's sounds, when everything allows.
+
+    Sound wants decodable AIFF resources, the sounddevice package
+    the `sound` extra installs, and a real output device; missing
+    any of them, play is silent -- a courtesy missed, never a gate
+    closed (§9.1.2 lets the header say so honestly).
+    """
+
+    if blorb is None:
+        return None
+
+    try:
+        sounds = blorb.sounds()
+    except AIFFError as error:
+        print(f"voxam: the sounds cannot be decoded: {error}\n")
+
+        return None
+
+    if not sounds:
+        return None
+
+    try:
+        # Imported here because the sound extra is optional: the
+        # screen must keep painting without it.
+        import sounddevice  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    try:
+        sounddevice.query_devices(kind="output")
+    except (sounddevice.PortAudioError, ValueError):
+        # No output device -- a headless box, a bare CI runner --
+        # is silence, not failure.
+        return None
+
+    return Speaker(sounds, blorb.loops, open_sounddevice_stream)
 
 
 # A Blorb may be the story itself (a packaged Exec resource) or a
@@ -293,6 +359,38 @@ def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb 
     return story, None
 
 
+def _show_cover(
+    blorb: Blorb, frontend: "ScreenFrontend", *, pixels: bool = False
+) -> None:
+    """Show the Blorb's cover picture before play, when there is one.
+
+    Cover art is a courtesy, never a gate: a cover Voxam cannot
+    draw -- Zork 1's JPEG, an exotic PNG -- earns a note and the
+    story plays on. Infocom's own interpreters opened this way:
+    the art, a keypress, the story.
+    """
+
+    cover = blorb.cover
+
+    if cover is None:
+        return
+
+    if cover.chunk.chunk_id != PNG_ID:
+        kind = cover.chunk.chunk_id.decode("latin-1").strip()
+        print(f"voxam: the cover picture is {kind}, which Voxam cannot draw\n")
+
+        return
+
+    try:
+        picture = decode(cover.chunk.payload)
+    except PNGError as error:
+        print(f"voxam: the cover picture cannot be drawn: {error}\n")
+
+        return
+
+    frontend.show_frontispiece(picture, pixels=pixels)
+
+
 def _play(  # noqa: PLR0913 -- one knob per session seam
     story_path: Path,
     seed: int | None,
@@ -302,6 +400,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     screen: bool = False,
     identity: Identity | None = None,
     resources: Path | None = None,
+    pixels: bool = False,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -321,9 +420,10 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
     header = story.header
     key_source: Callable[[float | None], str | None] | None = None
+    painted = None
 
     if frontend is None and screen:
-        painted = _screen_frontend(header.version)
+        painted = _screen_frontend(header.version, blorb)
 
         if painted is not None:
             frontend = painted
@@ -343,6 +443,15 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             # press on (Blorb: Game Identifier Chunk); a warning is
             # both at once.
             print("voxam: the resource file names a different story\n")
+
+        if painted is not None:
+            _show_cover(blorb, painted, pixels=pixels)
+
+    if painted is not None:
+        # The story deserves a clean glass: anything the shell left
+        # on screen would otherwise show through every row the game
+        # has not yet painted.
+        painted.clear()
 
     # Saved games live beside the story: zork1.z3 saves to zork1.sav.
     saves = FileSaveSlot(story_path.with_suffix(".sav"))
@@ -369,6 +478,11 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         print(f"\nvoxam: {error}")
 
         return EXIT_UNUSABLE
+    finally:
+        if painted is not None:
+            # A looping sound would otherwise play on past quit:
+            # the session ends, the speaker falls silent with it.
+            painted.stop_sound(None)
 
     print()
 

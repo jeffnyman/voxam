@@ -39,8 +39,15 @@ Voyaging*, *The Hitchhiker's Guide to the Galaxy*, and -- filed in
 triplicate, blood pressure rising -- *Bureaucracy* have all been
 played to winning conclusions under Voxam, several across multiple
 releases and several to perfect scores, alongside modern classics
-from *Colossal Cave* to the IF Comp winner *All Roads*. Twenty-one
-complete recordings verify those endings end-to-end with the
+from *Colossal Cave* to the IF Comp winner *All Roads*. The sound
+era is certified too: *The Lurking Horror* and *Sherlock: The
+Riddle of the Crown Jewels* both play to perfect scores -- recorded
+in the conforming quiet, and now heard aloud at a painted terminal
+with the sound extra installed -- and *Beyond
+Zork*'s first act is on the record, its hero built point by point
+on the arrow-driven character screen, in what is as far as we know
+the first seeded, replayable *Beyond Zork* session anywhere.
+Twenty-four recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
 
@@ -72,12 +79,53 @@ At a real terminal, Voxam paints the screen: the blessed frontend
 renders the §8 screen model live -- a reverse-video status line
 that holds the top of the screen, split windows, character-input
 menus like Zork's InvisiClues browsed by single keypresses, bold,
-italic, and the §8.3.1 colours. Timed input runs on the real wall
-clock there, so a game like Z-Tornado plays in genuine real time.
-The architecture keeps a strict split between a pure screen model
--- a grid of attributed cells held to §8 by golden-grid tests --
-and a thin painter that only repaints what changed, so the screen
-is as testable as the machine beneath it.
+italic, and the §8.3.1 colours, forwarded to games that ask for
+them with the header declaring the offer honestly. Font 3 -- §16's
+character graphics -- paints as Unicode: box-drawing and blocks
+for *Beyond Zork*'s on-screen map, its stat gauges as
+eighth-blocks, and the rune alphabet as genuine futhorc runes,
+each glyph derived from the Standard's own bitmaps. The painter
+owns the keyboard too: line input is read raw and echoed through
+the screen model, so nothing but the painter ever writes to the
+glass, and the cursor keys reach the games that listen for them
+(§3.8.4) -- which is how *Beyond Zork*'s menus are driven. Timed
+input runs on the real wall clock there, so a game like Z-Tornado
+plays in genuine real time. The architecture keeps a strict split
+between a pure screen model -- a grid of attributed cells held to
+§8 by golden-grid tests -- and a thin painter that only repaints
+what changed, so the screen is as testable as the machine beneath
+it.
+
+Voxam reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
+resource files as well: a `.zblorb` packaged story boots directly,
+and a sidecar `.blb` found beside a story by name announces its
+pictures and sounds at the banner. A cover picture -- *Beyond
+Zork* ships one -- is shown before play at a painted terminal,
+scaled into half-block cells on any colour terminal or drawn at
+its true resolution with `--pixels` on a sixel terminal, decoded
+by a pure-stdlib PNG reader. Art is a courtesy, never a gate: a
+cover Voxam cannot draw earns a note and the story plays on. And
+Voxam can claim any classic machine identity (`--interpreter
+amiga`, or the legendary Tandy bit via `--tandy`), which some
+early games answer with altered text and *Beyond Zork* answers
+with its whole screen-model personality (§11.1.3, §16).
+
+And the machine has a voice. With the `sound` extra installed, a
+painted session plays the sampled sounds its Blorb carries, in the
+background while play goes on (§9.4): volumes and repeat counts
+decoded from the opcode, a Version 3 game's looping taken from the
+Blorb's own Loop chunk -- which is how *The Lurking Horror*'s rats
+hum until the valve stops them -- and the end-of-sound routines
+*Sherlock* leans on called when a sound truly finishes, never for
+one stopped or replaced. Even the Standard's §9 war stories are
+honoured: *The Lurking Horror* fires several sounds in one game
+round, trusting the interpreter to be as slow as Infocom's Amiga
+was, so a new sound waits for the current one to finish a cycle,
+exactly as the Standard's remarks prescribe -- and its famously
+bugged sound requests are pardoned by name. Sound is a courtesy on
+the same terms as art: a missing package, a missing PortAudio
+library, or a missing audio device each mean a quieter game, never
+a broken one, with the header honestly saying so.
 
 Input runs deeper than lines. A scripted line reaches
 single-keystroke reads one character at a time, which is how
@@ -86,20 +134,20 @@ Licence Application -- fill in correctly from a recording. In
 recorded sessions timed input runs on a virtual clock instead: the
 "patient typist" lets one interrupt interval elapse before each
 input arrives, which keeps timed games replayable while recordings
-stay deterministic. And sampled sounds pass in the conforming
-silence of an interpreter that declares none -- *The Lurking
-Horror* and *Sherlock* play on, exactly as they were shipped to --
-while the two built-in bleeps remain the machine's whole
-orchestra.
+stay deterministic. Sampled sounds in recorded sessions likewise
+still pass in the conforming silence of an interpreter that
+declares none -- *The Lurking Horror* and *Sherlock* were both
+shipped to accept exactly that -- because a replay must land on
+the same bytes everywhere, speakers or no speakers.
 
 Voxam is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
 included -- TerpEtude, and Strict Z Test all pass clean, and every
 remaining gap halts loudly with a citation instead of guessing.
 
-**Not yet:** sound playback (the Blorb era), font 3's character
-graphics (the road to *Beyond Zork*, which gets a release of its
-own), version 6, and Glulx. For recorded sessions, seeds
+**Not yet:** the Blorb music formats, MOD and OGG -- the entire
+vendored Infocom sound catalog is sampled AIFF and needs neither
+-- along with version 6 and Glulx. For recorded sessions, seeds
 substitute for saves: a script replays a whole game in moments.
 
 ## Installation
@@ -116,14 +164,19 @@ or, as an isolated tool:
 pipx install voxam        # or: uv tool install voxam
 ```
 
-The painted screen frontend rides in the `screen` extra:
+The painted screen frontend rides in the `screen` extra, and
+sampled-sound playback in the `sound` extra beside it:
 
 ```bash
-pip install "voxam[screen]"    # or: uv tool install "voxam[screen]"
+pip install "voxam[screen,sound]"    # or: uv tool install "voxam[screen,sound]"
 ```
 
-Without the extra, Voxam plays as a plain text stream -- every
-game still works; the status line simply stays imaginary.
+On Windows and macOS the sound extra is self-contained; on Linux,
+PortAudio comes from the distribution (`apt install libportaudio2`
+or the local equivalent). Without the extras, Voxam plays as a
+plain text stream -- every game still works; the status line
+simply stays imaginary, and the sound games play in the conforming
+silence they were shipped to accept.
 
 Voxam ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts thousands of freely
@@ -150,6 +203,15 @@ same commands produce the same session, every time.
 ```bash
 voxam --seed 1137 path/to/story.z3
 ```
+
+Blorb resources ride along automatically: a `.zblorb` story boots
+from its package, and a like-named `.blb` beside a story file is
+found on its own -- `--resources` names one explicitly. At a
+painted terminal a packaged cover picture shows before play;
+`--pixels` draws it in real pixels where the terminal speaks
+sixel. `--interpreter` claims any §11.1.3 platform by name or
+number, and `--tandy` sets the bit that makes early Infocom games
+mind their manners.
 
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
@@ -187,7 +249,12 @@ The rules, line by line:
 - An inline comment begins at whitespace followed by `#`.
 - A leading `>` is optional and stripped; it also escapes the rare
   command that genuinely begins with `#` or `!`. A `>` alone types
-  an empty line.
+  an empty line: the enter key.
+- `<up>`, `<down>`, `<left>`, `<right>`, and `<escape>` press
+  special keys, one line per press -- how a recording drives
+  *Beyond Zork*'s menus and builds its characters. A token naming
+  no known key fails loudly, and the `> <up>` prompt form stays a
+  literal command for a game that really wants angle brackets.
 - A line starting with three backticks is a fence: everything until
   the next fence is skipped entirely, directives included. Text
   after the backticks labels the fence, and an unclosed fence skips

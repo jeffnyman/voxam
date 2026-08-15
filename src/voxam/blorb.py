@@ -16,8 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
+from voxam import aiff
 from voxam.errors import BlorbError, IFFError
-from voxam.iff import Chunk, parse_form
+from voxam.iff import Chunk, chunk, parse_form
 from voxam.zmachine.quetzal import IDENTITY_SIZE, story_identity
 from voxam.zmachine.story import Story
 
@@ -40,6 +41,11 @@ USAGE_EXEC = b"Exec"
 ZCODE_ID = b"ZCOD"
 EXEC_NUMBER = 0
 
+# Pictures arrive as PNG or JPEG chunks, with Rect placeholders
+# among the Version 6 art (Blorb: Picture Resource Chunks); PNG is
+# the one Voxam can draw.
+PNG_ID = b"PNG "
+
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
 # identifier carries the same release, serial, and checksum bytes
@@ -47,6 +53,16 @@ EXEC_NUMBER = 0
 # story (Blorb: Game Identifier Chunk).
 FRONTISPIECE_ID = b"Fspc"
 IDENTITY_ID = b"IFhd"
+
+# In Version 5 and later the sound_effect opcode says whether a
+# sound repeats; a Version 3 game cannot, so its Blorb may carry a
+# Loop chunk instead: eight-byte entries pairing a sound number
+# with a flag, 1 to play the sound once and 0 to repeat it until
+# stopped -- and an absent entry means once (Blorb: The Looping
+# Chunk).
+LOOPING_ID = b"Loop"
+LOOP_ENTRY_SIZE = 8
+PLAY_ONCE = 1
 
 
 @dataclass(frozen=True)
@@ -73,6 +89,10 @@ class Blorb:
             None without one.
         identity: The IFhd payload naming the story these
             resources belong to, or None without one.
+        loops: The sounds a Version 3 game plays on repeat until
+            stopped, by number (Blorb: The Looping Chunk); empty
+            without a Loop chunk, and ignored from Version 5 on,
+            where the opcode itself says.
     """
 
     def __init__(
@@ -80,12 +100,14 @@ class Blorb:
         resources: tuple[Resource, ...],
         frontispiece: int | None,
         identity: bytes | None,
+        loops: frozenset[int],
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
         self.resources = resources
         self.frontispiece = frontispiece
         self.identity = identity
+        self.loops = loops
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -139,7 +161,7 @@ class Blorb:
             None,
         )
 
-        return cls(resources, frontispiece, identity)
+        return cls(resources, frontispiece, identity, _loops(chunks))
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
         """The resource a game asks for by usage and number."""
@@ -165,6 +187,46 @@ class Blorb:
             return None
 
         return executable.chunk.payload
+
+    @property
+    def cover(self) -> Resource | None:
+        """The picture to show before play, when one presents itself.
+
+        The Fspc chunk names it outright (Blorb: Frontispiece
+        Chunk). Failing that, a resource file carrying exactly one
+        picture offers that picture -- Beyond Zork ships its splash
+        so -- while the big Version 6 art sets, hundreds of scene
+        pictures with no Fspc, offer nothing rather than a guess.
+        """
+
+        if self.frontispiece is not None:
+            return self.resource(USAGE_PICTURE, self.frontispiece)
+
+        pictures = [piece for piece in self.resources if piece.usage == USAGE_PICTURE]
+
+        if len(pictures) == 1:
+            return pictures[0]
+
+        return None
+
+    def sounds(self) -> dict[int, aiff.Sound]:
+        """Decode every sampled sound resource, by number.
+
+        Blorb sounds are AIFF FORMs (Blorb: Sound Resource
+        Chunks), stored whole -- reframing a resource's chunk
+        recovers the FORM file the decoder reads.
+
+        Raises:
+            AIFFError: If a sound resource is not a decodable
+                AIFF -- the OGG and MOD formats Blorb also allows
+                never appear in the vendored resource files.
+        """
+
+        return {
+            piece.number: aiff.decode(chunk(piece.chunk.chunk_id, piece.chunk.payload))
+            for piece in self.resources
+            if piece.usage == USAGE_SOUND
+        }
 
     def matches(self, story: Story) -> bool:
         """Whether the resources name this story.
@@ -243,6 +305,48 @@ def _entries(payload: bytes, by_offset: dict[int, Chunk]) -> list[Resource]:
         resources.append(Resource(usage, number, by_offset[offset]))
 
     return resources
+
+
+def _loops(chunks: tuple[Chunk, ...]) -> frozenset[int]:
+    """The repeat-forever sound numbers, from at most one Loop chunk.
+
+    A flag of zero repeats the sound until it is stopped; any
+    other flag, or no entry at all, plays it once (Blorb: The
+    Looping Chunk).
+
+    Raises:
+        BlorbError: For a doubled Loop chunk, or one whose length
+            is not a whole number of eight-byte entries.
+    """
+
+    found = [piece for piece in chunks if piece.chunk_id == LOOPING_ID]
+
+    if not found:
+        return frozenset()
+
+    if len(found) > 1:
+        msg = (
+            f"{len(found)} Loop chunks appear, but there may not "
+            f"be more than one (Blorb: The Looping Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    payload = found[0].payload
+
+    if len(payload) % LOOP_ENTRY_SIZE:
+        msg = (
+            f"a Loop chunk is eight-byte entries, but this one "
+            f"holds {len(payload)} bytes (Blorb: The Looping Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    return frozenset(
+        int.from_bytes(payload[start : start + 4], "big")
+        for start in range(0, len(payload), LOOP_ENTRY_SIZE)
+        if int.from_bytes(payload[start + 4 : start + 8], "big") != PLAY_ONCE
+    )
 
 
 def _frontispiece(chunks: tuple[Chunk, ...]) -> int | None:
