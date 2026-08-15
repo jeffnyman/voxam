@@ -515,3 +515,16 @@ def test_an_empty_translation_table_undefines_all_extras(
 )
 def test_input_only_codes_are_received(character: str, code: int) -> None:
     assert_that(char_to_zscii(character)).is_equal_to(code)
+
+
+# Version 6 -- and only Version 6 -- defines the typography codes
+# for output (§3.8.2.3, §3.8.2.4): tab prints a paragraph indent
+# and sentence space the wider gap after a full stop, rendered as
+# Frotz renders them. ZIPTEST prints both from its opening menus;
+# the rejection test above holds everywhere else.
+def test_the_version_6_typography_codes_print_as_spaces() -> None:
+    assert_that(zscii_to_char(9, version=6)).is_equal_to("   ")
+    assert_that(zscii_to_char(11, version=6)).is_equal_to("  ")
+
+    with pytest.raises(ZMachineTextError, match="not yet printable"):
+        zscii_to_char(11, version=5)

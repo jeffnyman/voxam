@@ -52,7 +52,11 @@ class Dictionary:
         separator_count = memory.read_byte(self._base)
 
         self._separators = frozenset(
-            zscii_to_char(memory.read_byte(self._base + 1 + index), self._extras)
+            zscii_to_char(
+                memory.read_byte(self._base + 1 + index),
+                self._extras,
+                memory.header.version,
+            )
             for index in range(separator_count)
         )
         self._entry_length = memory.read_byte(self._base + 1 + separator_count)

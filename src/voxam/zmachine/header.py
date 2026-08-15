@@ -47,6 +47,21 @@ SOUND_BIT = 0x80
 # Version 6 gives the same bit to pictures instead (§11.1).
 GRAPHICS_BIT = 0x08
 
+# Two more Flags 2 requests the interpreter clears when it cannot
+# oblige (§11.1.2): bit 5 is the game asking for a mouse, and bit 8
+# -- bit 0 of the word's high byte at $10 -- a Version 6 game
+# asking for menus.
+MOUSE_BIT = 0x20
+MENUS_BIT = 0x01
+
+# Version 6 grows Flags 1 further: bit 1 declares that picture
+# displaying is available and bit 5 that sound effects are -- the
+# general availability of the opcodes behind them, per the §11.1.4
+# remarks; §9.1.1 asks for the sound bit by name.
+PICTURES_BIT = 0x02
+SOUND_PRESENCE_BIT = 0x20
+PICTURE_FLAGS_VERSION = 6
+
 # From Version 5 the header carries the current font's width at $26
 # and height at $27, in screen units (§8.1.1). Version 6 swaps the
 # two bytes -- moot for a character terminal, whose units make every
@@ -543,6 +558,83 @@ class Header:
 
         live = self._live()
         live[FLAGS_2_LOW] &= 0xFF ^ GRAPHICS_BIT
+
+    def declare_mouse(self, *, available: bool) -> None:
+        """Clear the game's mouse request when it cannot be met (§11.1.2).
+
+        Bit 5 of Flags 2 is the game asking for a mouse; it is one
+        of the requests the interpreter "clears again if it cannot
+        provide".
+
+        Raises:
+            ZMachineHeaderError: Over the pristine story bytes,
+                which never change.
+        """
+
+        if available:
+            return
+
+        live = self._live()
+        live[FLAGS_2_LOW] &= 0xFF ^ MOUSE_BIT
+
+    def declare_menus(self, *, available: bool) -> None:
+        """Clear the game's menu request when it cannot be met (§11.1.2).
+
+        Bit 8 of Flags 2 -- bit 0 of the word's high byte -- is a
+        Version 6 game asking for menus, cleared like any request
+        the interpreter cannot oblige.
+
+        Raises:
+            ZMachineHeaderError: Over the pristine story bytes,
+                which never change.
+        """
+
+        if available:
+            return
+
+        live = self._live()
+        live[FLAGS_2] &= 0xFF ^ MENUS_BIT
+
+    def declare_pictures(self, *, available: bool) -> None:
+        """Record whether picture displaying is available (§11.1.4).
+
+        Bit 1 of Version 6's Flags 1 declares the general
+        availability of the picture opcodes -- a capability the
+        interpreter states outright, where Flags 2 bit 3 is the
+        game's request.
+
+        Raises:
+            ZMachineHeaderError: Before Version 6, where the bit
+                belongs to the status-line type; or over the
+                pristine story bytes.
+        """
+
+        if self.version < PICTURE_FLAGS_VERSION:
+            msg = f"version {self.version} has no pictures bit to write (§11.1.4)"
+
+            raise ZMachineHeaderError(msg)
+
+        self._set_flag(PICTURES_BIT, on=available)
+
+    def declare_sound_presence(self, *, available: bool) -> None:
+        """Record whether sound effects are available (§9.1.1).
+
+        In Version 6 the interpreter sets bit 5 of Flags 1 when it
+        can provide sound effects beyond a bleep -- the capability
+        declaration beside Flags 2 bit 7's request.
+
+        Raises:
+            ZMachineHeaderError: Before Version 6, where the bit
+                belongs to screen splitting; or over the pristine
+                story bytes.
+        """
+
+        if self.version < PICTURE_FLAGS_VERSION:
+            msg = f"version {self.version} has no sound presence bit to write (§9.1.1)"
+
+            raise ZMachineHeaderError(msg)
+
+        self._set_flag(SOUND_PRESENCE_BIT, on=available)
 
     def declare_font_size(self, *, width: int, height: int) -> None:
         """Record the current font's size in screen units (§8.1.1).

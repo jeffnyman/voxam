@@ -19,9 +19,9 @@ from voxam.png import SIGNATURE
 from voxam.speaker import Speaker
 
 
-def broken_story(tmp_path: Path, code: bytes) -> Path:
+def broken_story(tmp_path: Path, code: bytes, version: int = 3) -> Path:
     data = bytearray(96)
-    data[0] = 3
+    data[0] = version
     data[0x04:0x06] = (0x0060).to_bytes(2, "big")
     data[0x06:0x08] = (0x0040).to_bytes(2, "big")
     data[0x0E:0x10] = (0x0060).to_bytes(2, "big")
@@ -313,12 +313,14 @@ def test_accept_and_replay_conflict(
     assert_that(capsys.readouterr().out).contains("pick one")
 
 
-# nop decodes fine but has no handler yet, so the CLI surfaces the
-# frontier report and exits 1.
+# get_cursor decodes fine but has no handler yet -- ZIPTEST named
+# it a frontier -- so the CLI surfaces the report and exits 1.
 def test_reports_the_implementation_frontier(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    exit_code = main([str(broken_story(tmp_path, bytes([0xB4])))])
+    exit_code = main(
+        [str(broken_story(tmp_path, bytes([0xF0, 0x7F, 0x00]), version=4))]
+    )
 
     assert_that(exit_code).is_equal_to(1)
     assert_that(capsys.readouterr().out).contains("not yet implemented")

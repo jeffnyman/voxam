@@ -481,3 +481,47 @@ def test_restart_returns_the_font_to_normal() -> None:
 
     assert_that(machine.memory.read_word(0x100)).is_equal_to(1)
     assert_that(frontend.fonts).is_equal_to([3, 1])
+
+
+# A Version 6 boot stamps the whole header truthfully: unit words
+# and a 1-by-1 font -- ZIPTEST divides one by the other before its
+# first menu -- colours, the Flags 1 capability bits (no pictures,
+# sound as claimed), and the Flags 2 requests the interpreter
+# cannot oblige cleared: pictures, mouse, and menus (§11.1).
+def test_a_version_6_boot_stamps_the_header() -> None:
+    data = bytearray(512)
+    data[0] = 6
+    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0080).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+    data[0x10:0x12] = (0x0128).to_bytes(2, "big")
+    data[0x100] = 0x00
+    data[0x101] = 0xBA
+    frontend = ScreenRecorder()
+    frontend.has_sounds = True
+    machine = Machine(Story(bytes(data)), frontend, lambda: "")
+
+    machine.run()
+
+    memory = machine.memory
+
+    assert_that(memory.read_word(0x22)).is_equal_to(80)
+    assert_that(memory.read_word(0x24)).is_equal_to(24)
+    assert_that(memory.read_byte(0x26)).is_equal_to(1)
+    assert_that(memory.read_byte(0x27)).is_equal_to(1)
+
+    flags_1 = memory.read_byte(0x01)
+
+    assert_that(flags_1 & 0x02).is_zero()
+    assert_that(flags_1 & 0x20).is_equal_to(0x20)
+    assert_that(memory.read_word(0x10) & 0x0128).is_zero()
+
+
+# nop does nothing, on purpose (§15) -- unneeded by any story
+# until ZIPTEST's Call/Stacks test executed one mid-suite.
+def test_nop_does_nothing() -> None:
+    frontend = run(bytes([0xB4, 0xBA]))
+
+    assert_that(frontend.styles).is_empty()
+    assert_that(frontend.bleeps).is_empty()
