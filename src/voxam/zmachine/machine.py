@@ -412,30 +412,43 @@ class Machine:
                 timed_input=self._frontend.has_timed_input,
             )
 
-            # The unit fields and the §8.1.5.1 graphics-font honesty
-            # belong to the Version 5 family; Version 6 gives the
-            # same Flags 2 bit to pictures, and its pixel units and
-            # swapped font bytes wait on a Version 6 screen worth
-            # measuring. A character terminal's unit is one
-            # character (§8.4.2), so the unit words mirror the line
-            # and column bytes.
-            if (
-                header.version >= FONT_FIELDS_VERSION
-                and header.version != PACKED_PC_VERSION
-            ):
+            # The unit fields belong to Version 5 and later --
+            # Version 6 included: ZIPTEST divides the unit width by
+            # the font width before its first menu, so leaving them
+            # zero is a division by zero at boot. A character
+            # terminal's unit is one character (§8.4.2), and a
+            # 1-by-1 font makes the Version 6 pixel arithmetic and
+            # the Version 5 character arithmetic the same numbers
+            # -- which also makes the §11.1 font-byte swap between
+            # the versions moot.
+            if header.version >= FONT_FIELDS_VERSION:
                 header.declare_screen_units(
                     width=self._frontend.screen_columns,
                     height=self._frontend.screen_lines,
                 )
                 header.declare_font_size(width=FONT_UNIT, height=FONT_UNIT)
-                header.declare_character_graphics(
-                    available=self._frontend.has_character_graphics
-                )
                 header.declare_colours(
                     available=self._frontend.has_colours,
                     foreground=DEFAULT_FOREGROUND_COLOUR,
                     background=DEFAULT_BACKGROUND_COLOUR,
                 )
+
+                if header.version == PACKED_PC_VERSION:
+                    # In Version 6, Flags 2 bit 3 asks for pictures
+                    # rather than the §16 font (§11.1), and no
+                    # frontend draws them yet; the mouse and menu
+                    # requests fall the same way (§11.1.2). Flags 1
+                    # declares picture and sound availability
+                    # outright (§11.1.4, §9.1.1).
+                    header.declare_character_graphics(available=False)
+                    header.declare_mouse(available=False)
+                    header.declare_menus(available=False)
+                    header.declare_pictures(available=False)
+                    header.declare_sound_presence(available=self._frontend.has_sounds)
+                else:
+                    header.declare_character_graphics(
+                        available=self._frontend.has_character_graphics
+                    )
 
     def snapshot(self) -> Snapshot:
         """Capture the entire state of play (§6.1, §6.1.1).
@@ -1215,7 +1228,11 @@ class Machine:
         length = self._memory.read_byte(address)
 
         return "".join(
-            zscii_to_char(self._memory.read_byte(address + 1 + offset), self._extras())
+            zscii_to_char(
+                self._memory.read_byte(address + 1 + offset),
+                self._extras(),
+                self._memory.header.version,
+            )
             for offset in range(length)
         )
 
@@ -1686,7 +1703,9 @@ class Machine:
             preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
             held = "".join(
                 zscii_to_char(
-                    self._memory.read_byte(text_buffer + 2 + offset), self._extras()
+                    self._memory.read_byte(text_buffer + 2 + offset),
+                    self._extras(),
+                    self._memory.header.version,
                 )
                 for offset in range(preloaded)
             )
@@ -1817,7 +1836,9 @@ class Machine:
             rows.append(
                 "".join(
                     zscii_to_char(
-                        self._memory.read_byte(position + offset), self._extras()
+                        self._memory.read_byte(position + offset),
+                        self._extras(),
+                        self._memory.header.version,
                     )
                     for offset in range(width)
                 )
@@ -2517,10 +2538,26 @@ class Machine:
         self._print(text)
         self._pc = instruction.next_address
 
+    def _op_nop(self, instruction: Instruction) -> None:
+        """Do nothing, on purpose (§15 nop).
+
+        Probably the result of a bug in Infocom's compiler, says
+        §15 -- yet no story executed one until ZIPTEST's
+        Call/Stacks test walked through it mid-suite.
+        """
+
+        self._pc = instruction.next_address
+
     def _op_print_char(self, instruction: Instruction) -> None:
         """Print the character a ZSCII code means (§3.8)."""
 
-        self._print(zscii_to_char(self._value(instruction.operands[0]), self._extras()))
+        self._print(
+            zscii_to_char(
+                self._value(instruction.operands[0]),
+                self._extras(),
+                self._memory.header.version,
+            )
+        )
         self._pc = instruction.next_address
 
     def _op_print_num(self, instruction: Instruction) -> None:
@@ -2659,6 +2696,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "mod": Machine._op_mod,
     "mul": Machine._op_mul,
     "new_line": Machine._op_new_line,
+    "nop": Machine._op_nop,
     "not": Machine._op_not,
     "or": Machine._op_or,
     "output_stream": Machine._op_output_stream,

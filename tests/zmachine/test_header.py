@@ -449,3 +449,49 @@ def test_a_short_or_absent_extension_means_the_default_table(words: int) -> None
         data[0x80:0x82] = words.to_bytes(2, "big")
 
     assert_that(Header(data).unicode_translation_address).is_zero()
+
+
+# Version 6 grows Flags 1 with outright capability bits: pictures
+# at bit 1 and sound effects at bit 5 (§11.1.4, §9.1.1) -- both
+# written both ways, and both refused before Version 6, where the
+# bits mean other things.
+def test_version_6_capability_bits_write_both_ways() -> None:
+    header = Header(bytearray(synthetic_header(version=6)))
+
+    header.declare_pictures(available=True)
+    header.declare_sound_presence(available=True)
+
+    assert_that(header.data[1] & 0x02).is_equal_to(0x02)
+    assert_that(header.data[1] & 0x20).is_equal_to(0x20)
+
+    header.declare_pictures(available=False)
+    header.declare_sound_presence(available=False)
+
+    assert_that(header.data[1] & 0x22).is_zero()
+
+
+def test_version_6_capability_bits_begin_at_version_6() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    with pytest.raises(ZMachineHeaderError, match="no pictures bit"):
+        header.declare_pictures(available=True)
+
+    with pytest.raises(ZMachineHeaderError, match="no sound presence bit"):
+        header.declare_sound_presence(available=True)
+
+
+# The mouse and menu requests are Flags 2 bits the interpreter
+# "clears again if it cannot provide" (§11.1.2): cleared when
+# refused, left standing when granted.
+def test_mouse_and_menu_requests_clear_when_refused() -> None:
+    header = Header(bytearray(synthetic_header(version=6, words={0x10: 0x0120})))
+
+    header.declare_mouse(available=True)
+    header.declare_menus(available=True)
+
+    assert_that(int.from_bytes(header.data[0x10:0x12], "big")).is_equal_to(0x0120)
+
+    header.declare_mouse(available=False)
+    header.declare_menus(available=False)
+
+    assert_that(int.from_bytes(header.data[0x10:0x12], "big")).is_zero()

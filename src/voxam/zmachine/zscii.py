@@ -84,6 +84,15 @@ ZSCII_PRINTABLE_END = 126
 # builder's point allocation.
 IBM_ARROWS = {24: "↑", 25: "↓", 26: "→", 27: "←"}
 
+# Version 6 -- and only Version 6 -- defines two typography codes
+# for output: 9 prints a paragraph indentation and 11 the wider
+# "sentence space" typographers put after a full stop (§3.8.2.3,
+# §3.8.2.4). A character glass renders them the way Frotz does,
+# three spaces and two; everywhere else they stay loud. ZIPTEST
+# prints both from its opening menus.
+TYPOGRAPHY_VERSION = 6
+V6_TYPOGRAPHY = {9: "   ", 11: "  "}
+
 # Codes 129 to 154 are defined for input only (§3.8.4): the cursor
 # keys 129-132, the function keys 133-144, and the keypad digits
 # 145-154. A raw keyboard hands them over as their own codepoints
@@ -234,7 +243,9 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
     a0, a1, a2 = (
         "".join(
             zscii_to_char(
-                memory.fetch_byte(base + row * ALPHABET_LENGTH + index), repertoire
+                memory.fetch_byte(base + row * ALPHABET_LENGTH + index),
+                repertoire,
+                header.version,
             )
             or "?"
             for index in range(skip, ALPHABET_LENGTH)
@@ -278,17 +289,23 @@ def extras(memory: Memory) -> str:
     )
 
 
-def zscii_to_char(code: int, extras_table: str = DEFAULT_EXTRAS) -> str:
-    """Convert a ZSCII output code to a character (§3.8).
+def zscii_to_char(
+    code: int, extras_table: str = DEFAULT_EXTRAS, version: int = 0
+) -> str:
+    """Convert a ZSCII output code to its characters (§3.8).
 
     Args:
         code: The ZSCII code, from an escape or a print_char operand.
         extras_table: The extra-character repertoire in force -- a
             custom translation table's when the story has one
             (§3.8.5.2). The default table when not given.
+        version: The story version, which decides whether the
+            Version 6 typography codes are printable; callers
+            without one leave it 0, keeping those codes loud.
 
     Returns:
-        The character the code means.
+        The characters the code means -- usually one, but the
+        Version 6 typography codes render as runs of spaces.
 
     Raises:
         ZMachineTextError: For codes the repertoire leaves undefined
@@ -298,6 +315,9 @@ def zscii_to_char(code: int, extras_table: str = DEFAULT_EXTRAS) -> str:
     if code == ZSCII_NULL:
         # Defined for output, with no effect in any stream (§3.8.2.1).
         return ""
+
+    if version == TYPOGRAPHY_VERSION and code in V6_TYPOGRAPHY:
+        return V6_TYPOGRAPHY[code]
 
     if code in IBM_ARROWS:
         # Undefined for output on paper (§3.8.2) -- but Beyond
@@ -566,7 +586,7 @@ def _text_of(memory: Memory, zchars: list[int], in_abbreviation: bool = False) -
                 break
 
             code = (zchars[position] << 5) | zchars[position + 1]
-            out.append(zscii_to_char(code, extras(memory)))
+            out.append(zscii_to_char(code, extras(memory), version))
             position += 2
             current = locked
         elif current == A2 and version > 1 and char == A2_NEWLINE:
