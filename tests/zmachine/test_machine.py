@@ -797,3 +797,27 @@ def test_true_colour_writes_halt() -> None:
 
     with pytest.raises(ZMachineScreenError, match="must not be written"):
         machine.run()
+
+
+# The mouse courtesies: mouse_window constrains an arrow that does
+# not exist and passes quietly; read_mouse reports a mouse parked
+# at nowhere -- zeros in all four words, over whatever was there --
+# both the honest behaviour of the header's cleared mouse request
+# (§11.1.2, §15 read_mouse). Arthur sets up its pointer on the way
+# up without asking.
+def test_the_mouse_courtesies_answer_honestly() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x17, 0x7F, 0x01],
+                *[0xBE, 0x16, 0x7F, 0x60],
+                0xBA,
+            ]
+        ),
+        words={0x60: 0xDEAD, 0x62: 0xBEEF, 0x64: 0xDEAD, 0x66: 0xBEEF},
+    )
+
+    machine.run()
+
+    for offset in (0x60, 0x62, 0x64, 0x66):
+        assert_that(machine.memory.read_word(offset)).is_zero()

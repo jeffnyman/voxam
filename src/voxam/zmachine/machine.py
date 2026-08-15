@@ -191,6 +191,9 @@ SOUND_ROUTINE_OPERAND = 3
 STYLE_OPERATION_OPERAND = 2
 MARGIN_WINDOW_OPERAND = 2
 
+# read_mouse fills four words: y, x, button bits, menu word (§15).
+MOUSE_WORDS = 4
+
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
 # selects, negative deselects, and stream 3 may nest 16 deep at most
@@ -2783,6 +2786,34 @@ class Machine:
 
         self._branch(instruction, False)
 
+    def _op_mouse_window(self, instruction: Instruction) -> None:
+        """Let a mouse constraint pass in the conforming quiet (§15).
+
+        mouse_window confines the mouse arrow to a window; the
+        header's mouse request was cleared at boot (§11.1.2), and
+        there is no arrow to confine. Arthur constrains the mouse
+        on its way up regardless -- v6 games set up the pointer
+        without consulting the header, just as they draw.
+        """
+
+        self._pc = instruction.next_address
+
+    def _op_read_mouse(self, instruction: Instruction) -> None:
+        """Report a mouse that never moves or clicks (§15 read_mouse).
+
+        The array's four words take the y coordinate, the x
+        coordinate, the button bits, and the menu word; a mouse
+        the header already declined reports zeros for all four --
+        parked at nowhere, no buttons down, no menu touched.
+        """
+
+        array = self._value(instruction.operands[0])
+
+        for word in range(MOUSE_WORDS):
+            self._memory.write_word(array + 2 * word, 0)
+
+        self._pc = instruction.next_address
+
     def _op_make_menu(self, instruction: Instruction) -> None:
         """Fail a menu request the header already refused (§15).
 
@@ -2954,12 +2985,14 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "erase_picture": Machine._op_picture_quiet,
     "get_wind_prop": Machine._op_get_wind_prop,
     "make_menu": Machine._op_make_menu,
+    "mouse_window": Machine._op_mouse_window,
     "move_window": Machine._op_move_window,
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,
     "put_wind_prop": Machine._op_put_wind_prop,
+    "read_mouse": Machine._op_read_mouse,
     "set_margins": Machine._op_set_margins,
     "window_size": Machine._op_window_size,
     "window_style": Machine._op_window_style,
