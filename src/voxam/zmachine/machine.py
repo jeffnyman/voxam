@@ -2538,6 +2538,23 @@ class Machine:
         self._print(text)
         self._pc = instruction.next_address
 
+    def _op_get_cursor(self, instruction: Instruction) -> None:
+        """Write the cursor's row and column into an array (§15).
+
+        Word 0 takes the row and word 1 the column -- the array is
+        not a table, so there is no size word. The answer is the
+        upper window's cursor, the one set_cursor can move
+        (§8.7.2.3.2); ZIPTEST's CURGET test reads it back after
+        every move it makes.
+        """
+
+        array = self._value(instruction.operands[0])
+        row, column = self._frontend.cursor_position()
+
+        self._memory.write_word(array, row)
+        self._memory.write_word(array + 2, column)
+        self._pc = instruction.next_address
+
     def _op_nop(self, instruction: Instruction) -> None:
         """Do nothing, on purpose (§15 nop).
 
@@ -2715,6 +2732,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "push": Machine._op_push,
     "put_prop": Machine._op_put_prop,
     "remove_obj": Machine._op_remove_obj,
+    "get_cursor": Machine._op_get_cursor,
     "set_attr": Machine._op_set_attr,
     "set_cursor": Machine._op_set_cursor,
     "set_font": Machine._op_set_font,

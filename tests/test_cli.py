@@ -313,14 +313,13 @@ def test_accept_and_replay_conflict(
     assert_that(capsys.readouterr().out).contains("pick one")
 
 
-# get_cursor decodes fine but has no handler yet -- ZIPTEST named
-# it a frontier -- so the CLI surfaces the report and exits 1.
+# input_stream decodes fine but has no handler yet -- command-file
+# input is unbuilt -- so the CLI surfaces the frontier report and
+# exits 1.
 def test_reports_the_implementation_frontier(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    exit_code = main(
-        [str(broken_story(tmp_path, bytes([0xF0, 0x7F, 0x00]), version=4))]
-    )
+    exit_code = main([str(broken_story(tmp_path, bytes([0xF4, 0x7F, 0x00])))])
 
     assert_that(exit_code).is_equal_to(1)
     assert_that(capsys.readouterr().out).contains("not yet implemented")

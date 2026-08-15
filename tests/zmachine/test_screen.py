@@ -31,6 +31,7 @@ class ScreenRecorder:
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
         self.bleeps: list[int] = []
         self.rectangles: list[tuple[str, ...]] = []
+        self.cursor = (1, 1)
         self.sounds: list[tuple[int, int, int | None]] = []
         self.stops: list[int | None] = []
         self.waits = 0
@@ -70,6 +71,9 @@ class ScreenRecorder:
 
     def set_cursor(self, line: int, column: int) -> None:
         self.windows.append(("cursor", line, column))
+
+    def cursor_position(self) -> tuple[int, int]:
+        return self.cursor
 
     def bleep(self, number: int) -> None:
         self.bleeps.append(number)
@@ -525,3 +529,19 @@ def test_nop_does_nothing() -> None:
 
     assert_that(frontend.styles).is_empty()
     assert_that(frontend.bleeps).is_empty()
+
+
+# get_cursor writes the row into word 0 of its array and the
+# column into word 1 -- no size word, the array is not a table
+# (§15 get_cursor); the answer is the frontend's own.
+def test_get_cursor_writes_row_and_column() -> None:
+    frontend = ScreenRecorder()
+    frontend.cursor = (3, 7)
+    machine = Machine(
+        screen_story(bytes([0xF0, 0x7F, 0x60, 0xBA])), frontend, lambda: ""
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(3)
+    assert_that(machine.memory.read_word(0x62)).is_equal_to(7)

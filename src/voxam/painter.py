@@ -400,6 +400,11 @@ class ScreenFrontend:
         self._model.set_cursor(line, column)
         self._repaint()
 
+    def cursor_position(self) -> tuple[int, int]:
+        """The model's own answer for get_cursor (§8.7.2.3.2)."""
+
+        return self._model.get_cursor()
+
     def set_buffering(self, buffered: bool) -> None:
         """Turn lower-window word wrapping on or off (§15 buffer_mode)."""
 

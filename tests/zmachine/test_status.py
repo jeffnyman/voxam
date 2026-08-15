@@ -86,6 +86,11 @@ class Recorder:
     def set_cursor(self, line: int, column: int) -> None:
         """Discard: the status tests never move the cursor."""
 
+    def cursor_position(self) -> tuple[int, int]:
+        """A stream's cursor rests at the origin."""
+
+        return (1, 1)
+
     def bleep(self, number: int) -> None:
         """Discard: the status tests never make a sound."""
 
@@ -339,3 +344,4 @@ def test_the_recorder_sound_seam_is_inert() -> None:
     assert_that(frontend.play_sound(3, 8, 1)).is_false()
     assert_that(frontend.sound_playing()).is_false()
     assert_that(frontend.sound_finished()).is_false()
+    assert_that(frontend.cursor_position()).is_equal_to((1, 1))

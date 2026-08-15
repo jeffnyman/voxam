@@ -197,3 +197,17 @@ def test_the_plain_sound_seam_is_inert() -> None:
     assert_that(frontend.sound_playing()).is_false()
     assert_that(frontend.sound_finished()).is_false()
     assert_that(pieces).is_empty()
+
+
+# A stream's get_cursor reads the same upper-window ledger its
+# set_cursor writes (§8.7.2.3.2).
+def test_the_plain_cursor_ledger_reads_back() -> None:
+    frontend = PlainFrontend(lambda _text: None)
+
+    assert_that(frontend.cursor_position()).is_equal_to((1, 1))
+
+    frontend.split_window(3)
+    frontend.set_window(1)
+    frontend.set_cursor(2, 5)
+
+    assert_that(frontend.cursor_position()).is_equal_to((2, 5))
