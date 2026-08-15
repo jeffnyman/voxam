@@ -492,19 +492,26 @@ def test_restart_returns_the_font_to_normal() -> None:
 # first menu -- colours, the Flags 1 capability bits (no pictures,
 # sound as claimed), and the Flags 2 requests the interpreter
 # cannot oblige cleared: pictures, mouse, and menus (§11.1).
-def test_a_version_6_boot_stamps_the_header() -> None:
+def v6_story(code: bytes, flags_2: int = 0) -> Story:
+    """A Version 6 story: main routine at $100, globals at $80."""
+
     data = bytearray(512)
     data[0] = 6
     data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
     data[0x06:0x08] = (0x0040).to_bytes(2, "big")
     data[0x0C:0x0E] = (0x0080).to_bytes(2, "big")
     data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
-    data[0x10:0x12] = (0x0128).to_bytes(2, "big")
+    data[0x10:0x12] = flags_2.to_bytes(2, "big")
     data[0x100] = 0x00
-    data[0x101] = 0xBA
+    data[0x101 : 0x101 + len(code)] = code
+
+    return Story(bytes(data))
+
+
+def test_a_version_6_boot_stamps_the_header() -> None:
     frontend = ScreenRecorder()
     frontend.has_sounds = True
-    machine = Machine(Story(bytes(data)), frontend, lambda: "")
+    machine = Machine(v6_story(bytes([0xBA]), flags_2=0x0128), frontend, lambda: "")
 
     machine.run()
 
@@ -520,6 +527,23 @@ def test_a_version_6_boot_stamps_the_header() -> None:
     assert_that(flags_1 & 0x02).is_zero()
     assert_that(flags_1 & 0x20).is_equal_to(0x20)
     assert_that(memory.read_word(0x10) & 0x0128).is_zero()
+
+
+# In Version 6 any of the eight windows may be selected, but the
+# character glass hears only about the two it renders: selecting
+# window 5 stays in the §8.8 ledger, selecting window 1 reaches
+# the frontend (§8.8.3).
+def test_v6_window_selection_reaches_the_glass_for_two() -> None:
+    frontend = ScreenRecorder()
+    machine = Machine(
+        v6_story(bytes([0xEB, 0x7F, 0x05, 0xEB, 0x7F, 0x01, 0xBA])),
+        frontend,
+        lambda: "",
+    )
+
+    machine.run()
+
+    assert_that(frontend.windows).is_equal_to([("select", 1)])
 
 
 # nop does nothing, on purpose (§15) -- unneeded by any story

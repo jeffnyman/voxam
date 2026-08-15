@@ -26,6 +26,7 @@ from voxam.frontend import (
     CURRENT_FONT,
     GRAPHICS_FONT,
     NORMAL_FONT,
+    UPPER_WINDOW,
     Frontend,
     PlainFrontend,
     Status,
@@ -57,6 +58,7 @@ from voxam.zmachine.routine import Routine
 from voxam.zmachine.snapshot import FrameSnapshot, Snapshot
 from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
+from voxam.zmachine.windows import CURRENT_WINDOW, WindowLedger
 from voxam.zmachine.zscii import (
     ZSCII_NEWLINE,
     char_to_zscii,
@@ -182,6 +184,12 @@ FOREVER_REPEATS = 0
 SOUND_REPEATS_VERSION = 5
 SOUND_VOLUME_OPERAND = 2
 SOUND_ROUTINE_OPERAND = 3
+
+# window_style's optional third operand picks the §15 operation --
+# set, on, off, reverse -- defaulting to an outright set; and
+# set_margins names its window last, defaulting to the current one.
+STYLE_OPERATION_OPERAND = 2
+MARGIN_WINDOW_OPERAND = 2
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -346,6 +354,7 @@ class Machine:
         self._pending_keys: deque[str] = deque()
         self._sound_routine = 0
         self._sound_since_input = False
+        self._windows = self._fresh_windows()
 
         self._declare_capabilities()
         self._start_execution()
@@ -1279,6 +1288,10 @@ class Machine:
         self._sound_routine = 0
         self._sound_since_input = False
 
+        # The §8.8 window ledger returns to its boot state with the
+        # rest of the interpreter's own memory.
+        self._windows = self._fresh_windows()
+
         self._declare_capabilities()
         self._start_execution()
 
@@ -2127,10 +2140,114 @@ class Machine:
         self._frontend.split_window(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
 
-    def _op_set_window(self, instruction: Instruction) -> None:
-        """Hand the window selection to the frontend (§8.7.2)."""
+    def _fresh_windows(self) -> WindowLedger:
+        """A boot-state §8.8 window ledger sized to this glass.
 
-        self._frontend.set_window(self._value(instruction.operands[0]))
+        Built for every version -- it is inert outside Version 6,
+        whose opcodes are the only readers -- so no handler has to
+        ask whether it exists.
+        """
+
+        return WindowLedger(
+            lines=self._frontend.screen_lines,
+            columns=self._frontend.screen_columns,
+            foreground=DEFAULT_FOREGROUND_COLOUR,
+            background=DEFAULT_BACKGROUND_COLOUR,
+        )
+
+    def _op_set_window(self, instruction: Instruction) -> None:
+        """Hand the window selection to the frontend (§8.7.2).
+
+        In Version 6 the selection also lands in the §8.8 ledger,
+        where any of the eight may be chosen and -3 keeps the
+        current one; the character glass hears only about windows
+        0 and 1, the two it renders.
+        """
+
+        window = self._value(instruction.operands[0])
+
+        if self._memory.header.version == PACKED_PC_VERSION:
+            selected = self._windows.resolve(window)
+            self._windows.selected = selected
+
+            if selected <= UPPER_WINDOW:
+                self._frontend.set_window(selected)
+        else:
+            self._frontend.set_window(window)
+
+        self._pc = instruction.next_address
+
+    def _op_move_window(self, instruction: Instruction) -> None:
+        """Place a window at (y, x) in the ledger (§15 move_window).
+
+        §15 itself says "nothing actually happens" on screen --
+        windows are notional transparencies -- so the ledger is the
+        whole of the truth until a glass renders all eight.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        self._windows.move(values[0], values[1], values[2])
+        self._pc = instruction.next_address
+
+    def _op_window_size(self, instruction: Instruction) -> None:
+        """Resize a window in the ledger (§15 window_size).
+
+        "Does not change the current display", says §15 -- the
+        bookkeeping is the observable behaviour.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        self._windows.resize(values[0], values[1], values[2])
+        self._pc = instruction.next_address
+
+    def _op_window_style(self, instruction: Instruction) -> None:
+        """Change a window's attribute flags (§15 window_style)."""
+
+        values = [self._value(operand) for operand in instruction.operands]
+        operation = (
+            values[STYLE_OPERATION_OPERAND]
+            if len(values) > STYLE_OPERATION_OPERAND
+            else 0
+        )
+
+        self._windows.restyle(values[0], values[1], operation)
+        self._pc = instruction.next_address
+
+    def _op_get_wind_prop(self, instruction: Instruction) -> None:
+        """Store one §8.8.3.2 window property (§15 get_wind_prop)."""
+
+        values = [self._value(operand) for operand in instruction.operands]
+        value = self._windows.property(values[0], values[1])
+
+        self._store_result(instruction.store_variable, value)
+        self._pc = instruction.next_address
+
+    def _op_put_wind_prop(self, instruction: Instruction) -> None:
+        """Write one window property (§15 put_wind_prop)."""
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        self._windows.write_property(values[0], values[1], values[2])
+        self._pc = instruction.next_address
+
+    def _op_set_margins(self, instruction: Instruction) -> None:
+        """Set a window's margin sizes (§15 set_margins).
+
+        The window operand comes last and may be omitted, meaning
+        the current window. The §8.8.3.2.2.2 cursor nudge waits on
+        a glass that renders margins at all.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        window = (
+            values[MARGIN_WINDOW_OPERAND]
+            if len(values) > MARGIN_WINDOW_OPERAND
+            else CURRENT_WINDOW
+        )
+
+        self._windows.set_margins(window, values[0], values[1])
         self._pc = instruction.next_address
 
     def _op_set_cursor(self, instruction: Instruction) -> None:
@@ -2835,11 +2952,17 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "mul": Machine._op_mul,
     "draw_picture": Machine._op_picture_quiet,
     "erase_picture": Machine._op_picture_quiet,
+    "get_wind_prop": Machine._op_get_wind_prop,
     "make_menu": Machine._op_make_menu,
+    "move_window": Machine._op_move_window,
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,
+    "put_wind_prop": Machine._op_put_wind_prop,
+    "set_margins": Machine._op_set_margins,
+    "window_size": Machine._op_window_size,
+    "window_style": Machine._op_window_style,
     "not": Machine._op_not,
     "or": Machine._op_or,
     "output_stream": Machine._op_output_stream,

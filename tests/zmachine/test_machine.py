@@ -3,7 +3,11 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import ZMachineStackError, ZMachineUnimplementedError
+from voxam.errors import (
+    ZMachineScreenError,
+    ZMachineStackError,
+    ZMachineUnimplementedError,
+)
 from voxam.frontend import PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -736,3 +740,60 @@ def test_picture_operations_pass_quietly_and_menus_fail() -> None:
     machine.run()
 
     assert_that(machine.memory.read_word(0x82)).is_equal_to(0x63)
+
+
+# The window opcodes drive the §8.8 ledger end to end: a window is
+# moved and sized, its properties read back with get_wind_prop --
+# window -3 naming the current selection -- its line count written
+# with put_wind_prop, and its margins set with the window operand
+# omitted, meaning the selected window (§15).
+def test_the_window_ledger_round_trips_through_the_opcodes() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x10, 0x57, 0x03, 0x05, 0x08],
+                *[0xBE, 0x11, 0x57, 0x03, 0x02, 0x28],
+                *[0xBE, 0x13, 0x5F, 0x03, 0x00, 0x10],
+                *[0xBE, 0x13, 0x5F, 0x03, 0x03, 0x11],
+                *[0xBE, 0x19, 0x57, 0x00, 0x0F, 0x63],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x0F, 0x12],
+                *[0xBE, 0x08, 0x5F, 0x05, 0x07],
+                *[0xBE, 0x13, 0x1F, 0xFF, 0xFD, 0x06, 0x13],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(5)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(0x28)
+    assert_that(machine.memory.read_word(0x84)).is_equal_to(0x63)
+    assert_that(machine.memory.read_word(0x86)).is_equal_to(5)
+
+
+# window_style reaches the ledger with its optional operation --
+# here turning scrolling off window 0 -- and the changed flags
+# read back (§15 window_style).
+def test_window_style_flows_through_the_ledger() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x12, 0x57, 0x00, 0x02, 0x02],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x0E, 0x10],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(0x0D)
+
+
+# Writing a true colour property is refused loudly (§8.8.3.2).
+def test_true_colour_writes_halt() -> None:
+    machine = stacked_v6_machine(bytes([*[0xBE, 0x19, 0x57, 0x00, 0x10, 0x01], 0xBA]))
+
+    with pytest.raises(ZMachineScreenError, match="must not be written"):
+        machine.run()
