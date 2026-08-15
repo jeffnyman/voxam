@@ -220,11 +220,24 @@ Voxam and other interpreters.
 
 ## Acceptance scripts
 
-A play session can be saved as an acceptance script and replayed:
+A live session can be written down as it is played, and replayed
+later:
 
 ```bash
-voxam --accept some-session.accept
+voxam --record my-session.accept path/to/story.z3
+voxam --accept my-session.accept
 ```
+
+`--record` captures every line typed and key pressed -- at the
+plain stream or the painted terminal alike -- flushed input by
+input, so even a session that ends in a death leaves a replayable
+script up to its last keystroke. A recording needs a seed to
+replay, so `--record` without `--seed` rolls one and writes it
+down; the banner names it. An existing file is never overwritten,
+and the rare input the script grammar cannot spell exactly draws a
+warning rather than being silently mangled. A recorded session is
+also the raw material for a curated one: scripts are just text, so
+trim the wrong turns, add annotations, and keep the seed.
 
 An acceptance script is a plain text file of typed commands plus a
 few directives:
@@ -265,7 +278,7 @@ The rules, line by line:
 - When the commands run out, the session ends as if the player had
   reached end of input.
 
-While recording a longer session, `--replay` types the script and
+While curating a longer session, `--replay` types the script and
 then leaves you at the prompt instead of ending, so a
 work-in-progress script catches you up to where you left off:
 

@@ -1,12 +1,13 @@
 """Command-line interface for Voxam."""
 
 import argparse
+import secrets
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from voxam.acceptance import AcceptanceScript, RefusalWatch, replay
+from voxam.acceptance import AcceptanceScript, Recorder, RefusalWatch, replay
 from voxam.blorb import PNG_ID, Blorb
 from voxam.errors import (
     AIFFError,
@@ -30,6 +31,11 @@ if TYPE_CHECKING:
 EXIT_OK = 0
 EXIT_FRONTIER = 1
 EXIT_UNUSABLE = 2
+
+# A recording without a seed cannot replay, so --record without
+# --seed rolls its own dice once and writes them down. The ceiling
+# just keeps the number the size the corpus scripts use.
+RECORDED_SEED_CEILING = 100_000
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -78,6 +84,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="replay an acceptance script, then keep playing at the prompt",
     )
     parser.add_argument(
+        "--record",
+        type=Path,
+        help="write the session as an acceptance script at this path",
+    )
+    parser.add_argument(
         "--plain",
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
@@ -118,6 +129,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_UNUSABLE
 
     script_path = arguments.accept if arguments.accept is not None else arguments.replay
+    refusal = _record_refusal(arguments.record, script_path, arguments.story)
+
+    if refusal is not None:
+        print(f"voxam: {refusal}")
+
+        return EXIT_UNUSABLE
 
     if script_path is not None:
         return _replay_script(
@@ -131,14 +148,73 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.story is None:
         return EXIT_OK
 
+    return (
+        _recorded_session(arguments, identity)
+        if arguments.record is not None
+        else _play(
+            arguments.story,
+            arguments.seed,
+            None,
+            screen=not arguments.plain,
+            identity=identity,
+            resources=arguments.resources,
+            pixels=arguments.pixels,
+        )
+    )
+
+
+def _record_refusal(
+    record: Path | None, script: Path | None, story: Path | None
+) -> str | None:
+    """Why --record cannot proceed, or None when it can."""
+
+    if record is None:
+        return None
+
+    if script is not None:
+        return "--record captures live play; a script already is one"
+
+    if story is None:
+        return "--record needs a story to play"
+
+    return None
+
+
+def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) -> int:
+    """Open a recorder -- rolling a seed if none came -- and play.
+
+    A recording without a seed cannot replay, so a bare --record
+    rolls its own dice once and writes them down.
+    """
+
+    seed = arguments.seed
+
+    if seed is None:
+        seed = secrets.randbelow(RECORDED_SEED_CEILING - 1) + 1
+
+    try:
+        recorder = Recorder(
+            arguments.record,
+            game=arguments.story,
+            seed=seed,
+            warn=lambda message: print(f"voxam: {message}"),
+        )
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    print(f"Recording to {arguments.record} (seed {seed})\n")
+
     return _play(
         arguments.story,
-        arguments.seed,
+        seed,
         None,
         screen=not arguments.plain,
         identity=identity,
         resources=arguments.resources,
         pixels=arguments.pixels,
+        recorder=recorder,
     )
 
 
@@ -275,6 +351,35 @@ def _screen_frontend(
     return ScreenFrontend(version, speaker=_speaker(blorb))
 
 
+def _recorded_lines(recorder: Recorder, source: Callable[[], str]) -> Callable[[], str]:
+    """Tee typed lines into the recording on their way to the machine."""
+
+    def _line() -> str:
+        line = source()
+
+        recorder.line(line)
+
+        return line
+
+    return _line
+
+
+def _recorded_keys(
+    recorder: Recorder, source: Callable[[float | None], str | None]
+) -> Callable[[float | None], str | None]:
+    """Tee pressed keys; an expired timeout is nothing to record."""
+
+    def _key(timeout: float | None) -> str | None:
+        key = source(timeout)
+
+        if key is not None:
+            recorder.key(key)
+
+        return key
+
+    return _key
+
+
 def _speaker(blorb: Blorb | None) -> Speaker | None:
     """A speaker over the Blorb's sounds, when everything allows.
 
@@ -359,6 +464,33 @@ def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb 
     return story, None
 
 
+def _present_resources(
+    blorb: Blorb | None,
+    story: Story,
+    painted: "ScreenFrontend | None",
+    *,
+    pixels: bool,
+) -> None:
+    """Announce a Blorb at the banner, and show its cover.
+
+    The identity check warns and plays on -- the spec asks for an
+    error but allows the user to press on (Blorb: Game Identifier
+    Chunk), and a warning is both at once. The cover shows only at
+    a painted terminal.
+    """
+
+    if blorb is None:
+        return
+
+    print(f"Resources: {blorb.described()}\n")
+
+    if not blorb.matches(story):
+        print("voxam: the resource file names a different story\n")
+
+    if painted is not None:
+        _show_cover(blorb, painted, pixels=pixels)
+
+
 def _show_cover(
     blorb: Blorb, frontend: "ScreenFrontend", *, pixels: bool = False
 ) -> None:
@@ -401,6 +533,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     identity: Identity | None = None,
     resources: Path | None = None,
     pixels: bool = False,
+    recorder: Recorder | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -409,6 +542,8 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     play falls back to the plain stream. A story may arrive as a
     Blorb carrying an Exec resource, and a plain story may have a
     sidecar Blorb found beside it by name or given explicitly.
+    With a recorder, every line and key on its way to the machine
+    is also written to the script being recorded.
     """
 
     try:
@@ -430,22 +565,20 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             input_source = painted.read_line
             key_source = painted.read_key
 
+    if recorder is not None:
+        input_source = _recorded_lines(
+            recorder, input_source if input_source is not None else input
+        )
+
+        if key_source is not None:
+            key_source = _recorded_keys(recorder, key_source)
+
     print(
         f"Running {story_path.name}: release {header.release}, "
         f"serial {header.serial_number} (z{header.version})\n"
     )
 
-    if blorb is not None:
-        print(f"Resources: {blorb.described()}\n")
-
-        if not blorb.matches(story):
-            # The spec asks for an error but allows the user to
-            # press on (Blorb: Game Identifier Chunk); a warning is
-            # both at once.
-            print("voxam: the resource file names a different story\n")
-
-        if painted is not None:
-            _show_cover(blorb, painted, pixels=pixels)
+    _present_resources(blorb, story, painted, pixels=pixels)
 
     if painted is not None:
         # The story deserves a clean glass: anything the shell left
@@ -483,6 +616,9 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             # A looping sound would otherwise play on past quit:
             # the session ends, the speaker falls silent with it.
             painted.stop_sound(None)
+
+        if recorder is not None:
+            recorder.close()
 
     print()
 
