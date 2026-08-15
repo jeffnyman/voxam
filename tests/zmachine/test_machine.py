@@ -851,3 +851,15 @@ def test_v6_cursor_forms_land_in_the_ledger() -> None:
     assert_that(machine.memory.read_word(0x62)).is_equal_to(9)
     assert_that(machine.memory.read_word(0x80)).is_equal_to(5)
     assert_that(machine.memory.read_word(0x82)).is_equal_to(7)
+
+
+# scroll_window shifts pixels a character glass does not have: it
+# passes in the conforming quiet until a graphics frontend brings
+# real pixels to shift (§15 scroll_window). Arthur scrolls its
+# story window at the very first prompt.
+def test_scroll_window_passes_quietly() -> None:
+    machine = stacked_v6_machine(bytes([*[0xBE, 0x14, 0x5F, 0x00, 0x08], 0xBA]))
+
+    machine.run()
+
+    assert_that(machine.running).is_false()

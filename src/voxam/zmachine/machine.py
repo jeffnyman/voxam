@@ -2845,6 +2845,20 @@ class Machine:
 
         self._branch(instruction, False)
 
+    def _op_scroll_window(self, instruction: Instruction) -> None:
+        """Let a manual scroll pass in the conforming quiet (§15).
+
+        scroll_window shifts a window's pixels up or down, blanking
+        what is exposed -- unrelated, §15 notes, to the scrolling
+        attribute. A character glass scrolls its own lower window
+        by §8.7 as text flows, and renders the other windows as
+        flowing text besides, so there are no pixels here to shift:
+        the true pixel scroll waits on the graphics frontend.
+        Arthur scrolls its story window at the first prompt.
+        """
+
+        self._pc = instruction.next_address
+
     def _op_mouse_window(self, instruction: Instruction) -> None:
         """Let a mouse constraint pass in the conforming quiet (§15).
 
@@ -3091,6 +3105,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "restart": Machine._op_restart,
     "restore": Machine._op_restore,
     "restore_undo": Machine._op_restore_undo,
+    "scroll_window": Machine._op_scroll_window,
     "ret": Machine._op_ret,
     "ret_popped": Machine._op_ret_popped,
     "rfalse": Machine._op_rfalse,
