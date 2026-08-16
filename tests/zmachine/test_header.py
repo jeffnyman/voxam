@@ -296,10 +296,22 @@ def test_a_graphics_interpreter_leaves_the_font_request_alone() -> None:
 def test_the_font_size_is_recorded_from_version_5() -> None:
     header = Header(bytearray(synthetic_header(version=5)))
 
-    header.declare_font_size(width=1, height=1)
+    header.declare_font_size(width=9, height=18)
 
-    assert_that(header.data[0x26]).is_equal_to(1)
-    assert_that(header.data[0x27]).is_equal_to(1)
+    assert_that(header.data[0x26]).is_equal_to(9)
+    assert_that(header.data[0x27]).is_equal_to(18)
+
+
+# §11's table swaps the two bytes in Version 6: $26 becomes the
+# font height and $27 the width -- invisible with a 1-by-1 font,
+# load-bearing with a real one.
+def test_version_6_swaps_the_font_size_bytes() -> None:
+    header = Header(bytearray(synthetic_header(version=6)))
+
+    header.declare_font_size(width=9, height=18)
+
+    assert_that(header.data[0x26]).is_equal_to(18)
+    assert_that(header.data[0x27]).is_equal_to(9)
 
 
 def test_font_size_fields_begin_at_version_5() -> None:

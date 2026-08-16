@@ -88,6 +88,15 @@ class Frontend(Protocol):
             "infinite", the claim of a stream that never pages
             (§8.4).
         screen_columns: The screen width in characters (§8.4).
+        font_width: The width of one character cell in the units
+            the header speaks -- 1 on a character glass, whose
+            unit is a character, and real pixels on a glass that
+            measures (§8.4.2). Only Version 6 stories ever hear
+            a value other than 1: the machine keeps every other
+            version's unit at one character, because games like
+            Beyond Zork mix unit arithmetic with character-cell
+            cursor moves and the two scales must agree.
+        font_height: The height of one character cell in units.
     """
 
     has_status_line: bool
@@ -101,6 +110,8 @@ class Frontend(Protocol):
     has_colours: bool
     screen_lines: int
     screen_columns: int
+    font_width: int
+    font_height: int
 
     def write(self, text: str) -> None:
         """Show story text from the print stream."""
@@ -238,6 +249,10 @@ class PlainFrontend:
     has_colours = False
     screen_lines = 255
     screen_columns = 80
+    # A stream measures in characters: one unit is one character,
+    # so the font is 1 by 1 (§8.4.2).
+    font_width = 1
+    font_height = 1
 
     def __init__(self, write: Callable[[str], None] | None = None) -> None:
         """Bind the text stream, standard output when not given."""

@@ -901,6 +901,70 @@ def test_formatted_redirection_round_trips_through_print_form() -> None:
     assert_that(machine.memory.read_word(0x30)).is_equal_to(7)
 
 
+class MeasuringFrontend(PlainFrontend):
+    """A frontend whose glass measures: a 9-by-18 pixel cell."""
+
+    screen_lines = 24
+    font_width = 9
+    font_height = 18
+
+
+# On a glass that measures, a Version 6 story hears its screen in
+# real pixels: the unit words at $22 and $24 carry columns and
+# lines times the font metrics, the font bytes at $26 and $27
+# arrive in §11's swapped Version 6 order, and window 0 boots
+# sized in pixels with its font size property packing the real
+# cell (§8.4.2, §8.8.3.2.5).
+def test_v6_hears_real_pixels_from_a_measuring_glass() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x13, 0x5F, 0x00, 0x03, 0x10],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x0D, 0x11],
+                0xBA,
+            ]
+        ),
+        frontend=MeasuringFrontend(),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x22)).is_equal_to(720)
+    assert_that(machine.memory.read_word(0x24)).is_equal_to(432)
+    assert_that(machine.memory.read_byte(0x26)).is_equal_to(18)
+    assert_that(machine.memory.read_byte(0x27)).is_equal_to(9)
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(720)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to((18 << 8) | 9)
+
+
+# The same wrap on a measuring glass: a width of -72 units is 8
+# characters at a 9-pixel font, so the lines break exactly as -8
+# breaks on the character glass -- and the $30 word, "total width
+# in pixels" in §11's table, carries the widest line times the
+# font width.
+def test_measured_widths_wrap_in_characters_and_report_pixels() -> None:
+    pieces: list[str] = []
+    typed = [0x61, 0x62, 0x63, 0x20, 0x64, 0x65, 0x66, 0x20, 0x67, 0x68, 0x69, 0x6A]
+    presses = [byte for code in typed for byte in (0xE5, 0x7F, code)]
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xF3, 0x53, 0x03, 0x60, 0xFF, 0xB8],
+                *presses,
+                *[0xF3, 0x3F, 0xFF, 0xFD],
+                *[0xBE, 0x1A, 0x7F, 0x60],
+                0xBA,
+            ]
+        ),
+        frontend=MeasuringFrontend(pieces.append),
+    )
+
+    machine.run()
+
+    assert_that("".join(pieces)).is_equal_to("abc def\nghij\n")
+    assert_that(machine.memory.read_word(0x30)).is_equal_to(63)
+
+
 # A zero-or-positive width names a window, whose ledger width is
 # the wrap limit; and a blank line -- impossible to carry in a
 # format whose terminator is the zero count -- travels as a single

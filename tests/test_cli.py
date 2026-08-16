@@ -844,6 +844,8 @@ class WindowStub:
 
     columns = 80
     lines = 24
+    cell_width = 9
+    cell_height = 18
 
     def __init__(self, keys: str) -> None:
         self.keys = list(keys)

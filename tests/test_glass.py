@@ -27,6 +27,8 @@ class StubGlass:
 
     columns = 30
     lines = 8
+    cell_width = 9
+    cell_height = 18
 
     def __init__(self, keys: list[str | None] | None = None) -> None:
         self.keys = list(keys or [])
@@ -71,6 +73,16 @@ def windowed(
 
 def runs_containing(glass: StubGlass, text: str) -> list[tuple[object, ...]]:
     return [entry for entry in glass.painted if text in str(entry[2])]
+
+
+# The frontend's font metrics are the glass's cell in real pixels
+# -- the units a Version 6 story hears instead of the character
+# glasses' 1-by-1 font (§8.4.2).
+def test_the_font_metrics_are_the_glass_cell() -> None:
+    frontend, _glass = windowed()
+
+    assert_that(frontend.font_width).is_equal_to(9)
+    assert_that(frontend.font_height).is_equal_to(18)
 
 
 # A write lands in the model and the damaged row blits as runs of
@@ -400,6 +412,9 @@ def test_the_pygame_doorway_builds_and_paints(
     monkeypatch.setitem(sys.modules, "pygame", module)
 
     glass = open_pygame_glass()
+
+    assert_that(glass.cell_width).is_equal_to(9)
+    assert_that(glass.cell_height).is_equal_to(18)
 
     glass.paint(
         1, 2, "a b", (1, 2, 3), (4, 5, 6), bold=False, italic=False, graphics=False

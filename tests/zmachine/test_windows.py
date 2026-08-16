@@ -23,7 +23,7 @@ from voxam.zmachine.windows import (
 
 
 def ledger() -> WindowLedger:
-    return WindowLedger(lines=24, columns=80, foreground=9, background=2)
+    return WindowLedger(height=24, width=80, foreground=9, background=2)
 
 
 # The §8.8 boot state: window 0 fills the screen with all four
@@ -44,6 +44,19 @@ def test_the_boot_state_matches_the_spec_defaults() -> None:
     assert_that(windows.property(3, ATTRIBUTES)).is_equal_to(BUFFERING)
     assert_that(windows.property(5, FONT_SIZE)).is_equal_to(0x0101)
     assert_that(windows.property(5, COLOUR_DATA)).is_equal_to(0x0209)
+
+
+# A measuring glass boots the ledger in real pixels: window 0's
+# size is the screen in pixels and every window's font size packs
+# the real cell, height high and width low (§8.8.3.2.5).
+def test_a_measuring_glass_boots_in_pixels() -> None:
+    windows = WindowLedger(
+        height=432, width=720, foreground=9, background=2, font_width=9, font_height=18
+    )
+
+    assert_that(windows.property(0, Y_SIZE)).is_equal_to(432)
+    assert_that(windows.property(0, X_SIZE)).is_equal_to(720)
+    assert_that(windows.property(4, FONT_SIZE)).is_equal_to((18 << 8) | 9)
 
 
 # The code -3 -- or the unsigned word 65533 an operand carries --

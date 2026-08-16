@@ -45,6 +45,8 @@ class Recorder:
     has_colours = False
     screen_lines = 24
     screen_columns = 64
+    font_width = 1
+    font_height = 1
 
     def __init__(self) -> None:
         self.events: list[str] = []
