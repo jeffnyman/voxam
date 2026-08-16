@@ -25,6 +25,7 @@ from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.story import Story
 
 if TYPE_CHECKING:
+    from voxam.glass import GraphicsFrontend
     from voxam.painter import ScreenFrontend
 
 # Exit codes: 0 for a story that ran to quit, 1 for halting at a not
@@ -108,6 +109,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="keep the plain stream frontend even at a terminal",
     )
     parser.add_argument(
+        "--graphics",
+        action="store_true",
+        help="play in a pygame window (needs the graphics extra)",
+    )
+    parser.add_argument(
         "--interpreter",
         help="claim a §11.1.3 platform, by name (amiga, ibm-pc, ...) or number",
     )
@@ -161,6 +167,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.seed,
             None,
             screen=not arguments.plain,
+            graphics=arguments.graphics,
             identity=identity,
             resources=arguments.resources,
             pixels=arguments.pixels,
@@ -244,24 +251,40 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
     if arguments.accept is not None and arguments.replay is not None:
         return "--accept and --replay are one script apiece; pick one"
 
+    if arguments.graphics and arguments.plain:
+        return "--graphics and --plain name two different glasses; pick one"
+
     regtest = _regtest_refusal(arguments)
 
     if regtest is not None:
         return regtest
 
-    if arguments.resume is not None:
-        others = (arguments.accept, arguments.replay, arguments.record)
+    resume = _resume_refusal(arguments)
 
-        if any(value is not None for value in others):
-            return "--resume is a replay and a recording in one; drop the other flags"
-
-        if arguments.story is not None:
-            return "a resumed recording names its own game; drop the story"
-
-        if arguments.seed is not None:
-            return "a resume keeps the recording's own dice; drop --seed"
+    if resume is not None:
+        return resume
 
     return _record_refusal(arguments.record, script, arguments.story)
+
+
+def _resume_refusal(arguments: argparse.Namespace) -> str | None:
+    """Why --resume cannot proceed, or None when it can."""
+
+    if arguments.resume is None:
+        return None
+
+    others = (arguments.accept, arguments.replay, arguments.record)
+
+    if any(value is not None for value in others):
+        return "--resume is a replay and a recording in one; drop the other flags"
+
+    if arguments.story is not None:
+        return "a resumed recording names its own game; drop the story"
+
+    if arguments.seed is not None:
+        return "a resume keeps the recording's own dice; drop --seed"
+
+    return None
 
 
 def _record_refusal(
@@ -344,6 +367,7 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
         seed,
         None,
         screen=not arguments.plain,
+        graphics=arguments.graphics,
         identity=identity,
         resources=arguments.resources,
         pixels=arguments.pixels,
@@ -462,6 +486,27 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
             raise ValueError(msg)
 
     return Identity(interpreter=number, tandy=tandy)
+
+
+def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend | None":
+    """A pygame window, when the graphics extra allows.
+
+    The flag was explicit, so a missing extra earns a note before
+    the session falls back to the terminal painter or the stream.
+    """
+
+    try:
+        # Imported here because the graphics extra is optional.
+        from voxam.glass import GraphicsFrontend  # noqa: PLC0415
+
+        return GraphicsFrontend(version, speaker=_speaker(blorb))
+    except ImportError:
+        print(
+            "voxam: the graphics window needs the pygame-ce extra "
+            "(voxam[graphics]); staying with the terminal\n"
+        )
+
+        return None
 
 
 def _screen_frontend(
@@ -630,7 +675,7 @@ def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb 
 def _present_resources(
     blorb: Blorb | None,
     story: Story,
-    painted: "ScreenFrontend | None",
+    painted: "ScreenFrontend | GraphicsFrontend | None",
     *,
     pixels: bool,
 ) -> None:
@@ -655,7 +700,10 @@ def _present_resources(
 
 
 def _show_cover(
-    blorb: Blorb, frontend: "ScreenFrontend", *, pixels: bool = False
+    blorb: Blorb,
+    frontend: "ScreenFrontend | GraphicsFrontend",
+    *,
+    pixels: bool = False,
 ) -> None:
     """Show the Blorb's cover picture before play, when there is one.
 
@@ -693,6 +741,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     frontend: Frontend | None = None,
     *,
     screen: bool = False,
+    graphics: bool = False,
     identity: Identity | None = None,
     resources: Path | None = None,
     pixels: bool = False,
@@ -718,15 +767,18 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
     header = story.header
     key_source: Callable[[float | None], str | None] | None = None
-    painted = None
+    painted: ScreenFrontend | GraphicsFrontend | None = None
 
-    if frontend is None and screen:
+    if frontend is None and graphics:
+        painted = _graphics_frontend(header.version, blorb)
+
+    if frontend is None and painted is None and screen:
         painted = _screen_frontend(header.version, blorb)
 
-        if painted is not None:
-            frontend = painted
-            input_source = painted.read_line
-            key_source = painted.read_key
+    if frontend is None and painted is not None:
+        frontend = painted
+        input_source = painted.read_line
+        key_source = painted.read_key
 
     input_source, key_source = _recorded_sources(recorder, input_source, key_source)
 
