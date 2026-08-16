@@ -376,6 +376,37 @@ class Recorder:
         self._write(f"! SEED={seed}")
         self._write("")
 
+    @classmethod
+    def resumed(cls, path: Path, warn: Callable[[str], None]) -> "Recorder":
+        """Reopen an existing script to record onto its end.
+
+        The mirror of a fresh recording's refusal to overwrite: a
+        resume requires the script to exist, keeps its directives
+        and every verified line exactly as they were, and appends
+        -- new input can only ever land at the end, which is the
+        append-only discipline recordings live by.
+
+        Args:
+            path: The script being continued.
+            warn: Receives one message per input that could not be
+                written exactly.
+
+        Raises:
+            AcceptanceError: If the path does not exist.
+            OSError: If the file cannot be opened.
+        """
+
+        if not path.exists():
+            msg = f"{path} does not exist; a resume continues a recording"
+
+            raise AcceptanceError(msg)
+
+        recorder = cls.__new__(cls)
+        recorder._warn = warn
+        recorder._handle = path.open("a", encoding="utf-8", newline="\n")
+
+        return recorder
+
     def line(self, text: str) -> None:
         """Record one whole typed line."""
 

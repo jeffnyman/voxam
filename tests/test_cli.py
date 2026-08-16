@@ -740,3 +740,52 @@ def test_a_painted_session_records_its_lines(
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(target.read_text(encoding="utf-8")).contains("look")
+
+
+# --resume replays the recording and appends the continuation to
+# the same file: the first session records a command past the
+# empty script; a second resume replays that command into the
+# game's single read and quits with nothing left to append.
+def test_a_resumed_recording_grows_at_the_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\n! SEED=9\n")
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+
+    exit_code = main(["--resume", str(script)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(script.read_text(encoding="utf-8")).contains("look")
+
+    before = script.read_text(encoding="utf-8")
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+    exit_code = main(["--resume", str(script)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(script.read_text(encoding="utf-8")).is_equal_to(before)
+
+
+# The resume flag travels alone -- no other script flags, no
+# story, no --seed: the recording keeps its own dice -- and it
+# continues only a recording that exists.
+def test_resume_refuses_conflicts_and_ghosts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "session.accept"
+
+    assert_that(main(["--resume", str(target), "--accept", "x"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the other flags")
+
+    assert_that(main(["--resume", str(target), "story.z3"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("names its own game")
+
+    assert_that(main(["--resume", str(target), "--seed", "5"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("own dice")
+
+    assert_that(main(["--resume", str(target)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("does not exist")

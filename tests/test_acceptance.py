@@ -449,3 +449,32 @@ def test_the_recorder_survives_an_unrelatable_game_path(
 
     assert_that(content).contains("! GAME=")
     assert_that(content).contains("story.z3")
+
+
+# A resume is the mirror of a fresh recording: the file must
+# already exist, its directives and verified lines stay exactly as
+# they were, and new input lands only at the end -- append-only by
+# construction.
+def test_a_resumed_recording_appends(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    fresh = Recorder(target, game=tmp_path / "story.z3", seed=7, warn=print)
+
+    fresh.line("look")
+    fresh.close()
+
+    resumed = Recorder.resumed(target, warn=print)
+
+    resumed.line("north")
+    resumed.key("\x82")
+    resumed.close()
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.seed).is_equal_to(7)
+    assert_that(script.commands).is_equal_to(("look", "north", "\x82"))
+    assert_that(target.read_text(encoding="utf-8").count("! SEED")).is_equal_to(1)
+
+
+def test_a_resume_requires_an_existing_recording(tmp_path: Path) -> None:
+    with pytest.raises(AcceptanceError, match="a resume continues"):
+        Recorder.resumed(tmp_path / "ghost.accept", warn=print)

@@ -291,6 +291,18 @@ work-in-progress script catches you up to where you left off:
 voxam --replay some-session.accept
 ```
 
+And when a session has to stop -- or a wrong turn needs cutting --
+`--resume` is that whole expedition loop as one flag:
+
+```bash
+voxam --resume my-session.accept
+```
+
+It replays the script to its last line, hands you the prompt, and
+appends everything you type to the same file. Trim the bad tail in
+an editor, resume, and press on: a recording grows append-only,
+under its own seed, across as many sittings as the game demands.
+
 ### Refusal warnings
 
 During a replay, Voxam listens for the parser's *refusal dialect* --
