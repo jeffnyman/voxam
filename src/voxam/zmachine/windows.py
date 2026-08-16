@@ -116,6 +116,12 @@ class WindowLedger:
                 window[Y_SIZE] = height
                 window[X_SIZE] = width
                 window[ATTRIBUTES] = WRAPPING | SCROLLING | TRANSCRIPTING | BUFFERING
+            elif number == 1:
+                # Screen-wide and flat: §8.8.4.1's split tiles this
+                # window against 0 without touching widths, so a
+                # width must already be here for the split to mean
+                # anything.
+                window[X_SIZE] = width
 
             self._windows.append(window)
 

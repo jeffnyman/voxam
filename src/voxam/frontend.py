@@ -87,6 +87,11 @@ class Frontend(Protocol):
         has_pictures: Whether pictures can actually be drawn
             (§11.1.4) -- true only where a gallery of art hangs
             behind a glass with pixels.
+        has_stage: Whether a Version 6 session plays on a §8.8
+            stage of eight placeable windows. When true, the
+            machine forwards window geometry and cursor moves;
+            when false, it keeps the character frontends' flowing
+            mimicry -- the behaviour every recording replays in.
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -112,6 +117,7 @@ class Frontend(Protocol):
     has_character_graphics: bool
     has_colours: bool
     has_pictures: bool
+    has_stage: bool
     screen_lines: int
     screen_columns: int
     font_width: int
@@ -173,7 +179,27 @@ class Frontend(Protocol):
         """Select the window that receives text (§8.7.2)."""
 
     def set_cursor(self, line: int, column: int) -> None:
-        """Move the upper window's cursor (§8.7.2)."""
+        """Move the upper window's cursor (§8.7.2).
+
+        On a stage, the selected window's cursor instead, in
+        window-relative units (§8.8.3.5).
+        """
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Place a §8.8 window at a position and size, in units.
+
+        Only frontends that claimed a stage hear the call; the
+        rest render windows 0 and 1 as they always have.
+        """
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Scroll a §8.8 window's own rectangle, in units (§15).
+
+        Positive scrolls up, negative down. Only frontends that
+        claimed a stage hear the call.
+        """
 
     def cursor_position(self) -> tuple[int, int]:
         """The cursor's row and column (§8.7.2.3.2).
@@ -283,6 +309,9 @@ class PlainFrontend:
     # says so, and picture_data answers with the census of an
     # interpreter that has none (§11.1.4, §15).
     has_pictures = False
+    # No stage either: Version 6 windows flow as text here, the
+    # mimicry every recording replays in.
+    has_stage = False
     screen_lines = 255
     screen_columns = 80
     # A stream measures in characters: one unit is one character,
@@ -455,6 +484,18 @@ class PlainFrontend:
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Place nothing: this frontend claimed no stage.
+
+        The machine never sends geometry here -- has_stage is
+        False -- and a stray call changes nothing.
+        """
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Scroll nothing: this frontend claimed no stage."""
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a transcript is quieter than a terminal.

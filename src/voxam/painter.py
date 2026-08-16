@@ -295,6 +295,9 @@ class ScreenFrontend:
     # No in-play pictures: the sixel cover is a doorway courtesy,
     # and the header's cleared bit keeps the claim honest (§11.1.4).
     has_pictures = False
+    # No stage: Version 6 windows keep the two-window mimicry a
+    # cell terminal can honour.
+    has_stage = False
 
     def __init__(
         self,
@@ -437,6 +440,14 @@ class ScreenFrontend:
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Place nothing: this frontend claimed no stage."""
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Scroll nothing: this frontend claimed no stage."""
 
     def bleep(self, number: int) -> None:  # noqa: ARG002
         """Ring the terminal bell: one bell serves both bleeps (§9)."""

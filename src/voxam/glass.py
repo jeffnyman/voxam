@@ -37,11 +37,22 @@ from voxam.painter import (
 from voxam.png import Picture
 from voxam.screen import BOLD, ITALIC, REVERSE, Cell, ScreenModel
 from voxam.speaker import Speaker
+from voxam.stage import Rectangle, StageModel
 
 # The classic glass: 80 by 24 cells, the size every recording and
 # header claim already assumes.
 GLASS_COLUMNS = 80
 GLASS_LINES = 24
+
+# Version 6 alone gets the §8.8 stage; every other version keeps
+# the two-window screen model.
+STAGE_VERSION = 6
+
+# One cell as the glass paints it: its character and its dress of
+# ink, paper, bold, italic, and the graphics-font flag.
+Appearance = tuple[
+    str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool, bool]
+]
 
 # The §8.3.1 colour codes as RGB, code 1 being the interpreter's
 # default ink and paper: white on black, the machine's home look.
@@ -182,12 +193,24 @@ class GraphicsFrontend:
         # character glasses' 1-by-1 font (§8.4.2).
         self.font_width = glass.cell_width
         self.font_height = glass.cell_height
-        self._model = ScreenModel(
-            columns=glass.columns, lines=glass.lines, version=version
+        # A Version 6 session plays on the §8.8 stage -- eight
+        # placeable windows on one grid -- and the has_stage claim
+        # tells the machine to forward window geometry here.
+        self.has_stage = version == STAGE_VERSION
+        self._stage = (
+            StageModel(glass.columns, glass.lines, glass.cell_width, glass.cell_height)
+            if self.has_stage
+            else None
         )
+        self._model: ScreenModel | StageModel = (
+            self._stage
+            if self._stage is not None
+            else ScreenModel(columns=glass.columns, lines=glass.lines, version=version)
+        )
+        self._shadow: dict[int, list[Appearance | None]] = {}
 
     @property
-    def model(self) -> ScreenModel:
+    def model(self) -> "ScreenModel | StageModel":
         """The screen model this window keeps faithful."""
 
         return self._model
@@ -226,10 +249,41 @@ class GraphicsFrontend:
         self._model.set_colour(foreground, background)
 
     def erase_window(self, window: int) -> None:
-        """Erase a window to its background, repainting (§8.7)."""
+        """Erase a window to its background, repainting (§8.7, §8.8.5.3).
 
-        self._model.erase_window(window)
+        On the stage the erased rectangle is also forgotten from
+        the shadow: an erasure legitimately paints over any
+        picture in its region, and cells whose text did not change
+        would otherwise skip repainting and leave ghosts of the
+        art behind.
+        """
+
+        if self._stage is not None:
+            self._forget(self._stage.erase_window(window))
+        else:
+            self._model.erase_window(window)
+
         self._repaint()
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Place a §8.8 window on the stage, in units (§15).
+
+        Only a Version 6 session has a stage -- the has_stage
+        claim says so, and the machine sends geometry nowhere
+        else.
+        """
+
+        if self._stage is not None:
+            self._stage.place_window(window, line, column, height, width)
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Scroll a stage window's own rectangle (§8.8.3.6)."""
+
+        if self._stage is not None:
+            self._stage.scroll_window(window, pixels)
+            self._repaint()
 
     def erase_line(self) -> None:
         """Erase from the cursor to the end of the line (§8.7.3.4)."""
@@ -422,7 +476,14 @@ class GraphicsFrontend:
             self._repaint()
 
     def clear(self) -> None:
-        """Blit the model's every row, blank or not."""
+        """Blit the model's every row, blank or not.
+
+        The shadow empties first: after a frontispiece the glass
+        shows pixels no cell accounts for, so every cell must
+        paint again.
+        """
+
+        self._shadow.clear()
 
         for row in range(1, self._model.lines + 1):
             self._paint_row(row)
@@ -475,30 +536,63 @@ class GraphicsFrontend:
             self._glass.present()
 
     def _paint_row(self, row: int) -> None:
-        """Blit one row from the model's cells, in same-dress runs."""
+        """Blit one row's changed cells, in same-dress runs.
 
-        cells = [
+        The shadow is the glass's memory of what every cell last
+        showed: only cells that differ repaint. That is what lets
+        a drawn picture survive beneath rows of unchanged cells --
+        §8.8.3's rule that pixels stay until something is actually
+        painted over them.
+        """
+
+        cells: list[Appearance] = [
             _appearance(self._model.cell(row, column))
             for column in range(1, self._model.columns + 1)
         ]
+        shadow = self._shadow.get(row, [None] * self._model.columns)
         column = 1
 
-        for dress, grouped in groupby(cells, key=lambda pair: pair[1]):
-            text = "".join(character for character, _ in grouped)
-            ink, paper, bold, italic, graphics = dress
+        for changed, grouped in groupby(
+            zip(cells, shadow, strict=True), key=lambda pair: pair[0] != pair[1]
+        ):
+            block = [appearance for appearance, _ in grouped]
 
-            self._glass.paint(
-                row,
-                column,
-                text,
-                ink,
-                paper,
-                bold=bold,
-                italic=italic,
-                graphics=graphics,
-            )
+            if changed:
+                offset = 0
 
-            column += len(text)
+                for dress, run in groupby(block, key=lambda appearance: appearance[1]):
+                    text = "".join(character for character, _ in run)
+                    ink, paper, bold, italic, graphics = dress
+
+                    self._glass.paint(
+                        row,
+                        column + offset,
+                        text,
+                        ink,
+                        paper,
+                        bold=bold,
+                        italic=italic,
+                        graphics=graphics,
+                    )
+
+                    offset += len(text)
+
+            column += len(block)
+
+        remembered: list[Appearance | None] = list(cells)
+        self._shadow[row] = remembered
+
+    def _forget(self, rectangle: Rectangle) -> None:
+        """Drop the shadow over a rectangle, forcing its repaint."""
+
+        first_row, first_column, row_count, column_count = rectangle
+
+        for row in range(first_row, first_row + row_count):
+            shadow = self._shadow.get(row)
+
+            if shadow is not None:
+                for column in range(first_column, first_column + column_count):
+                    shadow[column - 1] = None
 
 
 def _appearance(
