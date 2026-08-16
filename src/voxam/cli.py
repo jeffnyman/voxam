@@ -18,6 +18,7 @@ from voxam.errors import (
 )
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.png import decode
+from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.speaker import Speaker, open_sounddevice_stream
 from voxam.zmachine.machine import Identity, Machine
@@ -31,6 +32,9 @@ if TYPE_CHECKING:
 EXIT_OK = 0
 EXIT_FRONTIER = 1
 EXIT_UNUSABLE = 2
+
+# RegTest's own exit contract: 1 when any check failed.
+EXIT_FAILED_CHECKS = 1
 
 # A recording without a seed cannot replay, so --record without
 # --seed rolls its own dice once and writes them down. The ceiling
@@ -94,6 +98,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="replay a recording, then record your continuation onto its end",
     )
     parser.add_argument(
+        "--regtest",
+        type=Path,
+        help="run a RegTest script in-process (regtest.html's format)",
+    )
+    parser.add_argument(
         "--plain",
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
@@ -136,17 +145,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         return EXIT_UNUSABLE
 
-    if arguments.resume is not None:
-        return _resumed_session(arguments.resume, identity)
+    session = _scripted_session(arguments, identity, script_path)
 
-    if script_path is not None:
-        return _replay_script(
-            script_path,
-            arguments.story,
-            arguments.seed,
-            handoff=arguments.replay is not None,
-            identity=identity,
-        )
+    if session is not None:
+        return session
 
     if arguments.story is None:
         return EXIT_OK
@@ -166,11 +168,86 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def _scripted_session(
+    arguments: argparse.Namespace,
+    identity: Identity | None,
+    script_path: Path | None,
+) -> int | None:
+    """Run whichever script-driven mode was asked for; None for none."""
+
+    if arguments.regtest is not None:
+        return _regtest_session(arguments.regtest)
+
+    if arguments.resume is not None:
+        return _resumed_session(arguments.resume, identity)
+
+    if script_path is not None:
+        return _replay_script(
+            script_path,
+            arguments.story,
+            arguments.seed,
+            handoff=arguments.replay is not None,
+            identity=identity,
+        )
+
+    return None
+
+
+def _regtest_refusal(arguments: argparse.Namespace) -> str | None:
+    """Why --regtest cannot proceed, or None when it can."""
+
+    if arguments.regtest is None:
+        return None
+
+    others = (
+        arguments.accept,
+        arguments.replay,
+        arguments.record,
+        arguments.resume,
+    )
+
+    if any(value is not None for value in others):
+        return "--regtest runs a script of its own; drop the other flags"
+
+    if arguments.story is not None:
+        return "a RegTest script names its own game; drop the story"
+
+    if arguments.seed is not None:
+        return "a RegTest script carries its seed on its interpreter line"
+
+    return None
+
+
+def _regtest_session(script_path: Path) -> int:
+    """Run a RegTest script in-process, in the reference's voice."""
+
+    try:
+        script = parse_script(script_path)
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    errors = run_script(script, print)
+
+    if errors:
+        print(f"\nFAILED: {errors} errors")
+
+        return EXIT_FAILED_CHECKS
+
+    return EXIT_OK
+
+
 def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | None:
     """Why this flag combination cannot proceed, or None when it can."""
 
     if arguments.accept is not None and arguments.replay is not None:
         return "--accept and --replay are one script apiece; pick one"
+
+    regtest = _regtest_refusal(arguments)
+
+    if regtest is not None:
+        return regtest
 
     if arguments.resume is not None:
         others = (arguments.accept, arguments.replay, arguments.record)

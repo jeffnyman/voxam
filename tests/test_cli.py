@@ -789,3 +789,51 @@ def test_resume_refuses_conflicts_and_ghosts(
 
     assert_that(main(["--resume", str(target)])).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("does not exist")
+
+
+# --regtest runs a script in-process: a passing suite exits 0 in
+# silence beyond the test names, a failing one speaks the
+# reference's FAILED line and exits 1, an unusable script exits 2,
+# and the flag travels alone.
+def test_regtest_runs_in_process(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = refusing_story(tmp_path)
+    passing = tmp_path / "pass.regtest"
+    passing.write_text(
+        f"** game: {story}\n* answer\n> frotz\nyou must use a verb\n",
+        encoding="utf-8",
+    )
+
+    assert_that(main(["--regtest", str(passing)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("* answer")
+
+    failing = tmp_path / "fail.regtest"
+    failing.write_text(
+        f"** game: {story}\n* answer\n> frotz\nbucket of cheese\n",
+        encoding="utf-8",
+    )
+
+    assert_that(main(["--regtest", str(failing)])).is_equal_to(1)
+    assert_that(capsys.readouterr().out).contains("FAILED: 1 errors")
+
+    broken = tmp_path / "broken.regtest"
+    broken.write_text("* nameless\n> look\n", encoding="utf-8")
+
+    assert_that(main(["--regtest", str(broken)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("names no game")
+
+
+def test_regtest_travels_alone(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "suite.regtest"
+
+    assert_that(main(["--regtest", str(target), "--accept", "x"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the other flags")
+
+    assert_that(main(["--regtest", str(target), "story.z3"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("names its own game")
+
+    assert_that(main(["--regtest", str(target), "--seed", "7"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("interpreter line")

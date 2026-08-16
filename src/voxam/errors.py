@@ -25,6 +25,10 @@ class PNGError(VoxamError):
     """Raised when bytes cannot be read as a PNG picture."""
 
 
+class RegTestError(VoxamError):
+    """Raised when a RegTest script cannot be used."""
+
+
 class ZMachineArithmeticError(VoxamError):
     """Raised for arithmetic a story may not perform (§2.3)."""
 
