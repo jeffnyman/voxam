@@ -1,10 +1,11 @@
+from fractions import Fraction
 from typing import cast
 
 import pytest
 from assertpy import assert_that
 
 from voxam.errors import PNGError
-from voxam.gallery import Gallery, Placard
+from voxam.gallery import Gallery, Placard, Resolution, Scaling
 from voxam.png import Picture
 
 
@@ -42,6 +43,37 @@ def test_pictures_decode_lazily_and_are_remembered(tiny_png: bytes) -> None:
     assert_that(gallery.picture(3)).is_same_as(first)
     assert_that(gallery.picture(7)).is_none()
     assert_that(gallery.picture(99)).is_none()
+
+
+# The scaling ratio follows the Blorb spec to the letter: the
+# Elbow Room Factor is the tighter axis of screen over standard
+# window, a listed picture's standard ratio multiplies it, and
+# the minimum and maximum clamp the result. An unlisted picture
+# -- or a gallery with no Reso chunk at all -- stays at 1: one
+# image pixel per screen pixel (Blorb: The Resolution Chunk).
+def test_the_scaling_ratio_follows_the_elbow_room(tiny_png: bytes) -> None:
+    bare = hung(tiny_png)
+
+    assert_that(bare.scale(3, 720, 432)).is_equal_to(1)
+
+    resolution = Resolution(
+        320,
+        200,
+        {
+            3: Scaling(Fraction(1), None, None),
+            5: Scaling(Fraction(1, 2), None, None),
+            8: Scaling(Fraction(1), Fraction(3), None),
+            9: Scaling(Fraction(1), None, Fraction(2)),
+        },
+    )
+    gallery = Gallery({}, 0, resolution)
+
+    # ERF = min(720/320, 432/200) = 54/25: the height decides.
+    assert_that(gallery.scale(3, 720, 432)).is_equal_to(Fraction(54, 25))
+    assert_that(gallery.scale(5, 720, 432)).is_equal_to(Fraction(27, 25))
+    assert_that(gallery.scale(8, 720, 432)).is_equal_to(3)
+    assert_that(gallery.scale(9, 720, 432)).is_equal_to(2)
+    assert_that(gallery.scale(99, 720, 432)).is_equal_to(1)
 
 
 # An entry that does not open with the PNG signature and IHDR is

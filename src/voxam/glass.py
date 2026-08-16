@@ -21,6 +21,7 @@ not a spin.
 
 import os
 from collections.abc import Callable, Sequence
+from fractions import Fraction
 from itertools import groupby
 from typing import Any, Protocol, cast
 
@@ -107,14 +108,20 @@ class Glass(Protocol):
         """Show a cover picture centred until present() paints over."""
 
     def draw(
-        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+        self,
+        rows: Sequence[Sequence[tuple[int, int, int]]],
+        line: int,
+        column: int,
+        size: tuple[int, int],
     ) -> None:
         """Blit pixel rows with their top left at (line, column).
 
         The position is 1-based screen pixels, §8.8.1's own
-        origin, and the pixels stay -- until text or another
-        picture is painted over them, which is exactly the §8.8.3
-        rule that nothing belongs to a window once plotted.
+        origin; size is the on-screen (width, height) the rows
+        stretch to -- the Reso scaling, already decided. The
+        pixels stay until text or another picture is painted over
+        them, which is exactly the §8.8.3 rule that nothing
+        belongs to a window once plotted.
         """
 
 
@@ -257,9 +264,33 @@ class GraphicsFrontend:
         return self._model.get_cursor()
 
     def picture_data(self, number: int) -> tuple[int, int] | None:
-        """A picture's height and width in pixels (§15 picture_data)."""
+        """A picture's height and width in pixels (§15 picture_data).
 
-        return self._gallery.size(number)
+        The size is Reso-scaled: the Blorb decides how its art
+        grows on a roomier screen than its standard window, and
+        the answer here must be the drawn truth, because games
+        lay out their whole stage from these words (Blorb: The
+        Resolution Chunk).
+        """
+
+        size = self._gallery.size(number)
+
+        if size is None:
+            return None
+
+        height, width = size
+        factor = self._factor(number)
+
+        return int(height * factor), int(width * factor)
+
+    def _factor(self, number: int) -> Fraction:
+        """One picture's Reso ratio on this glass's screen."""
+
+        return self._gallery.scale(
+            number,
+            self.screen_columns * self.font_width,
+            self.screen_lines * self.font_height,
+        )
 
     def picture_census(self) -> tuple[int, int]:
         """How many pictures hang, and the art's release (§15)."""
@@ -269,26 +300,32 @@ class GraphicsFrontend:
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Blit a picture at a screen pixel position (§15 draw_picture).
 
-        A Rect placard has a size and no pixels: games measure
-        and position by it, and drawing it shows nothing -- the
-        conforming answer, not a shortfall.
+        The glass stretches the pixels to their Reso-scaled size
+        -- the same size picture_data reported. A Rect placard
+        has a size and no pixels: games measure and position by
+        it, and drawing it shows nothing -- the conforming
+        answer, not a shortfall.
         """
 
         picture = self._gallery.picture(number)
 
         if picture is not None:
-            self._glass.draw(picture.rows, line, column)
+            factor = self._factor(number)
+            size = (int(picture.width * factor), int(picture.height * factor))
+
+            self._glass.draw(picture.rows, line, column, size)
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Paint a picture's region to the background (§15 erase_picture).
 
-        The background is the model's current colour, which is
-        the nearest truth this glass has to "the background
-        colour for the given window" until all eight windows
-        render.
+        The region is the Reso-scaled size picture_data reported,
+        painted by stretching a single pixel of the model's
+        current background colour -- the nearest truth this glass
+        has to "the background colour for the given window" until
+        all eight windows render.
         """
 
-        size = self._gallery.size(number)
+        size = self.picture_data(number)
 
         if size is None:
             return
@@ -296,7 +333,7 @@ class GraphicsFrontend:
         height, width = size
         paper = COLOUR_VALUES.get(self._model.background, PAPER_DEFAULT)
 
-        self._glass.draw(((paper,) * width,) * height, line, column)
+        self._glass.draw(((paper,),), line, column, (width, height))
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a window has no bell to ring (§9).
@@ -657,14 +694,20 @@ class _PygameGlass:
         self.present()
 
     def draw(
-        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+        self,
+        rows: Sequence[Sequence[tuple[int, int, int]]],
+        line: int,
+        column: int,
+        size: tuple[int, int],
     ) -> None:
         surface = self._surface(rows)
 
         if surface is None:
             return
 
-        self._screen.blit(surface, (column - 1, line - 1))
+        scaled = self._pygame.transform.scale(surface, size)
+
+        self._screen.blit(scaled, (column - 1, line - 1))
         self.present()
 
     def _surface(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> object:

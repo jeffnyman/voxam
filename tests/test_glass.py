@@ -1,13 +1,14 @@
 import sys
 import types
 from collections.abc import Sequence
+from fractions import Fraction
 
 import pytest
 from assertpy import assert_that
 
 from voxam.aiff import Sound
 from voxam.frontend import GRAPHICS_FONT, Status
-from voxam.gallery import Gallery, Placard
+from voxam.gallery import Gallery, Placard, Resolution, Scaling
 from voxam.glass import (
     GraphicsFrontend,
     _fitted_faces,
@@ -37,7 +38,9 @@ class StubGlass:
         self.painted: list[tuple[object, ...]] = []
         self.presents = 0
         self.pictures: list[object] = []
-        self.drawn: list[tuple[Sequence[Sequence[tuple[int, int, int]]], int, int]] = []
+        self.drawn: list[
+            tuple[Sequence[Sequence[tuple[int, int, int]]], int, int, tuple[int, int]]
+        ] = []
 
     def paint(
         self,
@@ -65,9 +68,13 @@ class StubGlass:
         self.pictures.append(rows)
 
     def draw(
-        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+        self,
+        rows: Sequence[Sequence[tuple[int, int, int]]],
+        line: int,
+        column: int,
+        size: tuple[int, int],
     ) -> None:
-        self.drawn.append((rows, line, column))
+        self.drawn.append((rows, line, column, size))
 
 
 def windowed(
@@ -159,24 +166,31 @@ def test_font_3_runs_keep_their_characters_and_go_graphics() -> None:
 
 
 def galleried(png: bytes) -> tuple[GraphicsFrontend, StubGlass]:
+    # The stub glass is 270 by 144 real pixels; a standard window
+    # of 135 by 48 leaves an Elbow Room Factor of min(2, 3) = 2,
+    # so listed picture 1 doubles while unlisted placard 7 stays
+    # at one image pixel per screen pixel.
     glass = StubGlass()
     art: dict[int, bytes | Placard] = {
         1: png,
         7: Placard(width=3, height=2),
     }
+    resolution = Resolution(135, 48, {1: Scaling(Fraction(1), None, None)})
 
-    return GraphicsFrontend(6, glass=glass, gallery=Gallery(art, 27)), glass
+    return GraphicsFrontend(6, glass=glass, gallery=Gallery(art, 27, resolution)), glass
 
 
 # With a gallery hung, the frontend claims pictures and answers
-# for them: real sizes, a real census; without one, the honest
-# nothing (§15 picture_data, §11.1.4).
+# for them: real sizes -- Reso-scaled, since games lay out from
+# these words -- and a real census; without one, the honest
+# nothing (§15 picture_data, §11.1.4, Blorb: The Resolution
+# Chunk).
 def test_the_picture_seam_answers_from_the_gallery(tiny_png: bytes) -> None:
     frontend, _glass = galleried(tiny_png)
 
     assert_that(frontend.has_pictures).is_true()
     assert_that(frontend.picture_census()).is_equal_to((2, 27))
-    assert_that(frontend.picture_data(1)).is_equal_to((2, 2))
+    assert_that(frontend.picture_data(1)).is_equal_to((4, 4))
     assert_that(frontend.picture_data(7)).is_equal_to((2, 3))
     assert_that(frontend.picture_data(9)).is_none()
 
@@ -187,17 +201,19 @@ def test_the_picture_seam_answers_from_the_gallery(tiny_png: bytes) -> None:
     assert_that(bare.picture_data(1)).is_none()
 
 
-# A picture draws its decoded pixels at the given screen position;
-# a Rect placard has none to draw, and drawing it shows nothing --
+# A picture draws its decoded pixels at the given screen position,
+# stretched to the same Reso-scaled size picture_data reported; a
+# Rect placard has none to draw, and drawing it shows nothing --
 # the conforming answer, not a shortfall.
 def test_pictures_draw_at_their_pixel_position(tiny_png: bytes) -> None:
     frontend, glass = galleried(tiny_png)
 
     frontend.draw_picture(1, 19, 37)
 
-    ((rows, line, column),) = glass.drawn
+    ((rows, line, column, size),) = glass.drawn
 
     assert_that((line, column)).is_equal_to((19, 37))
+    assert_that(size).is_equal_to((4, 4))
     assert_that(rows[0]).is_equal_to(((10, 20, 30), (40, 50, 60)))
 
     frontend.draw_picture(7, 1, 1)
@@ -205,8 +221,9 @@ def test_pictures_draw_at_their_pixel_position(tiny_png: bytes) -> None:
     assert_that(glass.drawn).is_length(1)
 
 
-# Erasing a picture paints its region in the current background
-# colour, and erasing a number the gallery does not hold quietly
+# Erasing a picture paints its Reso-scaled region in the current
+# background colour -- one background pixel, stretched by the
+# glass -- and erasing a number the gallery does not hold quietly
 # paints nothing (§15 erase_picture).
 def test_erasure_paints_the_background_block(tiny_png: bytes) -> None:
     frontend, glass = galleried(tiny_png)
@@ -214,10 +231,11 @@ def test_erasure_paints_the_background_block(tiny_png: bytes) -> None:
     frontend.set_colour(2, 4)
     frontend.erase_picture(7, 5, 6)
 
-    ((rows, line, column),) = glass.drawn
+    ((rows, line, column, size),) = glass.drawn
 
     assert_that((line, column)).is_equal_to((5, 6))
-    assert_that(rows).is_equal_to((((0, 204, 0),) * 3,) * 2)
+    assert_that(rows).is_equal_to((((0, 204, 0),),))
+    assert_that(size).is_equal_to((3, 2))
 
     frontend.erase_picture(99, 1, 1)
 
@@ -596,8 +614,8 @@ def test_the_pygame_doorway_shows_pictures(
 
 
 # draw blits pixel rows with their top left at a 1-based pixel
-# position -- §8.8.1's own origin -- and an empty picture draws
-# nothing at all.
+# position -- §8.8.1's own origin -- stretched to the asked size,
+# and an empty picture draws nothing at all.
 def test_the_pygame_doorway_draws_at_pixel_positions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -609,15 +627,18 @@ def test_the_pygame_doorway_draws_at_pixel_positions(
     screen = module.screen
     screen.blits.clear()
 
-    glass.draw((((1, 2, 3),) * 2, ((4, 5, 6),) * 2), 10, 30)
+    glass.draw((((1, 2, 3),) * 2, ((4, 5, 6),) * 2), 10, 30, (4, 4))
 
-    ((surface, position),) = screen.blits
+    ((blitted, position),) = screen.blits
+    scaled, surface, size = blitted
 
     assert_that(position).is_equal_to((29, 9))
+    assert_that(scaled).is_equal_to("scaled")
+    assert_that(size).is_equal_to((4, 4))
     assert_that(surface.size).is_equal_to((2, 2))
     assert_that(surface.pixels[0]).is_equal_to(((0, 0), (1, 2, 3)))
 
-    glass.draw((), 1, 1)
+    glass.draw((), 1, 1, (1, 1))
 
     assert_that(screen.blits).is_length(1)
 
