@@ -44,6 +44,7 @@ class Recorder:
     has_character_graphics = False
     has_colours = False
     has_pictures = False
+    has_stage = False
     screen_lines = 24
     screen_columns = 64
     font_width = 1
@@ -66,6 +67,14 @@ class Recorder:
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the status tests never draw."""
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Discard: the status tests have no stage."""
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Discard: the status tests have no stage."""
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the status tests never erase pictures."""

@@ -257,6 +257,7 @@ def test_colour_zero_keeps_the_current_colour() -> None:
 
     assert_that(screen.cell(1, 1).foreground).is_equal_to(5)
     assert_that(screen.cell(1, 1).background).is_equal_to(4)
+    assert_that(screen.background).is_equal_to(4)
 
 
 # The model reports its own dimensions, which the painter and the

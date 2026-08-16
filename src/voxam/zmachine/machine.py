@@ -67,6 +67,7 @@ from voxam.zmachine.windows import (
     X_SIZE,
     Y_COORDINATE,
     Y_CURSOR,
+    Y_SIZE,
     WindowLedger,
 )
 from voxam.zmachine.zscii import (
@@ -224,6 +225,10 @@ CURSOR_WINDOW_OPERAND = 2
 # window's cursor (§15 draw_picture).
 PLACE_LINE_OPERAND = 1
 PLACE_COLUMN_OPERAND = 2
+
+# Erasing window -1 clears the whole screen -- and in Version 6
+# also selects window 0 (§8.8.5.3.1).
+UNSPLIT_ERASE = -1
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -426,6 +431,7 @@ class Machine:
         self._sound_routine = 0
         self._sound_since_input = False
         self._windows = self._fresh_windows()
+        self._aimed: set[int] = set()
 
         self._declare_capabilities()
         self._start_execution()
@@ -1361,8 +1367,10 @@ class Machine:
         self._sound_since_input = False
 
         # The §8.8 window ledger returns to its boot state with the
-        # rest of the interpreter's own memory.
+        # rest of the interpreter's own memory, aimed cursors
+        # included.
         self._windows = self._fresh_windows()
+        self._aimed = set()
 
         self._declare_capabilities()
         self._start_execution()
@@ -2204,17 +2212,22 @@ class Machine:
 
         window = signed(self._value(instruction.operands[0]))
 
-        if self._memory.header.version == PACKED_PC_VERSION and (
-            window >= LOWER_WINDOW or window == CURRENT_WINDOW
-        ):
-            target = self._windows.resolve(window)
+        if self._memory.header.version == PACKED_PC_VERSION:
+            if window >= LOWER_WINDOW or window == CURRENT_WINDOW:
+                target = self._windows.resolve(window)
 
-            if target > UPPER_WINDOW:
-                self._pc = instruction.next_address
+                # A character glass renders only windows 0 and 1;
+                # a stage erases any of the eight (§8.8.5.3).
+                if not self._frontend.has_stage and target > UPPER_WINDOW:
+                    self._pc = instruction.next_address
 
-                return
+                    return
 
-            window = target
+                window = target
+
+            if window == UNSPLIT_ERASE:
+                # §8.8.5.3.1: erasing -1 selects window 0.
+                self._windows.selected = LOWER_WINDOW
 
         self._frontend.erase_window(window)
         self._pc = instruction.next_address
@@ -2226,10 +2239,38 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_split_window(self, instruction: Instruction) -> None:
-        """Hand the upper window's new height to the frontend (§8.7.2)."""
+        """Hand the upper window's new height to the frontend (§8.7.2).
 
-        self._frontend.split_window(self._value(instruction.operands[0]))
+        In Version 6 the height is in units and the split tiles
+        ledger windows 1 and 0 vertically first (§8.8.4.1), so
+        get_wind_prop sees the new geometry whatever the glass.
+        """
+
+        height = self._value(instruction.operands[0])
+
+        if self._memory.header.version == PACKED_PC_VERSION:
+            self._tile_split(height)
+
+        self._frontend.split_window(height)
         self._pc = instruction.next_address
+
+    def _tile_split(self, height: int) -> None:
+        """Tile ledger windows 1 and 0 vertically (§8.8.4.1).
+
+        Window 1 takes the top of the screen at the given height
+        in units and window 0 the rest; x coordinates and widths
+        stay put.
+        """
+
+        _, font_height = self._unit_metrics()
+        screen_height = self._frontend.screen_lines * font_height
+
+        self._windows.write_property(UPPER_WINDOW, Y_COORDINATE, 1)
+        self._windows.write_property(UPPER_WINDOW, Y_SIZE, height)
+        self._windows.write_property(LOWER_WINDOW, Y_COORDINATE, height + 1)
+        self._windows.write_property(
+            LOWER_WINDOW, Y_SIZE, max(screen_height - height, 0)
+        )
 
     def _unit_metrics(self) -> tuple[int, int]:
         """One character cell's width and height, in units.
@@ -2283,7 +2324,22 @@ class Machine:
             selected = self._windows.resolve(window)
             self._windows.selected = selected
 
-            if selected <= UPPER_WINDOW:
+            if self._frontend.has_stage:
+                # The stage hears every selection. A cursor the
+                # game aimed at this window while it was unselected
+                # rides along now; otherwise the window's own
+                # remembered cursor stands (§8.8.3.5) -- the stage
+                # tracks it through printing, which the ledger's
+                # stale copy does not.
+                self._frontend.set_window(selected)
+
+                if selected in self._aimed:
+                    self._aimed.discard(selected)
+                    self._frontend.set_cursor(
+                        self._windows.property(selected, Y_CURSOR),
+                        self._windows.property(selected, X_CURSOR),
+                    )
+            elif selected <= UPPER_WINDOW:
                 self._frontend.set_window(selected)
         else:
             self._frontend.set_window(window)
@@ -2301,6 +2357,7 @@ class Machine:
         values = [self._value(operand) for operand in instruction.operands]
 
         self._windows.move(values[0], values[1], values[2])
+        self._place_staged(values[0])
         self._pc = instruction.next_address
 
     def _op_window_size(self, instruction: Instruction) -> None:
@@ -2313,7 +2370,29 @@ class Machine:
         values = [self._value(operand) for operand in instruction.operands]
 
         self._windows.resize(values[0], values[1], values[2])
+        self._place_staged(values[0])
         self._pc = instruction.next_address
+
+    def _place_staged(self, window: int) -> None:
+        """Send a window's ledger geometry to a staged frontend.
+
+        Character frontends keep their two-window mimicry; the
+        stage places any of the eight where the ledger says
+        (§8.8.3.4).
+        """
+
+        if not self._frontend.has_stage:
+            return
+
+        target = self._windows.resolve(window)
+
+        self._frontend.place_window(
+            target,
+            self._windows.property(target, Y_COORDINATE),
+            self._windows.property(target, X_COORDINATE),
+            self._windows.property(target, Y_SIZE),
+            self._windows.property(target, X_SIZE),
+        )
 
     def _op_window_style(self, instruction: Instruction) -> None:
         """Change a window's attribute flags (§15 window_style)."""
@@ -2411,6 +2490,14 @@ class Machine:
 
         self._windows.write_property(target, Y_CURSOR, line)
         self._windows.write_property(target, X_CURSOR, column)
+
+        if self._frontend.has_stage:
+            if target == self._windows.selected:
+                self._frontend.set_cursor(line, column)
+            else:
+                # Aimed at an unselected window: the move reaches
+                # the stage when that window is next selected.
+                self._aimed.add(target)
 
     def _op_output_stream(self, instruction: Instruction) -> None:
         """Select or deselect an output stream (§7, §15).
@@ -3132,16 +3219,22 @@ class Machine:
         return number, line, column
 
     def _op_scroll_window(self, instruction: Instruction) -> None:
-        """Let a manual scroll pass in the conforming quiet (§15).
+        """Scroll a window's pixels up or down (§15 scroll_window).
 
-        scroll_window shifts a window's pixels up or down, blanking
-        what is exposed -- unrelated, §15 notes, to the scrolling
-        attribute. A character glass scrolls its own lower window
-        by §8.7 as text flows, and renders the other windows as
-        flowing text besides, so there are no pixels here to shift:
-        the true pixel scroll waits on the graphics frontend.
-        Arthur scrolls its story window at the first prompt.
+        Unrelated, §15 notes, to the scrolling attribute. On a
+        staged frontend the window's own rectangle shifts by the
+        signed pixel amount; a character glass scrolls its lower
+        window by §8.7 as text flows and has no pixels here to
+        shift, so the call passes in the conforming quiet. Arthur
+        scrolls its story window at every prompt.
         """
+
+        values = [self._value(operand) for operand in instruction.operands]
+
+        if self._frontend.has_stage:
+            self._frontend.scroll_window(
+                self._windows.resolve(signed(values[0])), signed(values[1])
+            )
 
         self._pc = instruction.next_address
 

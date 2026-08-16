@@ -809,6 +809,142 @@ def test_pictures_draw_where_the_ledger_says() -> None:
     assert_that(frontend.erased).is_equal_to([(4, 2, 3)])
 
 
+class StagedFrontend(PlainFrontend):
+    """A frontend claiming the §8.8 stage, recording what it hears."""
+
+    has_stage = True
+
+    def __init__(self) -> None:
+        super().__init__(lambda _text: None)
+        self.events: list[tuple[object, ...]] = []
+
+    def set_window(self, window: int) -> None:
+        self.events.append(("select", window))
+
+    def set_cursor(self, line: int, column: int) -> None:
+        self.events.append(("cursor", line, column))
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        self.events.append(("place", window, line, column, height, width))
+
+    def erase_window(self, window: int) -> None:
+        self.events.append(("erase", window))
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        self.events.append(("scroll", window, pixels))
+
+
+# A staged frontend hears the ledger's geometry: moves and sizes
+# arrive as placements, every selection arrives with the selected
+# window's ledger cursor riding along (§8.8.3.5), and a cursor
+# move for the selected window is forwarded -- one aimed at a
+# named, unselected window stays in the ledger until selection.
+def test_staged_frontends_hear_the_ledger_geometry() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x10, 0x57, 0x03, 0x15, 0x29],
+                *[0xBE, 0x11, 0x57, 0x03, 0x12, 0x64],
+                *[0xEF, 0x57, 0x05, 0x09, 0x03],
+                *[0xEB, 0x7F, 0x03],
+                *[0xEF, 0x5F, 0x07, 0x0B],
+                *[0xEB, 0x7F, 0x02],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    assert_that(frontend.events).is_equal_to(
+        [
+            ("place", 3, 21, 41, 0, 0),
+            ("place", 3, 21, 41, 18, 100),
+            ("select", 3),
+            ("cursor", 5, 9),
+            ("cursor", 7, 11),
+            ("select", 2),
+        ]
+    )
+
+
+# A staged frontend erases any of the eight windows -- no window
+# is skipped as unrendered -- and erasing -1 selects window 0 in
+# the ledger (§8.8.5.3.1), which the closing -3 erase proves.
+def test_staged_erasures_reach_every_window() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xEB, 0x7F, 0x05],
+                *[0xED, 0x7F, 0x06],
+                *[0xED, 0x3F, 0xFF, 0xFF],
+                *[0xED, 0x3F, 0xFF, 0xFD],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    erasures = [event for event in frontend.events if event[0] == "erase"]
+
+    assert_that(erasures).is_equal_to([("erase", 6), ("erase", -1), ("erase", 0)])
+
+
+# A staged frontend hears scroll_window with the window resolved
+# and the pixel amount signed; a character glass keeps the old
+# conforming quiet (§15 scroll_window).
+def test_staged_frontends_hear_the_scroll() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x14, 0x5F, 0x00, 0x12],
+                *[0xBE, 0x14, 0x0F, 0xFF, 0xFD, 0xFF, 0xEE],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    scrolls = [event for event in frontend.events if event[0] == "scroll"]
+
+    assert_that(scrolls).is_equal_to([("scroll", 0, 18), ("scroll", 0, -18)])
+
+
+# The Version 6 split tiles the ledger itself (§8.8.4.1): window 1
+# takes the top at the given height in units, window 0 the rest of
+# the screen, and get_wind_prop sees it whatever the glass.
+def test_v6_split_tiles_the_ledger() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xEA, 0x7F, 0x28],
+                *[0xBE, 0x13, 0x5F, 0x01, 0x00, 0x10],
+                *[0xBE, 0x13, 0x5F, 0x01, 0x02, 0x11],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x00, 0x12],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x02, 0x13],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(1)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(40)
+    assert_that(machine.memory.read_word(0x84)).is_equal_to(41)
+    assert_that(machine.memory.read_word(0x86)).is_equal_to(215)
+
+
 # Drawing a picture the gallery does not hold is the one thing §15
 # calls illegal, and the machine says so loudly.
 def test_drawing_an_unknown_picture_is_refused() -> None:

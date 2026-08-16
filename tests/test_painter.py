@@ -86,7 +86,9 @@ def test_the_picture_seam_is_inert() -> None:
 
     frontend.draw_picture(1, 1, 1)
     frontend.erase_picture(1, 1, 1)
+    frontend.place_window(1, 1, 1, 1, 1)
 
+    assert_that(frontend.has_stage).is_false()
     assert_that(frontend.has_pictures).is_false()
     assert_that(frontend.picture_data(1)).is_none()
     assert_that(frontend.picture_census()).is_equal_to((0, 0))

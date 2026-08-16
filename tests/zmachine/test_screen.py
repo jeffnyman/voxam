@@ -26,6 +26,7 @@ class ScreenRecorder:
     font_width = 1
     font_height = 1
     has_pictures = False
+    has_stage = False
 
     def __init__(self) -> None:
         self.styles: list[int] = []
@@ -92,6 +93,14 @@ class ScreenRecorder:
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the screen tests never draw."""
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """Discard: the screen tests have no stage."""
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """Discard: the screen tests have no stage."""
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the screen tests never erase pictures."""

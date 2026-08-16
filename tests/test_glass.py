@@ -242,6 +242,65 @@ def test_erasure_paints_the_background_block(tiny_png: bytes) -> None:
     assert_that(glass.drawn).is_length(1)
 
 
+# A Version 6 session plays on the §8.8 stage: the frontend
+# claims it, placements land there, and text follows the placed
+# windows; other versions have no stage and placements change
+# nothing.
+def test_version_6_plays_on_the_stage() -> None:
+    frontend, _glass = windowed(version=6)
+
+    assert_that(frontend.has_stage).is_true()
+
+    frontend.place_window(2, 19, 19, 36, 90)
+    frontend.set_window(2)
+    frontend.set_cursor(1, 1)
+    frontend.write("staged")
+
+    assert_that(frontend.model.row_text(2)).is_equal_to("  staged")
+
+    frontend.scroll_window(2, 18)
+
+    assert_that(frontend.model.row_text(2)).is_equal_to("")
+
+    bare, _ = windowed()
+
+    assert_that(bare.has_stage).is_false()
+
+    bare.place_window(2, 1, 1, 18, 18)
+    bare.scroll_window(2, 18)
+
+
+# The shadow keeps unchanged cells off the glass: a second write
+# paints only its own cells, never the rest of the row -- which is
+# what lets a drawn picture survive beside text (§8.8.3).
+def test_unchanged_cells_stay_unpainted() -> None:
+    frontend, glass = windowed()
+
+    frontend.write("hi")
+    glass.painted.clear()
+    frontend.write("!")
+
+    assert_that([entry[2] for entry in glass.painted]).is_equal_to(["!"])
+
+
+# A stage erasure forgets its region's shadow: every cell in the
+# rectangle repaints, blank or not, because the erasure may have
+# painted over pictures (§8.8.5.3).
+def test_stage_erasures_repaint_their_region() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.write("hello")
+    frontend.model.sweep()
+    glass.painted.clear()
+    frontend.erase_window(-2)
+
+    full_rows = {
+        entry[0] for entry in glass.painted if len(str(entry[2])) == StubGlass.columns
+    }
+
+    assert_that(full_rows).contains(1, 8)
+
+
 # The status line draws through the model like any other row --
 # the v3 pre-read redraw path.
 def test_the_status_line_blits() -> None:
