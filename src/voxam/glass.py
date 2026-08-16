@@ -24,10 +24,9 @@ from collections.abc import Callable, Sequence
 from itertools import groupby
 from typing import Any, Protocol, cast
 
+from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.painter import (
-    FONT_3_CHARACTERS,
-    FONT_3_REVERSED,
     IDLE_HEARTBEAT,
     INPUT_ONLY_FIRST,
     INPUT_ONLY_LAST,
@@ -79,8 +78,14 @@ class Glass(Protocol):
         *,
         bold: bool,
         italic: bool,
+        graphics: bool,
     ) -> None:
-        """Blit a run of same-dressed characters into their cells."""
+        """Blit a run of same-dressed characters into their cells.
+
+        A graphics run is in the §16 character graphics font: the
+        glass draws the spec's own 8x8 bitmaps instead of glyphs
+        from a face.
+        """
 
     def present(self) -> None:
         """Put the painted frame on screen."""
@@ -102,7 +107,7 @@ class GraphicsFrontend:
     The same shape as the terminal painter: every operation updates
     the model first, then the damaged rows redraw. The capability
     claims are the window's truth -- real styles, real colours, the
-    §16 font as Unicode stand-ins in a monospace face.
+    §16 font as the spec's own pixels.
     """
 
     has_status_line = True
@@ -371,41 +376,48 @@ class GraphicsFrontend:
 
         for dress, grouped in groupby(cells, key=lambda pair: pair[1]):
             text = "".join(character for character, _ in grouped)
-            ink, paper, bold, italic = dress
+            ink, paper, bold, italic, graphics = dress
 
-            self._glass.paint(row, column, text, ink, paper, bold=bold, italic=italic)
+            self._glass.paint(
+                row,
+                column,
+                text,
+                ink,
+                paper,
+                bold=bold,
+                italic=italic,
+                graphics=graphics,
+            )
 
             column += len(text)
 
 
 def _appearance(
     cell: Cell,
-) -> tuple[str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool]]:
+) -> tuple[str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool, bool]]:
     """One cell's character and dress, reverse video pre-swapped.
 
-    Cells in the §16 character graphics font translate to their
-    Unicode stand-ins, the reverse-twin shapes flipping reverse
-    instead of carrying it in the glyph -- the same calls the
-    terminal painter settled by eyeball.
+    Cells in the §16 character graphics font keep their raw
+    character and mark the dress graphics: the glass draws the
+    spec's own bitmaps for them, so no Unicode stand-in is asked
+    to approximate a pixel, and the reverse twins at 123 to 126
+    arrive as the inverted bitmaps the spec drew for them.
     """
 
-    character = cell.character
     style = cell.style
-
-    if cell.font == GRAPHICS_FONT:
-        if character in FONT_3_REVERSED:
-            character = FONT_3_REVERSED[character]
-            style ^= REVERSE
-        else:
-            character = FONT_3_CHARACTERS.get(character, character)
-
     ink = COLOUR_VALUES.get(cell.foreground, INK_DEFAULT)
     paper = COLOUR_VALUES.get(cell.background, PAPER_DEFAULT)
 
     if style & REVERSE:
         ink, paper = paper, ink
 
-    return character, (ink, paper, bool(style & BOLD), bool(style & ITALIC))
+    return cell.character, (
+        ink,
+        paper,
+        bool(style & BOLD),
+        bool(style & ITALIC),
+        cell.font == GRAPHICS_FONT,
+    )
 
 
 def open_pygame_glass() -> Glass:
@@ -454,6 +466,9 @@ class _PygameGlass:
         module.display.set_caption("Voxam")
 
         self._keys = _key_characters(module)
+        self._tiles: dict[
+            tuple[str, tuple[int, int, int], tuple[int, int, int]], Any
+        ] = {}
 
     def paint(  # noqa: PLR0913 -- a run carries its whole dress
         self,
@@ -465,6 +480,7 @@ class _PygameGlass:
         *,
         bold: bool,
         italic: bool,
+        graphics: bool,
     ) -> None:
         font: Any = self._fonts.get((bold, italic), self._fonts[(False, False)])
         x = (column - 1) * self._cell_width
@@ -477,9 +493,41 @@ class _PygameGlass:
             if character == " ":
                 continue
 
-            glyph = font.render(character, True, ink)
+            if graphics and ord(character) in FONT_3_BITMAPS:
+                glyph = self._tile(character, ink, paper)
+            else:
+                glyph = font.render(character, True, ink)
 
             self._screen.blit(glyph, (x + offset * self._cell_width, y))
+
+    def _tile(
+        self, character: str, ink: tuple[int, int, int], paper: tuple[int, int, int]
+    ) -> object:
+        """One §16 bitmap stretched to the cell, cached by dress.
+
+        The stretch is deliberately edge-to-edge: font 3's shapes
+        are built to tile, so a map corridor drawn in one cell
+        must meet its neighbour with no seam. Pygame's scale is
+        nearest-neighbour, which keeps the pixels square-shouldered
+        the way a 1988 monitor drew them.
+        """
+
+        cached = self._tiles.get((character, ink, paper))
+
+        if cached is None:
+            module = self._pygame
+            tile: Any = module.Surface((PIXELS, ROWS))
+
+            for y, bits in enumerate(FONT_3_BITMAPS[ord(character)]):
+                for x in range(PIXELS):
+                    lit = bits & (0x80 >> x)
+
+                    tile.set_at((x, y), ink if lit else paper)
+
+            cached = module.transform.scale(tile, (self._cell_width, self._cell_height))
+            self._tiles[(character, ink, paper)] = cached
+
+        return cached
 
     def present(self) -> None:
         self._pygame.display.flip()
