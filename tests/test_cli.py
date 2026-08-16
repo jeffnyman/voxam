@@ -610,7 +610,7 @@ def test_the_gallery_helper_filters_empty_blorbs() -> None:
     assert_that(_gallery(sounded_blorb())).is_none()
 
     rect = Chunk(b"Rect", (10).to_bytes(4, "big") + (4).to_bytes(4, "big"))
-    pictured = Blorb((Resource(b"Pict", 1, rect),), None, None, frozenset(), 27)
+    pictured = Blorb((Resource(b"Pict", 1, rect),), None, None, frozenset(), release=27)
     gallery = cast("Gallery", _gallery(pictured))
 
     assert_that(gallery).is_instance_of(Gallery)

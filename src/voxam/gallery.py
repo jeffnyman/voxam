@@ -9,10 +9,15 @@ draw_picture first asks, which keeps a two-thousand-picture Zork
 Zero from paying its whole decode bill at boot. Rect entries are
 the Blorb format's invisible pictures: real sizes games measure
 and position by, with nothing to draw (Blorb: Picture Resource
-Chunks).
+Chunks). The Reso chunk's scaling instructions ride along too:
+on a screen roomier than the art's standard window, scalable
+pictures grow by the Elbow Room Factor, and picture_data must
+report the grown size, because games lay out their whole stage
+from those words (Blorb: The Resolution Chunk).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from fractions import Fraction
 
 from voxam.errors import PNGError
 from voxam.png import IHDR, SIGNATURE, Picture, decode
@@ -39,6 +44,43 @@ class Placard:
     height: int
 
 
+@dataclass(frozen=True)
+class Scaling:
+    """One scalable picture's ratios (Blorb: The Resolution Chunk).
+
+    Attributes:
+        standard: The standard ratio the Elbow Room Factor
+            multiplies.
+        minimum: The floor the result never drops below; None
+            means no minimum.
+        maximum: The ceiling it never rises above; None means no
+            maximum.
+    """
+
+    standard: Fraction
+    minimum: Fraction | None
+    maximum: Fraction | None
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """The Reso chunk: a standard window and its scalable art.
+
+    Attributes:
+        width: The standard window width in pixels -- the screen
+            the author drew for.
+        height: The standard window height in pixels.
+        scalings: Each scalable picture's ratios, by number. A
+            picture with no entry is not scalable at all: one
+            image pixel per screen pixel, whatever the room
+            (Blorb: The Resolution Chunk).
+    """
+
+    width: int
+    height: int
+    scalings: dict[int, Scaling] = field(default_factory=dict)
+
+
 class Gallery:
     """A Blorb's drawable art, by number: sizes eager, pixels lazy.
 
@@ -47,18 +89,26 @@ class Gallery:
             picture_data census reports (§15 picture_data).
     """
 
-    def __init__(self, art: dict[int, bytes | Placard], release: int) -> None:
+    def __init__(
+        self,
+        art: dict[int, bytes | Placard],
+        release: int,
+        resolution: Resolution | None = None,
+    ) -> None:
         """Hang the art: PNG bytes or placards, by picture number.
 
         Args:
             art: Each picture number's PNG file bytes, or a
                 Placard where the Blorb held a Rect.
             release: The picture file's release number.
+            resolution: The Reso chunk's scaling instructions;
+                None means every picture is non-scalable.
         """
 
         self._art = art
         self._decoded: dict[int, Picture] = {}
         self.release = release
+        self._resolution = resolution
 
     @property
     def count(self) -> int:
@@ -86,6 +136,41 @@ class Gallery:
             return entry.height, entry.width
 
         return _measured(entry)
+
+    def scale(self, number: int, screen_width: int, screen_height: int) -> Fraction:
+        """A picture's scaling ratio on a screen of this size.
+
+        The Elbow Room Factor is how many times the standard
+        window fits the screen, the tighter axis deciding; a
+        listed picture's standard ratio multiplies it, clamped
+        between its minimum and maximum. A picture with no entry
+        -- or a Blorb with no Reso chunk -- is not scalable and
+        stays at 1 (Blorb: The Resolution Chunk). The ratio is
+        exact: a Fraction, so the reported and drawn sizes can
+        never drift apart.
+        """
+
+        if self._resolution is None:
+            return Fraction(1)
+
+        scaling = self._resolution.scalings.get(number)
+
+        if scaling is None:
+            return Fraction(1)
+
+        room = min(
+            Fraction(screen_width, self._resolution.width),
+            Fraction(screen_height, self._resolution.height),
+        )
+        ratio = room * scaling.standard
+
+        if scaling.minimum is not None and ratio < scaling.minimum:
+            return scaling.minimum
+
+        if scaling.maximum is not None and ratio > scaling.maximum:
+            return scaling.maximum
+
+        return ratio
 
     def picture(self, number: int) -> Picture | None:
         """A picture's decoded pixels, None for a placard or none.

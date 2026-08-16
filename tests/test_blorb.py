@@ -157,6 +157,76 @@ def test_release_and_rect_chunks_are_policed() -> None:
         stubby.gallery()
 
 
+def reso_chunk(entries: bytes = b"", px: int = 320, py: int = 200) -> bytes:
+    header = b"".join(n.to_bytes(4, "big") for n in (px, py, 0, 0, 0, 0))
+
+    return chunk(b"Reso", header + entries)
+
+
+def reso_entry(
+    number: int,
+    ratnum: int = 1,
+    ratden: int = 1,
+    minnum: int = 0,
+    minden: int = 0,
+    maxnum: int = 0,
+    maxden: int = 0,
+) -> bytes:
+    return b"".join(
+        n.to_bytes(4, "big")
+        for n in (number, ratnum, ratden, minnum, minden, maxnum, maxden)
+    )
+
+
+# The Reso chunk's scaling instructions reach the gallery: on a
+# 640-by-400 screen against a 320-by-200 standard window the Elbow
+# Room Factor is 2, multiplied by each listed picture's standard
+# ratio and clamped by its limits; unlisted pictures stay at 1
+# (Blorb: The Resolution Chunk).
+def test_the_resolution_chunk_reaches_the_gallery() -> None:
+    entries = (
+        reso_entry(1, ratnum=2)
+        + reso_entry(2, minnum=3, minden=1)
+        + reso_entry(3, ratnum=10, maxnum=3, maxden=1)
+    )
+    data = build_blorb(
+        [(b"Pict", 1, Chunk(b"PNG ", b"png-bytes"))],
+        extra=reso_chunk(entries),
+    )
+    gallery = Blorb.parse(data).gallery()
+
+    assert_that(gallery.scale(1, 640, 400)).is_equal_to(4)
+    assert_that(gallery.scale(2, 640, 400)).is_equal_to(3)
+    assert_that(gallery.scale(3, 640, 400)).is_equal_to(3)
+    assert_that(gallery.scale(9, 640, 400)).is_equal_to(1)
+
+
+# Reso chunks are policed: doubled chunks, ragged lengths, a zero
+# standard window, a zero standard denominator, and a half-zero
+# limit fraction are each refused; a Blorb without one simply has
+# no scaling (Blorb: The Resolution Chunk).
+def test_resolution_chunks_are_policed() -> None:
+    assert_that(Blorb.parse(build_blorb([])).resolution).is_none()
+
+    with pytest.raises(BlorbError, match="more than one"):
+        Blorb.parse(build_blorb([], extra=reso_chunk() + reso_chunk()))
+
+    with pytest.raises(BlorbError, match="24-byte header"):
+        Blorb.parse(build_blorb([], extra=chunk(b"Reso", b"\x00" * 10)))
+
+    with pytest.raises(BlorbError, match="24-byte header"):
+        Blorb.parse(build_blorb([], extra=chunk(b"Reso", b"\x00" * 30)))
+
+    with pytest.raises(BlorbError, match="must be non-zero"):
+        Blorb.parse(build_blorb([], extra=reso_chunk(px=0)))
+
+    with pytest.raises(BlorbError, match="divides by zero"):
+        Blorb.parse(build_blorb([], extra=reso_chunk(reso_entry(1, ratden=0))))
+
+    with pytest.raises(BlorbError, match="half-zero"):
+        Blorb.parse(build_blorb([], extra=reso_chunk(reso_entry(1, minnum=1))))
+
+
 def _payload(resource: Resource | None) -> bytes:
     """The resource's chunk payload, empty when there is none."""
 

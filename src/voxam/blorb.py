@@ -13,12 +13,13 @@ PNG or an AIFF is the frontend's business, in releases to come.
 """
 
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Self
 
 from voxam import aiff
 from voxam.errors import BlorbError, IFFError
-from voxam.gallery import Gallery, Placard
+from voxam.gallery import Gallery, Placard, Resolution, Scaling
 from voxam.iff import Chunk, chunk, parse_form
 from voxam.zmachine.quetzal import IDENTITY_SIZE, story_identity
 from voxam.zmachine.story import Story
@@ -54,6 +55,14 @@ RECT_SIZE = 8
 # picture_data census reports (Blorb: Release Number Chunk).
 RELEASE_ID = b"RelN"
 RELEASE_SIZE = 2
+
+# The resolution chunk: six words of standard, minimum, and
+# maximum window sizes, then 28-byte entries of a picture number
+# and its three scaling ratios (Blorb: The Resolution Chunk).
+RESOLUTION_ID = b"Reso"
+RESOLUTION_HEADER = 24
+RESOLUTION_ENTRY = 28
+WORD_SIZE = 4
 
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
@@ -104,15 +113,20 @@ class Blorb:
             where the opcode itself says.
         release: The resource file's release number, 0 without a
             RelN chunk (Blorb: Release Number Chunk).
+        resolution: The Reso chunk's scaling instructions, or
+            None without one -- every picture non-scalable
+            (Blorb: The Resolution Chunk).
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- one seat per optional chunk
         self,
         resources: tuple[Resource, ...],
         frontispiece: int | None,
         identity: bytes | None,
         loops: frozenset[int],
+        *,
         release: int = 0,
+        resolution: Resolution | None = None,
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
@@ -121,6 +135,7 @@ class Blorb:
         self.identity = identity
         self.loops = loops
         self.release = release
+        self.resolution = resolution
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -174,7 +189,14 @@ class Blorb:
             None,
         )
 
-        return cls(resources, frontispiece, identity, _loops(chunks), _release(chunks))
+        return cls(
+            resources,
+            frontispiece,
+            identity,
+            _loops(chunks),
+            release=_release(chunks),
+            resolution=_resolution(chunks),
+        )
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
         """The resource a game asks for by usage and number."""
@@ -246,7 +268,7 @@ class Blorb:
             elif piece.chunk.chunk_id == RECT_ID:
                 art[piece.number] = _placard(piece)
 
-        return Gallery(art, self.release)
+        return Gallery(art, self.release, self.resolution)
 
     def sounds(self) -> dict[int, aiff.Sound]:
         """Decode every sampled sound resource, by number.
@@ -441,6 +463,115 @@ def _release(chunks: tuple[Chunk, ...]) -> int:
         raise BlorbError(msg)
 
     return int.from_bytes(found[0].payload, "big")
+
+
+def _resolution(chunks: tuple[Chunk, ...]) -> Resolution | None:
+    """The scaling instructions, from at most one Reso chunk.
+
+    Raises:
+        BlorbError: For a doubled Reso; one whose length is not
+            the six-word header plus whole 28-byte entries; a
+            zero standard window dimension; or a half-zero ratio
+            fraction, which the spec calls illegal (Blorb: The
+            Resolution Chunk).
+    """
+
+    found = [piece for piece in chunks if piece.chunk_id == RESOLUTION_ID]
+
+    if not found:
+        return None
+
+    if len(found) > 1:
+        msg = (
+            f"{len(found)} Reso chunks appear, but there may not be "
+            f"more than one (Blorb: The Resolution Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    payload = found[0].payload
+
+    if (
+        len(payload) < RESOLUTION_HEADER
+        or (len(payload) - RESOLUTION_HEADER) % RESOLUTION_ENTRY
+    ):
+        msg = (
+            f"a Reso chunk is a 24-byte header and 28-byte entries, "
+            f"but this one holds {len(payload)} bytes (Blorb: The "
+            f"Resolution Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    width = int.from_bytes(payload[:WORD_SIZE], "big")
+    height = int.from_bytes(payload[WORD_SIZE : 2 * WORD_SIZE], "big")
+
+    if not width or not height:
+        msg = (
+            f"the Reso standard window is {width} by {height}, but "
+            f"px and py must be non-zero (Blorb: The Resolution Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    scalings = {}
+
+    for start in range(RESOLUTION_HEADER, len(payload), RESOLUTION_ENTRY):
+        words = [
+            int.from_bytes(payload[at : at + WORD_SIZE], "big")
+            for at in range(start, start + RESOLUTION_ENTRY, WORD_SIZE)
+        ]
+        number = words[0]
+        scalings[number] = Scaling(
+            standard=_standard_ratio(number, words[1], words[2]),
+            minimum=_limit_ratio(number, words[3], words[4]),
+            maximum=_limit_ratio(number, words[5], words[6]),
+        )
+
+    return Resolution(width, height, scalings)
+
+
+def _standard_ratio(number: int, numerator: int, denominator: int) -> Fraction:
+    """A picture's standard ratio, which has no zero form.
+
+    Raises:
+        BlorbError: For a zero denominator: only the minimum and
+            maximum ratios may be zero, and only whole (Blorb:
+            The Resolution Chunk).
+    """
+
+    if not denominator:
+        msg = (
+            f"picture {number}'s standard ratio divides by zero "
+            f"(Blorb: The Resolution Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    return Fraction(numerator, denominator)
+
+
+def _limit_ratio(number: int, numerator: int, denominator: int) -> Fraction | None:
+    """A minimum or maximum ratio; zero-over-zero means no limit.
+
+    Raises:
+        BlorbError: When only half the fraction is zero, which
+            the spec calls illegal (Blorb: The Resolution Chunk).
+    """
+
+    if not numerator and not denominator:
+        return None
+
+    if not numerator or not denominator:
+        msg = (
+            f"picture {number} has a half-zero ratio of {numerator}/"
+            f"{denominator}, which is illegal (Blorb: The Resolution "
+            f"Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    return Fraction(numerator, denominator)
 
 
 def _frontispiece(chunks: tuple[Chunk, ...]) -> int | None:
