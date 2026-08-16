@@ -49,9 +49,14 @@ def test_plain_frontend_drops_screen_operations() -> None:
     frontend.split_window(3)
     frontend.set_cursor(1, 1)
     frontend.bleep(1)
+    frontend.draw_picture(1, 1, 1)
+    frontend.erase_picture(1, 1, 1)
     frontend.write("after")
 
     assert_that(pieces).is_equal_to(["after"])
+    assert_that(frontend.has_pictures).is_false()
+    assert_that(frontend.picture_data(1)).is_none()
+    assert_that(frontend.picture_census()).is_equal_to((0, 0))
 
 
 # The routing rule that keeps Version 4 transcripts clean: a one- or

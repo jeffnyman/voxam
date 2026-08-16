@@ -292,6 +292,9 @@ class ScreenFrontend:
     # measurement, so the font stays 1 by 1.
     font_width = 1
     font_height = 1
+    # No in-play pictures: the sixel cover is a doorway courtesy,
+    # and the header's cleared bit keeps the claim honest (§11.1.4).
+    has_pictures = False
 
     def __init__(
         self,
@@ -414,6 +417,26 @@ class ScreenFrontend:
         """Turn lower-window word wrapping on or off (§15 buffer_mode)."""
 
         self._model.set_buffering(buffered)
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:  # noqa: ARG002
+        """No picture has a size here: cells are not a canvas (§15).
+
+        The sixel cover is a doorway courtesy, not an in-play
+        picture system; the header's cleared bit says so.
+        """
+
+        return None
+
+    def picture_census(self) -> tuple[int, int]:
+        """A census of zero pictures, release zero (§15 picture_data)."""
+
+        return 0, 0
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Draw nothing: this frontend claimed no pictures (§11.1.4)."""
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
 
     def bleep(self, number: int) -> None:  # noqa: ARG002
         """Ring the terminal bell: one bell serves both bleeps (§9)."""

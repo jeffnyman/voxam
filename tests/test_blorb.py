@@ -110,6 +110,53 @@ def test_the_frontispiece_is_read_and_policed() -> None:
         Blorb.parse(stunted)
 
 
+# The gallery hangs the drawable art: PNG bytes by number, Rect
+# placeholders as placards -- width word then height word -- and a
+# JPEG left out, since a picture Voxam cannot draw is not
+# "available" in picture_data's sense (§15). The RelN release
+# number rides along for the census.
+def test_the_gallery_hangs_drawable_art() -> None:
+    rect = (314).to_bytes(4, "big") + (84).to_bytes(4, "big")
+    data = build_blorb(
+        [
+            (b"Pict", 1, Chunk(b"PNG ", b"png-bytes")),
+            (b"Pict", 2, Chunk(b"Rect", rect)),
+            (b"Pict", 3, Chunk(b"JPEG", b"jpeg-bytes")),
+            (b"Snd ", 4, Chunk(b"FORM", b"AIFFnoise")),
+        ],
+        extra=chunk(b"RelN", (27).to_bytes(2, "big")),
+    )
+    blorb = Blorb.parse(data)
+
+    assert_that(blorb.release).is_equal_to(27)
+
+    gallery = blorb.gallery()
+
+    assert_that(gallery.count).is_equal_to(2)
+    assert_that(gallery.size(2)).is_equal_to((84, 314))
+    assert_that(gallery.release).is_equal_to(27)
+
+
+# A Blorb without a RelN releases 0; doubled or short RelN chunks
+# are refused, as is a Rect without its eight width-and-height
+# bytes (Blorb: Release Number Chunk, Picture Resource Chunks).
+def test_release_and_rect_chunks_are_policed() -> None:
+    assert_that(Blorb.parse(build_blorb([])).release).is_zero()
+
+    release = chunk(b"RelN", (27).to_bytes(2, "big"))
+
+    with pytest.raises(BlorbError, match="more than one"):
+        Blorb.parse(build_blorb([], extra=release + release))
+
+    with pytest.raises(BlorbError, match="two release-number bytes"):
+        Blorb.parse(build_blorb([], extra=chunk(b"RelN", b"\x1b")))
+
+    stubby = Blorb.parse(build_blorb([(b"Pict", 5, Chunk(b"Rect", b"\x00\x00"))]))
+
+    with pytest.raises(BlorbError, match="Rect of 2 bytes"):
+        stubby.gallery()
+
+
 def _payload(resource: Resource | None) -> bytes:
     """The resource's chunk payload, empty when there is none."""
 

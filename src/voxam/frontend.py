@@ -84,6 +84,9 @@ class Frontend(Protocol):
         has_character_graphics: Whether the §16 character graphics
             font can be drawn (§8.1.5.1).
         has_colours: Whether coloured text can be shown (§8.3).
+        has_pictures: Whether pictures can actually be drawn
+            (§11.1.4) -- true only where a gallery of art hangs
+            behind a glass with pixels.
         screen_lines: The screen height in lines; 255 means
             "infinite", the claim of a stream that never pages
             (§8.4).
@@ -108,6 +111,7 @@ class Frontend(Protocol):
     has_sounds: bool
     has_character_graphics: bool
     has_colours: bool
+    has_pictures: bool
     screen_lines: int
     screen_columns: int
     font_width: int
@@ -176,6 +180,34 @@ class Frontend(Protocol):
 
         The upper window's cursor -- the one set_cursor can move
         -- which is what get_cursor reads back.
+        """
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:
+        """A picture's height and width in pixels, None for none.
+
+        The order is picture_data's own: height first (§15). None
+        is the answer for every number on a frontend that hangs
+        no pictures.
+        """
+
+    def picture_census(self) -> tuple[int, int]:
+        """How many pictures hang, and the art's release number.
+
+        The picture_data number-0 census (§15): (0, 0) on a
+        frontend without pictures.
+        """
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Draw a picture, top left at a screen units position (§15).
+
+        Only frontends that claimed pictures hear the call, with
+        the cursor defaults and window origin already resolved.
+        """
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Paint a picture's region to the background colour (§15).
+
+        Only frontends that claimed pictures hear the call.
         """
 
     def bleep(self, number: int) -> None:
@@ -247,6 +279,10 @@ class PlainFrontend:
     # A transcript prints in ink it does not choose; the header says
     # so, and colour requests legally pass unanswered (§8.3.2).
     has_colours = False
+    # A stream has no pixels to hang art on; the cleared header bit
+    # says so, and picture_data answers with the census of an
+    # interpreter that has none (§11.1.4, §15).
+    has_pictures = False
     screen_lines = 255
     screen_columns = 80
     # A stream measures in characters: one unit is one character,
@@ -399,6 +435,26 @@ class PlainFrontend:
         """Whether the upper window is tall enough to be content."""
 
         return self._split > STATUS_CHROME_LINES
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:  # noqa: ARG002
+        """No picture has a size here: a stream hangs none (§15)."""
+
+        return None
+
+    def picture_census(self) -> tuple[int, int]:
+        """A census of zero pictures, release zero (§15 picture_data)."""
+
+        return 0, 0
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Draw nothing: this frontend claimed no pictures (§11.1.4).
+
+        The machine never sends a picture here -- has_pictures is
+        False -- and a stray call changes nothing.
+        """
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a transcript is quieter than a terminal.

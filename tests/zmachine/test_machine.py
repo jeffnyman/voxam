@@ -723,6 +723,104 @@ def test_picture_data_leaves_invalid_numbers_unanswered() -> None:
     assert_that(machine.memory.read_word(0x82)).is_equal_to(0x63)
 
 
+class PicturedFrontend(PlainFrontend):
+    """A frontend hanging two pictures, recording draws and erasures."""
+
+    has_pictures = True
+
+    def __init__(self) -> None:
+        super().__init__(lambda _text: None)
+        self.drawn: list[tuple[int, int, int]] = []
+        self.erased: list[tuple[int, int, int]] = []
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:
+        return {1: (84, 314), 4: (21, 21)}.get(number)
+
+    def picture_census(self) -> tuple[int, int]:
+        return 2, 27
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        self.drawn.append((number, line, column))
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        self.erased.append((number, line, column))
+
+
+# With pictures on the frontend, picture_data answers for real: a
+# valid number writes height then width and branches, the census
+# reports the count and the art's release and branches, and an
+# invalid number still writes nothing and falls through (§15
+# picture_data). Each skipped marker proves its branch was taken,
+# and the Flags 1 pictures bit is finally set (§11.1.4).
+def test_picture_data_answers_real_dimensions() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x06, 0x5F, 0x01, 0x60, 0xC5],
+                *[0x0D, 0x11, 0x63],
+                *[0xBE, 0x06, 0x5F, 0x00, 0x64, 0xC5],
+                *[0x0D, 0x12, 0x63],
+                *[0xBE, 0x06, 0x5F, 0x09, 0x68, 0xC5],
+                *[0x0D, 0x13, 0x63],
+                0xBA,
+            ]
+        ),
+        words={0x68: 0xDEAD},
+        frontend=PicturedFrontend(),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(84)
+    assert_that(machine.memory.read_word(0x62)).is_equal_to(314)
+    assert_that(machine.memory.read_word(0x82)).is_zero()
+    assert_that(machine.memory.read_word(0x64)).is_equal_to(2)
+    assert_that(machine.memory.read_word(0x66)).is_equal_to(27)
+    assert_that(machine.memory.read_word(0x84)).is_zero()
+    assert_that(machine.memory.read_word(0x68)).is_equal_to(0xDEAD)
+    assert_that(machine.memory.read_word(0x86)).is_equal_to(0x63)
+    assert_that(machine.memory.read_byte(0x01) & 0x02).is_equal_to(0x02)
+
+
+# draw_picture and erase_picture arrive at the frontend already
+# placed: explicit coordinates ride the current window's own
+# origin to the screen (§8.8.3.5), and zero or omitted ones fall
+# back to the ledger cursor (§15 draw_picture).
+def test_pictures_draw_where_the_ledger_says() -> None:
+    frontend = PicturedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x10, 0x57, 0x00, 0x05, 0x08],
+                *[0xBE, 0x05, 0x57, 0x01, 0x0A, 0x14],
+                *[0xBE, 0x10, 0x57, 0x00, 0x01, 0x01],
+                *[0xEF, 0x5F, 0x09, 0x0B],
+                *[0xBE, 0x05, 0x7F, 0x04],
+                *[0xBE, 0x07, 0x57, 0x04, 0x02, 0x03],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    assert_that(frontend.drawn).is_equal_to([(1, 14, 27), (4, 9, 11)])
+    assert_that(frontend.erased).is_equal_to([(4, 2, 3)])
+
+
+# Drawing a picture the gallery does not hold is the one thing §15
+# calls illegal, and the machine says so loudly.
+def test_drawing_an_unknown_picture_is_refused() -> None:
+    machine = stacked_v6_machine(
+        bytes([*[0xBE, 0x05, 0x7F, 0x09], 0xBA]),
+        frontend=PicturedFrontend(),
+    )
+
+    with pytest.raises(ZMachineScreenError, match="not in the gallery"):
+        machine.run()
+
+
 # The rest of the picture family passes in the conforming quiet --
 # the header declared no pictures, and Infocom's own games draw
 # without checking -- while make_menu fails its branch: the menus

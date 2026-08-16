@@ -17,6 +17,7 @@ from voxam.errors import (
     ZMachineInstructionError,
     ZMachineMemoryError,
     ZMachineQuetzalError,
+    ZMachineScreenError,
     ZMachineStackError,
     ZMachineTextError,
     ZMachineUnimplementedError,
@@ -61,8 +62,10 @@ from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
 from voxam.zmachine.windows import (
     CURRENT_WINDOW,
+    X_COORDINATE,
     X_CURSOR,
     X_SIZE,
+    Y_COORDINATE,
     Y_CURSOR,
     WindowLedger,
 )
@@ -215,6 +218,12 @@ TOTAL_WIDTH_ADDRESS = 0x30
 CURSOR_OFF = 0xFFFF
 CURSOR_ON = 0xFFFE
 CURSOR_WINDOW_OPERAND = 2
+
+# draw_picture and erase_picture may carry a position after the
+# picture number; absent or zero coordinates mean the current
+# window's cursor (§15 draw_picture).
+PLACE_LINE_OPERAND = 1
+PLACE_COLUMN_OPERAND = 2
 
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
@@ -506,15 +515,16 @@ class Machine:
 
                 if header.version == PACKED_PC_VERSION:
                     # In Version 6, Flags 2 bit 3 asks for pictures
-                    # rather than the §16 font (§11.1), and no
-                    # frontend draws them yet; the mouse and menu
-                    # requests fall the same way (§11.1.2). Flags 1
-                    # declares picture and sound availability
-                    # outright (§11.1.4, §9.1.1).
+                    # rather than the §16 font (§11.1); the mouse
+                    # and menu requests fall unanswered (§11.1.2).
+                    # Flags 1 declares picture and sound
+                    # availability outright (§11.1.4, §9.1.1) --
+                    # pictures truthfully, now that a glass with a
+                    # gallery can draw them.
                     header.declare_character_graphics(available=False)
                     header.declare_mouse(available=False)
                     header.declare_menus(available=False)
-                    header.declare_pictures(available=False)
+                    header.declare_pictures(available=self._frontend.has_pictures)
                     header.declare_sound_presence(available=self._frontend.has_sounds)
                 else:
                     header.declare_character_graphics(
@@ -3010,33 +3020,25 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_picture_quiet(self, instruction: Instruction) -> None:
-        """Let a picture operation pass in the conforming quiet.
+        """Let a picture cache hint pass in the conforming quiet.
 
-        The header honestly declares no picture displaying
-        (§11.1.4), and what was declared unavailable is not
-        performed: draw_picture and erase_picture paint nothing --
-        Infocom's own games draw without consulting the header,
-        the §11.1.4 remarks even name Zork Zero's Macintosh
-        release for it, so a loud halt here would stop Arthur at
-        its title card -- and picture_table is only ever a cache
-        hint (§15). When a real graphics frontend arrives, these
-        become its work.
+        picture_table is only ever a hint that certain pictures
+        are worth caching (§15); the gallery keeps every decoded
+        picture anyway, so the hint is already honoured.
         """
 
         self._pc = instruction.next_address
 
     def _op_picture_data(self, instruction: Instruction) -> None:
-        """Answer for pictures the interpreter does not have (§15).
+        """Answer the game's questions about pictures (§15 picture_data).
 
-        With a valid picture number the opcode would write the
-        picture's height and width and branch; number 0 asks for
-        the census instead, writing the count of available
-        pictures and the picture file's release into the array,
-        branching if any pictures exist. An interpreter with no
-        picture system has one honest answer for both: a census
-        of zero, an invalid number for everything else, and no
-        branch either way -- exactly what the header's cleared
-        pictures bit promised (§11.1.4).
+        A valid picture number writes height then width, in
+        pixels, and branches. Number 0 is the census: the count of
+        available pictures and the art's release number, branching
+        if any hang. An invalid number writes nothing and no
+        branch occurs -- which on a frontend without pictures is
+        every number, exactly what the header's cleared pictures
+        bit promised (§11.1.4).
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -3044,10 +3046,90 @@ class Machine:
         array = values[1]
 
         if number == 0:
-            self._memory.write_word(array, 0)
-            self._memory.write_word(array + 2, 0)
+            count, release = self._frontend.picture_census()
 
-        self._branch(instruction, False)
+            self._memory.write_word(array, count)
+            self._memory.write_word(array + 2, release)
+            self._branch(instruction, count > 0)
+
+            return
+
+        size = self._frontend.picture_data(number)
+
+        if size is None:
+            self._branch(instruction, False)
+
+            return
+
+        self._memory.write_word(array, size[0])
+        self._memory.write_word(array + 2, size[1])
+        self._branch(instruction, True)
+
+    def _op_draw_picture(self, instruction: Instruction) -> None:
+        """Draw a picture at a units position (§15 draw_picture)."""
+
+        placed = self._placed_picture(instruction)
+
+        if placed is not None:
+            self._frontend.draw_picture(*placed)
+
+        self._pc = instruction.next_address
+
+    def _op_erase_picture(self, instruction: Instruction) -> None:
+        """Paint a picture's region to the background (§15 erase_picture)."""
+
+        placed = self._placed_picture(instruction)
+
+        if placed is not None:
+            self._frontend.erase_picture(*placed)
+
+        self._pc = instruction.next_address
+
+    def _placed_picture(self, instruction: Instruction) -> tuple[int, int, int] | None:
+        """A draw or erase call resolved to a screen position.
+
+        Without pictures the call passes in the conforming quiet:
+        Infocom's own games draw without consulting the header --
+        the §11.1.4 remarks name Zork Zero's Macintosh release
+        for it -- so a loud halt would stop Arthur at its title
+        card. With pictures, coordinates of zero (or omitted)
+        mean the current window's cursor, the given ones are
+        relative to the window's own origin (§8.8.3.5, §15
+        draw_picture), and an invalid picture number is the one
+        thing §15 calls illegal.
+
+        Raises:
+            ZMachineScreenError: For a picture number the gallery
+                does not hold, on a frontend that has pictures.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        number = values[0]
+
+        if not self._frontend.has_pictures:
+            return None
+
+        if self._frontend.picture_data(number) is None:
+            msg = (
+                f"picture {number} is not in the gallery, and §15 calls "
+                f"drawing an invalid picture number illegal"
+            )
+
+            raise ZMachineScreenError(msg)
+
+        line = values[1] if len(values) > PLACE_LINE_OPERAND else 0
+        column = values[2] if len(values) > PLACE_COLUMN_OPERAND else 0
+
+        if line == 0:
+            line = self._windows.property(CURRENT_WINDOW, Y_CURSOR)
+
+        if column == 0:
+            column = self._windows.property(CURRENT_WINDOW, X_CURSOR)
+
+        line += self._windows.property(CURRENT_WINDOW, Y_COORDINATE) - 1
+        column += self._windows.property(CURRENT_WINDOW, X_COORDINATE) - 1
+
+        return number, line, column
 
     def _op_scroll_window(self, instruction: Instruction) -> None:
         """Let a manual scroll pass in the conforming quiet (§15).
@@ -3258,8 +3340,8 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "log_shift": Machine._op_log_shift,
     "mod": Machine._op_mod,
     "mul": Machine._op_mul,
-    "draw_picture": Machine._op_picture_quiet,
-    "erase_picture": Machine._op_picture_quiet,
+    "draw_picture": Machine._op_draw_picture,
+    "erase_picture": Machine._op_erase_picture,
     "get_wind_prop": Machine._op_get_wind_prop,
     "make_menu": Machine._op_make_menu,
     "mouse_window": Machine._op_mouse_window,

@@ -7,6 +7,7 @@ from assertpy import assert_that
 
 from voxam.aiff import Sound
 from voxam.frontend import GRAPHICS_FONT, Status
+from voxam.gallery import Gallery, Placard
 from voxam.glass import (
     GraphicsFrontend,
     _fitted_faces,
@@ -36,6 +37,7 @@ class StubGlass:
         self.painted: list[tuple[object, ...]] = []
         self.presents = 0
         self.pictures: list[object] = []
+        self.drawn: list[tuple[Sequence[Sequence[tuple[int, int, int]]], int, int]] = []
 
     def paint(
         self,
@@ -61,6 +63,11 @@ class StubGlass:
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         self.pictures.append(rows)
+
+    def draw(
+        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+    ) -> None:
+        self.drawn.append((rows, line, column))
 
 
 def windowed(
@@ -149,6 +156,72 @@ def test_font_3_runs_keep_their_characters_and_go_graphics() -> None:
     assert_that(graphics).is_true()
     assert_that(ink).is_equal_to(WHITE)
     assert_that(paper).is_equal_to(BLACK)
+
+
+def galleried(png: bytes) -> tuple[GraphicsFrontend, StubGlass]:
+    glass = StubGlass()
+    art: dict[int, bytes | Placard] = {
+        1: png,
+        7: Placard(width=3, height=2),
+    }
+
+    return GraphicsFrontend(6, glass=glass, gallery=Gallery(art, 27)), glass
+
+
+# With a gallery hung, the frontend claims pictures and answers
+# for them: real sizes, a real census; without one, the honest
+# nothing (§15 picture_data, §11.1.4).
+def test_the_picture_seam_answers_from_the_gallery(tiny_png: bytes) -> None:
+    frontend, _glass = galleried(tiny_png)
+
+    assert_that(frontend.has_pictures).is_true()
+    assert_that(frontend.picture_census()).is_equal_to((2, 27))
+    assert_that(frontend.picture_data(1)).is_equal_to((2, 2))
+    assert_that(frontend.picture_data(7)).is_equal_to((2, 3))
+    assert_that(frontend.picture_data(9)).is_none()
+
+    bare, _ = windowed()
+
+    assert_that(bare.has_pictures).is_false()
+    assert_that(bare.picture_census()).is_equal_to((0, 0))
+    assert_that(bare.picture_data(1)).is_none()
+
+
+# A picture draws its decoded pixels at the given screen position;
+# a Rect placard has none to draw, and drawing it shows nothing --
+# the conforming answer, not a shortfall.
+def test_pictures_draw_at_their_pixel_position(tiny_png: bytes) -> None:
+    frontend, glass = galleried(tiny_png)
+
+    frontend.draw_picture(1, 19, 37)
+
+    ((rows, line, column),) = glass.drawn
+
+    assert_that((line, column)).is_equal_to((19, 37))
+    assert_that(rows[0]).is_equal_to(((10, 20, 30), (40, 50, 60)))
+
+    frontend.draw_picture(7, 1, 1)
+
+    assert_that(glass.drawn).is_length(1)
+
+
+# Erasing a picture paints its region in the current background
+# colour, and erasing a number the gallery does not hold quietly
+# paints nothing (§15 erase_picture).
+def test_erasure_paints_the_background_block(tiny_png: bytes) -> None:
+    frontend, glass = galleried(tiny_png)
+
+    frontend.set_colour(2, 4)
+    frontend.erase_picture(7, 5, 6)
+
+    ((rows, line, column),) = glass.drawn
+
+    assert_that((line, column)).is_equal_to((5, 6))
+    assert_that(rows).is_equal_to((((0, 204, 0),) * 3,) * 2)
+
+    frontend.erase_picture(99, 1, 1)
+
+    assert_that(glass.drawn).is_length(1)
 
 
 # The status line draws through the model like any other row --
@@ -520,6 +593,33 @@ def test_the_pygame_doorway_shows_pictures(
     assert_that(screen.blits).is_length(1)
 
     glass.picture(())
+
+
+# draw blits pixel rows with their top left at a 1-based pixel
+# position -- §8.8.1's own origin -- and an empty picture draws
+# nothing at all.
+def test_the_pygame_doorway_draws_at_pixel_positions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    screen = module.screen
+    screen.blits.clear()
+
+    glass.draw((((1, 2, 3),) * 2, ((4, 5, 6),) * 2), 10, 30)
+
+    ((surface, position),) = screen.blits
+
+    assert_that(position).is_equal_to((29, 9))
+    assert_that(surface.size).is_equal_to((2, 2))
+    assert_that(surface.pixels[0]).is_equal_to(((0, 0), (1, 2, 3)))
+
+    glass.draw((), 1, 1)
+
+    assert_that(screen.blits).is_length(1)
 
 
 # A face whose bold steps wider than the cell is dropped: bold
