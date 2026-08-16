@@ -1,0 +1,12 @@
+# The hermetic script: runs against the repository's own test
+# fixture, no submodule required -- the one continuous-integration
+# certifies under both runners on every push.
+
+** game: tests/fixtures/simple-test-r1-s260727.z3
+** interpreter: uv run voxam --plain
+
+* the-greeting
+hello from all z machine versions
+/hello from all z machine
+{count=1} hello
+!goodbye

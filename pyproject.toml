@@ -72,7 +72,7 @@ src = ["src", "tests"]
 line-length = 88
 
 # Vendored submodules are third-party checkouts, not our source to lint.
-extend-exclude = ["entharion"]
+extend-exclude = ["entharion", "regtest/reference"]
 
 # Apply the exclusions above even when a path is passed explicitly, which is how
 # editor integrations and pre-commit invoke ruff. Without this, opening a file

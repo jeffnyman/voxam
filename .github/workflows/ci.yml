@@ -65,6 +65,44 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
+  # The cross-certification: every certified RegTest script must
+  # pass under Voxam's in-process runner AND under the vendored
+  # reference implementation driving `voxam --plain` through pipes
+  # -- same file, same verdict. The reference's cheap mode is
+  # POSIX-only, which is one reason the built-in runner exists;
+  # this job is where the two are held to agreement. It fetches
+  # the entharion submodule because the zork1 script plays a real
+  # game; arthur.regtest runs under the built-in runner alone (the
+  # reference's prompt framing cannot follow a keystroke prompt).
+  regtest:
+    name: RegTest cross-certification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --all-groups
+
+      - name: Certified scripts under the built-in runner
+        run: |
+          uv run voxam --regtest regtest/fixtures.regtest
+          uv run voxam --regtest regtest/zork1.regtest
+
+      - name: Certified scripts under the reference
+        run: |
+          uv run python regtest/reference/regtest.py --timeout 10 regtest/fixtures.regtest
+          uv run python regtest/reference/regtest.py --timeout 10 regtest/zork1.regtest
+
+      - name: Arthur, beyond the reference's reach
+        run: uv run voxam --regtest regtest/arthur.regtest
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest
@@ -93,7 +131,7 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [lint, test, build]
+    needs: [lint, test, regtest, build]
     if: always()
     steps:
       - name: Fail if any needed job failed, was cancelled, or was skipped
