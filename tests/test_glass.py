@@ -45,8 +45,9 @@ class StubGlass:
         *,
         bold: bool,
         italic: bool,
+        graphics: bool,
     ) -> None:
-        self.painted.append((row, column, text, ink, paper, bold, italic))
+        self.painted.append((row, column, text, ink, paper, bold, italic, graphics))
 
     def present(self) -> None:
         self.presents += 1
@@ -92,7 +93,7 @@ def test_reverse_and_colours_dress_the_runs() -> None:
     frontend.set_style(REVERSE)
     frontend.write("dark")
 
-    (_, _, _, ink, paper, _, _) = runs_containing(glass, "dark")[0]
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "dark")[0]
 
     assert_that(ink).is_equal_to(BLACK)
     assert_that(paper).is_equal_to(WHITE)
@@ -101,7 +102,7 @@ def test_reverse_and_colours_dress_the_runs() -> None:
     frontend.set_colour(3, 4)
     frontend.write("leaf")
 
-    (_, _, _, ink, paper, _, _) = runs_containing(glass, "leaf")[0]
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "leaf")[0]
 
     assert_that(ink).is_equal_to((204, 0, 0))
     assert_that(paper).is_equal_to((0, 204, 0))
@@ -114,26 +115,28 @@ def test_styles_group_into_runs() -> None:
     frontend.set_style(BOLD)
     frontend.write("ab")
 
-    (_, _, _, _, _, bold, _) = runs_containing(glass, "ab")[0]
+    (_, _, _, _, _, bold, _, graphics) = runs_containing(glass, "ab")[0]
 
     assert_that(bold).is_true()
+    assert_that(graphics).is_false()
 
 
-# The §16 font blits its Unicode stand-ins, and the reverse-twin
-# shapes flip reverse video instead of carrying it in the glyph --
-# the same calls the terminal painter settled by eyeball.
-def test_font_3_blits_its_stand_ins() -> None:
+# The §16 font keeps its raw characters and marks the run as
+# graphics: the glass owns the bitmaps now, reverse twins included,
+# so no Unicode stand-in approximates a pixel and no ink swap
+# fakes an inversion the spec already drew.
+def test_font_3_runs_keep_their_characters_and_go_graphics() -> None:
     frontend, glass = windowed()
 
     frontend.set_font(GRAPHICS_FONT)
     frontend.write("({")
 
-    assert_that(runs_containing(glass, "│")).is_not_empty()
+    (_, _, text, ink, paper, _, _, graphics) = runs_containing(glass, "({")[0]
 
-    twins = runs_containing(glass, "↑")
-
-    assert_that(twins).is_not_empty()
-    assert_that(twins[0][3]).is_equal_to(BLACK)
+    assert_that(text).is_equal_to("({")
+    assert_that(graphics).is_true()
+    assert_that(ink).is_equal_to(WHITE)
+    assert_that(paper).is_equal_to(BLACK)
 
 
 # The status line draws through the model like any other row --
@@ -398,7 +401,9 @@ def test_the_pygame_doorway_builds_and_paints(
 
     glass = open_pygame_glass()
 
-    glass.paint(1, 2, "a b", (1, 2, 3), (4, 5, 6), bold=False, italic=False)
+    glass.paint(
+        1, 2, "a b", (1, 2, 3), (4, 5, 6), bold=False, italic=False, graphics=False
+    )
 
     screen = module.screen
 
@@ -406,6 +411,45 @@ def test_the_pygame_doorway_builds_and_paints(
     assert_that([blit[0][1] for blit in screen.blits]).is_equal_to(["a", "b"])
 
     glass.present()
+
+
+# A graphics run blits §16's own bitmap: an 8x8 surface, ink on
+# the lit pixels and paper elsewhere, stretched edge-to-edge over
+# the cell so map lines meet with no seam -- and cached, so the
+# same character in the same dress builds its tile once. Code 71
+# is the proof no terminal could pass: a road tip of exactly one
+# pixel. A character with no bitmap falls back to the face.
+def test_the_pygame_doorway_draws_font_3_bitmaps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    screen = module.screen
+    screen.blits.clear()
+
+    glass.paint(1, 1, "G", WHITE, BLACK, bold=False, italic=False, graphics=True)
+
+    scaled, tile, size = screen.blits[0][0]
+
+    assert_that(scaled).is_equal_to("scaled")
+    assert_that(size).is_equal_to((9, 18))
+    assert_that(tile.size).is_equal_to((8, 8))
+    assert_that(tile.pixels).is_length(64)
+
+    lit = [position for position, colour in tile.pixels if colour == WHITE]
+
+    assert_that(lit).is_equal_to([(7, 0)])
+
+    glass.paint(2, 1, "G", WHITE, BLACK, bold=False, italic=False, graphics=True)
+
+    assert_that(screen.blits[1][0]).is_same_as(screen.blits[0][0])
+
+    glass.paint(3, 1, "é", WHITE, BLACK, bold=False, italic=False, graphics=True)
+
+    assert_that(screen.blits[2][0][0]).is_equal_to("glyph")
 
 
 # Keys translate to their §3.8 characters, printables pass through,

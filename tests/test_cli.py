@@ -858,6 +858,7 @@ class WindowStub:
         *,
         bold: bool,
         italic: bool,
+        graphics: bool,
     ) -> None:
         """Discard: the CLI tests never inspect the blits."""
 
