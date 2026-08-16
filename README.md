@@ -320,6 +320,33 @@ appends everything you type to the same file. Trim the bad tail in
 an editor, resume, and press on: a recording grows append-only,
 under its own seed, across as many sittings as the game demands.
 
+### RegTest scripts
+
+Voxam also speaks [RegTest](https://eblong.com/zarf/plotex/regtest.html),
+Andrew Plotkin's public-domain regression-test format for
+interactive fiction -- and speaks it twice over. A RegTest script
+of named tests, commands, and per-turn checks runs through the
+built-in in-process runner on any platform:
+
+```bash
+voxam --regtest my-suite.regtest
+```
+
+or through Plotkin's own reference implementation driving
+`voxam --plain` over pipes on POSIX systems, same file, same
+verdict. The in-process runner boots a fresh machine per test at
+in-process speed, reports failures in the reference's own voice,
+and reaches further than the reference's dumb-terminal mode can:
+keystroke input works, because a sent line lands on the same
+input seam a recording uses. The `regtest/` directory holds
+certified scripts that continuous integration runs under both
+implementations and holds to the same verdict -- plus an *Arthur*
+script only the built-in runner can follow, since v6's inline
+keystroke prompts defeat pipe-based prompt framing. A seed on the
+script's `** interpreter:` line makes the whole suite
+deterministic under both runners, which is not a thing most
+interpreters can offer RegTest at all.
+
 ### Refusal warnings
 
 During a replay, Voxam listens for the parser's *refusal dialect* --

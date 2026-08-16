@@ -1,0 +1,31 @@
+# Arthur under RegTest: a Version 6 game, beyond the reference's
+# reach. The reference's cheap mode frames output on a newline
+# followed by a prompt character, and
+# Arthur's inline "Please press Y or N>" prompt never ends a line
+# -- the reference times out awaiting output at the first
+# keystroke. Voxam's in-process runner has no pipe framing to
+# fool: the Y-or-N line lands on the keystroke seam as one press,
+# and the whole script runs. This is the file that shows where
+# in-process exceeds cheap. Run from the repository root.
+
+** game: entharion/zcode-infocom/arthur-r74-s890714.z6
+** interpreter: uv run voxam --plain --seed 56250
+
+* the-restore-prompt
+Would you like to restore a saved position?
+/Please press Y or N
+
+* the-prologue
+> n
+WHOSO PULLETH OUT THIS SWORD
+/Merlin appears before you
+torque
+
+* the-torque
+> n
+> take torque
+You take the torque.
+
+> i
+/You are holding a torque
+!Excalibur

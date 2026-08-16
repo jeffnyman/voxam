@@ -1,0 +1,30 @@
+# The certified Zork 1 script: passes under Voxam's own in-process
+# runner (voxam --regtest) and under Andrew Plotkin's reference
+# regtest.py driving `voxam --plain` -- same file, same verdict.
+# Run from the repository root; the game lives in the entharion
+# submodule.
+
+** game: entharion/zcode-infocom/zork1-r88-s840726.z3
+** interpreter: uv run voxam --plain --seed 777
+
+* opening
+West of House
+ZORK I: The Great Underground Empire
+!grue
+
+* the-mailbox
+> open mailbox
+Opening the small mailbox reveals a leaflet.
+
+> read leaflet
+/ZORK is a game of adventure, danger, and low cunning
+!bucket of cheese
+
+* the-house-circuit
+> north
+North of House
+all the windows are boarded
+
+> east
+Behind House
+{count=2} house
