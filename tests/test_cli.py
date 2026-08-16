@@ -837,3 +837,76 @@ def test_regtest_travels_alone(
 
     assert_that(main(["--regtest", str(target), "--seed", "7"])).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("interpreter line")
+
+
+class WindowStub:
+    """A glass for CLI tests: scripted keys, recorded nothing."""
+
+    columns = 80
+    lines = 24
+
+    def __init__(self, keys: str) -> None:
+        self.keys = list(keys)
+
+    def paint(
+        self,
+        row: int,
+        column: int,
+        text: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+    ) -> None:
+        """Discard: the CLI tests never inspect the blits."""
+
+    def present(self) -> None:
+        """Discard: the CLI tests never inspect the frame."""
+
+    def key(self, timeout: float | None) -> str | None:
+        del timeout
+
+        return self.keys.pop(0) if self.keys else None
+
+    def picture(self, rows: object) -> None:
+        """Discard: the CLI tests never show a cover."""
+
+
+# --graphics plays through the pygame window: with the doorway
+# monkeypatched to a stub glass, the whole session runs through
+# the real GraphicsFrontend.
+def test_graphics_play_runs_through_the_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("voxam.glass.open_pygame_glass", lambda: WindowStub("look\n"))
+
+    exit_code = main(["--graphics", str(reading_story(tmp_path, version=4))])
+
+    assert_that(exit_code).is_equal_to(0)
+
+
+# Without the pygame extra, the explicit flag earns a note and the
+# session falls back -- here to the plain stream, no terminal
+# claimed.
+def test_graphics_without_the_extra_notes_and_falls_back(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "pygame", None)
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+
+    exit_code = main(["--graphics", str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("needs the pygame-ce extra")
+
+
+def test_graphics_and_plain_are_two_glasses(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main(["--graphics", "--plain", str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("two different glasses")
