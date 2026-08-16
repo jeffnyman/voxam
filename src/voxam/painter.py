@@ -287,6 +287,11 @@ class ScreenFrontend:
     # The §8.3.1 codes 2 to 9 paint as the terminal's own eight
     # colours through COLOUR_NAMES, so the claim is honest (§8.3.3).
     has_colours = True
+    # A terminal cell is the unit here, whatever its real pixel
+    # size (§8.4.2) -- the sixel cell query is presentation, not
+    # measurement, so the font stays 1 by 1.
+    font_width = 1
+    font_height = 1
 
     def __init__(
         self,

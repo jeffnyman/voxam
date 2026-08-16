@@ -63,10 +63,15 @@ class Glass(Protocol):
     Attributes:
         columns: The glass's width in cells.
         lines: The glass's height in cells.
+        cell_width: One cell's width in real pixels -- the font
+            metric a Version 6 story hears as its unit (§8.4.2).
+        cell_height: One cell's height in real pixels.
     """
 
     columns: int
     lines: int
+    cell_width: int
+    cell_height: int
 
     def paint(  # noqa: PLR0913 -- a run carries its whole dress
         self,
@@ -145,6 +150,12 @@ class GraphicsFrontend:
         self.idle: Callable[[], None] | None = None
         self.screen_columns = glass.columns
         self.screen_lines = glass.lines
+        # The glass measures its cells in real pixels, and those
+        # metrics are the units a Version 6 story does its §8.8
+        # arithmetic in -- the first frontend that can retire the
+        # character glasses' 1-by-1 font (§8.4.2).
+        self.font_width = glass.cell_width
+        self.font_height = glass.cell_height
         self._model = ScreenModel(
             columns=glass.columns, lines=glass.lines, version=version
         )
@@ -457,10 +468,10 @@ class _PygameGlass:
 
         self._fonts = _fitted_faces(module)
         regular: Any = self._fonts[(False, False)]
-        self._cell_width = int(regular.metrics("M")[0][4])
-        self._cell_height = int(regular.get_linesize())
+        self.cell_width = int(regular.metrics("M")[0][4])
+        self.cell_height = int(regular.get_linesize())
         self._screen: Any = module.display.set_mode(
-            (self.columns * self._cell_width, self.lines * self._cell_height)
+            (self.columns * self.cell_width, self.lines * self.cell_height)
         )
 
         module.display.set_caption("Voxam")
@@ -483,11 +494,11 @@ class _PygameGlass:
         graphics: bool,
     ) -> None:
         font: Any = self._fonts.get((bold, italic), self._fonts[(False, False)])
-        x = (column - 1) * self._cell_width
-        y = (row - 1) * self._cell_height
-        width = len(text) * self._cell_width
+        x = (column - 1) * self.cell_width
+        y = (row - 1) * self.cell_height
+        width = len(text) * self.cell_width
 
-        self._screen.fill(paper, (x, y, width, self._cell_height))
+        self._screen.fill(paper, (x, y, width, self.cell_height))
 
         for offset, character in enumerate(text):
             if character == " ":
@@ -498,7 +509,7 @@ class _PygameGlass:
             else:
                 glyph = font.render(character, True, ink)
 
-            self._screen.blit(glyph, (x + offset * self._cell_width, y))
+            self._screen.blit(glyph, (x + offset * self.cell_width, y))
 
     def _tile(
         self, character: str, ink: tuple[int, int, int], paper: tuple[int, int, int]
@@ -524,7 +535,7 @@ class _PygameGlass:
 
                     tile.set_at((x, y), ink if lit else paper)
 
-            cached = module.transform.scale(tile, (self._cell_width, self._cell_height))
+            cached = module.transform.scale(tile, (self.cell_width, self.cell_height))
             self._tiles[(character, ink, paper)] = cached
 
         return cached

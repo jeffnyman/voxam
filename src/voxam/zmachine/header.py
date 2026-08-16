@@ -639,6 +639,11 @@ class Header:
     def declare_font_size(self, *, width: int, height: int) -> None:
         """Record the current font's size in screen units (§8.1.1).
 
+        §11's table swaps the two bytes between the versions: $26
+        is the font width in Version 5 but the font height in
+        Version 6, and $27 the other way about. A 1-by-1 font made
+        the swap invisible; a real font must honour it.
+
         Raises:
             ZMachineHeaderError: Before Version 5, where the fields
                 do not exist; or over the pristine story bytes.
@@ -650,8 +655,13 @@ class Header:
             raise ZMachineHeaderError(msg)
 
         live = self._live()
-        live[FONT_WIDTH] = width
-        live[FONT_HEIGHT] = height
+
+        if self.version == PACKED_PC_VERSION:
+            live[FONT_WIDTH] = height
+            live[FONT_HEIGHT] = width
+        else:
+            live[FONT_WIDTH] = width
+            live[FONT_HEIGHT] = height
 
     def declare_screen_units(self, *, width: int, height: int) -> None:
         """Record the screen's size in units (§8.4.3).

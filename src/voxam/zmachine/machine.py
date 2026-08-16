@@ -486,18 +486,18 @@ class Machine:
             # The unit fields belong to Version 5 and later --
             # Version 6 included: ZIPTEST divides the unit width by
             # the font width before its first menu, so leaving them
-            # zero is a division by zero at boot. A character
-            # terminal's unit is one character (§8.4.2), and a
-            # 1-by-1 font makes the Version 6 pixel arithmetic and
-            # the Version 5 character arithmetic the same numbers
-            # -- which also makes the §11.1 font-byte swap between
-            # the versions moot.
+            # zero is a division by zero at boot. The metrics come
+            # from _unit_metrics: one character per unit everywhere
+            # except a Version 6 story on a glass that measures,
+            # which hears its §8.8 screen in real pixels.
             if header.version >= FONT_FIELDS_VERSION:
+                font_width, font_height = self._unit_metrics()
+
                 header.declare_screen_units(
-                    width=self._frontend.screen_columns,
-                    height=self._frontend.screen_lines,
+                    width=self._frontend.screen_columns * font_width,
+                    height=self._frontend.screen_lines * font_height,
                 )
-                header.declare_font_size(width=FONT_UNIT, height=FONT_UNIT)
+                header.declare_font_size(width=font_width, height=font_height)
                 header.declare_colours(
                     available=self._frontend.has_colours,
                     foreground=DEFAULT_FOREGROUND_COLOUR,
@@ -2221,19 +2221,41 @@ class Machine:
         self._frontend.split_window(self._value(instruction.operands[0]))
         self._pc = instruction.next_address
 
+    def _unit_metrics(self) -> tuple[int, int]:
+        """One character cell's width and height, in units.
+
+        Version 6 alone measures its screen in real pixels
+        (§8.8.1), so only there do the frontend's font metrics
+        become the story's units. Every other version keeps one
+        unit per character (§8.4.2): Beyond Zork lays out its
+        windows by mixing unit arithmetic with character-cell
+        set_cursor moves, which only agrees when the two scales
+        are the same scale.
+        """
+
+        if self._memory.header.version == PACKED_PC_VERSION:
+            return self._frontend.font_width, self._frontend.font_height
+
+        return FONT_UNIT, FONT_UNIT
+
     def _fresh_windows(self) -> WindowLedger:
         """A boot-state §8.8 window ledger sized to this glass.
 
         Built for every version -- it is inert outside Version 6,
         whose opcodes are the only readers -- so no handler has to
-        ask whether it exists.
+        ask whether it exists. Its numbers are units: real pixels
+        on a measuring glass, characters everywhere else.
         """
 
+        font_width, font_height = self._unit_metrics()
+
         return WindowLedger(
-            lines=self._frontend.screen_lines,
-            columns=self._frontend.screen_columns,
+            height=self._frontend.screen_lines * font_height,
+            width=self._frontend.screen_columns * font_width,
             foreground=DEFAULT_FOREGROUND_COLOUR,
             background=DEFAULT_BACKGROUND_COLOUR,
+            font_width=font_width,
+            font_height=font_height,
         )
 
     def _op_set_window(self, instruction: Instruction) -> None:
@@ -2453,7 +2475,11 @@ class Machine:
         Zero or positive names a window, whose current width in
         units is the limit; negative means a box of -width units
         (§15 output_stream). No width -- or any version but 6 --
-        is the flat, unformatted table.
+        is the flat, unformatted table. The wrap itself counts
+        characters, so the unit width divides by the font width:
+        on the 1-by-1 character glasses the numbers are the same,
+        while a measuring glass turns 720 pixels back into 80
+        characters.
         """
 
         if (
@@ -2463,11 +2489,12 @@ class Machine:
             return None
 
         width = signed(values[REDIRECTION_WIDTH_OPERAND])
+        font_width, _ = self._unit_metrics()
 
         if width < 0:
-            return max(1, -width)
+            return max(1, -width // font_width)
 
-        return max(1, self._windows.property(width, X_SIZE))
+        return max(1, self._windows.property(width, X_SIZE) // font_width)
 
     def _end_redirection(self, instruction: Instruction) -> None:
         """Close the newest stream 3 table, writing its count (§7.1.2.1).
@@ -2509,7 +2536,12 @@ class Machine:
             widest = self._write_formatted(table, text, limit)
 
         if self._memory.header.version == PACKED_PC_VERSION:
-            self._memory.write_word(TOTAL_WIDTH_ADDRESS, widest)
+            # The $30 word is "total width in pixels" (§11's table)
+            # -- characters times the font width, which the 1-by-1
+            # glasses have always quietly satisfied.
+            font_width, _ = self._unit_metrics()
+
+            self._memory.write_word(TOTAL_WIDTH_ADDRESS, widest * font_width)
 
     def _write_formatted(self, table: int, text: str, limit: int) -> int:
         """Write print_form's line shape: counted lines, a zero end.

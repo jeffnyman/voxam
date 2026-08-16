@@ -23,6 +23,8 @@ class ScreenRecorder:
     has_colours = False
     screen_lines = 24
     screen_columns = 80
+    font_width = 1
+    font_height = 1
 
     def __init__(self) -> None:
         self.styles: list[int] = []

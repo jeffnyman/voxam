@@ -62,9 +62,8 @@ STYLE_REVERSE = 3
 
 # The font size property carries height in its upper byte and
 # width in its lower (§8.8.3.2.5); a character glass's 1-by-1 font
-# packs to $0101. Colour data likewise carries background high and
-# foreground low (§8.8.3.2.4).
-UNIT_FONT_SIZE = 0x0101
+# packs to $0101, a measuring glass to its real cell. Colour data
+# likewise carries background high and foreground low (§8.8.3.2.4).
 BYTE_SHIFT = 8
 
 
@@ -76,17 +75,27 @@ class WindowLedger:
             the code -3 resolves to (§8.8.3).
     """
 
-    def __init__(
-        self, lines: int, columns: int, foreground: int, background: int
+    def __init__(  # noqa: PLR0913 -- a boot state names all its units
+        self,
+        height: int,
+        width: int,
+        foreground: int,
+        background: int,
+        *,
+        font_width: int = 1,
+        font_height: int = 1,
     ) -> None:
         """Set every window to its §8.8 boot state.
 
         Args:
-            lines: The screen height in units -- lines, on a
-                character glass whose font is 1 by 1.
-            columns: The screen width in units.
+            height: The screen height in units -- lines on a
+                character glass whose font is 1 by 1, real pixels
+                on a glass that measures.
+            width: The screen width in units.
             foreground: The default foreground colour code.
             background: The default background colour code.
+            font_width: One character cell's width in units.
+            font_height: One character cell's height in units.
         """
 
         self.selected = 0
@@ -99,13 +108,13 @@ class WindowLedger:
             window[Y_CURSOR] = 1
             window[X_CURSOR] = 1
             window[FONT_NUMBER] = 1
-            window[FONT_SIZE] = UNIT_FONT_SIZE
+            window[FONT_SIZE] = (font_height << BYTE_SHIFT) | font_width
             window[COLOUR_DATA] = (background << BYTE_SHIFT) | foreground
             window[ATTRIBUTES] = BUFFERING
 
             if number == 0:
-                window[Y_SIZE] = lines
-                window[X_SIZE] = columns
+                window[Y_SIZE] = height
+                window[X_SIZE] = width
                 window[ATTRIBUTES] = WRAPPING | SCROLLING | TRANSCRIPTING | BUFFERING
 
             self._windows.append(window)
