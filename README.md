@@ -39,7 +39,11 @@ Voyaging*, *The Hitchhiker's Guide to the Galaxy*, and -- filed in
 triplicate, blood pressure rising -- *Bureaucracy* have all been
 played to winning conclusions under Voxam, several across multiple
 releases and several to perfect scores, alongside modern classics
-from *Colossal Cave* to the IF Comp winner *All Roads*. The sound
+from *Colossal Cave* to the IF Comp winner *All Roads*. The
+Version 6 era has opened: *Arthur: The Quest for Excalibur* plays
+to its ending -- the sword drawn from the stone at the rank of
+king, every chivalry point earned -- in what is as far as we know
+the first seeded, replayable *Arthur* session anywhere. The sound
 era is certified too: *The Lurking Horror* and *Sherlock: The
 Riddle of the Crown Jewels* both play to perfect scores -- recorded
 in the conforming quiet, and now heard aloud at a painted terminal
@@ -47,7 +51,7 @@ with the sound extra installed -- and *Beyond
 Zork*'s first act is on the record, its hero built point by point
 on the arrow-driven character screen, in what is as far as we know
 the first seeded, replayable *Beyond Zork* session anywhere.
-Twenty-four recordings verify those sessions end-to-end with the
+Twenty-five recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
 
@@ -61,8 +65,16 @@ Version `0.x`: early, honest, and playable.
 
 **Works today:** story file versions 1 through 5 -- Infocom's whole
 main-line catalog and the modern Inform and PunyInform games built
-on version 5. That includes the full parser and object machinery, a
-seeded random number generator for reproducible sessions, the
+on version 5 -- plus the machine side of version 6, run against
+Infocom's own ZIPTEST checker and played through *Arthur*: the
+eight-window §8.8 ledger with its eighteen properties per window,
+user stacks, the formatted-text stream behind print_form, and the
+v6 cursor forms, with pictures, mouse, and menus declared
+unavailable in the header and answered honestly when games ask
+anyway. A version 6 game plays as flowing text on the character
+glass; the graphics window is the next era. Underneath all of it:
+the full parser and object machinery, a seeded random number
+generator for reproducible sessions, the
 screen model (split windows, single-keystroke input), custom
 alphabet tables, the accented extra characters, and the Standard
 1.1 Unicode extras -- custom translation tables and print_unicode
@@ -146,13 +158,18 @@ the same bytes everywhere, speakers or no speakers.
 
 Voxam is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
-included -- TerpEtude, and Strict Z Test all pass clean, and every
-remaining gap halts loudly with a citation instead of guessing.
+included -- TerpEtude, and Strict Z Test all pass clean; Infocom's
+own ZIPTEST opened the version 6 era and named its frontiers one
+opcode at a time. Every remaining gap halts loudly with a citation
+instead of guessing.
 
-**Not yet:** the Blorb music formats, MOD and OGG -- the entire
-vendored Infocom sound catalog is sampled AIFF and needs neither
--- along with version 6 and Glulx. For recorded sessions, seeds
-substitute for saves: a script replays a whole game in moments.
+**Not yet:** the version 6 graphics window -- pictures, mouse,
+menus, and all eight windows rendered for real, which is what the
+planned pygame frontend is for; the machine beneath them already
+answers honestly. Also the Blorb music formats, MOD and OGG (the
+entire vendored Infocom sound catalog is sampled AIFF and needs
+neither), and Glulx. For recorded sessions, seeds substitute for
+saves: a script replays a whole game in moments.
 
 ## Installation
 

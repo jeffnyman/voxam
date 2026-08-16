@@ -1,3 +1,21 @@
+## v0.8.0 (2026-08-16)
+
+### Feat
+
+- **v6**: print_form and the width-bearing stream 3 — Arthur's parser answers back (#123)
+- **v6**: scroll_window's conforming quiet — and Arthur takes commands (#121)
+- **v6**: the cursor learns its v6 forms — and Arthur's prologue plays (#120)
+- **v6**: mouse courtesies — an arrow that never appears, honestly reported (#119)
+- **v6**: the window ledger — eight windows of §8.8 state, and six opcodes to drive it (#118)
+- **v6**: picture courtesies — honest answers for art the header already declined (#117)
+- **v6**: user stacks — push_stack, pop_stack, and the turned-around pull (#116)
+- **v6**: get_cursor reads the cursor back — two ZIPTEST categories unblocked (#115)
+- **v6**: ZIPTEST boots and names the frontier — header honesty, §3.8 typography, and nop (#114)
+
+### Fix
+
+- **v6**: erase_window learns which windows the glass renders — Arthur past the prologue, painted (#122)
+
 ## v0.7.0 (2026-08-15)
 
 ### Feat
