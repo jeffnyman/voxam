@@ -89,6 +89,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="write the session as an acceptance script at this path",
     )
     parser.add_argument(
+        "--resume",
+        type=Path,
+        help="replay a recording, then record your continuation onto its end",
+    )
+    parser.add_argument(
         "--plain",
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
@@ -116,11 +121,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
 
-    if arguments.accept is not None and arguments.replay is not None:
-        print("voxam: --accept and --replay are one script apiece; pick one")
-
-        return EXIT_UNUSABLE
-
     try:
         identity = _identity(arguments.interpreter, tandy=arguments.tandy)
     except ValueError as error:
@@ -129,12 +129,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_UNUSABLE
 
     script_path = arguments.accept if arguments.accept is not None else arguments.replay
-    refusal = _record_refusal(arguments.record, script_path, arguments.story)
+    refusal = _flag_refusal(arguments, script_path)
 
     if refusal is not None:
         print(f"voxam: {refusal}")
 
         return EXIT_UNUSABLE
+
+    if arguments.resume is not None:
+        return _resumed_session(arguments.resume, identity)
 
     if script_path is not None:
         return _replay_script(
@@ -163,6 +166,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
 
+def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | None:
+    """Why this flag combination cannot proceed, or None when it can."""
+
+    if arguments.accept is not None and arguments.replay is not None:
+        return "--accept and --replay are one script apiece; pick one"
+
+    if arguments.resume is not None:
+        others = (arguments.accept, arguments.replay, arguments.record)
+
+        if any(value is not None for value in others):
+            return "--resume is a replay and a recording in one; drop the other flags"
+
+        if arguments.story is not None:
+            return "a resumed recording names its own game; drop the story"
+
+        if arguments.seed is not None:
+            return "a resume keeps the recording's own dice; drop --seed"
+
+    return _record_refusal(arguments.record, script, arguments.story)
+
+
 def _record_refusal(
     record: Path | None, script: Path | None, story: Path | None
 ) -> str | None:
@@ -178,6 +202,38 @@ def _record_refusal(
         return "--record needs a story to play"
 
     return None
+
+
+def _resumed_session(script_path: Path, identity: Identity | None) -> int:
+    """Replay a recording, then record the player's continuation.
+
+    The script replays to its last verified line, the terminal
+    takes over, and everything typed from there on is appended to
+    the same file -- the expedition loop of trim, resume, and
+    press on, as one flag. The recording keeps its own game and
+    its own dice.
+    """
+
+    try:
+        recorder = Recorder.resumed(
+            script_path, warn=lambda message: print(f"voxam: {message}")
+        )
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    try:
+        return _replay_script(
+            script_path,
+            None,
+            None,
+            handoff=True,
+            identity=identity,
+            recorder=recorder,
+        )
+    finally:
+        recorder.close()
 
 
 def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) -> int:
@@ -218,18 +274,21 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
     )
 
 
-def _replay_script(
+def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     script_path: Path,
     story: Path | None,
     seed_override: int | None,
     *,
     handoff: bool,
     identity: Identity | None = None,
+    recorder: Recorder | None = None,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
     With handoff, the exhausted script yields to the interactive
-    terminal instead of ending the session.
+    terminal instead of ending the session -- and with a recorder,
+    every handed-off line is also appended to the recording, while
+    the replayed prefix is not: it is already on the page.
     """
 
     if story is not None:
@@ -251,12 +310,14 @@ def _replay_script(
         sys.stdout.write(text)
         watch.saw(text)
 
+    live = input if recorder is None else _recorded_lines(recorder, input)
+
     # At handoff the last scripted response is complete; the watch is
     # closed there so live typing is never blamed on the script.
     def handed_off() -> str:
         watch.finish()
 
-        return input()
+        return live()
 
     source = replay(
         script.commands,

@@ -1,0 +1,567 @@
+! GAME=../entharion/zcode-infocom/arthur-r74-s890714.z6
+! SEED=56250
+
+# The Churchyard, Village, and Merlin's Cave
+
+n
+take torque
+wear torque
+examine stone
+e
+pray
+w
+hide behind gravestone
+wait
+yes
+e
+s
+ask idiot about invisible knight
+ask idiot about himself
+thank floyd
+s
+wait
+yes
+yes
+yes
+yes
+yes
+no
+s
+take cheese
+eat cheese
+n
+n
+w
+w
+sw
+
+# Don't worry about the ghost, that steals your stuff, i.e. the
+# Invisible Knight. He doesn't steal items you're wearing, such
+# as the torque, and the only thing you were carrying was a piece
+# of red glass; you can get that back later if you want to.
+
+nw
+nw
+se
+se
+ne
+e
+e
+s
+s
+wait
+no
+cyr owl
+cyr human
+open cage
+take key
+unlock cupboard
+open cupboard
+s
+wait
+no
+open cupboard
+take bottle
+drop wooden key
+
+# Under the Castle
+
+n
+n
+e
+s
+cyr badger
+d
+move stone
+e
+cyr human
+take stone
+hide behind door
+call the guard
+wait
+no
+hit guard with stone
+take cell key
+take helmet
+free the prisoner
+give helmet to prisoner
+n
+e
+e
+move tapestry
+e
+n
+n
+
+# You hae to wait for the next canonical hour and listen to Lot
+# announce the new password. (You can type wait for [next hour],
+# e.g., if it is Terce, wait for sext.) The necessary poem is
+# printed in the front of the Book of Hours that came with the
+# game. He always chooses a line from the third verse, which is
+# No king so fair / by maid begot / was ever there / than good King Lot.
+# Make a note of the line that is the password. For this seed that will
+# be: "The new password is verse three, line two."
+
+wait
+wait
+wait
+wait
+wait
+time
+wait
+wait
+wait
+wait
+wait
+wait
+no
+s
+s
+s
+s
+cyr salamander
+w
+cyr human
+look in barrel
+push barrel
+take pumice stone
+open door
+nw
+s
+wear the armour
+take shield
+polish shield with pumice stone
+drop the pumice stone
+n
+w
+say "by maid begot"
+
+# The Joust and Leprechaun
+
+s
+take bottle
+n
+w
+w
+cyr badger
+dig
+cyr human
+take all
+w
+n
+nw
+n
+knock on door
+mount the horse
+take red lance
+1
+2
+2
+2
+n
+nw
+nw
+n
+cyr turtle
+pull in head and legs
+wait
+yes
+yes
+no
+cyr human
+take all
+n
+examine footprints
+hide behind rock
+listen to murmuring
+e
+drop the bottle
+hide behind rock
+wait
+yes
+no
+catch leprechaun
+
+# The Ivory Tower and Invisible Knight
+
+s
+se
+se
+n
+n
+unlock door
+d
+drop all
+d
+cyr owl
+cyr human
+up
+take all except ivory key
+u
+u
+u
+cyr salamander
+w
+e
+cyr human
+take all
+open door
+say "thomas the rhymer"
+wear the ring
+open door
+d
+d
+open door
+s
+s
+s
+s
+se
+s
+sw
+rub the ring
+e
+yes
+say "TH"
+take all
+
+# The Peat Bog and Raven
+
+w
+nw
+nw
+n
+take the bag
+open the bag
+put egg in bag
+s
+se
+se
+ne
+n
+ne
+take the slean
+ne
+cut peat with slean
+drop slean
+sw
+take the crutch
+open cottage door
+put peat on fire
+give crutch to man
+ask man about peat bog
+thank man
+open door
+sw
+nw
+n
+n
+ne
+ne
+cyr owl
+up
+land in grove
+cyr human
+take egg
+drop egg
+cyr owl
+up
+land in nest
+cyr human
+push egg out of nest
+cyr owl
+land in grove
+cyr human
+take all
+put egg in bag
+
+# The Badger Maze and Lake
+
+sw
+sw
+s
+s
+se
+s
+e
+e
+e
+s
+cyr badger
+d
+s
+u
+d
+u
+take sprig
+d
+n
+n
+u
+cyr human
+take all
+n
+w
+w
+w
+sw
+se
+drop all except sword
+s
+cyr eel
+s
+sw
+look at boat
+zap the kraken
+ne
+n
+cyr human
+take sword
+cut tentacle
+cyr turtle
+s
+swim through bracelet
+n
+pull in head
+cyr human
+take bracelet and sword
+wear the bracelet
+
+# The Boar
+
+n
+cyr owl
+up
+ne
+ne
+e
+e
+take apple
+w
+w
+w
+nw
+sw
+w
+sw
+sw
+sw
+sw
+s
+sw
+se
+take all
+put all in bag
+nw
+ne
+n
+nw
+n
+n
+nw
+n
+throw apple across chasm
+throw sword across chasm
+cyr owl
+n
+cyr human
+take sword
+cut tusk
+throw sword over chasm
+throw tusk over chasm
+cyr owl
+s
+cyr human
+take all
+put tusk in bag
+
+# The Black Knight and Nudd's Realm
+
+s
+se
+s
+s
+se
+ne
+ne
+ne
+ne
+e
+ne
+se
+e
+attack knight
+attack knight
+attack knight
+attack knight
+cut medallion
+e
+e
+take jug
+ne
+ne
+examine dragon
+wake the dragon
+give jug to dragon
+wait
+yes
+yes
+no
+cut hair with sword
+n
+nw
+show shield to basilisk
+ne
+say "nudd"
+sw
+se
+ne
+say "nudd"
+get ice
+sw
+nw
+ne
+kill the girl
+yes
+take the fleece
+take the golden key
+unlock right manacle
+lock right manacle
+unlock left manacle
+
+# The Red Knight
+
+drop gold key
+sw
+sw
+get silver key
+get sprig
+get glass
+get gold egg
+get tusk and bag
+i
+w
+w
+w
+e
+e
+e
+drop tusk
+drop shield
+get bag
+put glass in bag
+put sprig in bag
+put silver key in bag
+put hair in bag
+get shield
+get tusk
+i
+w
+w
+w
+nw
+sw
+w
+sw
+sw
+put all in bag
+sw
+sw
+s
+sw
+se
+e
+give egg, hair, fleece and tusk to knight
+s
+s
+unlock door with silver key
+d
+look at the woman
+wait for compline
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+yes
+wait
+yes
+wait
+wait
+up
+n
+n
+w
+nw
+nw
+cyr salamander
+eat midges
+cyr human
+se
+se
+e
+s
+s
+d
+wait for compline
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+yes
+wait
+yes
+wait
+wait
+u
+n
+n
+w
+s
+cyr eel
+s
+se
+ne
+eat minnow
+sw
+nw
+n
+cyr human
+n
+e
+s
+s
+d
+
+# Defeating Lot
+
+take all
+get sprig
+examine sprig
+touch nimue with the sprig
+take gauntlet
+u
+n
+n
+w
+nw
+ne
+e
+e
+e
+e
+e
+hit lot with gauntlet
+show bracelet to lot
+attack lot
+free lot
+call nimue
+s
+pull sword from stone
+quit
+y
