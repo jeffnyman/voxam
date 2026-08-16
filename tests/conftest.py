@@ -1,13 +1,43 @@
 """Shared pytest fixtures for all Voxam tests."""
 
+import struct
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+from voxam.png import SIGNATURE
 from voxam.zmachine.story import Story
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def tiny_png() -> bytes:
+    """A 2-by-2 truecolour PNG: one bright row over a black one.
+
+    Decodes to ((10, 20, 30), (40, 50, 60)) atop two black pixels
+    -- the smallest real picture a gallery test can hang.
+    """
+
+    def piece(name: bytes, payload: bytes) -> bytes:
+        return (
+            len(payload).to_bytes(4, "big")
+            + name
+            + payload
+            + zlib.crc32(name + payload).to_bytes(4, "big")
+        )
+
+    header = struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0)
+    raw = b"\x00" + bytes(range(10, 70, 10)) + b"\x00" + bytes(6)
+
+    return (
+        SIGNATURE
+        + piece(b"IHDR", header)
+        + piece(b"IDAT", zlib.compress(raw))
+        + piece(b"IEND", b"")
+    )
 
 
 @pytest.fixture

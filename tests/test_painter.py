@@ -77,6 +77,22 @@ def typing(text: str) -> list[StubKey]:
     return [*(StubKey(character) for character in text), StubKey("", "KEY_ENTER")]
 
 
+# The picture seam is inert at the terminal: no sizes, a census
+# of zero, and draws that paint nothing -- the sixel cover is a
+# doorway courtesy, and the header's cleared pictures bit already
+# said so (§11.1.4, §15 picture_data).
+def test_the_picture_seam_is_inert() -> None:
+    frontend, out = painted()
+
+    frontend.draw_picture(1, 1, 1)
+    frontend.erase_picture(1, 1, 1)
+
+    assert_that(frontend.has_pictures).is_false()
+    assert_that(frontend.picture_data(1)).is_none()
+    assert_that(frontend.picture_census()).is_equal_to((0, 0))
+    assert_that(out).is_empty()
+
+
 # A write lands in the model and the damaged row is repainted at
 # its own position, ending in the normal sequence.
 def test_writes_repaint_the_damaged_row() -> None:

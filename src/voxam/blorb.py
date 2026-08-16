@@ -18,6 +18,7 @@ from typing import Self
 
 from voxam import aiff
 from voxam.errors import BlorbError, IFFError
+from voxam.gallery import Gallery, Placard
 from voxam.iff import Chunk, chunk, parse_form
 from voxam.zmachine.quetzal import IDENTITY_SIZE, story_identity
 from voxam.zmachine.story import Story
@@ -43,8 +44,16 @@ EXEC_NUMBER = 0
 
 # Pictures arrive as PNG or JPEG chunks, with Rect placeholders
 # among the Version 6 art (Blorb: Picture Resource Chunks); PNG is
-# the one Voxam can draw.
+# the one Voxam can draw. A Rect carries two four-byte words --
+# width, then height -- and no pixels at all.
 PNG_ID = b"PNG "
+RECT_ID = b"Rect"
+RECT_SIZE = 8
+
+# The resource file's release number, a two-byte word the
+# picture_data census reports (Blorb: Release Number Chunk).
+RELEASE_ID = b"RelN"
+RELEASE_SIZE = 2
 
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
@@ -93,6 +102,8 @@ class Blorb:
             stopped, by number (Blorb: The Looping Chunk); empty
             without a Loop chunk, and ignored from Version 5 on,
             where the opcode itself says.
+        release: The resource file's release number, 0 without a
+            RelN chunk (Blorb: Release Number Chunk).
     """
 
     def __init__(
@@ -101,6 +112,7 @@ class Blorb:
         frontispiece: int | None,
         identity: bytes | None,
         loops: frozenset[int],
+        release: int = 0,
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
@@ -108,6 +120,7 @@ class Blorb:
         self.frontispiece = frontispiece
         self.identity = identity
         self.loops = loops
+        self.release = release
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -161,7 +174,7 @@ class Blorb:
             None,
         )
 
-        return cls(resources, frontispiece, identity, _loops(chunks))
+        return cls(resources, frontispiece, identity, _loops(chunks), _release(chunks))
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
         """The resource a game asks for by usage and number."""
@@ -208,6 +221,32 @@ class Blorb:
             return pictures[0]
 
         return None
+
+    def gallery(self) -> Gallery:
+        """The Version 6 art as a gallery: sizes eager, pixels lazy.
+
+        PNG pictures and Rect placeholders make the census; a
+        JPEG -- no Infocom Version 6 set carries one -- is left
+        out, because a picture Voxam cannot draw is not
+        "available" in picture_data's sense (§15).
+
+        Raises:
+            BlorbError: If a Rect does not hold its eight
+                width-and-height bytes.
+        """
+
+        art: dict[int, bytes | Placard] = {}
+
+        for piece in self.resources:
+            if piece.usage != USAGE_PICTURE:
+                continue
+
+            if piece.chunk.chunk_id == PNG_ID:
+                art[piece.number] = piece.chunk.payload
+            elif piece.chunk.chunk_id == RECT_ID:
+                art[piece.number] = _placard(piece)
+
+        return Gallery(art, self.release)
 
     def sounds(self) -> dict[int, aiff.Sound]:
         """Decode every sampled sound resource, by number.
@@ -347,6 +386,61 @@ def _loops(chunks: tuple[Chunk, ...]) -> frozenset[int]:
         for start in range(0, len(payload), LOOP_ENTRY_SIZE)
         if int.from_bytes(payload[start + 4 : start + 8], "big") != PLAY_ONCE
     )
+
+
+def _placard(piece: Resource) -> Placard:
+    """A Rect resource's size, made a placard.
+
+    Raises:
+        BlorbError: If the payload is not the eight bytes of a
+            width word and a height word (Blorb: Picture Resource
+            Chunks).
+    """
+
+    payload = piece.chunk.payload
+
+    if len(payload) != RECT_SIZE:
+        msg = (
+            f"picture {piece.number} is a Rect of {len(payload)} bytes, "
+            f"not the eight of a width and height (Blorb: Picture "
+            f"Resource Chunks)"
+        )
+
+        raise BlorbError(msg)
+
+    return Placard(
+        width=int.from_bytes(payload[:4], "big"),
+        height=int.from_bytes(payload[4:], "big"),
+    )
+
+
+def _release(chunks: tuple[Chunk, ...]) -> int:
+    """The release number, from at most one RelN chunk.
+
+    Raises:
+        BlorbError: For a doubled RelN, or one that is not a
+            two-byte word (Blorb: Release Number Chunk).
+    """
+
+    found = [piece for piece in chunks if piece.chunk_id == RELEASE_ID]
+
+    if not found:
+        return 0
+
+    if len(found) > 1:
+        msg = (
+            f"{len(found)} RelN chunks appear, but there may not be "
+            f"more than one (Blorb: Release Number Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    if len(found[0].payload) != RELEASE_SIZE:
+        msg = "the RelN chunk does not hold its two release-number bytes"
+
+        raise BlorbError(msg)
+
+    return int.from_bytes(found[0].payload, "big")
 
 
 def _frontispiece(chunks: tuple[Chunk, ...]) -> int | None:

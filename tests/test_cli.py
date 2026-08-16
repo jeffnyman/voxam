@@ -6,13 +6,15 @@ import types
 import zlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 from assertpy import assert_that
 
 from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
-from voxam.cli import _recorded_keys, _screen_frontend, _speaker, main
+from voxam.cli import _gallery, _recorded_keys, _screen_frontend, _speaker, main
+from voxam.gallery import Gallery
 from voxam.iff import Chunk, chunk, write_form
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
@@ -598,6 +600,22 @@ def test_the_speaker_needs_sounds_a_package_and_a_device(
     monkeypatch.setitem(sys.modules, "sounddevice", None)
 
     assert_that(_speaker(sounded_blorb())).is_none()
+
+
+# The gallery helper hands the window only real art: no Blorb, or
+# one without drawable pictures, is None -- which keeps the
+# frontend's picture claim honest (§11.1.4).
+def test_the_gallery_helper_filters_empty_blorbs() -> None:
+    assert_that(_gallery(None)).is_none()
+    assert_that(_gallery(sounded_blorb())).is_none()
+
+    rect = Chunk(b"Rect", (10).to_bytes(4, "big") + (4).to_bytes(4, "big"))
+    pictured = Blorb((Resource(b"Pict", 1, rect),), None, None, frozenset(), 27)
+    gallery = cast("Gallery", _gallery(pictured))
+
+    assert_that(gallery).is_instance_of(Gallery)
+    assert_that(gallery.count).is_equal_to(1)
+    assert_that(gallery.release).is_equal_to(27)
 
 
 # With sounddevice present, a device-less box stays silent and a

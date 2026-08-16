@@ -614,6 +614,16 @@ class ScreenModel:
         self._flush()
         self._buffered = buffered
 
+    @property
+    def background(self) -> int:
+        """The current §8.3.1 background colour code.
+
+        What erase_picture paints with: the nearest thing this
+        model has to a window's own background (§15).
+        """
+
+        return self._background
+
     def set_colour(self, foreground: int, background: int) -> None:
         """Change the printing colours (§8.3.1).
 

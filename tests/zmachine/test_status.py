@@ -43,6 +43,7 @@ class Recorder:
     has_sounds = False
     has_character_graphics = False
     has_colours = False
+    has_pictures = False
     screen_lines = 24
     screen_columns = 64
     font_width = 1
@@ -52,6 +53,22 @@ class Recorder:
         self.events: list[str] = []
         self.statuses: list[Status] = []
         self.text: list[str] = []
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:  # noqa: ARG002
+        """No pictures: the status tests never ask."""
+
+        return None
+
+    def picture_census(self) -> tuple[int, int]:
+        """A census of zero pictures, release zero."""
+
+        return 0, 0
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Discard: the status tests never draw."""
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Discard: the status tests never erase pictures."""
 
     def write(self, text: str) -> None:
         self.events.append("write")
@@ -201,6 +218,8 @@ def test_show_status_assembles_the_globals() -> None:
     )
     assert_that(frontend.events).is_equal_to(["status", "write"])
     assert_that(frontend.text).is_equal_to(["hi"])
+    assert_that(frontend.picture_data(1)).is_none()
+    assert_that(frontend.picture_census()).is_equal_to((0, 0))
 
 
 # With bit 1 of Flags 1 set, the same globals are a clock reading:

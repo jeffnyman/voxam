@@ -17,6 +17,7 @@ from voxam.errors import (
     ZMachineUnimplementedError,
 )
 from voxam.frontend import Frontend, PlainFrontend
+from voxam.gallery import Gallery
 from voxam.png import decode
 from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
@@ -499,7 +500,9 @@ def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend |
         # Imported here because the graphics extra is optional.
         from voxam.glass import GraphicsFrontend  # noqa: PLC0415
 
-        return GraphicsFrontend(version, speaker=_speaker(blorb))
+        return GraphicsFrontend(
+            version, speaker=_speaker(blorb), gallery=_gallery(blorb)
+        )
     except ImportError:
         print(
             "voxam: the graphics window needs the pygame-ce extra "
@@ -507,6 +510,21 @@ def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend |
         )
 
         return None
+
+
+def _gallery(blorb: Blorb | None) -> "Gallery | None":
+    """The Blorb's art as a gallery, when it brought any.
+
+    None -- no Blorb, or one with no drawable pictures -- keeps
+    the frontend's picture claim honest (§11.1.4).
+    """
+
+    if blorb is None:
+        return None
+
+    gallery = blorb.gallery()
+
+    return gallery if gallery.count else None
 
 
 def _screen_frontend(

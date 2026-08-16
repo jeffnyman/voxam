@@ -26,6 +26,7 @@ from typing import Any, Protocol, cast
 
 from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
+from voxam.gallery import Gallery
 from voxam.painter import (
     IDLE_HEARTBEAT,
     INPUT_ONLY_FIRST,
@@ -105,6 +106,17 @@ class Glass(Protocol):
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         """Show a cover picture centred until present() paints over."""
 
+    def draw(
+        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+    ) -> None:
+        """Blit pixel rows with their top left at (line, column).
+
+        The position is 1-based screen pixels, §8.8.1's own
+        origin, and the pixels stay -- until text or another
+        picture is painted over them, which is exactly the §8.8.3
+        rule that nothing belongs to a window once plotted.
+        """
+
 
 class GraphicsFrontend:
     """A frontend that keeps a screen model and blits it to a window.
@@ -129,6 +141,7 @@ class GraphicsFrontend:
         version: int,
         glass: Glass | None = None,
         speaker: Speaker | None = None,
+        gallery: Gallery | None = None,
     ) -> None:
         """Wrap a window around a fresh screen model.
 
@@ -139,6 +152,10 @@ class GraphicsFrontend:
                 one.
             speaker: The audio device for the sound seam; None
                 claims no sound, honestly.
+            gallery: The Blorb's art for the picture seam; None
+                claims no pictures, honestly. An empty gallery
+                stands in behind the scenes so no picture method
+                ever has to ask whether one hangs.
         """
 
         if glass is None:
@@ -146,7 +163,9 @@ class GraphicsFrontend:
 
         self._glass = glass
         self._speaker = speaker
+        self._gallery = gallery if gallery is not None else Gallery({}, 0)
         self.has_sounds = speaker is not None
+        self.has_pictures = gallery is not None
         self.idle: Callable[[], None] | None = None
         self.screen_columns = glass.columns
         self.screen_lines = glass.lines
@@ -236,6 +255,48 @@ class GraphicsFrontend:
         """The model's own answer for get_cursor (§8.7.2.3.2)."""
 
         return self._model.get_cursor()
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:
+        """A picture's height and width in pixels (§15 picture_data)."""
+
+        return self._gallery.size(number)
+
+    def picture_census(self) -> tuple[int, int]:
+        """How many pictures hang, and the art's release (§15)."""
+
+        return self._gallery.count, self._gallery.release
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Blit a picture at a screen pixel position (§15 draw_picture).
+
+        A Rect placard has a size and no pixels: games measure
+        and position by it, and drawing it shows nothing -- the
+        conforming answer, not a shortfall.
+        """
+
+        picture = self._gallery.picture(number)
+
+        if picture is not None:
+            self._glass.draw(picture.rows, line, column)
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Paint a picture's region to the background (§15 erase_picture).
+
+        The background is the model's current colour, which is
+        the nearest truth this glass has to "the background
+        colour for the given window" until all eight windows
+        render.
+        """
+
+        size = self._gallery.size(number)
+
+        if size is None:
+            return
+
+        height, width = size
+        paper = COLOUR_VALUES.get(self._model.background, PAPER_DEFAULT)
+
+        self._glass.draw(((paper,) * width,) * height, line, column)
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a window has no bell to ring (§9).
@@ -572,19 +633,14 @@ class _PygameGlass:
             module.time.wait(10)
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
-        module = self._pygame
-        height = len(rows)
-        width = len(rows[0]) if height else 0
+        surface = self._surface(rows)
 
-        if not width:
+        if surface is None:
             return
 
-        surface = module.Surface((width, height))
-
-        for y, row in enumerate(rows):
-            for x, colour in enumerate(row):
-                surface.set_at((x, y), colour)
-
+        module = self._pygame
+        height = len(rows)
+        width = len(rows[0])
         screen = self._screen
         bounds = screen.get_size()
         scale = max(1, min(bounds[0] // width, bounds[1] // height))
@@ -599,6 +655,34 @@ class _PygameGlass:
             ),
         )
         self.present()
+
+    def draw(
+        self, rows: Sequence[Sequence[tuple[int, int, int]]], line: int, column: int
+    ) -> None:
+        surface = self._surface(rows)
+
+        if surface is None:
+            return
+
+        self._screen.blit(surface, (column - 1, line - 1))
+        self.present()
+
+    def _surface(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> object:
+        """Pixel rows as a surface, or None for an empty picture."""
+
+        height = len(rows)
+        width = len(rows[0]) if height else 0
+
+        if not width:
+            return None
+
+        surface: Any = self._pygame.Surface((width, height))
+
+        for y, row in enumerate(rows):
+            for x, colour in enumerate(row):
+                surface.set_at((x, y), colour)
+
+        return surface
 
 
 # The monospace families tried when no bundled font exists yet, in

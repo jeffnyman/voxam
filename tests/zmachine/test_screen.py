@@ -25,6 +25,7 @@ class ScreenRecorder:
     screen_columns = 80
     font_width = 1
     font_height = 1
+    has_pictures = False
 
     def __init__(self) -> None:
         self.styles: list[int] = []
@@ -78,6 +79,22 @@ class ScreenRecorder:
 
     def cursor_position(self) -> tuple[int, int]:
         return self.cursor
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:  # noqa: ARG002
+        """No pictures: the screen tests never hang any."""
+
+        return None
+
+    def picture_census(self) -> tuple[int, int]:
+        """A census of zero pictures, release zero."""
+
+        return 0, 0
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """Discard: the screen tests never draw."""
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """Discard: the screen tests never erase pictures."""
 
     def bleep(self, number: int) -> None:
         self.bleeps.append(number)
@@ -195,11 +212,14 @@ def test_window_operations_reach_the_frontend_in_order() -> None:
 
 
 # Numbers 1 and 2 are the interpreter's own bleeps, and a bare
-# sound_effect means bleep 1 (§9).
+# sound_effect means bleep 1 (§9). The recorder's picture seam is
+# the honest nothing of a frontend without pictures.
 def test_bleeps_reach_the_frontend() -> None:
     frontend = run(bytes([0xF5, 0x7F, 0x02, 0xF5, 0xFF, 0xBA]))
 
     assert_that(frontend.bleeps).is_equal_to([2, 1])
+    assert_that(frontend.picture_data(1)).is_none()
+    assert_that(frontend.picture_census()).is_equal_to((0, 0))
 
 
 # From number 3 upward, sound_effect names sampled sounds. On a
