@@ -41,6 +41,9 @@ class StubGlass:
         self.drawn: list[
             tuple[Sequence[Sequence[tuple[int, ...]]], int, int, tuple[int, int]]
         ] = []
+        self.typed: list[tuple[object, ...]] = []
+        self.filled: list[tuple[object, ...]] = []
+        self.shifted: list[tuple[int, int, int, int, int]] = []
 
     def paint(
         self,
@@ -55,6 +58,35 @@ class StubGlass:
         graphics: bool,
     ) -> None:
         self.painted.append((row, column, text, ink, paper, bold, italic, graphics))
+
+    def text(
+        self,
+        line: int,
+        column: int,
+        characters: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
+        self.typed.append(
+            (line, column, characters, ink, paper, bold, italic, graphics)
+        )
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        self.filled.append((line, column, height, width, colour))
+
+    def shift(self, line: int, column: int, height: int, width: int, rise: int) -> None:
+        self.shifted.append((line, column, height, width, rise))
 
     def present(self) -> None:
         self.presents += 1
@@ -301,7 +333,7 @@ def test_erasure_paints_the_background_block(tiny_png: bytes) -> None:
 # windows; other versions have no stage and placements change
 # nothing.
 def test_version_6_plays_on_the_stage() -> None:
-    frontend, _glass = windowed(version=6)
+    frontend, glass = windowed(version=6)
 
     assert_that(frontend.has_stage).is_true()
 
@@ -312,15 +344,25 @@ def test_version_6_plays_on_the_stage() -> None:
 
     assert_that(frontend.model.row_text(2)).is_equal_to("  staged")
 
+    # The glass heard the text at the window's true unit position
+    # -- (19, 19), not the nearest cell -- one dressed glyph at a
+    # time.
+    assert_that(glass.typed[0][:3]).is_equal_to((19, 19, "s"))
+    assert_that(glass.typed[1][:3]).is_equal_to((19, 28, "t"))
+    assert_that(glass.presents).is_greater_than(0)
+
     frontend.scroll_window(2, 18)
 
     assert_that(frontend.model.row_text(2)).is_equal_to("")
+    assert_that(glass.shifted).is_equal_to([(19, 19, 36, 90, 18)])
+    assert_that(glass.filled[-1]).is_equal_to((37, 19, 18, 90, (0, 0, 0)))
 
     frontend.set_cursor(1, 1)
     frontend.set_margins(2, 18, 0)
     frontend.write("m")
 
     assert_that(frontend.model.row_text(2)).is_equal_to("    m")
+    assert_that(glass.typed[-1][:3]).is_equal_to((19, 37, "m"))
 
     bare, _ = windowed()
 
@@ -344,22 +386,37 @@ def test_unchanged_cells_stay_unpainted() -> None:
     assert_that([entry[2] for entry in glass.painted]).is_equal_to(["!"])
 
 
-# A stage erasure forgets its region's shadow: every cell in the
-# rectangle repaints, blank or not, because the erasure may have
-# painted over pictures (§8.8.5.3).
-def test_stage_erasures_repaint_their_region() -> None:
+# A stage erasure reaches the glass as a fill of the window's own
+# unit rectangle -- pixel-true, so any picture in the region is
+# legitimately painted over (§8.8.5.3) -- and a whole-screen
+# erasure fills the whole screen; clear() after a frontispiece
+# fills it too, and no cell blitting happens on the stage at all.
+def test_stage_erasures_fill_their_true_rectangles() -> None:
     frontend, glass = windowed(version=6)
 
-    frontend.write("hello")
-    frontend.model.sweep()
-    glass.painted.clear()
+    frontend.place_window(4, 19, 19, 36, 90)
+    frontend.erase_window(4)
+
+    assert_that(glass.filled[-1]).is_equal_to((19, 19, 36, 90, (0, 0, 0)))
+
     frontend.erase_window(-2)
 
-    full_rows = {
-        entry[0] for entry in glass.painted if len(str(entry[2])) == StubGlass.columns
-    }
+    assert_that(glass.filled[-1]).is_equal_to((1, 1, 144, 270, (0, 0, 0)))
 
-    assert_that(full_rows).contains(1, 8)
+    frontend.clear()
+
+    assert_that(glass.filled[-1]).is_equal_to((1, 1, 144, 270, (0, 0, 0)))
+    assert_that(glass.painted).is_empty()
+
+
+# Typing on the stage rubs out in pixels: the erased cell arrives
+# as a fill at the window's true position (§15 read).
+def test_v6_typing_rubs_out_in_pixels() -> None:
+    frontend, glass = windowed(version=6, keys=["a", "\x7f", "\n"])
+
+    frontend.read_line()
+
+    assert_that(glass.filled[-1]).is_equal_to((1, 1, 18, 9, (0, 0, 0)))
 
 
 # The status line draws through the model like any other row --
@@ -526,6 +583,28 @@ class FakeFace:
         return ("glyph", character, colour)
 
 
+class FakeRect:
+    def __init__(self, x: int, y: int, width: int, height: int) -> None:
+        self.x, self.y, self.width, self.height = x, y, width, height
+
+    def clip(self, other: tuple[int, int, int, int]) -> "FakeRect":
+        x, y, width, height = other
+        left = max(self.x, x)
+        top = max(self.y, y)
+        right = min(self.x + self.width, x + width)
+        bottom = min(self.y + self.height, y + height)
+
+        return FakeRect(left, top, max(right - left, 0), max(bottom - top, 0))
+
+
+class FakeRegion:
+    def __init__(self, region: FakeRect) -> None:
+        self.region = region
+
+    def copy(self) -> tuple[object, ...]:
+        return ("copied", self.region.x, self.region.y)
+
+
 class FakeScreen:
     def __init__(self) -> None:
         self.fills: list[tuple[object, ...]] = []
@@ -534,11 +613,19 @@ class FakeScreen:
     def fill(self, colour: object, rect: object = None) -> None:
         self.fills.append((colour, rect))
 
-    def blit(self, surface: object, position: object) -> None:
-        self.blits.append((surface, position))
+    def blit(self, surface: object, position: object, area: object = None) -> None:
+        self.blits.append(
+            (surface, position) if area is None else (surface, position, area)
+        )
 
     def get_size(self) -> tuple[int, int]:
         return (270, 144)
+
+    def get_rect(self) -> FakeRect:
+        return FakeRect(0, 0, *self.get_size())
+
+    def subsurface(self, region: FakeRect) -> FakeRegion:
+        return FakeRegion(region)
 
 
 class FakeSurface:
@@ -772,6 +859,66 @@ def test_the_pygame_doorway_draws_at_pixel_positions(
 
     assert_that(layered.flags).is_equal_to(module.SRCALPHA)
     assert_that(layered.pixels[1]).is_equal_to(((1, 0), (7, 8, 9, 0)))
+
+
+# A standard window size shapes the doorway's glass: the height
+# keeps the classic 24 lines and the width follows the art's own
+# proportions, so a game's layout arithmetic nests the way its
+# artists drew it (Blorb: The Resolution Chunk).
+def test_the_standard_shape_reaches_the_doorway(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    shaped = open_pygame_glass((320, 200))
+
+    assert_that(shaped.columns).is_equal_to(77)
+    assert_that(shaped.lines).is_equal_to(24)
+
+    classic = open_pygame_glass()
+
+    assert_that(classic.columns).is_equal_to(80)
+
+
+# Fills paint pixel rectangles, and shifts slide a region's pixels
+# up or down, clipped to the screen; an off-screen shift moves
+# nothing at all.
+def test_the_pygame_doorway_fills_and_shifts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    screen = module.screen
+    screen.fills.clear()
+    screen.blits.clear()
+
+    glass.fill(3, 5, 10, 20, (7, 8, 9))
+
+    assert_that(screen.fills[-1]).is_equal_to(((7, 8, 9), (4, 2, 20, 10)))
+
+    glass.shift(1, 1, 50, 40, 18)
+
+    surface, position, area = screen.blits[-1]
+
+    assert_that(surface[0]).is_equal_to("copied")
+    assert_that(position).is_equal_to((0, 0))
+    assert_that(area).is_equal_to((0, 18, 40, 50))
+
+    glass.shift(1, 1, 50, 40, -18)
+
+    _surface, position, area = screen.blits[-1]
+
+    assert_that(position).is_equal_to((0, 18))
+    assert_that(area).is_equal_to((0, 0, 40, 32))
+
+    glass.shift(1000, 1000, 10, 10, 5)
+
+    assert_that(screen.blits).is_length(2)
 
 
 # A face whose bold steps wider than the cell is dropped: bold
