@@ -231,6 +231,11 @@ PLACE_COLUMN_OPERAND = 2
 # also selects window 0 (§8.8.5.3.1).
 UNSPLIT_ERASE = -1
 
+# erase_line's value 1 erases to the end of the line; any other
+# value is a pixel width in Version 6 and nothing before it (§15
+# erase_line).
+ERASE_TO_END = 1
+
 # The four output streams (§7.1): the screen, the transcript, memory
 # redirection into a table, and the player's command record. Positive
 # selects, negative deselects, and stream 3 may nest 16 deep at most
@@ -2236,6 +2241,25 @@ class Machine:
         self._frontend.erase_window(window)
         self._pc = instruction.next_address
 
+    def _op_erase_line(self, instruction: Instruction) -> None:
+        """Erase rightward from the cursor (§15 erase_line).
+
+        Value 1 erases from the cursor to the end of its line in
+        every version that has the opcode. Any other value does
+        nothing before Version 6; in Version 6 it instead erases
+        the value minus one pixels rightward, clipped to stay
+        inside the right margin (§8.8.5.2).
+        """
+
+        value = self._value(instruction.operands[0])
+
+        if value == ERASE_TO_END:
+            self._frontend.erase_line()
+        elif self._memory.header.version == PACKED_PC_VERSION:
+            self._frontend.erase_line(value - 1)
+
+        self._pc = instruction.next_address
+
     def _op_buffer_mode(self, instruction: Instruction) -> None:
         """Hand the word-wrap buffering toggle to the frontend (§8.7)."""
 
@@ -3441,6 +3465,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
     "erase_window": Machine._op_erase_window,
+    "erase_line": Machine._op_erase_line,
     "get_child": Machine._op_get_child,
     "get_next_prop": Machine._op_get_next_prop,
     "get_parent": Machine._op_get_parent,

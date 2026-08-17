@@ -169,6 +169,14 @@ class Frontend(Protocol):
         window.
         """
 
+    def erase_line(self, pixels: int | None = None) -> None:
+        """Erase rightward from the cursor (§8.8.5.2).
+
+        To the end of the line by default; a Version 6 game may
+        instead give a width in pixels, clipped to stay inside the
+        right margin.
+        """
+
     def set_buffering(self, buffered: bool) -> None:
         """Turn word-wrap buffering on or off (§8.7)."""
 
@@ -415,6 +423,9 @@ class PlainFrontend:
         if window == UNSPLIT_AND_CLEAR:
             self._window = LOWER_WINDOW
             self._split = 0
+
+    def erase_line(self, pixels: int | None = None) -> None:
+        """Drop the erasure: a stream has no line to blank."""
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""

@@ -841,6 +841,9 @@ class StagedFrontend(PlainFrontend):
     def set_line_count(self, window: int, count: int) -> None:
         self.events.append(("line_count", window, count))
 
+    def erase_line(self, pixels: int | None = None) -> None:
+        self.events.append(("erase_line", pixels))
+
     def cursor_position(self) -> tuple[int, int]:
         return (77, 33)
 
@@ -879,6 +882,21 @@ def test_staged_frontends_hear_the_ledger_geometry() -> None:
             ("select", 2),
         ]
     )
+
+
+# erase_line reaches the stage in both of §15's spellings: value 1
+# erases to the end of the line, and any other value is a pixel
+# width, arriving as the value minus one (§8.8.5.2).
+def test_staged_erase_line_carries_the_pixel_reach() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes([0xEE, 0x7F, 0x01, 0xEE, 0x7F, 0x1E, 0xBA]),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    assert_that(frontend.events).is_equal_to([("erase_line", None), ("erase_line", 29)])
 
 
 # A staged frontend erases any of the eight windows -- no window

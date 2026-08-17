@@ -416,6 +416,18 @@ def test_stage_erasures_fill_their_true_rectangles() -> None:
     assert_that(glass.painted).is_empty()
 
 
+# On the stage, erase_line's pixel form reaches the glass as a
+# fill of exactly that width at the cursor (§8.8.5.2).
+def test_a_staged_erase_line_fills_its_pixel_width() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.place_window(2, 19, 19, 36, 90)
+    frontend.set_window(2)
+    frontend.erase_line(25)
+
+    assert_that(glass.filled[-1]).is_equal_to((19, 19, 18, 25, (0, 0, 0)))
+
+
 # On the stage, colour -1 is the colour of the pixel under the
 # cursor (§8.3.1): the glass is read at the cursor's own unit
 # position and the sampled colour dresses the text that follows --

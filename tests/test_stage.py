@@ -236,6 +236,29 @@ def test_erase_line_stops_at_the_window_edge() -> None:
     assert_that(stage.row_text(2)).is_equal_to(" wip")
 
 
+# The pixel form erases an exact width rightward (§8.8.5.2): the
+# fill carries the width, the grid blanks only the cells the span
+# fully covers, and an over-long reach clips at the right margin.
+def test_erase_line_takes_a_pixel_width() -> None:
+    stage = staged()
+
+    stage.place_window(5, 11, 11, 20, 60)
+    stage.set_window(5)
+    stage.write("wiped!")
+    stage.set_cursor(1, 11)
+    stage.paints()
+    stage.erase_line(25)
+
+    assert_that(stage.row_text(2)).is_equal_to(" w  ed!")
+    assert_that(stage.paints()).is_equal_to([FillPaint(11, 21, 10, 25, 1)])
+
+    stage.set_cursor(1, 41)
+    stage.erase_line(9999)
+
+    assert_that(stage.row_text(2)).is_equal_to(" w  e")
+    assert_that(stage.paints()).is_equal_to([FillPaint(11, 51, 10, 20, 1)])
+
+
 # rub_out retreats one cell and blanks it, and at the window's
 # left edge there is nothing left to rub.
 def test_rub_out_retreats_one_cell() -> None:

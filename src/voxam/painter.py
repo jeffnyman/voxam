@@ -387,8 +387,12 @@ class ScreenFrontend:
         self._model.erase_window(window)
         self._repaint()
 
-    def erase_line(self) -> None:
-        """Erase from the cursor to the end of the line (§8.7.3.4)."""
+    def erase_line(self, pixels: int | None = None) -> None:  # noqa: ARG002
+        """Erase from the cursor to the end of the line (§8.7.3.4).
+
+        A pixel width never arrives here: only a Version 6 game
+        sends one, and a Version 6 game plays on the glass.
+        """
 
         self._model.erase_line()
         self._repaint()
