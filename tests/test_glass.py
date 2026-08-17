@@ -44,6 +44,13 @@ class StubGlass:
         self.typed: list[tuple[object, ...]] = []
         self.filled: list[tuple[object, ...]] = []
         self.shifted: list[tuple[int, int, int, int, int]] = []
+        self.samples: list[tuple[int, int]] = []
+        self.pixel = (10, 20, 30)
+
+    def sample(self, line: int, column: int) -> tuple[int, int, int]:
+        self.samples.append((line, column))
+
+        return self.pixel
 
     def paint(
         self,
@@ -409,6 +416,69 @@ def test_stage_erasures_fill_their_true_rectangles() -> None:
     assert_that(glass.painted).is_empty()
 
 
+# On the stage, colour -1 is the colour of the pixel under the
+# cursor (§8.3.1): the glass is read at the cursor's own unit
+# position and the sampled colour dresses the text that follows --
+# here both ink and paper, the second request reusing the code the
+# first one earned (§8.3.5.2's dynamic range).
+def test_colour_minus_one_samples_the_pixel_under_the_cursor() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.place_window(2, 19, 19, 36, 90)
+    frontend.set_window(2)
+    frontend.set_cursor(1, 10)
+    frontend.set_colour(-1, -1)
+
+    assert_that(glass.samples).is_equal_to([(19, 28), (19, 28)])
+
+    frontend.write("s")
+
+    (_, _, _, ink, paper, _, _, _) = glass.typed[-1]
+
+    assert_that(ink).is_equal_to((10, 20, 30))
+    assert_that(paper).is_equal_to((10, 20, 30))
+
+
+# The sample is read where printing left the cursor: text
+# advances it, and colour -1 reads the pixel there -- window 0's
+# own origin plus two cells of advance.
+def test_the_sample_follows_the_advancing_cursor() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.write("ab")
+    frontend.set_colour(2, -1)
+
+    assert_that(glass.samples).is_equal_to([(1, 19)])
+
+
+# A window whose background was sampled erases in that colour: the
+# fill arrives on the glass wearing the sampled RGB, not a code.
+def test_a_sampled_background_erases_in_its_own_colour() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.place_window(4, 19, 19, 36, 90)
+    frontend.set_window(4)
+    frontend.set_colour(2, -1)
+    frontend.erase_window(4)
+
+    assert_that(glass.filled[-1]).is_equal_to((19, 19, 36, 90, (10, 20, 30)))
+
+
+# The Version 6 greys are real paint (§8.3.1): light, medium, and
+# dark grey at codes 10 to 12, their values scaled from the spec's
+# own true-colour equivalents.
+def test_the_version_6_greys_are_real_paint() -> None:
+    frontend, glass = windowed(version=6)
+
+    frontend.set_colour(10, 12)
+    frontend.write("g")
+
+    (_, _, _, ink, paper, _, _, _) = glass.typed[-1]
+
+    assert_that(ink).is_equal_to((181, 181, 181))
+    assert_that(paper).is_equal_to((90, 90, 90))
+
+
 # A screenful of scrolled text pauses behind a [MORE] in reverse
 # video at the window's bottom; the answering key is spent, the
 # prompt's cells fill back over, and play continues (§8.8.3.2.6).
@@ -637,6 +707,12 @@ class FakeScreen:
     def __init__(self) -> None:
         self.fills: list[tuple[object, ...]] = []
         self.blits: list[tuple[object, ...]] = []
+        self.reads: list[tuple[int, int]] = []
+
+    def get_at(self, position: tuple[int, int]) -> tuple[int, int, int, int]:
+        self.reads.append(position)
+
+        return (60, 70, 80, 255)
 
     def fill(self, colour: object, rect: object = None) -> None:
         self.fills.append((colour, rect))
@@ -805,6 +881,22 @@ def test_the_pygame_doorway_draws_font_3_bitmaps(
     glass.paint(3, 1, "é", WHITE, BLACK, bold=False, italic=False, graphics=True)
 
     assert_that(screen.blits[2][0][0]).is_equal_to("glyph")
+
+
+# The doorway reads a pixel back as plain RGB, shedding the alpha
+# pygame reports -- §8.3.1 colour -1's sample, off the real
+# surface at the 0-based position pygame counts in.
+def test_the_pygame_doorway_samples_a_pixel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+
+    assert_that(glass.sample(19, 10)).is_equal_to((60, 70, 80))
+    assert_that(module.screen.reads).is_equal_to([(9, 18)])
 
 
 # Keys translate to their §3.8 characters, printables pass through,

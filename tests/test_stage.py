@@ -68,6 +68,20 @@ def test_placed_windows_take_text_at_their_position() -> None:
     assert_that(stage.cell(4, 8).character).is_equal_to("b")
 
 
+# §8.3.1's "pixel under the cursor" needs the cursor as a screen
+# position: screen_cursor folds the window's own origin in, where
+# get_cursor stays window-relative (§8.7.2.3.2).
+def test_the_screen_cursor_speaks_absolute_units() -> None:
+    stage = staged()
+
+    stage.place_window(3, 21, 51, 30, 80)
+    stage.set_window(3)
+    stage.set_cursor(11, 21)
+
+    assert_that(stage.get_cursor()).is_equal_to((11, 21))
+    assert_that(stage.screen_cursor()).is_equal_to((31, 71))
+
+
 # A window with wrapping off prints to its right margin, parks the
 # cursor there, and ignores the rest (§8.8.3.1.1); a newline in a
 # non-scrolling window pins at its bottom line.

@@ -69,6 +69,8 @@ Appearance = tuple[
 
 # The §8.3.1 colour codes as RGB, code 1 being the interpreter's
 # default ink and paper: white on black, the machine's home look.
+# The greys at 10-12 are the Version 6 additions, their values
+# scaled from the spec's own true-colour equivalents.
 INK_DEFAULT = (255, 255, 255)
 PAPER_DEFAULT = (0, 0, 0)
 COLOUR_VALUES = {
@@ -80,7 +82,17 @@ COLOUR_VALUES = {
     7: (204, 0, 204),
     8: (0, 204, 204),
     9: (255, 255, 255),
+    10: (181, 181, 181),
+    11: (139, 139, 139),
+    12: (90, 90, 90),
 }
+
+# §8.3.1's colour code -1: the colour of the pixel under the
+# cursor, Version 6 only. A sampled colour is not one of the
+# standard set, so it lives in the book under a dynamic code of 16
+# or higher -- the range §8.3.5.2 reserves for exactly this.
+UNDER_CURSOR = -1
+FIRST_SAMPLED = 16
 
 
 class Glass(Protocol):
@@ -160,6 +172,13 @@ class Glass(Protocol):
 
         Positive rise moves the pixels up, negative down; the
         exposed strip is the caller's to fill.
+        """
+
+    def sample(self, line: int, column: int) -> tuple[int, int, int]:
+        """The colour of one pixel, at a 1-based pixel position.
+
+        This is how §8.3.1's colour -1 reads the glass: the pixel
+        under the cursor, as it stands painted.
         """
 
     def present(self) -> None:
@@ -277,6 +296,11 @@ class GraphicsFrontend:
         )
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
+        # The frontend's colour book: the §8.3.1 codes, joined by
+        # a dynamic code (16 and up, §8.3.5.2) for every colour
+        # ever sampled off the glass by colour -1.
+        self._colours: dict[int, tuple[int, int, int]] = dict(COLOUR_VALUES)
+        self._sampled: dict[tuple[int, int, int], int] = {}
 
         if self._stage is not None:
             self._stage.more = self._pause
@@ -316,9 +340,40 @@ class GraphicsFrontend:
         self._model.set_font(font)
 
     def set_colour(self, foreground: int, background: int) -> None:
-        """Change the §8.3.1 colours for text that follows."""
+        """Change the §8.3.1 colours for text that follows.
+
+        On the stage, colour -1 means the colour of the pixel
+        under the cursor (§8.3.1, Version 6 only): the glass is
+        brought current and read at the cursor's own position, and
+        the sampled colour joins the book under a dynamic code.
+        """
+
+        if self._stage is not None:
+            foreground = self._resolved(self._stage, foreground)
+            background = self._resolved(self._stage, background)
 
         self._model.set_colour(foreground, background)
+
+    def _resolved(self, stage: StageModel, code: int) -> int:
+        """A paintable colour code: sampling stands in for -1."""
+
+        if code != UNDER_CURSOR:
+            return code
+
+        # The cursor position first -- asking flushes buffered
+        # text into paints -- then the pending paints onto the
+        # glass, so the sample reads the screen a player sees.
+        line, column = stage.screen_cursor()
+
+        self._settle(stage)
+
+        colour = self._glass.sample(line, column)
+
+        if colour not in self._sampled:
+            self._sampled[colour] = FIRST_SAMPLED + len(self._sampled)
+            self._colours[self._sampled[colour]] = colour
+
+        return self._sampled[colour]
 
     def erase_window(self, window: int) -> None:
         """Erase a window to its background, repainting (§8.7, §8.8.5.3).
@@ -543,7 +598,7 @@ class GraphicsFrontend:
             return
 
         height, width = size
-        paper = COLOUR_VALUES.get(self._model.background, PAPER_DEFAULT)
+        paper = self._colours.get(self._model.background, PAPER_DEFAULT)
 
         self._glass.draw(((paper,),), line, column, (width, height))
 
@@ -713,14 +768,7 @@ class GraphicsFrontend:
         """
 
         if self._stage is not None:
-            paints = self._stage.paints()
-
-            for paint in paints:
-                self._perform(paint)
-
-            self._stage.sweep()
-
-            if paints:
+            if self._settle(self._stage):
                 self._glass.present()
 
             return
@@ -733,11 +781,29 @@ class GraphicsFrontend:
         if rows:
             self._glass.present()
 
+    def _settle(self, stage: StageModel) -> bool:
+        """Carry the stage's pending paints onto the glass.
+
+        Returns:
+            Whether anything was painted.
+        """
+
+        paints = stage.paints()
+
+        for paint in paints:
+            self._perform(paint)
+
+        stage.sweep()
+
+        return bool(paints)
+
     def _perform(self, paint: Paint) -> None:
         """Execute one stage paint on the glass, in real pixels."""
 
         if isinstance(paint, TextPaint):
-            character, (ink, paper, bold, italic, graphics) = _appearance(paint.cell)
+            character, (ink, paper, bold, italic, graphics) = _appearance(
+                paint.cell, self._colours
+            )
 
             self._glass.text(
                 paint.line,
@@ -755,7 +821,7 @@ class GraphicsFrontend:
                 paint.column,
                 paint.height,
                 paint.width,
-                COLOUR_VALUES.get(paint.background, PAPER_DEFAULT),
+                self._colours.get(paint.background, PAPER_DEFAULT),
             )
         else:
             self._glass.shift(
@@ -773,7 +839,7 @@ class GraphicsFrontend:
         """
 
         cells: list[Appearance] = [
-            _appearance(self._model.cell(row, column))
+            _appearance(self._model.cell(row, column), self._colours)
             for column in range(1, self._model.columns + 1)
         ]
         shadow = self._shadow.get(row, [None] * self._model.columns)
@@ -812,6 +878,7 @@ class GraphicsFrontend:
 
 def _appearance(
     cell: Cell,
+    colours: dict[int, tuple[int, int, int]],
 ) -> tuple[str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool, bool]]:
     """One cell's character and dress, reverse video pre-swapped.
 
@@ -823,8 +890,8 @@ def _appearance(
     """
 
     style = cell.style
-    ink = COLOUR_VALUES.get(cell.foreground, INK_DEFAULT)
-    paper = COLOUR_VALUES.get(cell.background, PAPER_DEFAULT)
+    ink = colours.get(cell.foreground, INK_DEFAULT)
+    paper = colours.get(cell.background, PAPER_DEFAULT)
 
     if style & REVERSE:
         ink, paper = paper, ink
@@ -1046,6 +1113,11 @@ class _PygameGlass:
                 (region.x, region.y - rise),
                 (0, 0, region.width, region.height + rise),
             )
+
+    def sample(self, line: int, column: int) -> tuple[int, int, int]:
+        colour = self._screen.get_at((column - 1, line - 1))
+
+        return (colour[0], colour[1], colour[2])
 
     def _tile(
         self, character: str, ink: tuple[int, int, int], paper: tuple[int, int, int]

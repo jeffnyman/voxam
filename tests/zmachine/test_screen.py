@@ -411,6 +411,20 @@ def test_colours_reach_a_frontend_that_claims_them() -> None:
     assert_that(frontend.colours).is_equal_to([(3, 8)])
 
 
+# The pair travels signed, so §8.3.1's colour -1 -- the pixel
+# under the cursor -- arrives as itself rather than as $FFFF, for
+# a frontend that can sample.
+def test_colour_minus_one_arrives_signed() -> None:
+    frontend = ScreenRecorder()
+    frontend.has_colours = True
+    program = bytes([0xDB, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xBA])
+    machine = Machine(screen_story(program, version=5), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(frontend.colours).is_equal_to([(-1, -1)])
+
+
 # The 15-bit form is its own claim, made in the header extension's
 # flags, and Voxam does not make it: set_true_colour stays quiet
 # even where the classic colours are on offer (§8.3.7).
