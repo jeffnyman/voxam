@@ -69,6 +69,14 @@ WORD_SIZE = 4
 # was plotted last (Blorb: The Adaptive Palette Chunk).
 ADAPTIVE_ID = b"APal"
 
+# The baked-palette chunk, Bocfel's extension to the adaptive
+# dance: 12-byte records of a scene picture, an adaptive picture,
+# and the replacement picture the packager pre-dressed in that
+# scene's palette -- plotted in the adaptive picture's stead
+# (Bocfel: The Bocfel Adaptive Palette Chunk).
+BAKED_ID = b"BPal"
+BAKED_ENTRY_SIZE = 12
+
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
 # identifier carries the same release, serial, and checksum bytes
@@ -124,6 +132,9 @@ class Blorb:
         adaptive: The pictures whose palettes adapt to the scene
             plotted before them; empty without an APal chunk
             (Blorb: The Adaptive Palette Chunk).
+        baked: Each (scene, adaptive) pair's pre-dressed
+            replacement picture; empty without a BPal chunk
+            (Bocfel: The Bocfel Adaptive Palette Chunk).
     """
 
     def __init__(  # noqa: PLR0913 -- one seat per optional chunk
@@ -136,6 +147,7 @@ class Blorb:
         release: int = 0,
         resolution: Resolution | None = None,
         adaptive: frozenset[int] = frozenset(),
+        baked: dict[tuple[int, int], int] | None = None,
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
@@ -146,6 +158,7 @@ class Blorb:
         self.release = release
         self.resolution = resolution
         self.adaptive = adaptive
+        self.baked = baked or {}
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -207,6 +220,7 @@ class Blorb:
             release=_release(chunks),
             resolution=_resolution(chunks),
             adaptive=_adaptive(chunks),
+            baked=_baked(chunks),
         )
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
@@ -279,7 +293,13 @@ class Blorb:
             elif piece.chunk.chunk_id == RECT_ID:
                 art[piece.number] = _placard(piece)
 
-        return Gallery(art, self.release, self.resolution, adaptive=self.adaptive)
+        return Gallery(
+            art,
+            self.release,
+            self.resolution,
+            adaptive=self.adaptive,
+            baked=self.baked,
+        )
 
     def sounds(self) -> dict[int, aiff.Sound]:
         """Decode every sampled sound resource, by number.
@@ -513,6 +533,57 @@ def _adaptive(chunks: tuple[Chunk, ...]) -> frozenset[int]:
         int.from_bytes(payload[start : start + WORD_SIZE], "big")
         for start in range(0, len(payload), WORD_SIZE)
     )
+
+
+def _baked(chunks: tuple[Chunk, ...]) -> dict[tuple[int, int], int]:
+    """The pre-dressed replacements, from at most one BPal chunk.
+
+    Each 12-byte record maps a scene picture and an adaptive
+    picture to the replacement whose palette the packager already
+    applied (Bocfel: The Bocfel Adaptive Palette Chunk).
+
+    Raises:
+        BlorbError: For a doubled BPal, or one whose length is
+            not a whole number of 12-byte records.
+    """
+
+    found = [piece for piece in chunks if piece.chunk_id == BAKED_ID]
+
+    if not found:
+        return {}
+
+    if len(found) > 1:
+        msg = (
+            f"{len(found)} BPal chunks appear, but there may not be "
+            f"more than one (Bocfel: The Bocfel Adaptive Palette Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    payload = found[0].payload
+
+    if len(payload) % BAKED_ENTRY_SIZE:
+        msg = (
+            f"a BPal chunk is 12-byte records, but this one holds "
+            f"{len(payload)} bytes (Bocfel: The Bocfel Adaptive "
+            f"Palette Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    records = {}
+
+    for start in range(0, len(payload), BAKED_ENTRY_SIZE):
+        scene = int.from_bytes(payload[start : start + WORD_SIZE], "big")
+        adaptive = int.from_bytes(
+            payload[start + WORD_SIZE : start + 2 * WORD_SIZE], "big"
+        )
+        replacement = int.from_bytes(
+            payload[start + 2 * WORD_SIZE : start + BAKED_ENTRY_SIZE], "big"
+        )
+        records[(scene, adaptive)] = replacement
+
+    return records
 
 
 def _resolution(chunks: tuple[Chunk, ...]) -> Resolution | None:

@@ -6,7 +6,7 @@ from typing import cast
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import PNGError
+from voxam.errors import BlorbError, PNGError
 from voxam.gallery import Gallery, Placard, Resolution, Scaling
 from voxam.png import SIGNATURE, Picture
 
@@ -182,6 +182,65 @@ def test_adaptive_chrome_keeps_its_holes() -> None:
 
     assert_that(dressed.rows[0]).is_equal_to(((0, 0, 0), (20, 20, 20)))
     assert_that(dressed.clear).is_equal_to(((True, False),))
+
+
+# A BPal record pre-empts the dance (Bocfel: The Bocfel Adaptive
+# Palette Chunk): with scene 1 holding the Current Palette, the
+# chrome plots as its baked replacement, decoded plainly. Before
+# any scene the APal rules answer as ever; a palette-less plot
+# does not move the donor; and a scene with no record falls back
+# to the live dance.
+def test_baked_replacements_stand_in_for_the_chrome(tiny_png: bytes) -> None:
+    gallery = Gallery(
+        {
+            1: indexed(((10, 10, 10), (20, 20, 20))),
+            2: indexed(((30, 30, 30), (40, 40, 40))),
+            3: tiny_png,
+            7: indexed(((1, 1, 1), (2, 2, 2))),
+            1000: indexed(((70, 70, 70), (80, 80, 80))),
+        },
+        0,
+        adaptive=frozenset({7}),
+        baked={(1, 7): 1000},
+    )
+
+    before = cast("Picture", gallery.picture(7))
+
+    assert_that(before.rows[0]).is_equal_to(((1, 1, 1), (2, 2, 2)))
+
+    gallery.picture(1)
+    baked = cast("Picture", gallery.picture(7))
+
+    assert_that(baked.rows[0]).is_equal_to(((70, 70, 70), (80, 80, 80)))
+    assert_that(gallery.picture(7)).is_same_as(baked)
+
+    gallery.picture(3)
+
+    assert_that(gallery.picture(7)).is_same_as(baked)
+
+    gallery.picture(2)
+    dressed = cast("Picture", gallery.picture(7))
+
+    assert_that(dressed.rows[0]).is_equal_to(((30, 30, 30), (40, 40, 40)))
+
+
+# A BPal record naming a picture the Blorb does not hold is a lie
+# heard loudly, never a silent mis-draw.
+def test_a_baked_record_pointing_at_nothing_is_loud() -> None:
+    gallery = Gallery(
+        {
+            1: indexed(((10, 10, 10), (20, 20, 20))),
+            7: indexed(((1, 1, 1), (2, 2, 2))),
+        },
+        0,
+        adaptive=frozenset({7}),
+        baked={(1, 7): 1000},
+    )
+
+    gallery.picture(1)
+
+    with pytest.raises(BlorbError, match="names picture 1000"):
+        gallery.picture(7)
 
 
 # An entry that does not open with the PNG signature and IHDR is
