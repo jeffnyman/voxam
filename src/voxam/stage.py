@@ -317,6 +317,24 @@ class StageModel:
             current.column * self._font_width + 1,
         )
 
+    def screen_cursor(self) -> tuple[int, int]:
+        """The selected window's cursor as absolute screen units.
+
+        Where get_cursor answers in the window's own coordinates
+        (§8.7.2.3.2), this folds the window's origin in -- the
+        position on the glass itself that §8.3.1's "colour of the
+        pixel under the cursor" reads from.
+        """
+
+        current = self._windows[self._selected]
+
+        self._flush(current)
+
+        return (
+            current.y + current.row * self._font_height,
+            current.x + current.column * self._font_width,
+        )
+
     def split_window(self, height: int) -> None:
         """Tile windows 1 and 0 vertically, the height in units.
 

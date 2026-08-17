@@ -2127,13 +2127,16 @@ class Machine:
         frontend that claimed colours in the header receives the
         pair, and one that truthfully declared none makes the
         request a legitimate no-op, exactly as a monochrome
-        terminal of the era would treat it.
+        terminal of the era would treat it. The pair travels
+        signed, so §8.3.1's colour -1 -- the pixel under the
+        cursor -- arrives as itself for a frontend that can
+        sample.
         """
 
         if self._frontend.has_colours:
             self._frontend.set_colour(
-                self._value(instruction.operands[0]),
-                self._value(instruction.operands[1]),
+                signed(self._value(instruction.operands[0])),
+                signed(self._value(instruction.operands[1])),
             )
 
         self._pc = instruction.next_address
