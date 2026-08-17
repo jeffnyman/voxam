@@ -19,7 +19,7 @@ from those words (Blorb: The Resolution Chunk).
 from dataclasses import dataclass, field
 from fractions import Fraction
 
-from voxam.errors import PNGError
+from voxam.errors import BlorbError, PNGError
 from voxam.png import IHDR, SIGNATURE, Picture, decode, palette
 
 # The Current Palette an adaptive-palette Blorb keeps: sixteen
@@ -101,6 +101,7 @@ class Gallery:
         resolution: Resolution | None = None,
         *,
         adaptive: frozenset[int] = frozenset(),
+        baked: dict[tuple[int, int], int] | None = None,
     ) -> None:
         """Hang the art: PNG bytes or placards, by picture number.
 
@@ -114,6 +115,10 @@ class Gallery:
                 instead of their own -- Infocom's chrome, which
                 recolours to match whatever scene was plotted
                 last (Blorb: The Adaptive Palette Chunk).
+            baked: The pre-applied replacements: each (scene,
+                adaptive) pair's stand-in picture, its palette
+                baked in by the packager (Bocfel: The Bocfel
+                Adaptive Palette Chunk).
         """
 
         self._art = art
@@ -121,6 +126,8 @@ class Gallery:
         self.release = release
         self._resolution = resolution
         self._adaptive = adaptive
+        self._baked = baked or {}
+        self._donor: int | None = None
         self._current: tuple[tuple[int, int, int], ...] | None = None
         self._adapted: dict[int, tuple[object, Picture]] = {}
         self._serial = 0
@@ -229,21 +236,32 @@ class Gallery:
 
         if self._adaptive:
             if number in self._adaptive:
+                baked = (
+                    self._baked.get((self._donor, number))
+                    if self._donor is not None
+                    else None
+                )
+
+                if baked is not None:
+                    return self._baked_picture(baked)
+
                 return self._adapted_picture(number, entry)
 
-            self._absorb(entry)
+            self._absorb(number, entry)
 
         if number not in self._decoded:
             self._decoded[number] = decode(entry)
 
         return self._decoded[number]
 
-    def _absorb(self, entry: bytes) -> None:
+    def _absorb(self, number: int, entry: bytes) -> None:
         """Carry a plotted picture's palette into the Current Palette.
 
         Only as many entries as the picture brought are changed
         (Blorb: The Adaptive Palette Chunk); a palette-less
-        picture changes nothing.
+        picture changes nothing -- not even the remembered donor,
+        the picture number the baked replacements are looked up
+        under (Bocfel: The Bocfel Adaptive Palette Chunk).
         """
 
         own = palette(entry)[:PALETTE_SIZE]
@@ -251,6 +269,7 @@ class Gallery:
         if not own:
             return
 
+        self._donor = number
         existing = list(self._current or ((0, 0, 0),) * PALETTE_SIZE)
         existing[: len(own)] = own
         merged = tuple(existing)
@@ -258,6 +277,37 @@ class Gallery:
         if merged != self._current:
             self._current = merged
             self._serial += 1
+
+    def _baked_picture(self, replacement: int) -> Picture:
+        """A pre-applied replacement, standing in for adaptive art.
+
+        The packager already dressed this picture in the scene's
+        palette (Bocfel: The Bocfel Adaptive Palette Chunk), so it
+        decodes plainly. Its size matches the picture it replaces
+        by that chunk's own rule, so every measurement still
+        answers from the original.
+
+        Raises:
+            BlorbError: If the named replacement is not a
+                decodable picture -- a BPal record pointing at
+                nothing is a lie worth hearing about.
+        """
+
+        entry = self._art.get(replacement)
+
+        if entry is None or isinstance(entry, Placard):
+            msg = (
+                f"a BPal record names picture {replacement} as a "
+                f"baked replacement, but the Blorb holds no such "
+                f"picture (Bocfel: The Bocfel Adaptive Palette Chunk)"
+            )
+
+            raise BlorbError(msg)
+
+        if replacement not in self._decoded:
+            self._decoded[replacement] = decode(entry)
+
+        return self._decoded[replacement]
 
     def _adapted_picture(self, number: int, entry: bytes) -> Picture:
         """An adaptive picture, plotted in the Current Palette.

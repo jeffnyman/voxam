@@ -219,6 +219,27 @@ def test_the_adaptive_chunk_is_read_and_policed() -> None:
         Blorb.parse(build_blorb([], extra=chunk(b"APal", b"\x00\x01")))
 
 
+# The BPal chunk maps each (scene, adaptive) pair to the
+# replacement picture the packager pre-dressed in that scene's
+# palette, and is policed for doubling and ragged lengths (Bocfel:
+# The Bocfel Adaptive Palette Chunk).
+def test_the_baked_chunk_is_read_and_policed() -> None:
+    def record(scene: int, adaptive: int, replacement: int) -> bytes:
+        return b"".join(n.to_bytes(4, "big") for n in (scene, adaptive, replacement))
+
+    records = record(1, 9, 1000) + record(2, 9, 1001)
+    blorb = Blorb.parse(build_blorb([], extra=chunk(b"BPal", records)))
+
+    assert_that(blorb.baked).is_equal_to({(1, 9): 1000, (2, 9): 1001})
+    assert_that(Blorb.parse(build_blorb([])).baked).is_empty()
+
+    with pytest.raises(BlorbError, match="more than one"):
+        Blorb.parse(build_blorb([], extra=chunk(b"BPal", records) * 2))
+
+    with pytest.raises(BlorbError, match="12-byte records"):
+        Blorb.parse(build_blorb([], extra=chunk(b"BPal", b"\x00\x01")))
+
+
 # Reso chunks are policed: doubled chunks, ragged lengths, a zero
 # standard window, a zero standard denominator, and a half-zero
 # limit fraction are each refused; a Blorb without one simply has
