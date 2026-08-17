@@ -167,10 +167,11 @@ class StageModel:
         self._split_seen = False
         self._selected = 0
         # The [MORE] seam: the frontend hangs a callback here, and
-        # the stage calls it -- with the pause's unit position --
-        # when a scrolling window has fed a screenful of new lines
-        # since the player last rested (§8.8.3.2.6).
-        self.more: Callable[[int, int], None] | None = None
+        # the stage calls it -- with the pause's unit position and
+        # the window's colour codes -- when a scrolling window has
+        # fed a screenful of new lines since the player last
+        # rested (§8.8.3.2.6).
+        self.more: Callable[[int, int, int, int], None] | None = None
         self._windows = [_Window() for _ in range(STAGE_WINDOWS)]
         self._windows[0].height = lines * font_height
         self._windows[0].width = columns * font_width
@@ -837,6 +838,8 @@ class StageModel:
                 self.more(
                     window.y + bottom * self._font_height,
                     window.x + window.left,
+                    window.foreground,
+                    window.background,
                 )
 
                 window.fed = 0

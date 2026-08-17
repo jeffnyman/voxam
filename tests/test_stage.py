@@ -484,12 +484,16 @@ def test_paints_narrate_in_units() -> None:
 # do not scroll never count (§8.8.3.2.6).
 def test_a_screenful_earns_the_more_pause() -> None:
     stage = staged()
-    pauses: list[tuple[int, int]] = []
-    stage.more = lambda line, column: pauses.append((line, column))
-
+    pauses: list[tuple[int, int, int, int]] = []
+    stage.more = lambda line, column, ink, paper: pauses.append(
+        (line, column, ink, paper)
+    )
+    stage.set_colour(3, 4)
     stage.write("\n".join(str(n) for n in range(1, 11)))
 
-    assert_that(pauses).is_equal_to([(91, 1)])
+    # The pause carries the window's own colour codes, so the
+    # frontend can dress the prompt and its erasure correctly.
+    assert_that(pauses).is_equal_to([(91, 1, 3, 4)])
 
     stage.rest()
     stage.write("\n" * 9)
