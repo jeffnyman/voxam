@@ -503,7 +503,7 @@ def test_the_stage_pauses_behind_more() -> None:
 
     assert_that(paused).is_length(1)
     assert_that(paused[0][:2]).is_equal_to((127, 1))
-    assert_that(glass.filled[-1][:4]).is_equal_to((127, 1, 18, 54))
+    assert_that(glass.filled[-1]).is_equal_to((127, 1, 18, 54, (0, 0, 0)))
 
     # A read is the player catching up: the budget refills, and a
     # -999 count from the game never pauses again (§8.8.3.2.6).
@@ -517,6 +517,47 @@ def test_the_stage_pauses_behind_more() -> None:
     bare, _ = windowed()
 
     bare.set_line_count(0, -999)
+
+
+# The prompt cleans up after itself in the window's own colours:
+# it wears them reversed, its erase fills the window's white --
+# never the machine's black -- and any text the pause landed on is
+# rebuilt from the grid. Zork Zero's death question kept losing
+# its first word to exactly this patch (§8.8.3.2.6).
+def test_more_wears_the_window_colours_and_restores_the_text() -> None:
+    frontend, glass = windowed(version=6, keys=["m", "m"])
+
+    frontend.set_colour(2, 9)
+    frontend.write("\n".join(str(n) for n in range(1, 16)))
+
+    prompts = [entry for entry in glass.typed if entry[2] == "[MORE]"]
+
+    assert_that(prompts).is_length(2)
+    assert_that(prompts[1][3]).is_equal_to((255, 255, 255))
+    assert_that(prompts[1][4]).is_equal_to((0, 0, 0))
+    assert_that(glass.filled).contains((127, 1, 18, 54, (255, 255, 255)))
+
+    positions = [n for n, entry in enumerate(glass.typed) if entry[2] == "[MORE]"]
+    restored = glass.typed[positions[1] + 1 :][:2]
+
+    assert_that([entry[:3] for entry in restored]).is_equal_to(
+        [(127, 1, "1"), (127, 10, "4")]
+    )
+
+
+# A prompt overhanging a narrow window near the screen's right
+# edge restores only the cells that exist: the rebuild stops at
+# the grid's last column instead of reading past it.
+def test_a_more_pause_near_the_edge_stays_inside_the_grid() -> None:
+    frontend, glass = windowed(version=6, keys=["m", "x"])
+
+    frontend.place_window(0, 1, 235, 144, 36)
+    frontend.write("\n".join("abcdefgh"))
+
+    prompts = [entry for entry in glass.typed if entry[2] == "[MORE]"]
+
+    assert_that(prompts).is_length(1)
+    assert_that(prompts[0][:2]).is_equal_to((127, 235))
 
 
 # Typing on the stage rubs out in pixels: the erased cell arrives

@@ -61,6 +61,10 @@ STAGE_VERSION = 6
 # icons directory, z1.ico through z8.ico.
 BADGED_VERSIONS = range(1, 9)
 
+# The pause prompt a screenful of scrolled text waits behind
+# (§8.8.3.2.6).
+MORE_PROMPT = "[MORE]"
+
 # One cell as the glass paints it: its character and its dress of
 # ink, paper, bold, italic, and the graphics-font flag.
 Appearance = tuple[
@@ -425,23 +429,30 @@ class GraphicsFrontend:
         if self._stage is not None:
             self._stage.set_line_count(window, count)
 
-    def _pause(self, line: int, column: int) -> None:
+    def _pause(self, line: int, column: int, foreground: int, background: int) -> None:
         """Hold the scroll behind a [MORE] until a key arrives.
 
         Everything painted so far goes to the glass first, then
-        the prompt appears in reverse at the pause position --
-        where the next line will print over it anyway -- and the
-        key that answers is spent, never passed to the story
-        (§8.8.3.2.6).
+        the prompt appears at the pause position wearing the
+        window's own colours in reverse. The key that answers is
+        spent, never passed to the story (§8.8.3.2.6) -- and the
+        prompt's patch is rebuilt from the stage's grid, because
+        the pause can land on freshly flowed text, and a blind
+        erase would burn a box over it: Zork Zero's death question
+        kept losing its first word that way.
         """
+
+        stage = cast("StageModel", self._stage)
+        ink = self._colours.get(foreground, INK_DEFAULT)
+        paper = self._colours.get(background, PAPER_DEFAULT)
 
         self._repaint()
         self._glass.text(
             line,
             column,
-            "[MORE]",
-            PAPER_DEFAULT,
-            INK_DEFAULT,
+            MORE_PROMPT,
+            paper,
+            ink,
             bold=False,
             italic=False,
             graphics=False,
@@ -455,9 +466,42 @@ class GraphicsFrontend:
             line,
             column,
             self.font_height,
-            len("[MORE]") * self.font_width,
-            PAPER_DEFAULT,
+            len(MORE_PROMPT) * self.font_width,
+            paper,
         )
+
+        row = (line - 1) // self.font_height + 1
+        first = (column - 1) // self.font_width + 1
+
+        for offset in range(len(MORE_PROMPT)):
+            if first + offset > self.screen_columns:
+                break
+
+            covered = stage.cell(row, first + offset)
+
+            if covered.character != " ":
+                (
+                    character,
+                    (
+                        cell_ink,
+                        cell_paper,
+                        bold,
+                        italic,
+                        graphics,
+                    ),
+                ) = _appearance(covered, self._colours)
+
+                self._glass.text(
+                    line,
+                    column + offset * self.font_width,
+                    character,
+                    cell_ink,
+                    cell_paper,
+                    bold=bold,
+                    italic=italic,
+                    graphics=graphics,
+                )
+
         self._glass.present()
 
     def erase_line(self, pixels: int | None = None) -> None:
