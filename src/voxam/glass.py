@@ -278,6 +278,9 @@ class GraphicsFrontend:
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
 
+        if self._stage is not None:
+            self._stage.more = self._pause
+
     @property
     def model(self) -> "ScreenModel | StageModel":
         """The screen model this window keeps faithful."""
@@ -360,6 +363,47 @@ class GraphicsFrontend:
 
         if self._stage is not None:
             self._stage.set_margins(window, left, right)
+
+    def set_line_count(self, window: int, count: int) -> None:
+        """Set a stage window's [MORE] line count (§8.8.3.2.6)."""
+
+        if self._stage is not None:
+            self._stage.set_line_count(window, count)
+
+    def _pause(self, line: int, column: int) -> None:
+        """Hold the scroll behind a [MORE] until a key arrives.
+
+        Everything painted so far goes to the glass first, then
+        the prompt appears in reverse at the pause position --
+        where the next line will print over it anyway -- and the
+        key that answers is spent, never passed to the story
+        (§8.8.3.2.6).
+        """
+
+        self._repaint()
+        self._glass.text(
+            line,
+            column,
+            "[MORE]",
+            PAPER_DEFAULT,
+            INK_DEFAULT,
+            bold=False,
+            italic=False,
+            graphics=False,
+        )
+        self._glass.present()
+
+        while self._waited_key() is None:
+            pass
+
+        self._glass.fill(
+            line,
+            column,
+            self.font_height,
+            len("[MORE]") * self.font_width,
+            PAPER_DEFAULT,
+        )
+        self._glass.present()
 
     def erase_line(self) -> None:
         """Erase from the cursor to the end of the line (§8.7.3.4)."""
@@ -546,6 +590,9 @@ class GraphicsFrontend:
         machine's wall-clock interrupts.
         """
 
+        if self._stage is not None:
+            self._stage.rest()
+
         while True:
             key = self._waited_key() if timeout is None else self._glass.key(timeout)
 
@@ -564,6 +611,9 @@ class GraphicsFrontend:
         """
 
         typed: list[str] = []
+
+        if self._stage is not None:
+            self._stage.rest()
 
         while True:
             key = self._waited_key()
@@ -886,6 +936,24 @@ class _PygameGlass:
         module.display.set_caption("Voxam")
 
         self._keys = _key_characters(module)
+        # The window events that mean "the OS blanked me; paint
+        # again" -- looked up defensively, since the set has grown
+        # across pygame releases.
+        self._exposures = {
+            getattr(module, name)
+            for name in (
+                "WINDOWEXPOSED",
+                "WINDOWRESTORED",
+                "WINDOWSHOWN",
+                "VIDEOEXPOSE",
+            )
+            if hasattr(module, name)
+        }
+        # A diagnostic witness: with VOXAM_SNAPSHOT set to a file
+        # path, every present also saves the surface there -- what
+        # the window was GIVEN, captured from inside a live
+        # session, for comparing against what it SHOWS.
+        self._snapshot = os.environ.get("VOXAM_SNAPSHOT")
         self._tiles: dict[
             tuple[str, tuple[int, int, int], tuple[int, int, int]], Any
         ] = {}
@@ -1011,6 +1079,9 @@ class _PygameGlass:
     def present(self) -> None:
         self._pygame.display.flip()
 
+        if self._snapshot:
+            self._pygame.image.save(self._screen, self._snapshot)
+
     def key(self, timeout: float | None) -> str | None:
         module = self._pygame
         clock_start = module.time.get_ticks()
@@ -1019,6 +1090,17 @@ class _PygameGlass:
             for event in module.event.get():
                 if event.type == module.QUIT:
                     raise EOFError
+
+                if event.type in self._exposures:
+                    # The OS invalidated the window -- covered,
+                    # restored, un-minimized -- and asks for a
+                    # repaint. The surface still holds everything
+                    # drawn; presenting it again is the whole
+                    # repair. Without this, a session waiting at a
+                    # prompt shows black after an alt-tab.
+                    self.present()
+
+                    continue
 
                 if event.type == module.KEYDOWN:
                     named = self._keys.get(event.key)

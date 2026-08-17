@@ -207,6 +207,13 @@ class Frontend(Protocol):
         Only frontends that claimed a stage hear the call.
         """
 
+    def set_line_count(self, window: int, count: int) -> None:
+        """Set a §8.8 window's [MORE] line count (§8.8.3.2.6).
+
+        Games manipulate it freely, and -999 means never print
+        [MORE]. Only frontends that claimed a stage hear the call.
+        """
+
     def cursor_position(self) -> tuple[int, int]:
         """The cursor's row and column (§8.7.2.3.2).
 
@@ -505,6 +512,9 @@ class PlainFrontend:
 
     def set_margins(self, window: int, left: int, right: int) -> None:
         """Set nothing: this frontend claimed no stage."""
+
+    def set_line_count(self, window: int, count: int) -> None:
+        """Count nothing: this frontend claimed no stage."""
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a transcript is quieter than a terminal.

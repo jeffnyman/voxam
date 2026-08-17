@@ -62,6 +62,7 @@ from voxam.zmachine.story import Story
 from voxam.zmachine.variables import FIRST_GLOBAL, STACK_VARIABLE, Variables
 from voxam.zmachine.windows import (
     CURRENT_WINDOW,
+    LINE_COUNT,
     X_COORDINATE,
     X_CURSOR,
     X_SIZE,
@@ -2417,11 +2418,21 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_put_wind_prop(self, instruction: Instruction) -> None:
-        """Write one window property (§15 put_wind_prop)."""
+        """Write one window property (§15 put_wind_prop).
+
+        A staged frontend hears line-count writes: games set them
+        freely to manipulate when [MORE] is printed (§8.8.3.2.6).
+        """
 
         values = [self._value(operand) for operand in instruction.operands]
 
         self._windows.write_property(values[0], values[1], values[2])
+
+        if self._frontend.has_stage and values[1] == LINE_COUNT:
+            self._frontend.set_line_count(
+                self._windows.resolve(values[0]), signed(values[2])
+            )
+
         self._pc = instruction.next_address
 
     def _op_set_margins(self, instruction: Instruction) -> None:
