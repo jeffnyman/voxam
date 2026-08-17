@@ -120,7 +120,7 @@ class Glass(Protocol):
 
     def draw(
         self,
-        rows: Sequence[Sequence[tuple[int, int, int]]],
+        rows: Sequence[Sequence[tuple[int, ...]]],
         line: int,
         column: int,
         size: tuple[int, int],
@@ -129,10 +129,13 @@ class Glass(Protocol):
 
         The position is 1-based screen pixels, §8.8.1's own
         origin; size is the on-screen (width, height) the rows
-        stretch to -- the Reso scaling, already decided. The
-        pixels stay until text or another picture is painted over
-        them, which is exactly the §8.8.3 rule that nothing
-        belongs to a window once plotted.
+        stretch to -- the Reso scaling, already decided. A pixel
+        may carry a fourth value of 0: fully transparent, letting
+        whatever is already drawn show through -- how Version 6
+        chrome layers over its scene art. The pixels stay until
+        text or another picture is painted over them, which is
+        exactly the §8.8.3 rule that nothing belongs to a window
+        once plotted.
         """
 
 
@@ -355,10 +358,12 @@ class GraphicsFrontend:
         """Blit a picture at a screen pixel position (§15 draw_picture).
 
         The glass stretches the pixels to their Reso-scaled size
-        -- the same size picture_data reported. A Rect placard
-        has a size and no pixels: games measure and position by
-        it, and drawing it shows nothing -- the conforming
-        answer, not a shortfall.
+        -- the same size picture_data reported -- and any clear
+        pixels stay see-through, so chrome like Arthur's banner
+        frames the scene art beneath instead of blotting it out.
+        A Rect placard has a size and no pixels: games measure
+        and position by it, and drawing it shows nothing -- the
+        conforming answer, not a shortfall.
         """
 
         picture = self._gallery.picture(number)
@@ -367,7 +372,7 @@ class GraphicsFrontend:
             factor = self._factor(number)
             size = (int(picture.width * factor), int(picture.height * factor))
 
-            self._glass.draw(picture.rows, line, column, size)
+            self._glass.draw(_layered(picture), line, column, size)
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Paint a picture's region to the background (§15 erase_picture).
@@ -623,6 +628,27 @@ def _appearance(
     )
 
 
+def _layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
+    """A picture's rows with its clear pixels marked for the glass.
+
+    A clear pixel travels as (red, green, blue, 0) -- alpha zero
+    -- so the glass lets what is already drawn show through; a
+    picture with no transparency passes its rows unchanged
+    (Blorb: Picture Resource Chunks).
+    """
+
+    if picture.clear is None:
+        return picture.rows
+
+    return tuple(
+        tuple(
+            (*pixel, 0) if hole else pixel
+            for pixel, hole in zip(row, clear_row, strict=True)
+        )
+        for row, clear_row in zip(picture.rows, picture.clear, strict=True)
+    )
+
+
 def open_pygame_glass() -> Glass:
     """Open a real pygame window, the graphics extra permitting.
 
@@ -789,7 +815,7 @@ class _PygameGlass:
 
     def draw(
         self,
-        rows: Sequence[Sequence[tuple[int, int, int]]],
+        rows: Sequence[Sequence[tuple[int, ...]]],
         line: int,
         column: int,
         size: tuple[int, int],
@@ -804,8 +830,13 @@ class _PygameGlass:
         self._screen.blit(scaled, (column - 1, line - 1))
         self.present()
 
-    def _surface(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> object:
-        """Pixel rows as a surface, or None for an empty picture."""
+    def _surface(self, rows: Sequence[Sequence[tuple[int, ...]]]) -> object:
+        """Pixel rows as a surface, or None for an empty picture.
+
+        The surface carries per-pixel alpha, so a clear pixel --
+        a fourth value of 0 -- survives the scale and lets the
+        screen beneath show through the blit.
+        """
 
         height = len(rows)
         width = len(rows[0]) if height else 0
@@ -813,7 +844,8 @@ class _PygameGlass:
         if not width:
             return None
 
-        surface: Any = self._pygame.Surface((width, height))
+        module = self._pygame
+        surface: Any = module.Surface((width, height), module.SRCALPHA)
 
         for y, row in enumerate(rows):
             for x, colour in enumerate(row):

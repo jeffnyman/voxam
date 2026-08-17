@@ -71,11 +71,17 @@ class Picture:
         rows: One tuple of (red, green, blue) triples per row, each
             channel 0 to 255, alpha already composed over black --
             the terminal a cover picture is shown on.
+        clear: Which pixels are fully transparent, one tuple of
+            flags per row -- or None for a picture with no
+            transparency at all. Version 6 art layers its chrome
+            with see-through holes, and only full transparency
+            matters there (Blorb: Picture Resource Chunks).
     """
 
     width: int
     height: int
     rows: tuple[tuple[tuple[int, int, int], ...], ...]
+    clear: tuple[tuple[bool, ...], ...] | None = None
 
 
 def decode(data: bytes) -> Picture:
@@ -116,8 +122,13 @@ def decode(data: bytes) -> Picture:
     rows = tuple(
         _pixels(line, width, depth, colour_type, palette, alphas) for line in lines
     )
+    clear = (
+        tuple(_clear_row(line, width, depth, colour_type, alphas) for line in lines)
+        if _translucent(colour_type, alphas)
+        else None
+    )
 
-    return Picture(width, height, rows)
+    return Picture(width, height, rows, clear)
 
 
 def _walk(
@@ -372,4 +383,29 @@ def _over_black(channels: bytes | bytearray, alpha: int) -> tuple[int, int, int]
         channels[0] * alpha // OPAQUE,
         channels[1] * alpha // OPAQUE,
         channels[2] * alpha // OPAQUE,
+    )
+
+
+def _translucent(colour_type: int, alphas: bytes) -> bool:
+    """Whether this picture can hold transparency at all."""
+
+    return colour_type in (TRUE_ALPHA, GREY_ALPHA) or (
+        colour_type == PALETTE and bool(alphas)
+    )
+
+
+def _clear_row(
+    line: bytearray, width: int, depth: int, colour_type: int, alphas: bytes
+) -> tuple[bool, ...]:
+    """One scanline's fully-transparent flags, pixel by pixel."""
+
+    if colour_type == TRUE_ALPHA:
+        return tuple(line[4 * index + 3] == 0 for index in range(width))
+
+    if colour_type == GREY_ALPHA:
+        return tuple(line[2 * index + 1] == 0 for index in range(width))
+
+    return tuple(
+        index < len(alphas) and alphas[index] == 0
+        for index in _unpacked(line, width, depth)
     )
