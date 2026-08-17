@@ -838,6 +838,9 @@ class StagedFrontend(PlainFrontend):
     def set_margins(self, window: int, left: int, right: int) -> None:
         self.events.append(("margins", window, left, right))
 
+    def cursor_position(self) -> tuple[int, int]:
+        return (77, 33)
+
 
 # A staged frontend hears the ledger's geometry: moves and sizes
 # arrive as placements, every selection arrives with the selected
@@ -898,6 +901,22 @@ def test_staged_erasures_reach_every_window() -> None:
     erasures = [event for event in frontend.events if event[0] == "erase"]
 
     assert_that(erasures).is_equal_to([("erase", 6), ("erase", -1), ("erase", 0)])
+
+
+# On a staged frontend, get_cursor answers with the stage's own
+# cursor -- the printing truth text flow moves -- rather than the
+# ledger's stale copy. PunyInform saves and restores the cursor
+# around its status redraw, and a stale answer reprints a line.
+def test_staged_get_cursor_reads_the_stage() -> None:
+    machine = stacked_v6_machine(
+        bytes([*[0xF0, 0x7F, 0x60], 0xBA]),
+        frontend=StagedFrontend(),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x60)).is_equal_to(77)
+    assert_that(machine.memory.read_word(0x62)).is_equal_to(33)
 
 
 # A staged frontend hears scroll_window with the window resolved

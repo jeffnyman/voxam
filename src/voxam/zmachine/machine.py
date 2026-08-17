@@ -3065,11 +3065,20 @@ class Machine:
         array = self._value(instruction.operands[0])
 
         if self._memory.header.version == PACKED_PC_VERSION:
-            # Version 6 reads the current window's cursor from the
-            # §8.8 ledger -- the same place its set_cursor writes,
-            # so the round trip is exact.
-            row = self._windows.property(CURRENT_WINDOW, Y_CURSOR)
-            column = self._windows.property(CURRENT_WINDOW, X_CURSOR)
+            if self._frontend.has_stage:
+                # The stage's cursor is the printing truth: text
+                # flow moves it, which the ledger's copy never
+                # sees. PunyInform saves the cursor here before
+                # redrawing its status line and restores it after
+                # -- a stale answer reprints a whole line.
+                row, column = self._frontend.cursor_position()
+            else:
+                # A character glass reads the current window's
+                # cursor from the §8.8 ledger -- the same place
+                # its set_cursor writes, so the round trip is
+                # exact.
+                row = self._windows.property(CURRENT_WINDOW, Y_CURSOR)
+                column = self._windows.property(CURRENT_WINDOW, X_CURSOR)
         else:
             row, column = self._frontend.cursor_position()
 
