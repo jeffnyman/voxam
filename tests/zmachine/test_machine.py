@@ -835,6 +835,9 @@ class StagedFrontend(PlainFrontend):
     def scroll_window(self, window: int, pixels: int) -> None:
         self.events.append(("scroll", window, pixels))
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        self.events.append(("margins", window, left, right))
+
 
 # A staged frontend hears the ledger's geometry: moves and sizes
 # arrive as placements, every selection arrives with the selected
@@ -918,6 +921,29 @@ def test_staged_frontends_hear_the_scroll() -> None:
     scrolls = [event for event in frontend.events if event[0] == "scroll"]
 
     assert_that(scrolls).is_equal_to([("scroll", 0, 18), ("scroll", 0, -18)])
+
+
+# A staged frontend hears set_margins with its window resolved --
+# the omitted-window form meaning the current one -- while the
+# ledger keeps the properties as before (§15 set_margins).
+def test_staged_frontends_hear_the_margins() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x08, 0x5F, 0x1E, 0x2D],
+                *[0xBE, 0x08, 0x57, 0x09, 0x12, 0x03],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    margins = [event for event in frontend.events if event[0] == "margins"]
+
+    assert_that(margins).is_equal_to([("margins", 0, 30, 45), ("margins", 3, 9, 18)])
 
 
 # The Version 6 split tiles the ledger itself (§8.8.4.1): window 1

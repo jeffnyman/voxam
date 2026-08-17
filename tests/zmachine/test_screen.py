@@ -102,6 +102,9 @@ class ScreenRecorder:
     def scroll_window(self, window: int, pixels: int) -> None:
         """Discard: the screen tests have no stage."""
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Discard: the screen tests have no stage."""
+
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the screen tests never erase pictures."""
 

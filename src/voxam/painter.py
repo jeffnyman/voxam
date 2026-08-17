@@ -449,6 +449,9 @@ class ScreenFrontend:
     def scroll_window(self, window: int, pixels: int) -> None:
         """Scroll nothing: this frontend claimed no stage."""
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Set nothing: this frontend claimed no stage."""
+
     def bleep(self, number: int) -> None:  # noqa: ARG002
         """Ring the terminal bell: one bell serves both bleeps (§9)."""
 

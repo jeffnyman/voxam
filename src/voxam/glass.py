@@ -288,6 +288,12 @@ class GraphicsFrontend:
             self._stage.scroll_window(window, pixels)
             self._repaint()
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Set a stage window's margins, in units (§8.8.3.2.1)."""
+
+        if self._stage is not None:
+            self._stage.set_margins(window, left, right)
+
     def erase_line(self) -> None:
         """Erase from the cursor to the end of the line (§8.7.3.4)."""
 
