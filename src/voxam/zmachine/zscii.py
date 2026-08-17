@@ -65,6 +65,16 @@ CUSTOM_ALPHABET_VERSION = 5
 ALPHABET_LENGTH = 26
 A2_FIXED_ENTRIES = 2
 
+# One alphabet row is 26 slots, each holding whatever its entry
+# prints -- usually one character, but a null slot converts to
+# nothing (§3.8.2.1) and a Version 6 typography code expands to a
+# run of spaces (§3.8.2.3-4). Keeping the slots separate is what
+# stops an expansion from shifting its neighbours' Z-characters:
+# Shogun's table keeps a sentence space among its letters, with
+# the period and comma right behind it.
+AlphabetRow = tuple[str, ...]
+AlphabetRows = tuple[AlphabetRow, AlphabetRow, AlphabetRow]
+
 # ZSCII output codes: 0 is the null, "defined for output but has no
 # effect in any output stream" (§3.8.2.1); 13 is new-line; and 32 to
 # 126 agree with ASCII (§3.8.2.5, §3.8.3). Codes 8 (delete) and 27
@@ -213,7 +223,7 @@ def decode_string(memory: Memory, address: int) -> tuple[str, int]:
     return _text_of(memory, zchars), end
 
 
-def alphabets(memory: Memory) -> tuple[str, str, str]:
+def alphabets(memory: Memory) -> AlphabetRows:
     """The three alphabet rows in force for this story (§3.5).
 
     The standard rows of §3.5.3, unless a Version 5+ header names a
@@ -224,10 +234,13 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
         memory: The memory image whose header and table to consult.
 
     Returns:
-        The rows for alphabets A0, A1, and A2, in Z-character order
-        from 6 to 31. A2's first two entries are placeholders: the
-        escape and the new-line are handled before any table lookup,
-        and stay themselves even under a custom table (§3.5.5.1).
+        The rows for alphabets A0, A1, and A2, one slot per
+        Z-character from 6 to 31. A slot holds whatever its entry
+        prints, expansions included, so no entry can shift its
+        neighbours. A2's first two slots are placeholders: the
+        escape and the new-line are handled before any table
+        lookup, and stay themselves even under a custom table
+        (§3.5.5.1).
     """
 
     header = memory.header
@@ -237,23 +250,19 @@ def alphabets(memory: Memory) -> tuple[str, str, str]:
 
     base = header.alphabet_table_address
     repertoire = extras(memory)
-    # A null in a table slot converts to nothing (§3.8.2.1), which
-    # would shift every later letter's Z-character; a placeholder
-    # keeps the rows exactly 26 wide.
     a0, a1, a2 = (
-        "".join(
+        tuple(
             zscii_to_char(
                 memory.fetch_byte(base + row * ALPHABET_LENGTH + index),
                 repertoire,
                 header.version,
             )
-            or "?"
             for index in range(skip, ALPHABET_LENGTH)
         )
         for row, skip in ((0, 0), (1, 0), (2, A2_FIXED_ENTRIES))
     )
 
-    return a0, a1, "?" * A2_FIXED_ENTRIES + a2
+    return a0, a1, ("?",) * A2_FIXED_ENTRIES + a2
 
 
 def extras(memory: Memory) -> str:
@@ -397,7 +406,7 @@ def char_to_zscii(character: str, extras_table: str = DEFAULT_EXTRAS) -> int:
 def encode_word(
     version: int,
     word: str,
-    rows: tuple[str, str, str] | None = None,
+    rows: AlphabetRows | None = None,
     extras_table: str = DEFAULT_EXTRAS,
 ) -> bytes:
     """Encode typed text in dictionary form (§3.7).
@@ -445,7 +454,7 @@ def encode_word(
 def _encode_zchars(
     version: int,
     text: str,
-    rows: tuple[str, str, str] | None,
+    rows: AlphabetRows | None,
     extras_table: str = DEFAULT_EXTRAS,
 ) -> list[int]:
     """Turn lowercased text into shift-laden Z-characters (§3.7).
@@ -471,9 +480,8 @@ def _encode_zchars(
             targets.append((1, [a1.index(character) + FIRST_ALPHABET_CHARACTER]))
             continue
 
-        position = a2.find(character, a2_search_start)
-
-        if position >= 0:
+        if character in a2[a2_search_start:]:
+            position = a2.index(character, a2_search_start)
             targets.append((A2, [position + FIRST_ALPHABET_CHARACTER]))
         else:
             code = char_to_zscii(character, extras_table)
@@ -626,13 +634,13 @@ def _abbreviation(memory: Memory, bank_char: int, index: int) -> str:
     return _text_of(memory, zchars, in_abbreviation=True)
 
 
-def _standard_alphabets(version: int) -> tuple[str, str, str]:
+def _standard_alphabets(version: int) -> AlphabetRows:
     """Pick the version's standard alphabet rows (§3.5.3, §3.5.4)."""
 
     if version == 1:
-        return ALPHABET_A0, ALPHABET_A1, ALPHABET_A2_V1
+        return tuple(ALPHABET_A0), tuple(ALPHABET_A1), tuple(ALPHABET_A2_V1)
 
-    return ALPHABET_A0, ALPHABET_A1, ALPHABET_A2
+    return tuple(ALPHABET_A0), tuple(ALPHABET_A1), tuple(ALPHABET_A2)
 
 
 def _is_abbreviation(version: int, char: int) -> bool:
