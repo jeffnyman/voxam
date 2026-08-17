@@ -619,9 +619,12 @@ def test_graphics_windows_take_the_standard_shape(
     captured: dict[str, object] = {}
 
     def opened(
-        standard: tuple[int, int] | None = None, _version: int = 0
+        standard: tuple[int, int] | None = None,
+        _version: int = 0,
+        zoom: float | None = None,
     ) -> WindowStub:
         captured["standard"] = standard
+        captured["zoom"] = zoom
 
         return WindowStub("")
 
@@ -629,11 +632,13 @@ def test_graphics_windows_take_the_standard_shape(
 
     shaped = Blorb((), None, None, frozenset(), resolution=Resolution(320, 200))
 
-    assert_that(_graphics_frontend(6, shaped)).is_not_none()
+    assert_that(_graphics_frontend(6, shaped, 0.5)).is_not_none()
     assert_that(captured["standard"]).is_equal_to((320, 200))
+    assert_that(captured["zoom"]).is_equal_to(0.5)
 
     assert_that(_graphics_frontend(6, None)).is_not_none()
     assert_that(captured["standard"]).is_none()
+    assert_that(captured["zoom"]).is_none()
 
 
 # The gallery helper hands the window only real art: no Blorb, or
@@ -963,12 +968,19 @@ def test_graphics_play_runs_through_the_window(
 ) -> None:
     monkeypatch.setattr(
         "voxam.glass.open_pygame_glass",
-        lambda _standard=None, _version=0: WindowStub("look\n"),
+        lambda _standard=None, _version=0, _zoom=None: WindowStub("look\n"),
     )
 
     exit_code = main(["--graphics", str(reading_story(tmp_path, version=4))])
 
     assert_that(exit_code).is_equal_to(0)
+
+
+# --zoom is a fraction of the desktop; anything outside 0 to 1 is
+# refused before a window could open at it.
+def test_zoom_takes_a_fraction(capsys: pytest.CaptureFixture[str]) -> None:
+    assert_that(main(["--zoom", "1.5", "story.z6"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("fraction of the desktop")
 
 
 # Without the pygame extra, the explicit flag earns a note and the
