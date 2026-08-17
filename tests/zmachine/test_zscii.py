@@ -354,7 +354,11 @@ def test_the_table_word_is_ignored_before_version_5(
 # compiled with (§3.5.5): under rot13 rows, "ur" encodes to the
 # Z-characters that spell "he" in the standard rows.
 def test_encoding_follows_the_custom_rows() -> None:
-    rows = (rot13("abcdefghijklmnopqrstuvwxyz"), "?" * 26, "??" + "!" * 24)
+    rows = (
+        tuple(rot13("abcdefghijklmnopqrstuvwxyz")),
+        ("?",) * 26,
+        ("?", "?") + ("!",) * 24,
+    )
 
     assert_that(encode_word(5, "ur", rows)).is_equal_to(encode_word(5, "he"))
 
@@ -363,7 +367,7 @@ def test_encoding_follows_the_custom_rows() -> None:
 # A1, but a custom table may put it nowhere else: the encoder then
 # reaches it with single shift 4 (§3.2.3, §3.5.5).
 def test_encoding_reaches_a_character_only_a1_holds() -> None:
-    rows = ("?" * 26, "z" + "?" * 25, "??" + "!" * 24)
+    rows = (("?",) * 26, ("z",) + ("?",) * 25, ("?", "?") + ("!",) * 24)
 
     assert_that(encode_word(5, "z", rows)).is_equal_to(encode(4, 6, 5, 5, 5, 5, 5, 5))
 
@@ -375,11 +379,10 @@ def test_the_null_prints_as_nothing() -> None:
     assert_that(zscii_to_char(0)).is_equal_to("")
 
 
-# A null in a custom alphabet slot converts to nothing, which would
-# shift every later letter's Z-character; the placeholder keeps the
-# row exactly 26 wide, so its neighbours still decode correctly
-# (§3.5.5.1, §3.8.2.1).
-def test_a_null_alphabet_slot_does_not_shift_the_row(
+# A null in a custom alphabet slot converts to nothing (§3.8.2.1)
+# -- and to nothing only: each slot keeps its expansion to itself,
+# so the null's neighbours still decode at their own Z-characters.
+def test_a_null_alphabet_slot_prints_nothing_and_shifts_nothing(
     code_memory: Callable[..., Memory],
 ) -> None:
     memory = code_memory(encode(6, 7), version=5)
@@ -387,7 +390,38 @@ def test_a_null_alphabet_slot_does_not_shift_the_row(
 
     text, _ = decode_string(memory, CODE)
 
-    assert_that(text).is_equal_to("?b")
+    assert_that(text).is_equal_to("b")
+
+
+# The row-shift bug Shogun found: its custom table keeps a ZSCII 11
+# sentence space among A0's letters, with the period and comma
+# right behind it. The two-space expansion stays in its own slot
+# (§3.8.2.4), so the period still prints as a period and the comma
+# as a comma -- not a space and a period, one Z-character adrift.
+def test_a_sentence_space_slot_does_not_shift_its_neighbours(
+    code_memory: Callable[..., Memory],
+) -> None:
+    memory = code_memory(encode(6, 26, 27, 28), version=6)
+    plant_alphabet(memory, 'abcdefghijklmnopqrst\x0b.,"yz', "?" * 26, "?" * 26)
+
+    text, _ = decode_string(memory, CODE)
+
+    assert_that(text).is_equal_to("a  .,")
+
+
+# On the encoding side a multi-character slot can never match a
+# typed character, and the slots behind it still encode at their
+# true Z-characters.
+def test_encoding_steps_over_an_expanded_slot() -> None:
+    rows = (
+        ("a", "  ", ".") + ("?",) * 23,
+        ("?",) * 26,
+        ("?", "?") + ("!",) * 24,
+    )
+
+    assert_that(encode_word(5, "a.", rows)).is_equal_to(
+        encode(6, 8, 5, 5, 5, 5, 5, 5, 5)
+    )
 
 
 # Codes 155 to 223 are the extra characters, mapped by the default
