@@ -33,6 +33,7 @@ class ScreenRecorder:
         self.fonts: list[int] = []
         self.colours: list[tuple[int, int]] = []
         self.erased: list[int] = []
+        self.line_erasures: list[int | None] = []
         self.buffering: list[bool] = []
         self.windows: list[tuple[str, int] | tuple[str, int, int]] = []
         self.bleeps: list[int] = []
@@ -65,6 +66,9 @@ class ScreenRecorder:
 
     def erase_window(self, window: int) -> None:
         self.erased.append(window)
+
+    def erase_line(self, pixels: int | None = None) -> None:
+        self.line_erasures.append(pixels)
 
     def set_buffering(self, buffered: bool) -> None:
         self.buffering.append(buffered)
@@ -409,6 +413,18 @@ def test_colours_reach_a_frontend_that_claims_them() -> None:
     machine.run()
 
     assert_that(frontend.colours).is_equal_to([(3, 8)])
+
+
+# Before Version 6, erase_line's value 1 erases to the end of the
+# line and any other value does nothing at all (§15 erase_line).
+def test_erase_line_erases_only_at_value_one() -> None:
+    frontend = ScreenRecorder()
+    program = bytes([0xEE, 0x7F, 0x01, 0xEE, 0x7F, 0x02, 0xBA])
+    machine = Machine(screen_story(program, version=5), frontend, lambda: "")
+
+    machine.run()
+
+    assert_that(frontend.line_erasures).is_equal_to([None])
 
 
 # The pair travels signed, so §8.3.1's colour -1 -- the pixel

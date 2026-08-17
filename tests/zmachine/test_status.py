@@ -108,6 +108,9 @@ class Recorder:
     def erase_window(self, window: int) -> None:
         """Discard: the status tests never erase."""
 
+    def erase_line(self, pixels: int | None = None) -> None:
+        """Discard: the status tests never erase a line."""
+
     def set_buffering(self, buffered: bool) -> None:
         """Discard: the status tests never toggle buffering."""
 

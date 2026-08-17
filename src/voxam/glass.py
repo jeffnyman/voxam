@@ -460,10 +460,18 @@ class GraphicsFrontend:
         )
         self._glass.present()
 
-    def erase_line(self) -> None:
-        """Erase from the cursor to the end of the line (§8.7.3.4)."""
+    def erase_line(self, pixels: int | None = None) -> None:
+        """Erase rightward from the cursor, repainting (§8.8.5.2).
 
-        self._model.erase_line()
+        The pixel width only means anything on the stage; the cell
+        model always erases to the end of the line (§8.7.3.4).
+        """
+
+        if self._stage is not None:
+            self._stage.erase_line(pixels)
+        else:
+            self._model.erase_line()
+
         self._repaint()
 
     def set_buffering(self, buffered: bool) -> None:

@@ -519,8 +519,14 @@ class StageModel:
         if not self._left_edge(target) <= target.column < self._right_edge(target):
             target.column = self._left_edge(target)
 
-    def erase_line(self) -> None:
-        """Erase from the cursor to the right margin (§8.8.5.2)."""
+    def erase_line(self, pixels: int | None = None) -> None:
+        """Erase rightward from the cursor (§8.8.5.2).
+
+        To the right margin by default; a Version 6 game may
+        instead give a width in pixels, clipped to stay inside the
+        margin. The grid blanks only the cells the span fully
+        covers -- the fill is the pixel truth.
+        """
 
         current = self._windows[self._selected]
 
@@ -531,14 +537,18 @@ class StageModel:
         if current.row >= row_count:
             return
 
+        width = (self._right_edge(current) - current.column) * self._font_width
+
+        if pixels is not None:
+            width = min(pixels, width)
+
         row = first_row + current.row
 
         for column in range(
-            first_column + current.column, first_column + self._right_edge(current)
+            first_column + current.column,
+            first_column + current.column + width // self._font_width,
         ):
             self._paint(row, column, self._blank(current.background))
-
-        width = (self._right_edge(current) - current.column) * self._font_width
 
         if width > 0:
             self._paints.append(
