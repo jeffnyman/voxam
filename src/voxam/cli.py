@@ -133,6 +133,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="draw cover art in real pixels (needs a sixel terminal)",
     )
+    parser.add_argument(
+        "--zoom",
+        type=float,
+        default=0.85,
+        help="the desktop fraction the graphics window fills (0 keeps "
+        "the classic compact size)",
+    )
     arguments = parser.parse_args(argv)
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
@@ -172,6 +179,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             identity=identity,
             resources=arguments.resources,
             pixels=arguments.pixels,
+            zoom=arguments.zoom or None,
         )
     )
 
@@ -254,6 +262,9 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
 
     if arguments.graphics and arguments.plain:
         return "--graphics and --plain name two different glasses; pick one"
+
+    if not 0 <= arguments.zoom <= 1:
+        return "--zoom takes a fraction of the desktop, 0 to 1"
 
     regtest = _regtest_refusal(arguments)
 
@@ -372,6 +383,7 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
         identity=identity,
         resources=arguments.resources,
         pixels=arguments.pixels,
+        zoom=arguments.zoom or None,
         recorder=recorder,
     )
 
@@ -489,7 +501,9 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
     return Identity(interpreter=number, tandy=tandy)
 
 
-def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend | None":
+def _graphics_frontend(
+    version: int, blorb: Blorb | None, zoom: float | None = None
+) -> "GraphicsFrontend | None":
     """A pygame window, when the graphics extra allows.
 
     The flag was explicit, so a missing extra earns a note before
@@ -515,6 +529,7 @@ def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend |
             speaker=_speaker(blorb),
             gallery=_gallery(blorb),
             standard=standard,
+            zoom=zoom,
         )
     except ImportError:
         print(
@@ -776,6 +791,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     identity: Identity | None = None,
     resources: Path | None = None,
     pixels: bool = False,
+    zoom: float | None = None,
     recorder: Recorder | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
@@ -801,7 +817,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     painted: ScreenFrontend | GraphicsFrontend | None = None
 
     if frontend is None and graphics:
-        painted = _graphics_frontend(header.version, blorb)
+        painted = _graphics_frontend(header.version, blorb, zoom)
 
     if frontend is None and painted is None and screen:
         painted = _screen_frontend(header.version, blorb)
