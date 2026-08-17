@@ -441,6 +441,42 @@ def test_paints_narrate_in_units() -> None:
     assert_that(stage.paints()).is_equal_to([FillPaint(1, 1, 100, 200, 1)])
 
 
+# A scrolling window that feeds a screenful of lines since the
+# player's last rest asks for a [MORE] pause at its bottom line;
+# resting refills the budget, -999 never pauses, and windows that
+# do not scroll never count (§8.8.3.2.6).
+def test_a_screenful_earns_the_more_pause() -> None:
+    stage = staged()
+    pauses: list[tuple[int, int]] = []
+    stage.more = lambda line, column: pauses.append((line, column))
+
+    stage.write("\n".join(str(n) for n in range(1, 11)))
+
+    assert_that(pauses).is_equal_to([(91, 1)])
+
+    stage.rest()
+    stage.write("\n" * 9)
+
+    assert_that(pauses).is_length(2)
+
+    stage.set_line_count(0, -999)
+    stage.rest()
+    stage.write("\n" * 30)
+
+    assert_that(pauses).is_length(2)
+
+    stage.set_line_count(0, 8)
+    stage.write("\n")
+
+    assert_that(pauses).is_length(3)
+
+    stage.place_window(2, 11, 11, 40, 60)
+    stage.set_window(2)
+    stage.write("\n" * 30)
+
+    assert_that(pauses).is_length(3)
+
+
 # The damage sweep names changed rows once and clears its slate;
 # a cursor sent below units 1 clamps to the window's origin; the
 # stage reports its own cell dimensions.

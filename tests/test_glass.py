@@ -409,6 +409,34 @@ def test_stage_erasures_fill_their_true_rectangles() -> None:
     assert_that(glass.painted).is_empty()
 
 
+# A screenful of scrolled text pauses behind a [MORE] in reverse
+# video at the window's bottom; the answering key is spent, the
+# prompt's cells fill back over, and play continues (§8.8.3.2.6).
+def test_the_stage_pauses_behind_more() -> None:
+    frontend, glass = windowed(version=6, keys=[None, "m", "x"])
+
+    frontend.write("\n".join(str(n) for n in range(1, 9)))
+
+    paused = [entry for entry in glass.typed if entry[2] == "[MORE]"]
+
+    assert_that(paused).is_length(1)
+    assert_that(paused[0][:2]).is_equal_to((127, 1))
+    assert_that(glass.filled[-1][:4]).is_equal_to((127, 1, 18, 54))
+
+    # A read is the player catching up: the budget refills, and a
+    # -999 count from the game never pauses again (§8.8.3.2.6).
+    assert_that(frontend.read_key()).is_equal_to("x")
+
+    frontend.set_line_count(0, -999)
+    frontend.write("\n" * 30)
+
+    assert_that([entry for entry in glass.typed if entry[2] == "[MORE]"]).is_length(1)
+
+    bare, _ = windowed()
+
+    bare.set_line_count(0, -999)
+
+
 # Typing on the stage rubs out in pixels: the erased cell arrives
 # as a fill at the window's true position (§15 read).
 def test_v6_typing_rubs_out_in_pixels() -> None:
@@ -658,18 +686,26 @@ def fake_pygame(
         return FakeFace(bold_advance if bold else 9)
 
     icons: list[object] = []
+    flips: list[int] = []
+    snapshots: list[tuple[object, object]] = []
     module = types.SimpleNamespace(
         QUIT=1,
         KEYDOWN=2,
+        WINDOWEXPOSED=7,
         SRCALPHA=65536,
         icons=icons,
-        image=types.SimpleNamespace(load=lambda path: ("icon", path)),
+        flips=flips,
+        snapshots=snapshots,
+        image=types.SimpleNamespace(
+            load=lambda path: ("icon", path),
+            save=lambda surface, path: snapshots.append((surface, path)),
+        ),
         init=lambda: None,
         display=types.SimpleNamespace(
             set_mode=lambda _size: screen,
             set_caption=lambda _title: None,
             set_icon=icons.append,
-            flip=lambda: None,
+            flip=lambda: flips.append(1),
         ),
         font=types.SimpleNamespace(SysFont=sysfont),
         event=types.SimpleNamespace(get=lambda: [queue.pop(0)] if queue else []),
@@ -802,6 +838,58 @@ def test_the_pygame_doorway_translates_keys(
 
     with pytest.raises(EOFError):
         glass.key(None)
+
+
+# With VOXAM_SNAPSHOT set, every present also saves the surface
+# to the named file -- a live session's own witness of what the
+# window was given, for comparing against what it shows.
+def test_snapshots_witness_every_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+    monkeypatch.setenv("VOXAM_SNAPSHOT", "witness.png")
+
+    glass = open_pygame_glass()
+    glass.present()
+
+    assert_that(module.snapshots[-1][1]).is_equal_to("witness.png")
+
+    monkeypatch.delenv("VOXAM_SNAPSHOT")
+
+    bare = open_pygame_glass()
+    before = len(module.snapshots)
+
+    bare.present()
+
+    assert_that(module.snapshots).is_length(before)
+
+
+# An expose event -- the OS blanked the window behind our back --
+# presents the surface again: its pixels still hold everything
+# drawn, so a re-flip is the whole repair, and the key wait
+# continues. Without this, a session waiting at a prompt shows
+# black after an alt-tab.
+def test_exposed_windows_present_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    scripted = iter(
+        [
+            [types.SimpleNamespace(type=module.WINDOWEXPOSED)],
+            [keydown(module, 999, "z")],
+        ]
+    )
+    module.event.get = lambda: next(scripted, [])
+    before = len(module.flips)
+
+    assert_that(glass.key(None)).is_equal_to("z")
+    assert_that(len(module.flips)).is_greater_than(before)
 
 
 # A cover picture becomes a surface, scales by whole steps, and

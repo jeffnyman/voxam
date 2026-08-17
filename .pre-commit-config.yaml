@@ -13,6 +13,19 @@ default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
+      # The branch discipline, enforced: every goal gets its own
+      # branch and main only ever advances by merged PRs. A commit
+      # aimed at main is refused before it can land.
+      - id: no-commits-on-main
+        name: refuse commits on main
+        entry: >-
+          bash -c '[ "$(git symbolic-ref --short HEAD)" != "main" ]
+          || { echo "voxam refuses: commits belong on branches, never on main
+          -- create one first"; exit 1; }'
+        language: system
+        always_run: true
+        pass_filenames: false
+
       # File hygiene — the pre-commit-hooks package from the dev group.
       - id: check-added-large-files
         name: check for added large files

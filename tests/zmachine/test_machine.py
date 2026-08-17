@@ -838,6 +838,9 @@ class StagedFrontend(PlainFrontend):
     def set_margins(self, window: int, left: int, right: int) -> None:
         self.events.append(("margins", window, left, right))
 
+    def set_line_count(self, window: int, count: int) -> None:
+        self.events.append(("line_count", window, count))
+
     def cursor_position(self) -> tuple[int, int]:
         return (77, 33)
 
@@ -940,6 +943,31 @@ def test_staged_frontends_hear_the_scroll() -> None:
     scrolls = [event for event in frontend.events if event[0] == "scroll"]
 
     assert_that(scrolls).is_equal_to([("scroll", 0, 18), ("scroll", 0, -18)])
+
+
+# A staged frontend hears put_wind_prop's line-count writes --
+# resolved window, signed value -- because games set them freely
+# to manipulate when [MORE] is printed (§8.8.3.2.6); other
+# property writes stay ledger-only.
+def test_staged_frontends_hear_the_line_count() -> None:
+    frontend = StagedFrontend()
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x19, 0x57, 0x00, 0x0F, 0x63],
+                *[0xBE, 0x19, 0x13, 0xFF, 0xFD, 0x0F, 0xFC, 0x19],
+                *[0xBE, 0x19, 0x57, 0x00, 0x09, 0x02],
+                0xBA,
+            ]
+        ),
+        frontend=frontend,
+    )
+
+    machine.run()
+
+    counted = [event for event in frontend.events if event[0] == "line_count"]
+
+    assert_that(counted).is_equal_to([("line_count", 0, 0x63), ("line_count", 0, -999)])
 
 
 # A staged frontend hears set_margins with its window resolved --

@@ -18,7 +18,7 @@ only its bookkeeping, and text lands wherever the window was at
 the moment of printing.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from voxam.errors import ZMachineScreenError
@@ -36,6 +36,10 @@ from voxam.screen import (
 # 0 wraps and scrolls its running text; every other window overlays
 # in place until told otherwise.
 STAGE_WINDOWS = 8
+
+# A line count of -999 means "never print [MORE]" (§8.8.3.2.6);
+# Version 6 games set line counts freely to manipulate the paging.
+NEVER_MORE = -999
 
 # The rectangle a stage erasure touched: first row, first column,
 # row count, and column count, in cells. The frontend uses it to
@@ -120,6 +124,7 @@ class _Window:
     right: int = 0
     row: int = 0
     column: int = 0
+    fed: int = 0
     style: int = ROMAN
     foreground: int = DEFAULT_COLOUR
     background: int = DEFAULT_COLOUR
@@ -161,6 +166,11 @@ class StageModel:
         self._buffered = True
         self._split_seen = False
         self._selected = 0
+        # The [MORE] seam: the frontend hangs a callback here, and
+        # the stage calls it -- with the pause's unit position --
+        # when a scrolling window has fed a screenful of new lines
+        # since the player last rested (§8.8.3.2.6).
+        self.more: Callable[[int, int], None] | None = None
         self._windows = [_Window() for _ in range(STAGE_WINDOWS)]
         self._windows[0].height = lines * font_height
         self._windows[0].width = columns * font_width
@@ -453,6 +463,26 @@ class StageModel:
                 self._scroll(target)
             else:
                 self._scroll_down(target)
+
+    def rest(self) -> None:
+        """The player is at an input: every [MORE] budget refills.
+
+        Keyboard attention is the §8.8.3.2.6 clock -- a read means
+        the player has caught up with the screen.
+        """
+
+        for window in self._windows:
+            if window.fed != NEVER_MORE:
+                window.fed = 0
+
+    def set_line_count(self, window: int, count: int) -> None:
+        """Set a window's §8.8.3.2.6 line count directly.
+
+        Version 6 games often set line counts to manipulate when
+        [MORE] is printed; -999 means never print it at all.
+        """
+
+        self._windows[self._known(window)].fed = count
 
     def set_margins(self, window: int, left: int, right: int) -> None:
         """Set a window's margins in units (§8.8.3.2.1).
@@ -759,7 +789,10 @@ class StageModel:
         """Move to the next line, scrolling or pinning at the bottom.
 
         The cursor returns to the left margin (§8.8.3.2.1) -- the
-        window's own left edge when no margin is set.
+        window's own left edge when no margin is set. A scrolling
+        window counts its new lines, and a screenful of them since
+        the player's last rest earns the [MORE] pause
+        (§8.8.3.2.6); a line count of -999 never pauses.
         """
 
         if window.scroll_due:
@@ -768,6 +801,17 @@ class StageModel:
             window.scroll_due = False
 
         bottom = max(self._row_count(window) - 1, 0)
+
+        if window.scrolling and window.fed != NEVER_MORE:
+            window.fed += 1
+
+            if window.fed >= max(bottom, 1) and self.more is not None:
+                self.more(
+                    window.y + bottom * self._font_height,
+                    window.x + window.left,
+                )
+
+                window.fed = 0
 
         if window.row >= bottom:
             window.row = bottom

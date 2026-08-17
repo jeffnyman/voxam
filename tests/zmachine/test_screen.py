@@ -105,6 +105,9 @@ class ScreenRecorder:
     def set_margins(self, window: int, left: int, right: int) -> None:
         """Discard: the screen tests have no stage."""
 
+    def set_line_count(self, window: int, count: int) -> None:
+        """Discard: the screen tests have no stage."""
+
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the screen tests never erase pictures."""
 
