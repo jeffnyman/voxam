@@ -13,6 +13,15 @@ from voxam.zmachine.story import Story
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def _piece(name: bytes, payload: bytes) -> bytes:
+    return (
+        len(payload).to_bytes(4, "big")
+        + name
+        + payload
+        + zlib.crc32(name + payload).to_bytes(4, "big")
+    )
+
+
 @pytest.fixture
 def tiny_png() -> bytes:
     """A 2-by-2 truecolour PNG: one bright row over a black one.
@@ -21,22 +30,35 @@ def tiny_png() -> bytes:
     -- the smallest real picture a gallery test can hang.
     """
 
-    def piece(name: bytes, payload: bytes) -> bytes:
-        return (
-            len(payload).to_bytes(4, "big")
-            + name
-            + payload
-            + zlib.crc32(name + payload).to_bytes(4, "big")
-        )
-
     header = struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0)
     raw = b"\x00" + bytes(range(10, 70, 10)) + b"\x00" + bytes(6)
 
     return (
         SIGNATURE
-        + piece(b"IHDR", header)
-        + piece(b"IDAT", zlib.compress(raw))
-        + piece(b"IEND", b"")
+        + _piece(b"IHDR", header)
+        + _piece(b"IDAT", zlib.compress(raw))
+        + _piece(b"IEND", b"")
+    )
+
+
+@pytest.fixture
+def holey_png() -> bytes:
+    """A 2-by-1 palette PNG: one red pixel, one fully transparent.
+
+    The tRNS chunk marks the second palette entry clear -- the
+    smallest piece of see-through Version 6 chrome a test can
+    draw.
+    """
+
+    header = struct.pack(">IIBBBBB", 2, 1, 8, 3, 0, 0, 0)
+
+    return (
+        SIGNATURE
+        + _piece(b"IHDR", header)
+        + _piece(b"PLTE", bytes([200, 0, 0, 9, 9, 9]))
+        + _piece(b"tRNS", bytes([255, 0]))
+        + _piece(b"IDAT", zlib.compress(b"\x00\x00\x01"))
+        + _piece(b"IEND", b"")
     )
 
 

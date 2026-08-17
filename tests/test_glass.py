@@ -39,7 +39,7 @@ class StubGlass:
         self.presents = 0
         self.pictures: list[object] = []
         self.drawn: list[
-            tuple[Sequence[Sequence[tuple[int, int, int]]], int, int, tuple[int, int]]
+            tuple[Sequence[Sequence[tuple[int, ...]]], int, int, tuple[int, int]]
         ] = []
 
     def paint(
@@ -69,7 +69,7 @@ class StubGlass:
 
     def draw(
         self,
-        rows: Sequence[Sequence[tuple[int, int, int]]],
+        rows: Sequence[Sequence[tuple[int, ...]]],
         line: int,
         column: int,
         size: tuple[int, int],
@@ -219,6 +219,21 @@ def test_pictures_draw_at_their_pixel_position(tiny_png: bytes) -> None:
     frontend.draw_picture(7, 1, 1)
 
     assert_that(glass.drawn).is_length(1)
+
+
+# A picture with clear pixels draws them see-through: the glass
+# receives alpha-zero four-value pixels where the art has holes,
+# so chrome like Arthur's banner frames the scene beneath instead
+# of blotting it out (Blorb: Picture Resource Chunks).
+def test_clear_pixels_travel_see_through(holey_png: bytes) -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(6, glass=glass, gallery=Gallery({9: holey_png}, 0))
+
+    frontend.draw_picture(9, 1, 1)
+
+    ((rows, _line, _column, _size),) = glass.drawn
+
+    assert_that(rows[0]).is_equal_to(((200, 0, 0), (0, 0, 0, 0)))
 
 
 # Erasing a picture paints its Reso-scaled region in the current
@@ -481,8 +496,9 @@ class FakeScreen:
 
 
 class FakeSurface:
-    def __init__(self, size: tuple[int, int]) -> None:
+    def __init__(self, size: tuple[int, int], flags: int = 0) -> None:
         self.size = size
+        self.flags = flags
         self.pixels: list[tuple[object, ...]] = []
 
     def set_at(self, position: tuple[int, int], colour: object) -> None:
@@ -511,6 +527,7 @@ def fake_pygame(
     module = types.SimpleNamespace(
         QUIT=1,
         KEYDOWN=2,
+        SRCALPHA=65536,
         init=lambda: None,
         display=types.SimpleNamespace(
             set_mode=lambda _size: screen,
@@ -700,6 +717,15 @@ def test_the_pygame_doorway_draws_at_pixel_positions(
     glass.draw((), 1, 1, (1, 1))
 
     assert_that(screen.blits).is_length(1)
+
+    # A clear pixel rides its alpha-zero fourth value onto a
+    # per-pixel-alpha surface, surviving the scale.
+    glass.draw((((1, 2, 3), (7, 8, 9, 0)),), 1, 1, (2, 1))
+
+    _, layered, _ = screen.blits[1][0]
+
+    assert_that(layered.flags).is_equal_to(module.SRCALPHA)
+    assert_that(layered.pixels[1]).is_equal_to(((1, 0), (7, 8, 9, 0)))
 
 
 # A face whose bold steps wider than the cell is dropped: bold

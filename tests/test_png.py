@@ -144,6 +144,7 @@ def test_alpha_composes_over_black() -> None:
     picture = decode(picture_bytes(2, 1, 8, 6, raw))
 
     assert_that(picture.rows[0]).is_equal_to(((100, 50, 25), BLACK))
+    assert_that(picture.clear).is_equal_to(((False, True),))
 
 
 # Greyscale with alpha composes the same way.
@@ -152,6 +153,7 @@ def test_grey_alpha_composes_over_black() -> None:
     picture = decode(picture_bytes(2, 1, 8, 4, raw))
 
     assert_that(picture.rows[0]).is_equal_to(((100, 100, 100), BLACK))
+    assert_that(picture.clear).is_equal_to(((False, True),))
 
 
 # A tRNS chunk gives palette entries alphas; entries beyond its end
@@ -164,6 +166,26 @@ def test_palette_transparency_composes_and_defaults_opaque() -> None:
     )
 
     assert_that(picture.rows[0]).is_equal_to(((100, 50, 25), (10, 20, 30)))
+    assert_that(picture.clear).is_equal_to(((False, False),))
+
+
+# Only a zero alpha marks a pixel clear -- Version 6 chrome layers
+# with fully see-through holes, and only full transparency matters
+# there (Blorb: Picture Resource Chunks). A picture with no alpha
+# at all carries no clear grid.
+def test_fully_transparent_pixels_are_marked_clear() -> None:
+    palette = bytes([200, 100, 50, 10, 20, 30])
+    raw = bytes([0, 0, 1])
+    picture = decode(
+        picture_bytes(2, 1, 8, 3, raw, palette=palette, alphas=bytes([255, 0]))
+    )
+
+    assert_that(picture.rows[0]).is_equal_to(((200, 100, 50), BLACK))
+    assert_that(picture.clear).is_equal_to(((False, True),))
+
+    opaque = decode(picture_bytes(1, 1, 8, 2, bytes([0, 1, 2, 3])))
+
+    assert_that(opaque.clear).is_none()
 
 
 @pytest.mark.parametrize(
