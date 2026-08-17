@@ -318,6 +318,51 @@ def test_the_stage_refuses_status_and_strange_windows() -> None:
         stage.set_window(8)
 
 
+# Margins bound the wrapping text (§8.8.3.2.1): a newline returns
+# to the left margin, words wrap at the right margin -- here 30
+# and 50 units leave text columns 4 to 15 -- and erase_line
+# reaches only to the right margin (§8.8.5.2).
+def test_margins_bound_the_wrapping_text() -> None:
+    stage = staged()
+
+    stage.set_margins(0, 30, 50)
+    stage.write("\nabc def ghi")
+
+    assert_that(stage.row_text(2)).is_equal_to("   abc def ghi")
+
+    stage.write(" jklmn")
+
+    assert_that(stage.row_text(3)).is_equal_to("   jklmn")
+
+    stage.set_cursor(11, 111)
+    stage.erase_line()
+
+    assert_that(stage.row_text(2)).is_equal_to("   abc def")
+
+    # Loosening the margins around a cursor already inside them
+    # moves nothing (§8.8.3.2.2.2).
+    stage.set_margins(0, 20, 20)
+
+    assert_that(stage.get_cursor()).is_equal_to((11, 111))
+
+
+# Changing margins nudges a cursor they would strand to the left
+# margin (§8.8.3.2.2.2); margins that leave no room at all swallow
+# the text quietly.
+def test_margins_nudge_a_stranded_cursor() -> None:
+    stage = staged()
+
+    stage.write("edge")
+    stage.set_margins(0, 60, 60)
+
+    assert_that(stage.get_cursor()).is_equal_to((1, 61))
+
+    stage.set_margins(0, 110, 110)
+    stage.write("gone")
+
+    assert_that(stage.row_text(1)).is_equal_to("edge")
+
+
 # scroll_window shifts a window's own rectangle by whole cell
 # rows: positive up, negative down, exposed rows blanked, and a
 # fraction of a cell row scrolls nothing (§8.8.3.6).

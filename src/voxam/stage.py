@@ -56,6 +56,8 @@ class _Window:
     x: int = 1
     height: int = 0
     width: int = 0
+    left: int = 0
+    right: int = 0
     row: int = 0
     column: int = 0
     style: int = ROMAN
@@ -154,6 +156,20 @@ class StageModel:
         """How many whole cell columns fit the window's width."""
 
         return window.width // self._font_width
+
+    def _left_edge(self, window: _Window) -> int:
+        """The first writable cell column offset: the left margin."""
+
+        return window.left // self._font_width
+
+    def _right_edge(self, window: _Window) -> int:
+        """One past the last writable column offset: the right margin.
+
+        Margins are §8.8.3.2.1's: sizes in units, 0 by default,
+        and text is clipped to stay inside them.
+        """
+
+        return (window.width - window.right) // self._font_width
 
     def _box(self, window: _Window) -> Rectangle:
         """The window's cell rectangle, clipped to the screen."""
@@ -356,21 +372,40 @@ class StageModel:
             else:
                 self._scroll_down(target)
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Set a window's margins in units (§8.8.3.2.1).
+
+        Wrapping text is clipped to stay inside them, and a cursor
+        the new margins would strand moves to the left margin
+        (§8.8.3.2.2.2).
+        """
+
+        self._flush(self._windows[self._selected])
+
+        target = self._windows[self._known(window)]
+        target.left = left
+        target.right = right
+
+        if not self._left_edge(target) <= target.column < self._right_edge(target):
+            target.column = self._left_edge(target)
+
     def erase_line(self) -> None:
-        """Erase from the cursor to the window's right edge (§8.8.5.2)."""
+        """Erase from the cursor to the right margin (§8.8.5.2)."""
 
         current = self._windows[self._selected]
 
         self._flush(current)
 
-        first_row, first_column, row_count, column_count = self._box(current)
+        first_row, first_column, row_count, _column_count = self._box(current)
 
         if current.row >= row_count:
             return
 
         row = first_row + current.row
 
-        for column in range(first_column + current.column, first_column + column_count):
+        for column in range(
+            first_column + current.column, first_column + self._right_edge(current)
+        ):
             self._paint(row, column, self._blank(current.background))
 
     def rub_out(self) -> None:
@@ -537,12 +572,12 @@ class StageModel:
 
         word = window.pending
         window.pending = []
-        columns = self._column_count(window)
+        edge = self._right_edge(window)
 
         if (
             window.wrapping
-            and len(word) > columns - window.column
-            and len(word) <= columns
+            and len(word) > edge - window.column
+            and len(word) <= edge - self._left_edge(window)
         ):
             self._feed(window)
 
@@ -552,7 +587,7 @@ class StageModel:
     def _emit_space(self, window: _Window) -> None:
         """Emit one space, or let the line break swallow it."""
 
-        if window.wrapping and window.column >= self._column_count(window):
+        if window.wrapping and window.column >= self._right_edge(window):
             self._feed(window)
 
             return
@@ -560,19 +595,22 @@ class StageModel:
         self._emit(window, self._dressed(" "))
 
     def _emit(self, window: _Window, cell: Cell) -> None:
-        """Place one cell at the window's cursor, edge rules and all."""
+        """Place one cell at the window's cursor, edge rules and all.
 
-        columns = self._column_count(window)
-        rows = self._row_count(window)
+        The edges are the §8.8.3.2.1 margins' -- the whole window
+        when they are 0, their default.
+        """
 
-        if not columns or not rows:
+        edge = self._right_edge(window)
+
+        if edge <= self._left_edge(window) or not self._row_count(window):
             return
 
-        if window.column >= columns:
+        if window.column >= edge:
             if not window.wrapping:
                 # §8.8.3.1.1: the cursor moves to the right margin
                 # and stays there; further text is ignored.
-                window.column = columns
+                window.column = edge
 
                 return
 
@@ -590,7 +628,11 @@ class StageModel:
         window.column += 1
 
     def _feed(self, window: _Window) -> None:
-        """Move to the next line, scrolling or pinning at the bottom."""
+        """Move to the next line, scrolling or pinning at the bottom.
+
+        The cursor returns to the left margin (§8.8.3.2.1) -- the
+        window's own left edge when no margin is set.
+        """
 
         if window.scroll_due:
             self._scroll(window)
@@ -610,7 +652,7 @@ class StageModel:
         else:
             window.row += 1
 
-        window.column = 0
+        window.column = self._left_edge(window)
 
     def _scroll(self, window: _Window) -> None:
         """Scroll the window's own rectangle up one cell row."""

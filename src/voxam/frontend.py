@@ -201,6 +201,12 @@ class Frontend(Protocol):
         claimed a stage hear the call.
         """
 
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Set a §8.8 window's margin sizes, in units (§8.8.3.2.1).
+
+        Only frontends that claimed a stage hear the call.
+        """
+
     def cursor_position(self) -> tuple[int, int]:
         """The cursor's row and column (§8.7.2.3.2).
 
@@ -496,6 +502,9 @@ class PlainFrontend:
 
     def scroll_window(self, window: int, pixels: int) -> None:
         """Scroll nothing: this frontend claimed no stage."""
+
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """Set nothing: this frontend claimed no stage."""
 
     def bleep(self, number: int) -> None:
         """Drop the bleep: a transcript is quieter than a terminal.

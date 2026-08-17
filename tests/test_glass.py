@@ -277,12 +277,19 @@ def test_version_6_plays_on_the_stage() -> None:
 
     assert_that(frontend.model.row_text(2)).is_equal_to("")
 
+    frontend.set_cursor(1, 1)
+    frontend.set_margins(2, 18, 0)
+    frontend.write("m")
+
+    assert_that(frontend.model.row_text(2)).is_equal_to("    m")
+
     bare, _ = windowed()
 
     assert_that(bare.has_stage).is_false()
 
     bare.place_window(2, 1, 1, 18, 18)
     bare.scroll_window(2, 18)
+    bare.set_margins(2, 9, 9)
 
 
 # The shadow keeps unchanged cells off the glass: a second write

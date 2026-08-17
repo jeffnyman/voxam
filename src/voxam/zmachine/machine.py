@@ -2428,8 +2428,9 @@ class Machine:
         """Set a window's margin sizes (§15 set_margins).
 
         The window operand comes last and may be omitted, meaning
-        the current window. The §8.8.3.2.2.2 cursor nudge waits on
-        a glass that renders margins at all.
+        the current window. A staged frontend hears the margins
+        and applies the §8.8.3.2.2.2 cursor nudge; the ledger
+        keeps the properties either way.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -2440,6 +2441,12 @@ class Machine:
         )
 
         self._windows.set_margins(window, values[0], values[1])
+
+        if self._frontend.has_stage:
+            self._frontend.set_margins(
+                self._windows.resolve(window), values[0], values[1]
+            )
+
         self._pc = instruction.next_address
 
     def _op_set_cursor(self, instruction: Instruction) -> None:
