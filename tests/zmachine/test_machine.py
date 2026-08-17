@@ -1101,6 +1101,32 @@ def test_the_window_ledger_round_trips_through_the_opcodes() -> None:
     assert_that(machine.memory.read_word(0x86)).is_equal_to(5)
 
 
+# On a stage the selected window's cursor properties answer from
+# the frontend's flowed cursor -- printing moves it, and the
+# ledger's copy cannot know (§8.8.3.5). Shogun centres its title
+# lines by reading property 4 back between prints; the stale copy
+# overprinted them all on one row. An unselected window still
+# answers from the ledger.
+def test_staged_cursor_properties_answer_the_flowed_cursor() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x13, 0x1F, 0xFF, 0xFD, 0x04, 0x10],
+                *[0xBE, 0x13, 0x5F, 0x00, 0x05, 0x11],
+                *[0xBE, 0x13, 0x5F, 0x02, 0x04, 0x12],
+                0xBA,
+            ]
+        ),
+        frontend=StagedFrontend(),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(77)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(33)
+    assert_that(machine.memory.read_word(0x84)).is_equal_to(1)
+
+
 # window_style reaches the ledger with its optional operation --
 # here turning scrolling off window 0 -- and the changed flags
 # read back (§15 window_style).
