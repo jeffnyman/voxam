@@ -84,8 +84,17 @@ class Picture:
     clear: tuple[tuple[bool, ...], ...] | None = None
 
 
-def decode(data: bytes) -> Picture:
+def decode(
+    data: bytes, adapted: tuple[tuple[int, int, int], ...] | None = None
+) -> Picture:
     """Decode PNG bytes into rows of RGB pixels.
+
+    Args:
+        data: The PNG file bytes.
+        adapted: A palette to plot with instead of the file's own
+            PLTE -- how an adaptive-palette picture wears the
+            Current Palette (Blorb: The Adaptive Palette Chunk).
+            Transparency still comes from the file's own tRNS.
 
     Raises:
         PNGError: If the bytes are not a PNG, or use a feature
@@ -99,6 +108,9 @@ def decode(data: bytes) -> Picture:
         raise PNGError(msg)
 
     header, palette, alphas, compressed = _walk(data)
+
+    if adapted is not None:
+        palette = adapted
     width, height, depth, colour_type = header
     channels = CHANNELS[colour_type]
     bits = channels * depth
@@ -129,6 +141,26 @@ def decode(data: bytes) -> Picture:
     )
 
     return Picture(width, height, rows, clear)
+
+
+def palette(data: bytes) -> tuple[tuple[int, int, int], ...]:
+    """A PNG's own PLTE entries, empty for a palette-less picture.
+
+    What a plotted non-adaptive picture carries into the Current
+    Palette (Blorb: The Adaptive Palette Chunk).
+
+    Raises:
+        PNGError: If the bytes are not a well-formed PNG.
+    """
+
+    if not data.startswith(SIGNATURE):
+        msg = "the bytes do not begin with the PNG signature"
+
+        raise PNGError(msg)
+
+    _header, entries, _alphas, _compressed = _walk(data)
+
+    return entries
 
 
 def _walk(

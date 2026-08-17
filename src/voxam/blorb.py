@@ -64,6 +64,11 @@ RESOLUTION_HEADER = 24
 RESOLUTION_ENTRY = 28
 WORD_SIZE = 4
 
+# The adaptive palette chunk: four-byte picture numbers naming the
+# legacy Infocom chrome that wears the palette of whatever scene
+# was plotted last (Blorb: The Adaptive Palette Chunk).
+ADAPTIVE_ID = b"APal"
+
 # Optional chunks: the frontispiece names a picture resource to
 # show as cover art (Blorb: Frontispiece Chunk), and the game
 # identifier carries the same release, serial, and checksum bytes
@@ -116,6 +121,9 @@ class Blorb:
         resolution: The Reso chunk's scaling instructions, or
             None without one -- every picture non-scalable
             (Blorb: The Resolution Chunk).
+        adaptive: The pictures whose palettes adapt to the scene
+            plotted before them; empty without an APal chunk
+            (Blorb: The Adaptive Palette Chunk).
     """
 
     def __init__(  # noqa: PLR0913 -- one seat per optional chunk
@@ -127,6 +135,7 @@ class Blorb:
         *,
         release: int = 0,
         resolution: Resolution | None = None,
+        adaptive: frozenset[int] = frozenset(),
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
@@ -136,6 +145,7 @@ class Blorb:
         self.loops = loops
         self.release = release
         self.resolution = resolution
+        self.adaptive = adaptive
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -196,6 +206,7 @@ class Blorb:
             _loops(chunks),
             release=_release(chunks),
             resolution=_resolution(chunks),
+            adaptive=_adaptive(chunks),
         )
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
@@ -268,7 +279,7 @@ class Blorb:
             elif piece.chunk.chunk_id == RECT_ID:
                 art[piece.number] = _placard(piece)
 
-        return Gallery(art, self.release, self.resolution)
+        return Gallery(art, self.release, self.resolution, adaptive=self.adaptive)
 
     def sounds(self) -> dict[int, aiff.Sound]:
         """Decode every sampled sound resource, by number.
@@ -463,6 +474,45 @@ def _release(chunks: tuple[Chunk, ...]) -> int:
         raise BlorbError(msg)
 
     return int.from_bytes(found[0].payload, "big")
+
+
+def _adaptive(chunks: tuple[Chunk, ...]) -> frozenset[int]:
+    """The adaptive picture numbers, from at most one APal chunk.
+
+    Raises:
+        BlorbError: For a doubled APal, or one whose length is
+            not a whole number of four-byte entries (Blorb: The
+            Adaptive Palette Chunk).
+    """
+
+    found = [piece for piece in chunks if piece.chunk_id == ADAPTIVE_ID]
+
+    if not found:
+        return frozenset()
+
+    if len(found) > 1:
+        msg = (
+            f"{len(found)} APal chunks appear, but there may not be "
+            f"more than one (Blorb: The Adaptive Palette Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    payload = found[0].payload
+
+    if len(payload) % WORD_SIZE:
+        msg = (
+            f"an APal chunk is four-byte picture numbers, but this "
+            f"one holds {len(payload)} bytes (Blorb: The Adaptive "
+            f"Palette Chunk)"
+        )
+
+        raise BlorbError(msg)
+
+    return frozenset(
+        int.from_bytes(payload[start : start + WORD_SIZE], "big")
+        for start in range(0, len(payload), WORD_SIZE)
+    )
 
 
 def _resolution(chunks: tuple[Chunk, ...]) -> Resolution | None:

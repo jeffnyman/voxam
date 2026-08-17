@@ -20,7 +20,12 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 
 from voxam.errors import PNGError
-from voxam.png import IHDR, SIGNATURE, Picture, decode
+from voxam.png import IHDR, SIGNATURE, Picture, decode, palette
+
+# The Current Palette an adaptive-palette Blorb keeps: sixteen
+# entries, of which the spec deems indices 2 to 15 significant
+# (Blorb: The Adaptive Palette Chunk).
+PALETTE_SIZE = 16
 
 # The IHDR chunk opens every PNG at a fixed seat: the eight-byte
 # signature, the chunk length and name, then the width and height
@@ -94,6 +99,8 @@ class Gallery:
         art: dict[int, bytes | Placard],
         release: int,
         resolution: Resolution | None = None,
+        *,
+        adaptive: frozenset[int] = frozenset(),
     ) -> None:
         """Hang the art: PNG bytes or placards, by picture number.
 
@@ -103,12 +110,39 @@ class Gallery:
             release: The picture file's release number.
             resolution: The Reso chunk's scaling instructions;
                 None means every picture is non-scalable.
+            adaptive: The pictures that wear the Current Palette
+                instead of their own -- Infocom's chrome, which
+                recolours to match whatever scene was plotted
+                last (Blorb: The Adaptive Palette Chunk).
         """
 
         self._art = art
         self._decoded: dict[int, Picture] = {}
         self.release = release
         self._resolution = resolution
+        self._adaptive = adaptive
+        self._current: tuple[tuple[int, int, int], ...] | None = None
+        self._adapted: dict[int, tuple[object, Picture]] = {}
+        self._serial = 0
+
+    @property
+    def adaptive(self) -> frozenset[int]:
+        """The pictures that wear the Current Palette when plotted."""
+
+        return self._adaptive
+
+    @property
+    def serial(self) -> int:
+        """How many times the Current Palette has actually changed.
+
+        A frontend watches this across a plot: when a scene
+        changes the palette, the chrome already on screen must be
+        re-dressed -- Infocom's interpreters recoloured it through
+        the hardware palette without replotting (Blorb: The
+        Adaptive Palette Chunk).
+        """
+
+        return self._serial
 
     @property
     def count(self) -> int:
@@ -175,8 +209,14 @@ class Gallery:
     def picture(self, number: int) -> Picture | None:
         """A picture's decoded pixels, None for a placard or none.
 
-        Decoding happens on the first ask and is remembered, the
-        cache picture_table only ever hints at (§15).
+        This is the plotting seam, so the adaptive-palette dance
+        happens here: a non-adaptive picture carries its own
+        palette into the Current Palette as it is plotted, and an
+        adaptive one is plotted wearing the Current Palette
+        instead of its own (Blorb: The Adaptive Palette Chunk).
+        Decoding is remembered -- the cache picture_table only
+        ever hints at (§15) -- and an adaptive picture re-decodes
+        whenever the Current Palette has changed beneath it.
 
         Raises:
             PNGError: If a PNG entry cannot be decoded.
@@ -187,10 +227,59 @@ class Gallery:
         if entry is None or isinstance(entry, Placard):
             return None
 
+        if self._adaptive:
+            if number in self._adaptive:
+                return self._adapted_picture(number, entry)
+
+            self._absorb(entry)
+
         if number not in self._decoded:
             self._decoded[number] = decode(entry)
 
         return self._decoded[number]
+
+    def _absorb(self, entry: bytes) -> None:
+        """Carry a plotted picture's palette into the Current Palette.
+
+        Only as many entries as the picture brought are changed
+        (Blorb: The Adaptive Palette Chunk); a palette-less
+        picture changes nothing.
+        """
+
+        own = palette(entry)[:PALETTE_SIZE]
+
+        if not own:
+            return
+
+        existing = list(self._current or ((0, 0, 0),) * PALETTE_SIZE)
+        existing[: len(own)] = own
+        merged = tuple(existing)
+
+        if merged != self._current:
+            self._current = merged
+            self._serial += 1
+
+    def _adapted_picture(self, number: int, entry: bytes) -> Picture:
+        """An adaptive picture, plotted in the Current Palette.
+
+        Before any scene has set a palette the spec calls the
+        result undefined; the picture's own palette is the quiet
+        answer. The cache is keyed to the palette it was decoded
+        under, so a scene change re-dresses the chrome.
+        """
+
+        if self._current is None:
+            if number not in self._decoded:
+                self._decoded[number] = decode(entry)
+
+            return self._decoded[number]
+
+        cached = self._adapted.get(number)
+
+        if cached is None or cached[0] != self._current:
+            self._adapted[number] = (self._current, decode(entry, self._current))
+
+        return self._adapted[number][1]
 
 
 def _measured(data: bytes) -> tuple[int, int]:

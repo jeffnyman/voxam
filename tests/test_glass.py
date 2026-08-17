@@ -1,6 +1,6 @@
 import sys
 import types
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from fractions import Fraction
 
 import pytest
@@ -217,6 +217,45 @@ def test_pictures_draw_at_their_pixel_position(tiny_png: bytes) -> None:
     assert_that(rows[0]).is_equal_to(((10, 20, 30), (40, 50, 60)))
 
     frontend.draw_picture(7, 1, 1)
+
+    assert_that(glass.drawn).is_length(1)
+
+
+# A scene plot that changes the Current Palette re-dresses the
+# chrome already on screen, in place -- the hardware-palette
+# recolouring of Infocom's own interpreters, which never replotted
+# the banner (Blorb: The Adaptive Palette Chunk). A whole-screen
+# erasure takes the chrome with it, and nothing is re-dressed.
+def test_scene_plots_redress_the_drawn_chrome(
+    indexed_png: Callable[..., bytes],
+) -> None:
+    glass = StubGlass()
+    art: dict[int, bytes | Placard] = {
+        1: indexed_png(((10, 10, 10), (20, 20, 20))),
+        2: indexed_png(((30, 30, 30), (40, 40, 40))),
+        7: indexed_png(((1, 1, 1), (2, 2, 2)), alphas=bytes([255, 255])),
+    }
+    frontend = GraphicsFrontend(
+        6, glass=glass, gallery=Gallery(art, 0, adaptive=frozenset({7}))
+    )
+
+    frontend.draw_picture(1, 1, 1)
+    frontend.draw_picture(7, 5, 9)
+    glass.drawn.clear()
+
+    frontend.draw_picture(2, 1, 1)
+
+    ((_scene, _, _, _), (chrome, line, column, _size)) = glass.drawn
+
+    assert_that((line, column)).is_equal_to((5, 9))
+    assert_that(chrome[0]).is_equal_to(((30, 30, 30), (40, 40, 40)))
+
+    # A single window's erasure leaves the chrome remembered; the
+    # whole screen's takes it along.
+    frontend.erase_window(1)
+    frontend.erase_window(-1)
+    glass.drawn.clear()
+    frontend.draw_picture(1, 1, 1)
 
     assert_that(glass.drawn).is_length(1)
 
