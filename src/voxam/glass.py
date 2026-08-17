@@ -35,7 +35,15 @@ from voxam.painter import (
     RUB_OUT_KEYS,
 )
 from voxam.png import Picture
-from voxam.screen import BOLD, ITALIC, REVERSE, Cell, ScreenModel
+from voxam.screen import (
+    BOLD,
+    ERASE_KEEP_SPLIT,
+    ERASE_UNSPLIT,
+    ITALIC,
+    REVERSE,
+    Cell,
+    ScreenModel,
+)
 from voxam.speaker import Speaker
 from voxam.stage import Rectangle, StageModel
 
@@ -211,6 +219,7 @@ class GraphicsFrontend:
             else ScreenModel(columns=glass.columns, lines=glass.lines, version=version)
         )
         self._shadow: dict[int, list[Appearance | None]] = {}
+        self._chrome: dict[int, tuple[int, int]] = {}
 
     @property
     def model(self) -> "ScreenModel | StageModel":
@@ -260,6 +269,11 @@ class GraphicsFrontend:
         would otherwise skip repainting and leave ghosts of the
         art behind.
         """
+
+        if window in (ERASE_UNSPLIT, ERASE_KEEP_SPLIT):
+            # A whole-screen erasure takes the drawn chrome with
+            # it; nothing remains to re-dress.
+            self._chrome.clear()
 
         if self._stage is not None:
             self._forget(self._stage.erase_window(window))
@@ -370,15 +384,51 @@ class GraphicsFrontend:
         A Rect placard has a size and no pixels: games measure
         and position by it, and drawing it shows nothing -- the
         conforming answer, not a shortfall.
+
+        Adaptive chrome is remembered where it lands; a plot that
+        changes the Current Palette re-dresses it in place, the
+        way Infocom's interpreters recoloured the screen through
+        the hardware palette without replotting (Blorb: The
+        Adaptive Palette Chunk).
         """
 
+        serial = self._gallery.serial
         picture = self._gallery.picture(number)
 
-        if picture is not None:
-            factor = self._factor(number)
-            size = (int(picture.width * factor), int(picture.height * factor))
+        if picture is None:
+            return
 
-            self._glass.draw(_layered(picture), line, column, size)
+        self._blit_picture(number, picture, line, column)
+
+        if number in self._gallery.adaptive:
+            self._chrome[number] = (line, column)
+        elif self._gallery.serial != serial:
+            self._redress()
+
+    def _blit_picture(
+        self, number: int, picture: Picture, line: int, column: int
+    ) -> None:
+        """One picture onto the glass, Reso-scaled and layered."""
+
+        factor = self._factor(number)
+        size = (int(picture.width * factor), int(picture.height * factor))
+
+        self._glass.draw(_layered(picture), line, column, size)
+
+    def _redress(self) -> None:
+        """Re-blit the on-screen chrome in the new Current Palette.
+
+        In its original order, so the layering survives -- and the
+        chrome's clear pixels keep the freshly plotted scene
+        visible beneath it.
+        """
+
+        for number, (line, column) in self._chrome.items():
+            # Recorded chrome was drawable when it was recorded,
+            # so the gallery always answers.
+            picture = cast("Picture", self._gallery.picture(number))
+
+            self._blit_picture(number, picture, line, column)
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Paint a picture's region to the background (§15 erase_picture).

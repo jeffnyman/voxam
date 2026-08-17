@@ -42,6 +42,32 @@ def tiny_png() -> bytes:
 
 
 @pytest.fixture
+def indexed_png() -> Callable[..., bytes]:
+    """A factory for 2-by-1 indexed PNGs in the APal style."""
+
+    def build(
+        colours: tuple[tuple[int, int, int], ...],
+        alphas: bytes = b"",
+        raw: bytes = b"\x00\x00\x01",
+    ) -> bytes:
+        pieces = [
+            SIGNATURE,
+            _piece(b"IHDR", struct.pack(">IIBBBBB", 2, 1, 8, 3, 0, 0, 0)),
+            _piece(b"PLTE", b"".join(bytes(colour) for colour in colours)),
+        ]
+
+        if alphas:
+            pieces.append(_piece(b"tRNS", alphas))
+
+        pieces.append(_piece(b"IDAT", zlib.compress(raw)))
+        pieces.append(_piece(b"IEND", b""))
+
+        return b"".join(pieces)
+
+    return build
+
+
+@pytest.fixture
 def holey_png() -> bytes:
     """A 2-by-1 palette PNG: one red pixel, one fully transparent.
 

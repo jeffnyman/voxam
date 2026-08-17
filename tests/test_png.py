@@ -5,7 +5,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import PNGError
-from voxam.png import SIGNATURE, decode
+from voxam.png import SIGNATURE, decode, palette
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -186,6 +186,35 @@ def test_fully_transparent_pixels_are_marked_clear() -> None:
     opaque = decode(picture_bytes(1, 1, 8, 2, bytes([0, 1, 2, 3])))
 
     assert_that(opaque.clear).is_none()
+
+
+# The palette reader hands back a PNG's own PLTE -- what a plotted
+# scene carries into the Current Palette -- a palette-less picture
+# answers empty, and non-PNG bytes are refused (Blorb: The
+# Adaptive Palette Chunk).
+def test_the_palette_reader_answers_the_plte() -> None:
+    data = picture_bytes(
+        2, 1, 8, 3, bytes([0, 0, 1]), palette=bytes([1, 2, 3, 4, 5, 6])
+    )
+
+    assert_that(palette(data)).is_equal_to(((1, 2, 3), (4, 5, 6)))
+    assert_that(palette(picture_bytes(1, 1, 8, 2, bytes(4)))).is_empty()
+
+    with pytest.raises(PNGError, match="PNG signature"):
+        palette(b"GIF89a nope")
+
+
+# An adapted palette overrides the file's own at plot time, while
+# transparency stays the file's (Blorb: The Adaptive Palette
+# Chunk).
+def test_an_adapted_palette_redresses_the_pixels() -> None:
+    data = picture_bytes(
+        2, 1, 8, 3, bytes([0, 0, 1]), palette=bytes([9] * 6), alphas=bytes([255, 0])
+    )
+    picture = decode(data, ((10, 11, 12), (20, 21, 22)))
+
+    assert_that(picture.rows[0]).is_equal_to(((10, 11, 12), BLACK))
+    assert_that(picture.clear).is_equal_to(((False, True),))
 
 
 @pytest.mark.parametrize(

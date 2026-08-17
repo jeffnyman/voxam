@@ -201,6 +201,24 @@ def test_the_resolution_chunk_reaches_the_gallery() -> None:
     assert_that(gallery.scale(9, 640, 400)).is_equal_to(1)
 
 
+# The APal chunk names the adaptive pictures -- Infocom's chrome,
+# which wears the palette of the scene plotted before it -- and is
+# policed for doubling and ragged lengths (Blorb: The Adaptive
+# Palette Chunk).
+def test_the_adaptive_chunk_is_read_and_policed() -> None:
+    numbers = (54).to_bytes(4, "big") + (170).to_bytes(4, "big")
+    blorb = Blorb.parse(build_blorb([], extra=chunk(b"APal", numbers)))
+
+    assert_that(blorb.adaptive).is_equal_to(frozenset({54, 170}))
+    assert_that(Blorb.parse(build_blorb([])).adaptive).is_empty()
+
+    with pytest.raises(BlorbError, match="more than one"):
+        Blorb.parse(build_blorb([], extra=chunk(b"APal", numbers) * 2))
+
+    with pytest.raises(BlorbError, match="four-byte picture numbers"):
+        Blorb.parse(build_blorb([], extra=chunk(b"APal", b"\x00\x01")))
+
+
 # Reso chunks are policed: doubled chunks, ragged lengths, a zero
 # standard window, a zero standard denominator, and a half-zero
 # limit fraction are each refused; a Blorb without one simply has
