@@ -13,8 +13,15 @@ from assertpy import assert_that
 
 from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
-from voxam.cli import _gallery, _recorded_keys, _screen_frontend, _speaker, main
-from voxam.gallery import Gallery
+from voxam.cli import (
+    _gallery,
+    _graphics_frontend,
+    _recorded_keys,
+    _screen_frontend,
+    _speaker,
+    main,
+)
+from voxam.gallery import Gallery, Resolution
 from voxam.iff import Chunk, chunk, write_form
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
@@ -602,6 +609,31 @@ def test_the_speaker_needs_sounds_a_package_and_a_device(
     assert_that(_speaker(sounded_blorb())).is_none()
 
 
+# A Blorb's Reso standard window size travels to the pygame
+# doorway, so the opened window keeps the art's proportions --
+# the spec's own window-sizing hint (Blorb: The Resolution
+# Chunk); without a Blorb the classic shape stands.
+def test_graphics_windows_take_the_standard_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def opened(standard: tuple[int, int] | None = None) -> WindowStub:
+        captured["standard"] = standard
+
+        return WindowStub("")
+
+    monkeypatch.setattr("voxam.glass.open_pygame_glass", opened)
+
+    shaped = Blorb((), None, None, frozenset(), resolution=Resolution(320, 200))
+
+    assert_that(_graphics_frontend(6, shaped)).is_not_none()
+    assert_that(captured["standard"]).is_equal_to((320, 200))
+
+    assert_that(_graphics_frontend(6, None)).is_not_none()
+    assert_that(captured["standard"]).is_none()
+
+
 # The gallery helper hands the window only real art: no Blorb, or
 # one without drawable pictures, is None -- which keeps the
 # frontend's picture claim honest (§11.1.4).
@@ -882,6 +914,33 @@ class WindowStub:
     ) -> None:
         """Discard: the CLI tests never inspect the blits."""
 
+    def text(
+        self,
+        line: int,
+        column: int,
+        characters: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
+        """Discard: the CLI tests never inspect the blits."""
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        """Discard: the CLI tests never inspect the fills."""
+
+    def shift(self, line: int, column: int, height: int, width: int, rise: int) -> None:
+        """Discard: the CLI tests never inspect the scrolls."""
+
     def present(self) -> None:
         """Discard: the CLI tests never inspect the frame."""
 
@@ -900,7 +959,10 @@ class WindowStub:
 def test_graphics_play_runs_through_the_window(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("voxam.glass.open_pygame_glass", lambda: WindowStub("look\n"))
+    monkeypatch.setattr(
+        "voxam.glass.open_pygame_glass",
+        lambda _standard=None: WindowStub("look\n"),
+    )
 
     exit_code = main(["--graphics", str(reading_story(tmp_path, version=4))])
 

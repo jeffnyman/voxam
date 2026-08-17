@@ -3,8 +3,8 @@ from assertpy import assert_that
 
 from voxam.errors import ZMachineScreenError
 from voxam.frontend import Status
-from voxam.screen import BOLD, REVERSE, ROMAN
-from voxam.stage import StageModel
+from voxam.screen import BOLD, REVERSE, ROMAN, Cell
+from voxam.stage import FillPaint, ShiftPaint, StageModel, TextPaint
 
 
 # A readable geometry: 20 by 10 cells of 10-by-10-unit type, so a
@@ -215,6 +215,12 @@ def test_erase_line_stops_at_the_window_edge() -> None:
 
     assert_that(stage.row_text(2)).is_equal_to(" wip")
 
+    # A cursor already at the right margin has nothing to erase.
+    stage.set_cursor(1, 61)
+    stage.erase_line()
+
+    assert_that(stage.row_text(2)).is_equal_to(" wip")
+
 
 # rub_out retreats one cell and blanks it, and at the window's
 # left edge there is nothing left to rub.
@@ -384,6 +390,55 @@ def test_scroll_window_shifts_the_rectangle() -> None:
     stage.scroll_window(0, 5)
 
     assert_that(stage.row_text(2)).is_equal_to("two")
+
+
+# The stage narrates its painting in units, for a glass whose
+# pixels are the retained screen: text lands at the window's true
+# position, erasures fill true rectangles, scrolls shift them with
+# the exposed strip filled, and draining clears the slate.
+def test_paints_narrate_in_units() -> None:
+    stage = staged()
+
+    stage.place_window(3, 21, 35, 30, 80)
+    stage.set_window(3)
+    stage.write("ab")
+
+    paints = stage.paints()
+
+    assert_that(paints[0]).is_equal_to(TextPaint(21, 35, Cell("a")))
+    assert_that(paints[1]).is_equal_to(TextPaint(21, 45, Cell("b")))
+    assert_that(stage.paints()).is_empty()
+
+    stage.erase_window(3)
+
+    assert_that(stage.paints()).is_equal_to([FillPaint(21, 35, 30, 80, 1)])
+
+    stage.scroll_window(3, 10)
+
+    assert_that(stage.paints()).is_equal_to(
+        [ShiftPaint(21, 35, 30, 80, 10), FillPaint(41, 35, 10, 80, 1)]
+    )
+
+    stage.scroll_window(3, -10)
+
+    assert_that(stage.paints()).is_equal_to(
+        [ShiftPaint(21, 35, 30, 80, -10), FillPaint(21, 35, 10, 80, 1)]
+    )
+
+    stage.set_cursor(1, 21)
+    stage.erase_line()
+
+    assert_that(stage.paints()).is_equal_to([FillPaint(21, 55, 10, 60, 1)])
+
+    stage.write("x")
+    stage.paints()
+    stage.rub_out()
+
+    assert_that(stage.paints()).is_equal_to([FillPaint(21, 55, 10, 10, 1)])
+
+    stage.erase_window(-2)
+
+    assert_that(stage.paints()).is_equal_to([FillPaint(1, 1, 100, 200, 1)])
 
 
 # The damage sweep names changed rows once and clears its slate;

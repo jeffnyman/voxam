@@ -43,6 +43,66 @@ STAGE_WINDOWS = 8
 Rectangle = tuple[int, int, int, int]
 
 
+@dataclass(frozen=True)
+class TextPaint:
+    """One dressed character placed at a unit position.
+
+    Attributes:
+        line: The character's top edge in units, 1-based -- the
+            window's own y plus the cursor's rows, unrounded, so
+            text lands exactly where §8.8 placed its window.
+        column: The character's left edge in units.
+        cell: The character and its dress.
+    """
+
+    line: int
+    column: int
+    cell: Cell
+
+
+@dataclass(frozen=True)
+class FillPaint:
+    """A unit rectangle painted to a background colour (§8.8.5).
+
+    Attributes:
+        line: The rectangle's top edge in units, 1-based.
+        column: Its left edge in units.
+        height: Its height in units.
+        width: Its width in units.
+        background: The §8.3.1 background colour code to paint.
+    """
+
+    line: int
+    column: int
+    height: int
+    width: int
+    background: int
+
+
+@dataclass(frozen=True)
+class ShiftPaint:
+    """A unit rectangle whose pixels slide vertically (§8.8.3.6).
+
+    Attributes:
+        line: The rectangle's top edge in units, 1-based.
+        column: Its left edge in units.
+        height: Its height in units.
+        width: Its width in units.
+        rise: How far the content slides in units -- positive up,
+            negative down. The exposed strip arrives as its own
+            FillPaint.
+    """
+
+    line: int
+    column: int
+    height: int
+    width: int
+    rise: int
+
+
+Paint = TextPaint | FillPaint | ShiftPaint
+
+
 @dataclass
 class _Window:
     """One §8.8.3 window: geometry in units, a cursor in cells.
@@ -97,6 +157,7 @@ class StageModel:
         self._font_height = font_height
         self._grid: list[list[Cell]] = [[Cell()] * columns for _ in range(lines)]
         self._damage: set[int] = set()
+        self._paints: list[Paint] = []
         self._buffered = True
         self._split_seen = False
         self._selected = 0
@@ -323,6 +384,7 @@ class StageModel:
 
         if window == ERASE_UNSPLIT:
             self._blank_rows(1, self._lines, self._windows[0].background)
+            self._paints.append(self._screen_fill(self._windows[0].background))
 
             if self._split_seen:
                 self.split_window(0)
@@ -336,6 +398,7 @@ class StageModel:
 
         if window == ERASE_KEEP_SPLIT:
             self._blank_rows(1, self._lines, self.background)
+            self._paints.append(self._screen_fill(self.background))
 
             return (1, 1, self._lines, self._columns)
 
@@ -346,11 +409,30 @@ class StageModel:
             for column in range(first_column, first_column + column_count):
                 self._paint(row, column, self._blank(target.background))
 
+        # The glass erases the window's true unit rectangle -- not
+        # the cell approximation -- as §8.8.5.3 measures it.
+        self._paints.append(
+            FillPaint(
+                target.y, target.x, target.height, target.width, target.background
+            )
+        )
+
         target.row = 0
         target.column = 0
         target.scroll_due = False
 
         return (first_row, first_column, row_count, column_count)
+
+    def _screen_fill(self, background: int) -> FillPaint:
+        """The whole screen as one fill, in units."""
+
+        return FillPaint(
+            1,
+            1,
+            self._lines * self._font_height,
+            self._columns * self._font_width,
+            background,
+        )
 
     def scroll_window(self, window: int, pixels: int) -> None:
         """Scroll a window's rectangle by a pixel amount (§8.8.3.6).
@@ -408,6 +490,19 @@ class StageModel:
         ):
             self._paint(row, column, self._blank(current.background))
 
+        width = (self._right_edge(current) - current.column) * self._font_width
+
+        if width > 0:
+            self._paints.append(
+                FillPaint(
+                    current.y + current.row * self._font_height,
+                    current.x + current.column * self._font_width,
+                    self._font_height,
+                    width,
+                    current.background,
+                )
+            )
+
     def rub_out(self) -> None:
         """Retreat the cursor one cell and blank it (§15 read)."""
 
@@ -423,6 +518,15 @@ class StageModel:
                 first_row + current.row,
                 first_column + current.column,
                 self._blank(current.background),
+            )
+            self._paints.append(
+                FillPaint(
+                    current.y + current.row * self._font_height,
+                    current.x + current.column * self._font_width,
+                    self._font_height,
+                    self._font_width,
+                    current.background,
+                )
             )
 
     def write_rectangle(self, rows: Sequence[str]) -> None:
@@ -500,6 +604,23 @@ class StageModel:
         raise ZMachineScreenError(msg)
 
     # --- the grid the glass blits ---
+
+    def paints(self) -> list[Paint]:
+        """The unit-positioned paints since the last drain, in order.
+
+        The glass performs exactly these -- text at true §8.8
+        positions, fills, and scrolls -- and its own persistent
+        pixels are the retained screen, §8.8.3's rule made
+        literal. Draining clears the slate; the cell grid remains
+        the inspectable approximation the tests read.
+        """
+
+        self._flush(self._windows[self._selected])
+
+        drained = self._paints
+        self._paints = []
+
+        return drained
 
     def sweep(self) -> list[int]:
         """The rows changed since the last sweep, in screen order."""
@@ -624,6 +745,13 @@ class StageModel:
         first_row, first_column, _rows, _columns = self._box(window)
 
         self._paint(first_row + window.row, first_column + window.column, cell)
+        self._paints.append(
+            TextPaint(
+                window.y + window.row * self._font_height,
+                window.x + window.column * self._font_width,
+                cell,
+            )
+        )
 
         window.column += 1
 
@@ -668,6 +796,25 @@ class StageModel:
                 first_row + row_count - 1, column, self._blank(window.background)
             )
 
+        self._paints.append(
+            ShiftPaint(
+                window.y,
+                window.x,
+                row_count * self._font_height,
+                column_count * self._font_width,
+                self._font_height,
+            )
+        )
+        self._paints.append(
+            FillPaint(
+                window.y + (row_count - 1) * self._font_height,
+                window.x,
+                self._font_height,
+                column_count * self._font_width,
+                window.background,
+            )
+        )
+
     def _scroll_down(self, window: _Window) -> None:
         """Scroll the window's own rectangle down one cell row."""
 
@@ -679,6 +826,25 @@ class StageModel:
 
         for column in range(first_column, first_column + column_count):
             self._paint(first_row, column, self._blank(window.background))
+
+        self._paints.append(
+            ShiftPaint(
+                window.y,
+                window.x,
+                row_count * self._font_height,
+                column_count * self._font_width,
+                -self._font_height,
+            )
+        )
+        self._paints.append(
+            FillPaint(
+                window.y,
+                window.x,
+                self._font_height,
+                column_count * self._font_width,
+                window.background,
+            )
+        )
 
     def _blank_rows(self, first: int, last: int, background: int) -> None:
         """Blank whole screen rows to a background colour."""

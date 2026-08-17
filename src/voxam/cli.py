@@ -500,8 +500,21 @@ def _graphics_frontend(version: int, blorb: Blorb | None) -> "GraphicsFrontend |
         # Imported here because the graphics extra is optional.
         from voxam.glass import GraphicsFrontend  # noqa: PLC0415
 
+        # The Blorb's Reso chunk names the shape the art was laid
+        # out for, and the spec offers it as a window-sizing hint
+        # (Blorb: The Resolution Chunk); a window in the standard
+        # proportions is what lets a game's own layout nest.
+        standard = (
+            (blorb.resolution.width, blorb.resolution.height)
+            if blorb is not None and blorb.resolution is not None
+            else None
+        )
+
         return GraphicsFrontend(
-            version, speaker=_speaker(blorb), gallery=_gallery(blorb)
+            version,
+            speaker=_speaker(blorb),
+            gallery=_gallery(blorb),
+            standard=standard,
         )
     except ImportError:
         print(

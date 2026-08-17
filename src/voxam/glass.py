@@ -45,7 +45,7 @@ from voxam.screen import (
     ScreenModel,
 )
 from voxam.speaker import Speaker
-from voxam.stage import Rectangle, StageModel
+from voxam.stage import FillPaint, Paint, StageModel, TextPaint
 
 # The classic glass: 80 by 24 cells, the size every recording and
 # header claim already assumes.
@@ -113,6 +113,50 @@ class Glass(Protocol):
         from a face.
         """
 
+    def text(  # noqa: PLR0913 -- a run carries its whole dress
+        self,
+        line: int,
+        column: int,
+        characters: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
+        """Blit characters with their top left at a pixel position.
+
+        The position is 1-based screen pixels -- §8.8's own units
+        on a measuring glass -- so Version 6 text lands exactly
+        where its window was placed, not on the nearest cell.
+        Each character paints its own exact background rectangle.
+        """
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        """Paint a pixel rectangle a solid colour (§8.8.5)."""
+
+    def shift(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        rise: int,
+    ) -> None:
+        """Slide a pixel rectangle's contents vertically (§8.8.3.6).
+
+        Positive rise moves the pixels up, negative down; the
+        exposed strip is the caller's to fill.
+        """
+
     def present(self) -> None:
         """Put the painted frame on screen."""
 
@@ -171,6 +215,7 @@ class GraphicsFrontend:
         glass: Glass | None = None,
         speaker: Speaker | None = None,
         gallery: Gallery | None = None,
+        standard: tuple[int, int] | None = None,
     ) -> None:
         """Wrap a window around a fresh screen model.
 
@@ -185,10 +230,17 @@ class GraphicsFrontend:
                 claims no pictures, honestly. An empty gallery
                 stands in behind the scenes so no picture method
                 ever has to ask whether one hangs.
+            standard: The Reso chunk's standard window size, the
+                shape the game's art was laid out for. The spec
+                offers it as a hint for choosing a window size
+                (Blorb: The Resolution Chunk), and it matters:
+                Arthur aligns its rails under its banner's ends,
+                which only nest inside the side regions when the
+                screen keeps the standard proportions.
         """
 
         if glass is None:
-            glass = open_pygame_glass()
+            glass = open_pygame_glass(standard)
 
         self._glass = glass
         self._speaker = speaker
@@ -275,11 +327,7 @@ class GraphicsFrontend:
             # it; nothing remains to re-dress.
             self._chrome.clear()
 
-        if self._stage is not None:
-            self._forget(self._stage.erase_window(window))
-        else:
-            self._model.erase_window(window)
-
+        self._model.erase_window(window)
         self._repaint()
 
     def place_window(
@@ -537,12 +585,26 @@ class GraphicsFrontend:
             self._repaint()
 
     def clear(self) -> None:
-        """Blit the model's every row, blank or not.
+        """Return the glass to a blank screen after a frontispiece.
 
-        The shadow empties first: after a frontispiece the glass
-        shows pixels no cell accounts for, so every cell must
-        paint again.
+        On the stage the pixels themselves are the retained
+        screen, so a fill is the whole of it; the cell path blits
+        every row afresh, its shadow emptied first, because the
+        cover left pixels no cell accounts for.
         """
+
+        if self._stage is not None:
+            self._stage.paints()
+            self._glass.fill(
+                1,
+                1,
+                self.screen_lines * self.font_height,
+                self.screen_columns * self.font_width,
+                PAPER_DEFAULT,
+            )
+            self._glass.present()
+
+            return
 
         self._shadow.clear()
 
@@ -586,7 +648,27 @@ class GraphicsFrontend:
         return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
 
     def _repaint(self) -> None:
-        """Blit every damaged row, then put the frame on screen."""
+        """Carry the model's changes to the glass, then present.
+
+        The stage hands over unit-positioned paints -- text at
+        true §8.8 positions, fills, scrolls -- and the glass's
+        persistent pixels are the retained screen. The cell model
+        instead reports damaged rows, blitted through the shadow
+        diff.
+        """
+
+        if self._stage is not None:
+            paints = self._stage.paints()
+
+            for paint in paints:
+                self._perform(paint)
+
+            self._stage.sweep()
+
+            if paints:
+                self._glass.present()
+
+            return
 
         rows = list(self._model.sweep())
 
@@ -595,6 +677,35 @@ class GraphicsFrontend:
 
         if rows:
             self._glass.present()
+
+    def _perform(self, paint: Paint) -> None:
+        """Execute one stage paint on the glass, in real pixels."""
+
+        if isinstance(paint, TextPaint):
+            character, (ink, paper, bold, italic, graphics) = _appearance(paint.cell)
+
+            self._glass.text(
+                paint.line,
+                paint.column,
+                character,
+                ink,
+                paper,
+                bold=bold,
+                italic=italic,
+                graphics=graphics,
+            )
+        elif isinstance(paint, FillPaint):
+            self._glass.fill(
+                paint.line,
+                paint.column,
+                paint.height,
+                paint.width,
+                COLOUR_VALUES.get(paint.background, PAPER_DEFAULT),
+            )
+        else:
+            self._glass.shift(
+                paint.line, paint.column, paint.height, paint.width, paint.rise
+            )
 
     def _paint_row(self, row: int) -> None:
         """Blit one row's changed cells, in same-dress runs.
@@ -642,18 +753,6 @@ class GraphicsFrontend:
 
         remembered: list[Appearance | None] = list(cells)
         self._shadow[row] = remembered
-
-    def _forget(self, rectangle: Rectangle) -> None:
-        """Drop the shadow over a rectangle, forcing its repaint."""
-
-        first_row, first_column, row_count, column_count = rectangle
-
-        for row in range(first_row, first_row + row_count):
-            shadow = self._shadow.get(row)
-
-            if shadow is not None:
-                for column in range(first_column, first_column + column_count):
-                    shadow[column - 1] = None
 
 
 def _appearance(
@@ -705,19 +804,24 @@ def _layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
     )
 
 
-def open_pygame_glass() -> Glass:
+def open_pygame_glass(standard: tuple[int, int] | None = None) -> Glass:
     """Open a real pygame window, the graphics extra permitting.
 
     The pygame import happens here, not at module top -- and the
     banner-hiding variable is set before it, because pygame greets
     on stdout, where a piped transcript goes.
+
+    Args:
+        standard: The art's standard window size, when a Blorb
+            declared one; the glass keeps its proportions (Blorb:
+            The Resolution Chunk).
     """
 
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
     import pygame  # noqa: PLC0415
 
-    return cast("Glass", _PygameGlass(pygame))
+    return cast("Glass", _PygameGlass(pygame, standard))
 
 
 class _PygameGlass:
@@ -731,11 +835,10 @@ class _PygameGlass:
     what needed distinguishing.
     """
 
-    def __init__(self, pygame: object) -> None:
+    def __init__(self, pygame: object, standard: tuple[int, int] | None = None) -> None:
         module: Any = pygame
 
         self._pygame: Any = module
-        self.columns = GLASS_COLUMNS
         self.lines = GLASS_LINES
 
         module.init()
@@ -744,6 +847,23 @@ class _PygameGlass:
         regular: Any = self._fonts[(False, False)]
         self.cell_width = int(regular.metrics("M")[0][4])
         self.cell_height = int(regular.get_linesize())
+
+        if standard is None:
+            self.columns = GLASS_COLUMNS
+        else:
+            # The window keeps the art's standard proportions
+            # (Blorb: The Resolution Chunk): the height stays the
+            # classic 24 lines and the width follows the standard
+            # aspect, so a game's own layout arithmetic -- built
+            # for that shape -- nests the way its artists drew it.
+            width, height = standard
+            self.columns = max(
+                round(
+                    self.lines * self.cell_height * width / (height * self.cell_width)
+                ),
+                1,
+            )
+
         self._screen: Any = module.display.set_mode(
             (self.columns * self.cell_width, self.lines * self.cell_height)
         )
@@ -767,14 +887,37 @@ class _PygameGlass:
         italic: bool,
         graphics: bool,
     ) -> None:
+        self.text(
+            (row - 1) * self.cell_height + 1,
+            (column - 1) * self.cell_width + 1,
+            text,
+            ink,
+            paper,
+            bold=bold,
+            italic=italic,
+            graphics=graphics,
+        )
+
+    def text(  # noqa: PLR0913 -- a run carries its whole dress
+        self,
+        line: int,
+        column: int,
+        characters: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
         font: Any = self._fonts.get((bold, italic), self._fonts[(False, False)])
-        x = (column - 1) * self.cell_width
-        y = (row - 1) * self.cell_height
-        width = len(text) * self.cell_width
+        x = column - 1
+        y = line - 1
+        width = len(characters) * self.cell_width
 
         self._screen.fill(paper, (x, y, width, self.cell_height))
 
-        for offset, character in enumerate(text):
+        for offset, character in enumerate(characters):
             if character == " ":
                 continue
 
@@ -784,6 +927,42 @@ class _PygameGlass:
                 glyph = font.render(character, True, ink)
 
             self._screen.blit(glyph, (x + offset * self.cell_width, y))
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        self._screen.fill(colour, (column - 1, line - 1, width, height))
+
+    def shift(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        rise: int,
+    ) -> None:
+        region = self._screen.get_rect().clip((column - 1, line - 1, width, height))
+
+        if not region.width or not region.height:
+            return
+
+        moved: Any = self._screen.subsurface(region).copy()
+
+        if rise > 0:
+            self._screen.blit(
+                moved, (region.x, region.y), (0, rise, region.width, region.height)
+            )
+        else:
+            self._screen.blit(
+                moved,
+                (region.x, region.y - rise),
+                (0, 0, region.width, region.height + rise),
+            )
 
     def _tile(
         self, character: str, ink: tuple[int, int, int], paper: tuple[int, int, int]
