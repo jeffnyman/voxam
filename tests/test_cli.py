@@ -618,7 +618,9 @@ def test_graphics_windows_take_the_standard_shape(
 ) -> None:
     captured: dict[str, object] = {}
 
-    def opened(standard: tuple[int, int] | None = None) -> WindowStub:
+    def opened(
+        standard: tuple[int, int] | None = None, _version: int = 0
+    ) -> WindowStub:
         captured["standard"] = standard
 
         return WindowStub("")
@@ -961,7 +963,7 @@ def test_graphics_play_runs_through_the_window(
 ) -> None:
     monkeypatch.setattr(
         "voxam.glass.open_pygame_glass",
-        lambda _standard=None: WindowStub("look\n"),
+        lambda _standard=None, _version=0: WindowStub("look\n"),
     )
 
     exit_code = main(["--graphics", str(reading_story(tmp_path, version=4))])
