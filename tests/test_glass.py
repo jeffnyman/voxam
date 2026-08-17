@@ -657,14 +657,18 @@ def fake_pygame(
 
         return FakeFace(bold_advance if bold else 9)
 
+    icons: list[object] = []
     module = types.SimpleNamespace(
         QUIT=1,
         KEYDOWN=2,
         SRCALPHA=65536,
+        icons=icons,
+        image=types.SimpleNamespace(load=lambda path: ("icon", path)),
         init=lambda: None,
         display=types.SimpleNamespace(
             set_mode=lambda _size: screen,
             set_caption=lambda _title: None,
+            set_icon=icons.append,
             flip=lambda: None,
         ),
         font=types.SimpleNamespace(SysFont=sysfont),
@@ -859,6 +863,26 @@ def test_the_pygame_doorway_draws_at_pixel_positions(
 
     assert_that(layered.flags).is_equal_to(module.SRCALPHA)
     assert_that(layered.pixels[1]).is_equal_to(((1, 0), (7, 8, 9, 0)))
+
+
+# The window wears the story version's own badge: the packaged
+# z<version>.ico becomes the pygame icon, set before the display
+# opens; version 0 -- no story named -- leaves the icon alone.
+def test_the_window_wears_the_version_badge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    open_pygame_glass(None, 6)
+
+    assert_that(module.icons).is_length(1)
+    assert_that(str(module.icons[0][1])).ends_with("z6.ico")
+
+    open_pygame_glass()
+
+    assert_that(module.icons).is_length(1)
 
 
 # A standard window size shapes the doorway's glass: the height

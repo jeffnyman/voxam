@@ -22,6 +22,7 @@ not a spin.
 import os
 from collections.abc import Callable, Sequence
 from fractions import Fraction
+from importlib import resources
 from itertools import groupby
 from typing import Any, Protocol, cast
 
@@ -55,6 +56,10 @@ GLASS_LINES = 24
 # Version 6 alone gets the §8.8 stage; every other version keeps
 # the two-window screen model.
 STAGE_VERSION = 6
+
+# Every story version has its own window badge in the package's
+# icons directory, z1.ico through z8.ico.
+BADGED_VERSIONS = range(1, 9)
 
 # One cell as the glass paints it: its character and its dress of
 # ink, paper, bold, italic, and the graphics-font flag.
@@ -240,7 +245,7 @@ class GraphicsFrontend:
         """
 
         if glass is None:
-            glass = open_pygame_glass(standard)
+            glass = open_pygame_glass(standard, version)
 
         self._glass = glass
         self._speaker = speaker
@@ -804,7 +809,9 @@ def _layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
     )
 
 
-def open_pygame_glass(standard: tuple[int, int] | None = None) -> Glass:
+def open_pygame_glass(
+    standard: tuple[int, int] | None = None, version: int = 0
+) -> Glass:
     """Open a real pygame window, the graphics extra permitting.
 
     The pygame import happens here, not at module top -- and the
@@ -815,13 +822,15 @@ def open_pygame_glass(standard: tuple[int, int] | None = None) -> Glass:
         standard: The art's standard window size, when a Blorb
             declared one; the glass keeps its proportions (Blorb:
             The Resolution Chunk).
+        version: The story version, whose numbered badge becomes
+            the window's icon; 0 leaves the icon alone.
     """
 
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
     import pygame  # noqa: PLC0415
 
-    return cast("Glass", _PygameGlass(pygame, standard))
+    return cast("Glass", _PygameGlass(pygame, standard, version))
 
 
 class _PygameGlass:
@@ -835,13 +844,19 @@ class _PygameGlass:
     what needed distinguishing.
     """
 
-    def __init__(self, pygame: object, standard: tuple[int, int] | None = None) -> None:
+    def __init__(
+        self,
+        pygame: object,
+        standard: tuple[int, int] | None = None,
+        version: int = 0,
+    ) -> None:
         module: Any = pygame
 
         self._pygame: Any = module
         self.lines = GLASS_LINES
 
         module.init()
+        _badge(module, version)
 
         self._fonts = _fitted_faces(module)
         regular: Any = self._fonts[(False, False)]
@@ -1087,6 +1102,26 @@ class _PygameGlass:
                 surface.set_at((x, y), colour)
 
         return surface
+
+
+def _badge(module: object, version: int) -> None:
+    """Give the window the story version's own icon.
+
+    Each Z-Machine version ships a numbered badge in the
+    package's icons directory; the window wears the one for the
+    story it is playing. Set before the display opens, as pygame
+    prefers.
+    """
+
+    if version not in BADGED_VERSIONS:
+        return
+
+    pygame: Any = module
+
+    with resources.as_file(
+        resources.files("voxam") / "icons" / f"z{version}.ico"
+    ) as path:
+        pygame.display.set_icon(pygame.image.load(str(path)))
 
 
 # The monospace families tried when no bundled font exists yet, in
