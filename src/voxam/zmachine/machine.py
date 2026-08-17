@@ -2436,10 +2436,26 @@ class Machine:
         self._pc = instruction.next_address
 
     def _op_get_wind_prop(self, instruction: Instruction) -> None:
-        """Store one §8.8.3.2 window property (§15 get_wind_prop)."""
+        """Store one §8.8.3.2 window property (§15 get_wind_prop).
+
+        On a stage, the selected window's cursor properties answer
+        from the frontend's flowed cursor: printing moves it, and
+        the ledger's copy cannot know (§8.8.3.5). Shogun centres
+        each title line by reading property 4 back between prints
+        -- against the stale copy, every line lands on the first
+        one's row.
+        """
 
         values = [self._value(operand) for operand in instruction.operands]
         value = self._windows.property(values[0], values[1])
+
+        if (
+            self._frontend.has_stage
+            and values[1] in (Y_CURSOR, X_CURSOR)
+            and self._windows.resolve(values[0]) == self._windows.selected
+        ):
+            line, column = self._frontend.cursor_position()
+            value = line if values[1] == Y_CURSOR else column
 
         self._store_result(instruction.store_variable, value)
         self._pc = instruction.next_address
