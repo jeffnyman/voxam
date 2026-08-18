@@ -70,6 +70,12 @@ class ScreenRecorder:
     def erase_line(self, pixels: int | None = None) -> None:
         self.line_erasures.append(pixels)
 
+    def begin_input(self) -> None:
+        """Discard: the screen tests never take timed input."""
+
+    def resume_input(self) -> None:
+        """Discard: the screen tests never take timed input."""
+
     def set_buffering(self, buffered: bool) -> None:
         self.buffering.append(buffered)
 

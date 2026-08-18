@@ -341,6 +341,7 @@ class ScreenFrontend:
         self._model = ScreenModel(
             columns=self.screen_columns, lines=self.screen_lines, version=version
         )
+        self._prompt = ""
 
     @property
     def model(self) -> ScreenModel:
@@ -395,6 +396,24 @@ class ScreenFrontend:
         """
 
         self._model.erase_line()
+        self._repaint()
+
+    def begin_input(self) -> None:
+        """Remember the prompt: the line's text left of the cursor."""
+
+        row, column = self._model.cursor
+        self._prompt = self._model.row_text(row)[: column - 1]
+
+    def resume_input(self) -> None:
+        """Show the prompt again after a printing interrupt.
+
+        §15's remark: the interpreter should redisplay the input
+        line when a timed read's interrupt has printed -- the
+        prompt rewrites at wherever the interrupt's output left
+        the cursor.
+        """
+
+        self._model.write(self._prompt)
         self._repaint()
 
     def split_window(self, lines: int) -> None:

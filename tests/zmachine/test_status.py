@@ -111,6 +111,12 @@ class Recorder:
     def erase_line(self, pixels: int | None = None) -> None:
         """Discard: the status tests never erase a line."""
 
+    def begin_input(self) -> None:
+        """Discard: the status tests never take timed input."""
+
+    def resume_input(self) -> None:
+        """Discard: the status tests never take timed input."""
+
     def set_buffering(self, buffered: bool) -> None:
         """Discard: the status tests never toggle buffering."""
 

@@ -177,6 +177,23 @@ class Frontend(Protocol):
         right margin.
         """
 
+    def begin_input(self) -> None:
+        """A timed line read is starting: remember the prompt.
+
+        If the read's interrupt routine prints, the input line must
+        be shown again afterwards (§15 read remarks), and the
+        prompt as it stood is what there is to show.
+        """
+
+    def resume_input(self) -> None:
+        """A timed read's interrupt printed; show the prompt again.
+
+        The §15 remark: the interpreter should redisplay the input
+        line after an interrupt routine that printed -- Jigsaw's
+        chapter epigraphs arrive exactly this way, and without the
+        redisplay the prompt strands above the quotation.
+        """
+
     def set_buffering(self, buffered: bool) -> None:
         """Turn word-wrap buffering on or off (§8.7)."""
 
@@ -426,6 +443,17 @@ class PlainFrontend:
 
     def erase_line(self, pixels: int | None = None) -> None:
         """Drop the erasure: a stream has no line to blank."""
+
+    def begin_input(self) -> None:
+        """Drop the notice: a stream shows input by echoing it.
+
+        The typed line prints after any interrupt output anyway,
+        so the transcript already reads in order -- and recordings
+        must stay byte-identical, so the stream adds nothing.
+        """
+
+    def resume_input(self) -> None:
+        """Drop the redisplay, for the same reason as the notice."""
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""

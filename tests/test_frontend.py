@@ -47,6 +47,8 @@ def test_plain_frontend_drops_screen_operations() -> None:
     frontend.erase_window(-1)
     frontend.erase_line()
     frontend.erase_line(29)
+    frontend.begin_input()
+    frontend.resume_input()
     frontend.set_buffering(buffered=False)
     frontend.split_window(3)
     frontend.set_cursor(1, 1)

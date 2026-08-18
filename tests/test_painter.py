@@ -251,6 +251,23 @@ def test_erasure_repaints() -> None:
     assert_that(frontend.model.row_text(1)).is_equal_to("")
 
 
+# A printing interrupt strands the prompt above its output; the
+# §15 remark asks the interpreter to redisplay the input line, and
+# the painter rewrites the remembered prompt at the new cursor --
+# Jigsaw's chapter epigraphs are the earner.
+def test_the_prompt_returns_after_an_interrupts_output() -> None:
+    frontend, _out = painted()
+
+    frontend.write("\n>")
+    frontend.begin_input()
+    frontend.write("\n\n   All the generals were on holiday.\n\n")
+    frontend.resume_input()
+
+    row, _column = frontend.model.cursor
+
+    assert_that(frontend.model.row_text(row)).is_equal_to(">")
+
+
 # erase_line clears from the cursor onward and repaints the row
 # (§8.7.3.4).
 def test_erase_line_repaints_the_row() -> None:

@@ -7,6 +7,7 @@ from voxam.errors import (
     ZMachineInstructionError,
     ZMachineMemoryError,
 )
+from voxam.frontend import PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
 
@@ -324,6 +325,69 @@ def test_a_false_interrupt_lets_the_line_arrive(
 
     assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
     assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# §15's remark: when a timed read's interrupt routine prints and
+# input continues, the interpreter should redisplay the input line
+# -- Jigsaw's chapter epigraphs arrive exactly this way. The
+# machine tells the frontend the read began, and again after a
+# PRINTING interrupt that returned false; a silent interrupt earns
+# no redisplay, a terminating one erases the input instead, and a
+# keystroke read has no input line to redisplay at all.
+def test_a_printing_interrupt_redisplays_the_input_line(
+    code_machine: Callable[..., Machine],
+) -> None:
+    class InputWatcher(PlainFrontend):
+        def __init__(self) -> None:
+            super().__init__(lambda _text: None)
+            self.notices: list[str] = []
+
+        def begin_input(self) -> None:
+            self.notices.append("begin")
+
+        def resume_input(self) -> None:
+            self.notices.append("resume")
+
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    print_then_false = bytes([0x00, 0xE5, 0x7F, 0x58, 0xB1])
+
+    watcher = InputWatcher()
+    machine = code_machine(
+        timed, version=4, input_source=lambda: "go", frontend=watcher
+    )
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, print_then_false)
+
+    machine.run()
+
+    assert_that(watcher.notices).is_equal_to(["begin", "resume"])
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+
+    silent = InputWatcher()
+    machine = code_machine(timed, version=4, input_source=lambda: "go", frontend=silent)
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
+
+    machine.run()
+
+    assert_that(silent.notices).is_equal_to(["begin"])
+
+    keys = InputWatcher()
+    machine = code_machine(
+        bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA]),
+        version=4,
+        input_source=lambda: "y",
+        frontend=keys,
+    )
+    plant_routine(machine.memory, print_then_false)
+
+    machine.run()
+
+    assert_that(keys.notices).is_empty()
 
 
 # In Version 5 the interrupted erasure speaks the counted dialect: a
