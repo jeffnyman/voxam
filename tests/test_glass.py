@@ -936,44 +936,43 @@ def test_the_pygame_doorway_draws_font_3_bitmaps(
     assert_that(screen.blits[2][0][0]).is_equal_to("glyph")
 
 
-# With a zoom, the doorway grows the type until the derived window
-# fills the desktop's share: the estimate overshoots by design and
-# walks down to the largest size that fits -- here 21 points is a
-# line too tall for half of a 984-pixel desktop, so 20 wins. A
-# desktop too small for more keeps the classic size.
-def test_the_doorway_grows_the_type_to_fill_the_room(
+# With a zoom, the doorway grows the grid, never the type: half of
+# a 2000-by-984 desktop holds 111 by 27 of the classic 9-by-18
+# cells. Under a declared standard the grid keeps the art's
+# aspect, walking the height down until the width fits; a tiny
+# share keeps the classic 80 by 24 floor; and no dimension ever
+# passes the header's one-byte 255.
+def test_the_doorway_grows_the_grid_to_fill_the_room(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = fake_pygame()
-
-    class ScaledFace:
-        def __init__(self, size: int) -> None:
-            self._size = size
-
-        def metrics(self, _character: str) -> list[tuple[int, int, int, int, int]]:
-            return [(0, 0, 0, 0, self._size // 2)]
-
-        def get_linesize(self) -> int:
-            return self._size
-
-    module.font = types.SimpleNamespace(
-        SysFont=lambda _families, size, bold=False, italic=False: ScaledFace(  # noqa: ARG005
-            size
-        )
-    )
     module.display.get_desktop_sizes = lambda: [(2000, 984)]
 
     monkeypatch.setitem(sys.modules, "pygame", module)
 
     roomy = open_pygame_glass(zoom=0.5)
 
-    assert_that(roomy.cell_width).is_equal_to(10)
-    assert_that(roomy.cell_height).is_equal_to(20)
-    assert_that(roomy.columns).is_equal_to(80)
+    assert_that(roomy.cell_width).is_equal_to(9)
+    assert_that(roomy.cell_height).is_equal_to(18)
+    assert_that((roomy.columns, roomy.lines)).is_equal_to((111, 27))
+
+    shaped = open_pygame_glass(standard=(320, 200), zoom=0.5)
+
+    assert_that((shaped.columns, shaped.lines)).is_equal_to((86, 27))
 
     classic = open_pygame_glass(zoom=0.1)
 
-    assert_that(classic.cell_height).is_equal_to(18)
+    assert_that((classic.columns, classic.lines)).is_equal_to((80, 24))
+
+    module.display.get_desktop_sizes = lambda: [(700, 3000)]
+    narrow = open_pygame_glass(standard=(320, 200), zoom=1.0)
+
+    assert_that((narrow.columns, narrow.lines)).is_equal_to((77, 24))
+
+    module.display.get_desktop_sizes = lambda: [(9000, 9000)]
+    vast = open_pygame_glass(zoom=1.0)
+
+    assert_that((vast.columns, vast.lines)).is_equal_to((255, 255))
 
 
 # The doorway reads a pixel back as plain RGB, shedding the alpha

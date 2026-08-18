@@ -268,8 +268,9 @@ class GraphicsFrontend:
                 which only nest inside the side regions when the
                 screen keeps the standard proportions.
             zoom: The fraction of the desktop the window should
-                fill, satisfied by growing the type; None keeps
-                the classic compact cell.
+                fill, satisfied by growing the grid -- more rows
+                and columns of the same type; None keeps the
+                classic 80 by 24.
         """
 
         if glass is None:
@@ -1001,10 +1002,11 @@ def open_pygame_glass(
         version: The story version, whose numbered badge becomes
             the window's icon; 0 leaves the icon alone.
         zoom: The fraction of the desktop the window should fill,
-            satisfied by growing the type -- a roomier screen in
-            real pixels, which the Reso arithmetic then fills with
+            satisfied by growing the grid -- more rows and columns
+            of the same modest type, a genuinely roomier screen
+            whose Elbow Room the Reso arithmetic then fills with
             proportionally grown art (Blorb: The Resolution
-            Chunk). None keeps the classic compact cell.
+            Chunk). None keeps the classic 80 by 24.
     """
 
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -1035,17 +1037,20 @@ class _PygameGlass:
         module: Any = pygame
 
         self._pygame: Any = module
-        self.lines = GLASS_LINES
 
         module.init()
         _badge(module, version)
 
-        size = FONT_SIZE if zoom is None else _roomy_size(module, standard, zoom)
-        self._fonts = _fitted_faces(module, size)
+        self._fonts = _fitted_faces(module)
         regular: Any = self._fonts[(False, False)]
         self.cell_width = int(regular.metrics("M")[0][4])
         self.cell_height = int(regular.get_linesize())
-        self.columns = _columns_for(standard, self.cell_width, self.cell_height)
+
+        if zoom is None:
+            self.lines = GLASS_LINES
+            self.columns = _columns_for(standard, self.cell_width, self.cell_height)
+        else:
+            self.columns, self.lines = _roomy_grid(module, standard, zoom)
 
         self._screen: Any = module.display.set_mode(
             (self.columns * self.cell_width, self.lines * self.cell_height)
@@ -1338,14 +1343,12 @@ FONT_SIZE = 18
 FIT_PROBE = "Mi1"
 
 
-def _fitted_faces(
-    module: object, size: int = FONT_SIZE
-) -> dict[tuple[bool, bool], object]:
+def _fitted_faces(module: object) -> dict[tuple[bool, bool], object]:
     """The faces whose glyphs step exactly one cell; misfits dropped."""
 
     pygame: Any = module
     sysfont = pygame.font.SysFont
-    regular = sysfont(FONT_FAMILIES, size)
+    regular = sysfont(FONT_FAMILIES, FONT_SIZE)
     cell = regular.metrics("M")[0][4]
     faces: dict[tuple[bool, bool], object] = {(False, False): regular}
 
@@ -1354,7 +1357,7 @@ def _fitted_faces(
             if not bold and not italic:
                 continue
 
-            face = sysfont(FONT_FAMILIES, size, bold=bold, italic=italic)
+            face = sysfont(FONT_FAMILIES, FONT_SIZE, bold=bold, italic=italic)
 
             if all(face.metrics(probe)[0][4] == cell for probe in FIT_PROBE):
                 faces[(bold, italic)] = face
@@ -1362,16 +1365,24 @@ def _fitted_faces(
     return faces
 
 
+# The header stores lines and columns in single bytes ($20, $21),
+# so no grid dimension may pass 255 whatever the desktop offers.
+GRID_CAP = 255
+
+
 def _columns_for(
-    standard: tuple[int, int] | None, cell_width: int, cell_height: int
+    standard: tuple[int, int] | None,
+    cell_width: int,
+    cell_height: int,
+    lines: int = GLASS_LINES,
 ) -> int:
-    """How many columns the glass opens with, at these cell metrics.
+    """How many columns a grid of this many lines opens with.
 
     Without a declared standard, the classic 80. With one, the
     window keeps the art's proportions (Blorb: The Resolution
-    Chunk): the height stays the classic 24 lines and the width
-    follows the standard aspect, so a game's own layout arithmetic
-    -- built for that shape -- nests the way its artists drew it.
+    Chunk): the width follows the standard aspect at the given
+    height, so a game's own layout arithmetic -- built for that
+    shape -- nests the way its artists drew it.
     """
 
     if standard is None:
@@ -1379,45 +1390,51 @@ def _columns_for(
 
     width, height = standard
 
-    return max(round(GLASS_LINES * cell_height * width / (height * cell_width)), 1)
+    return max(round(lines * cell_height * width / (height * cell_width)), 1)
 
 
-def _roomy_size(module: object, standard: tuple[int, int] | None, zoom: float) -> int:
-    """The largest font size whose window fits the desktop's share.
+def _roomy_grid(
+    module: object, standard: tuple[int, int] | None, zoom: float
+) -> tuple[int, int]:
+    """The largest grid of classic cells filling the desktop's share.
 
-    The window is derived, never chosen: columns and lines times
-    the cell the font measures. Filling a fraction of the desktop
-    therefore means choosing the type size -- estimated by scaling
-    the classic cell linearly, then walked down until the derived
-    window fits. A desktop too small for more keeps the classic
-    size, and the walk is bounded on both ends.
+    Room means more rows and columns of the same modest type --
+    the way Infocom's own interpreters used a big monitor -- never
+    bigger letters. Version 6 games read the screen's true pixel
+    size and lay out accordingly, so every cell added is real room
+    for their windows. With a declared standard the grid keeps the
+    art's aspect, walking the height down until the width fits;
+    the classic 80 by 24 is the floor either way, even on a
+    desktop too small for its share to hold it.
+
+    Returns:
+        The grid as (columns, lines).
     """
 
     pygame: Any = module
     desktop_width, desktop_height = pygame.display.get_desktop_sizes()[0]
+    face: Any = pygame.font.SysFont(FONT_FAMILIES, FONT_SIZE)
+    cell_width = int(face.metrics("M")[0][4])
+    cell_height = int(face.get_linesize())
     target_width = desktop_width * zoom
     target_height = desktop_height * zoom
 
-    def window(size: int) -> tuple[int, int]:
-        face: Any = pygame.font.SysFont(FONT_FAMILIES, size)
-        cell_width = int(face.metrics("M")[0][4])
-        cell_height = int(face.get_linesize())
+    lines = min(int(target_height // cell_height), GRID_CAP)
 
-        return (
-            _columns_for(standard, cell_width, cell_height) * cell_width,
-            GLASS_LINES * cell_height,
-        )
+    if standard is None:
+        columns = min(int(target_width // cell_width), GRID_CAP)
 
-    base_width, base_height = window(FONT_SIZE)
-    guess = int(FONT_SIZE * min(target_width / base_width, target_height / base_height))
+        return (max(columns, GLASS_COLUMNS), max(lines, GLASS_LINES))
 
-    for size in range(guess + 1, FONT_SIZE, -1):
-        width, height = window(size)
+    while lines > GLASS_LINES:
+        columns = _columns_for(standard, cell_width, cell_height, lines)
 
-        if width <= target_width and height <= target_height:
-            return size
+        if columns <= GRID_CAP and columns * cell_width <= target_width:
+            return (columns, lines)
 
-    return FONT_SIZE
+        lines -= 1
+
+    return (_columns_for(standard, cell_width, cell_height), GLASS_LINES)
 
 
 def _key_characters(module: object) -> dict[int, str]:
