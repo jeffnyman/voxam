@@ -434,6 +434,14 @@ class Machine:
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
         self._pending_keys: deque[str] = deque()
+        # The nimble half of the patient typist: when an interrupt
+        # terminates a timed read_char and the game loops straight
+        # back to the SAME read -- still asking the same question --
+        # the burned interval was typing time, and the retry finds
+        # the keys ready (§15 read_char). The address is the gate: a
+        # different read is a different question and gets the full
+        # patient interval of its own.
+        self._typist_ready: int | None = None
         self._sound_routine = 0
         self._sound_since_input = False
         self._windows = self._fresh_windows()
@@ -1849,6 +1857,11 @@ class Machine:
 
             raise ZMachineMemoryError(msg)
 
+        # A line read is a fresh sitting: the interval a terminated
+        # read_char burned belonged to the keystroke rhythm, not to
+        # this prompt, so the patient interval applies here anew.
+        self._typist_ready = None
+
         if self._timed_out(values, time_index=2):
             # All input is erased and the read ends at once (§15
             # read): a counted buffer reports zero letters typed, a
@@ -2908,10 +2921,20 @@ class Machine:
         input consumed -- which is how Z-Tornado's Pause routine
         (an interrupt that just returns true) animates without
         eating the script. A false return means the key arrives and
-        the read completes as an untimed one. Routines that need
-        MANY intervals -- Border Zone's real-time clock -- would
-        want a longer-suffering typist, a knob left unbuilt until a
-        game demands it.
+        the read completes as an untimed one.
+
+        The typist is nimble as well as patient: keys already under
+        the fingers -- a queue mid-line -- beat the clock, and so
+        does the retry when an interrupt terminates a timed read
+        and the game loops straight back to the SAME read
+        instruction, still asking the same question; the burned
+        interval was typing time. Custard's pi-digit animation
+        terminates every timed read from its interrupt and retries
+        in a tight loop -- without nimble fingers no scripted key
+        could ever land, and a replay would spin forever. A timed
+        read at a DIFFERENT address is a different question and
+        gets the full patient interval of its own, which is what
+        keeps Arthur's paced sequences on their recorded timeline.
 
         Raises:
             ZMachineInstructionError: If the first operand is not 1,
@@ -2962,7 +2985,11 @@ class Machine:
 
             return
 
-        if self._timed_out(values, time_index=1):
+        ready = bool(self._pending_keys) or self._typist_ready == instruction.address
+        self._typist_ready = None
+
+        if not ready and self._timed_out(values, time_index=1):
+            self._typist_ready = instruction.address
             self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
             self._pc = instruction.next_address
 
