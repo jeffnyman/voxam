@@ -50,7 +50,10 @@ in the conforming quiet, and now heard aloud at a painted terminal
 with the sound extra installed -- and *Beyond
 Zork*'s first act is on the record, its hero built point by point
 on the arrow-driven character screen, in what is as far as we know
-the first seeded, replayable *Beyond Zork* session anywhere.
+the first seeded, replayable *Beyond Zork* session anywhere. And
+the era plays illustrated now: *Arthur*, *Shogun*, and *Zork
+Zero* render their pictures, palettes, and window layouts in a
+real graphics window, held to the Standard's §8.8 screen model.
 Twenty-five recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -65,14 +68,15 @@ Version `0.x`: early, honest, and playable.
 
 **Works today:** story file versions 1 through 5 -- Infocom's whole
 main-line catalog and the modern Inform and PunyInform games built
-on version 5 -- plus the machine side of version 6, run against
-Infocom's own ZIPTEST checker and played through *Arthur*: the
-eight-window §8.8 ledger with its eighteen properties per window,
-user stacks, the formatted-text stream behind print_form, and the
-v6 cursor forms, with pictures, mouse, and menus declared
-unavailable in the header and answered honestly when games ask
-anyway. A version 6 game plays as flowing text on the character
-glass; the graphics window is the next era. Underneath all of it:
+on version 5 -- plus version 6, run against Infocom's own ZIPTEST
+checker and played through *Arthur*: the eight-window §8.8 ledger
+with its eighteen properties per window, user stacks, the
+formatted-text stream behind print_form, and the v6 cursor forms.
+At the pygame window the whole era renders illustrated -- the
+pictures, the palettes, and all eight windows for real -- while on
+a character glass a version 6 game still plays as flowing text,
+its graphical courtesies declared unavailable in the header and
+answered honestly when it asks anyway. Underneath all of it:
 the full parser and object machinery, a seeded random number
 generator for reproducible sessions, the
 screen model (split windows, single-keystroke input), custom
@@ -126,6 +130,31 @@ amiga`, or the legendary Tandy bit via `--tandy`), which some
 early games answer with altered text and *Beyond Zork* answers
 with its whole screen-model personality (§11.1.3, §16).
 
+And at a pygame window -- the `graphics` extra, opened with
+`--graphics` -- the Version 6 era plays illustrated. The §8.8
+screen is real there: eight placeable windows on one pixel grid,
+text at true pixel positions, margins that wrap prose around scene
+art, and a [MORE] that pauses a screenful in the window's own
+colours and cleans up after itself. Blorb pictures draw at the
+sizes the Reso chunk scales them to, transparency lets the chrome
+layer over the scenes, and the adaptive palettes recolour that
+chrome as scenes change -- both the Standard's live APal dance and
+Bocfel's pre-baked BPal replacements, which is how *Zork Zero*'s
+plaques keep their gold. Even §8.3.1's strangest colour is
+honoured: colour -1 samples the pixel under the cursor, which is
+how *Zork Zero* prints readable text over its parchment under the
+Amiga identity. The window takes its share of the desktop --
+`--zoom`, 85% by default -- by growing the grid rather than the
+type: more rows and columns of the same modest cell, the way
+Infocom's own interpreters used a big monitor, with `--zoom 0`
+keeping the classic 80 by 24. It even wears its story's version as
+its icon, z1 through z8. *Arthur*, *Shogun*, and *Zork Zero* all
+play illustrated, and the modern Inform- and PunyInform-compiled
+version 6 games render clean beside them. For the curious: point
+the `VOXAM_SNAPSHOT` environment variable at a file path and every
+presented frame is also saved there -- the diagnostic witness this
+whole era was debugged with.
+
 And the machine has a voice. With the `sound` extra installed, a
 painted session plays the sampled sounds its Blorb carries, in the
 background while play goes on (§9.4): volumes and repeat counts
@@ -163,13 +192,13 @@ own ZIPTEST opened the version 6 era and named its frontiers one
 opcode at a time. Every remaining gap halts loudly with a citation
 instead of guessing.
 
-**Not yet:** the version 6 graphics window -- pictures, mouse,
-menus, and all eight windows rendered for real, which is what the
-planned pygame frontend is for; the machine beneath them already
-answers honestly. Also the Blorb music formats, MOD and OGG (the
-entire vendored Infocom sound catalog is sampled AIFF and needs
-neither), and Glulx. For recorded sessions, seeds substitute for
-saves: a script replays a whole game in moments.
+**Not yet:** mouse input -- *Zork Zero*'s mouse minigames want
+real clicks, and a planned `<click y x>` recording token will keep
+those sessions replayable when they come; *Journey*, the last of
+the graphical four, not yet certified; the Blorb music formats,
+MOD and OGG (the entire vendored Infocom sound catalog is sampled
+AIFF and needs neither); and Glulx. For recorded sessions, seeds
+substitute for saves: a script replays a whole game in moments.
 
 ## Installation
 
@@ -185,11 +214,12 @@ or, as an isolated tool:
 pipx install voxam        # or: uv tool install voxam
 ```
 
-The painted screen frontend rides in the `screen` extra, and
-sampled-sound playback in the `sound` extra beside it:
+The painted screen frontend rides in the `screen` extra, the
+pygame window in the `graphics` extra, and sampled-sound playback
+in the `sound` extra beside them:
 
 ```bash
-pip install "voxam[screen,sound]"    # or: uv tool install "voxam[screen,sound]"
+pip install "voxam[screen,graphics,sound]"    # or: uv tool install "voxam[screen,graphics,sound]"
 ```
 
 On Windows and macOS the sound extra is self-contained; on Linux,
@@ -216,7 +246,11 @@ At a terminal with the `screen` extra installed, the painted
 frontend takes over automatically -- status line, windows, menus,
 real-time input. Pass `--plain` to keep the classic stream
 instead; pipes and scripted replays always use the stream, which
-is what keeps recordings deterministic.
+is what keeps recordings deterministic. And `--graphics` opens
+the pygame window -- the home of the Version 6 games, and a fine
+roomy home for the earlier ones too. `--zoom` sets how much of
+the desktop it takes (0.85 by default; `--zoom 0` keeps the
+classic compact 80 by 24).
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.
@@ -239,6 +273,34 @@ Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
 Voxam and other interpreters.
+
+### Best played with
+
+`--interpreter` is not a costume. Infocom's Version 6 games carry
+genuine per-machine code paths, chosen at startup from the
+header's interpreter number, and the flag picks which 1989 machine
+Voxam is pretending to be. Recommendations, earned from the games'
+own source rather than folklore:
+
+- ***Shogun*: the default.** Its own `DISPLAY-BORDER` routine
+  draws the right decorative rail only on the IBM machine path;
+  claiming `--interpreter amiga` over the IBM picture set gives a
+  left-rail-only screen -- Infocom's authentic Amiga behaviour,
+  whose matching art this Blorb does not carry.
+- ***Zork Zero*: either, with character.** The default plays the
+  classic look; `--interpreter amiga` engages §8.3's shared
+  colour pair and the under-cursor colour sampling for the
+  grey-parchment look the Amiga release was famous for. Both
+  render correctly -- the Amiga is arguably the prettier way in.
+- ***Beyond Zork*: any -- the flag is a personality dial.** The
+  game reshapes its whole screen model per machine (§11.1.3,
+  §16), so each identity is a different-feeling session.
+- **Early version 3 games: `--tandy` for the lore.** The
+  legendary bit that makes them mind their manners -- *Zork I*
+  literally prints a different licence line.
+
+None of these are bugs routed around: they are the games' own
+branches, preserved and selectable.
 
 ## Acceptance scripts
 
