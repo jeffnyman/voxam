@@ -186,11 +186,13 @@ shipped to accept exactly that -- because a replay must land on
 the same bytes everywhere, speakers or no speakers.
 
 Voxam is verified against the community's interpreter test suites:
-CZECH (versions 3, 4, and 5), Praxix -- its Standard 1.1 section
-included -- TerpEtude, and Strict Z Test all pass clean; Infocom's
-own ZIPTEST opened the version 6 era and named its frontiers one
-opcode at a time. Every remaining gap halts loudly with a citation
-instead of guessing.
+CZECH (versions 3, 4, 5, and 8 -- the last certifying the modern
+Inform format, held to its exact tallies in continuous
+integration), Praxix -- its Standard 1.1 section included --
+TerpEtude, and Strict Z Test all pass clean; Infocom's own ZIPTEST
+opened the version 6 era and named its frontiers one opcode at a
+time. Every remaining gap halts loudly with a citation instead of
+guessing.
 
 **Not yet:** mouse input -- *Zork Zero*'s mouse minigames want
 real clicks, and a planned `<click y x>` recording token will keep
