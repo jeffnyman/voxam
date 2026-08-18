@@ -97,6 +97,12 @@ class Memory:
         # $ffff (§1.1.2); addresses past it cannot be directly accessed.
         self._read_limit = min(len(self._data), STATIC_MEMORY_CAP + 1)
 
+        # The header view wraps the live bytearray, so one instance
+        # serves forever -- an Inform 7 game consults the header
+        # millions of times per turn, and building a fresh view each
+        # time was a fifth of Bronze's whole running cost.
+        self._header = Header(self._data)
+
     @property
     def header(self) -> Header:
         """A live, typed view of the header within this image (§11.1).
@@ -106,7 +112,7 @@ class Memory:
         writes made through this Memory rather than the pristine story.
         """
 
-        return Header(self._data)
+        return self._header
 
     def dynamic_snapshot(self) -> bytes:
         """Capture dynamic memory whole, header included (§6.1).
