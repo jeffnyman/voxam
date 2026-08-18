@@ -363,6 +363,8 @@ class Recorder:
             raise AcceptanceError(msg)
 
         self._warn = warn
+        self._path = path
+        self._expected = 0
         self._handle = path.open("w", encoding="utf-8", newline="\n")
 
         try:
@@ -403,6 +405,8 @@ class Recorder:
 
         recorder = cls.__new__(cls)
         recorder._warn = warn
+        recorder._path = path
+        recorder._expected = path.stat().st_size
         recorder._handle = path.open("a", encoding="utf-8", newline="\n")
 
         return recorder
@@ -449,10 +453,26 @@ class Recorder:
         self._handle.close()
 
     def _write(self, line: str) -> None:
-        """Put one script line on disk, immediately."""
+        """Put one script line on disk, immediately.
+
+        The recorder is the file's only legitimate writer while a
+        session runs: an editor saving over it mid-session
+        interleaves or discards appends, which is how a recording
+        grows mystery gaps. A size that moved between writes earns
+        a loud warning naming the moment -- the recording carries
+        on, since ending a live session would lose even more.
+        """
+
+        if self._path.stat().st_size != self._expected:
+            self._warn(
+                f"{self._path} changed on disk mid-recording -- another "
+                f"editor? -- and appends may interleave or be lost; the "
+                f"file has one writer at a time"
+            )
 
         self._handle.write(line + "\n")
         self._handle.flush()
+        self._expected = self._path.stat().st_size
 
 
 def _scripted(text: str) -> str:
