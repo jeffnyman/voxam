@@ -1,0 +1,172 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/awakening-r1-s980726.z5
+
+examine me
+i
+examine rain
+examine mud
+u
+
+examine branch
+take branch
+take limb
+examine marker
+read marker
+examine oaks
+examine markers
+examine moss
+examine ivy
+examine church
+examine windows
+examine steeple
+e
+
+examine trail
+examine grass
+n
+
+examine trees
+examine ivy
+e
+
+examine gravel
+take gravel
+examine debris
+s
+
+examine dog
+examine chain
+hit dog
+nw. ne. se. sw
+
+examine oak
+examine sidewalk
+n
+
+examine railing
+take railing
+examine section
+examine ladder
+n
+
+examine windows
+examine debris
+examine trap
+put ladder under trap
+n
+
+examine portrait
+examine eyes
+examine pews
+examine glass
+take board
+n
+
+exmaine podium
+examine black book
+read book
+take book
+n
+
+examine desk
+take journal
+examine journal
+read journal
+examine robe
+take robe
+examine bookshelf
+move bookshelf
+take red book
+examine red book
+read red book
+
+xyzzy
+
+examine ashes
+examine glass
+examine stopper
+take stopper
+take ashes
+search journal
+put ashes on journal
+read journal
+s. s. s
+
+take ladder
+n
+
+put ladder under portrait
+u
+
+examine eyes
+look through eyes
+d
+
+take ladder
+s
+
+put ladder under trap
+u
+
+examine rope
+examine door
+open door
+pull rope
+climb rope
+
+examine bell
+examine beams
+examine branch
+s
+
+examine forest
+examine town
+d. n. d
+
+tie rope to handle
+take ladder
+d
+
+take ladder
+s. s
+
+put ladder against oak
+u. n
+
+push bell
+s. d
+
+examine bell
+take ladder
+n. n
+
+Vestibule
+
+put ladder under trap
+u. n
+
+examine man
+examine sofa
+examine lantern
+examine bottles
+examine table
+examine curtain
+ask man about man
+ask Silas about me
+ask Silas about her
+ask Silas about villagers
+ask Silas about decision
+ask Silas about bottles
+ask Silas about soul
+ask Silas about church
+take bottles
+take lantern
+n
+
+examine mirror
+open mirror
+examine holes
+look through holes
+
+break green bottle
+quit
