@@ -1,0 +1,994 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/bronze-r11-s060503.zblorb
+
+# Bronze, Release 11 / serial 060503, played to the winning ending:
+# "*** You have restored the King and freed his servants ***"
+#
+# The command stream is adapted from David A. Wheeler's Release 12
+# transcript (https://dwheeler.com/bronze/bronze-transcript.html).
+# Release 12 survives publicly only as a Glulx build, so that session
+# was adapted to the canonical r11 z-code. Three classes of change
+# were needed, annotated where they occur:
+#
+#   1. r11's hint engine asks "Shall I go on?" where r12's did not;
+#      each such question gets a "no".
+#   2. r11 asks disambiguation questions that r12 resolved silently;
+#      each gets the full noun phrase as an answer.
+#   3. r12's "go to ivory door" mis-navigated to the drawbridge, and
+#      the transcript spends five commands walking back. r11 navigates
+#      correctly, so the detour is dropped where noted.
+#
+# Also: the transcript's lone "walk" is "n" here, and the opening YES
+# answers r11's introductory question. Response-diffing the full
+# replay against the transcript leaves six divergences, all cosmetic
+# (r11 parses "x books"/"x bells" as plurals; two commands both
+# releases refuse in different words; one flavor difference on "ring
+# gong"). Final tally: 54 of 55 rooms searched, the win banner, and
+# the post-win prompt answered with quit.
+
+YES
+n
+x gate
+x fireplace
+x sign
+sw
+look
+x tower
+x drawbridge
+ne
+w
+look
+look
+look
+look
+look
+look
+look
+look
+look
+look
+look
+look
+w
+n
+x straw
+x ladder
+d
+u
+s
+e
+n
+e
+sw
+ne
+e
+look
+x walls
+se
+x lawn
+x moat
+x forest
+x helmet
+read writing
+wear helmet
+nw
+e
+x elzibad
+x elephant
+x lucrezia
+e
+d
+u
+w
+w
+ne
+x cage
+x sceptre
+x piece
+x shiny
+x piece
+x shoes
+e
+sw
+w
+n
+x rain
+x staircase
+e
+x gargoyle
+u
+e
+x puzzle
+x table
+s
+x mirrors
+s
+x sea
+x sea
+n
+n
+sw
+x portrait
+ne
+se
+x shackle
+nw
+e
+x tapestry
+x dwarf
+get stool
+w
+n
+open heavy door
+w
+d
+w
+u
+n
+e
+u
+e
+n
+e
+x tapestry
+take it
+w
+se
+nw
+s
+get mirror
+x mirror
+n
+sw
+ne
+w
+d
+w
+s
+e
+ne
+open door
+x helmet
+x writing
+wear helmet
+listen
+sw
+e
+e
+x maze
+listen
+look down
+x mosaic
+n
+d
+listen
+nw
+ne
+w
+n
+listen
+u
+get windchimes
+drop stool
+stand on stool
+get windchimes
+unlock chain
+inv
+silence windchimes
+break windchimes
+s
+n
+get stool
+s
+e
+x materials
+x materials
+get materials
+s
+get key
+unlock door
+w
+e
+n
+w
+w
+n
+drop stool
+stand on stool
+put embroidery on windchimes
+tie windchimes with embroidery
+muffle windchimes
+embroidery
+muffle windchimes
+materials
+inv
+tie windchimes
+materials
+look
+get roses
+x roses
+se
+nw
+d
+u
+break chain
+stand on stool
+unlock windchimes
+take windchimes
+inv
+get off stool
+get stool
+s
+w
+w
+x map
+x writing
+sw
+x books
+the books of precedent
+x great contract book
+g
+get great contract book
+x hole
+n
+up
+x beast
+e
+x wedding
+x inkpot
+x supper
+e
+w
+sw
+unlock ivory door
+w
+x papers
+look up beast
+search
+x papers
+read papers
+look for lucrezia
+go to records room
+x histories
+x papers about lucrezia
+consult papers about lucrezia
+consult papers about devil
+consult papers about pen
+consult papers about myself
+consult papers about king
+consult papers about althanasius
+consult papers about contracts
+consult papers about medici-credenza
+consult papers about shoes
+e
+w
+e
+e
+e
+x chessplayer
+turn on chessplayer
+x switch
+e
+get windchimes
+x windchimes
+get bell
+
+# r11 asks which bell; the gold dinner bell is meant. "bell"
+# alone stays ambiguous against the silver bell.
+little gold dinner bell
+get dinner bell
+get silver bell
+x silver bell
+ring silver bell
+s
+n
+e
+x books
+w
+w
+x silver bell
+think about lamplighter
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+look
+e
+s
+w
+d
+w
+s
+w
+w
+ring dinner bell
+e
+x feast
+get feast
+x feast
+x feast
+look
+look
+e
+n
+e
+u
+e
+n
+get dinner bell
+w
+w
+w
+feed beast
+x beast
+d
+w
+get pen
+x pen
+x candle
+e
+s
+n
+u
+go to central courtyard
+n
+s
+w
+s
+w
+n
+n
+w
+ring silver bell
+look
+drop helmet
+read writing
+wear helmet
+read contract book
+g
+consult contract book about myself
+consult contract book about father
+consult contract book about king
+consult contract book about candle
+consult contract book about chessplayer
+consult contract book about embroidery
+get candle
+x candle
+e
+e
+remove helmet
+go to state rotunda
+put candle in map
+put candle on map
+x map
+get candle
+go to rose garden
+d
+wear helmet
+s
+x bells
+e
+sw
+x miniature
+get vial
+x vial
+get miniature
+se
+u
+x maze
+d
+nw
+sw
+fill vial from leak
+fill vial
+nw
+ne
+ne
+w
+n
+sw
+x cord
+x inscription
+w
+sw
+ne
+drop candle
+sw
+x inscription
+ne
+drop stool
+put candle on stool
+sw
+x inscription
+ne
+u
+s
+w
+look
+w
+go to tight passage
+pull cord
+ne
+get all
+sw
+pull cord
+go to cloister walk
+w
+w
+w
+e
+e
+n
+d
+sw
+think about cord
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+pull cord
+go to parliamentary chambers
+wait
+look
+search
+go to tight passage
+w
+x image
+x lucrezia
+x tamborine
+x tambourine
+x notes
+read notes
+consult notes shoes
+consult notes about shoes
+consult notes about lucrezia
+consult notes about castle
+consult notes about king
+consult notes about quill
+consult notes about contract book
+take notes
+e
+w
+e
+sw
+go to treasure room
+open cage
+get all
+go to puzzle
+solve jigsaw puzzle
+x king
+x jigsaw
+inv
+wear shoes
+go to tambourine
+
+# "tambourine" alone stays three-way ambiguous in r11 -- the
+# bell collection and Lucrezia's image both answer to the word
+# -- so the full noun phrase it is.
+leather tambourine
+get tambourine
+get silver bell
+play tambourine
+go to image
+disrobe helmet
+go to image
+x lucrezia
+play tamborine
+play tambourine
+go to study
+look
+x image
+go to empty bedroom
+play tambourine
+wear shoes
+go to crypt
+go to law library
+d
+w
+look
+ne
+se
+x tokens
+open drawer
+get all
+get harnass
+get narness
+x ivory key
+get elephant
+x elephant
+consult papers about elephant
+consult contract book about elephant
+sw
+n
+n
+sw
+u
+s
+e
+n
+n
+w
+consult contract book about elephant
+consult contract book about green
+inv
+e
+e
+e
+e
+e
+nw
+d
+s
+e
+sw
+x miniature
+consult papers about girdle
+se
+nw
+sw
+nw
+w
+u
+w
+n
+w
+consult contract book about girdle
+consult papers about girdle
+consult papers about yvette
+inv
+consult notes about yvette
+consult notes about girdle
+consult notes about contract book
+consult contract about yvette
+consult papers about castle
+go to empty bedroom
+nw
+e
+w
+s
+s
+n
+n
+s
+n
+s
+get mirror
+n
+sw
+ne
+n
+get gong
+x gong
+get tambourine
+look
+go to ivory door
+x ivory door
+open ivory door
+x door
+n
+go to black
+e
+e
+e
+solve maze
+solve
+labyrinth
+d
+nw
+ne
+go to treasure room
+sw
+e
+w
+se
+nw
+gw
+w
+n
+n
+sw
+think about beast
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+place
+show places
+think about beast
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+go to drawbridge
+x gate
+look
+look south
+x drawbridge
+x towers
+look under drawbridge
+look east
+jump
+wear helmet
+listen
+listen
+jump
+listen south
+s
+n
+s
+n
+inv
+play gong
+play gong
+play gong
+inv
+s
+play gong
+inv
+wave sceptre
+x sceptre
+fill vial
+I beg your pardon?
+x vial
+fill
+vial
+inv
+consult notes drawbridge
+consult notes about drawbridge
+think about drawbridge
+think about beast
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+look
+x gate
+x drawbridge
+x door
+close gate
+x gate
+lock gate
+x gate
+look
+play gong
+n
+s
+x hall
+inv
+ring silver bell
+ring dinner bell
+put windchimes on gate
+drop windchimes
+x windchimes
+consult papers about gong
+consult notes about gong
+go to translation
+remove helmet
+go to translation
+consult contract book about gong
+consult contract book about djinn
+go to djinn
+go to scrying room
+play gong
+n
+w
+w
+e
+n
+s
+e
+s
+w
+sw
+se
+x moat
+x lawn
+wear helmet
+x forest
+x drawbridge
+x lawn
+nw
+e
+e
+w
+w
+ne
+e
+n
+nw
+s
+w
+w
+sw
+remove helmet
+n
+w
+go to records room
+consult papers on yvette
+consult papers on girdle
+consult papers on cow
+consult papers on bell
+consult papers on elephant
+consult papers on elzibad
+consult papers on lucrezia
+consult papers on devil
+consult papers on pen
+consult papers on drawbridge
+consult papers on castle
+consult papers on king
+think about beast
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+go to drawbridge
+wear helmet
+listen to windchimes
+hang windchimes
+look
+x gate
+close gate
+lock gate
+x gate
+inv
+x notes
+consult notes on drawbridge
+ring gong
+ring key
+ivory
+go to translation room
+remove helmet
+go to translation room
+consult contract book about djinn
+consult contract book about elephant
+go to records room
+consult records about djinn
+think about drawbridge
+think about contract book
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+go to ivory door
+open ivory door with ivory key
+open ivory door
+x ivory door
+go to ivory
+remove helmet
+
+# The transcript walks n/w/n/n/up here to undo r12's failed
+# "go to ivory door", which stranded it at the drawbridge.
+# r11's go-to landed at the Upper Bulb directly, so the
+# correction walk is dropped.
+open ivory door
+enter ivory door
+x mural
+e
+x book return stand
+x storybook
+get storybook
+get fables
+x bell
+silver
+ring silver bell
+put storybook on stand
+get storybook
+w
+s
+e
+get ring
+x ring
+x signet
+wear ring
+get boar
+x boar
+x boar
+get beam
+x beam
+x inkpot
+x inkpot
+get inkpot
+x beam
+x beam
+look
+x cane
+x cane
+get cane
+x swatch
+x swatch
+get swatch
+look
+x buckle
+x buckle
+get buckle
+get all
+x perch
+get perch
+x snake
+x snake
+get snake
+x leaf
+x leaf
+get leaf
+x goat
+x goat
+get goat
+look
+x apple
+x apple
+x apple
+get apple
+x pendant
+x pendant
+wear pendant
+x honunculus
+x homunculus
+x homunculus
+geet homunculus
+get homunculus
+look
+inv
+w
+e
+n
+w
+ne
+e
+e
+e
+get cow bell
+x cow bell
+w
+go to lie library
+put storybook on stand
+ring cow bell
+look
+x stand
+x bell on stand
+x bell
+cow
+think about stand
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+x stand
+look
+w
+ne
+x beast
+ring cow bell
+go to drawbridge
+ring cow bell
+go to scrying room
+ring cow bell
+go to mirror
+get mirror
+inv
+go to drawbridge
+think about drawbridge
+x moat
+ring cow bell
+inv
+fill vial with moat
+fill vial
+x vial
+n
+inv
+think
+go to lie library
+inv
+ring bell
+cow
+ring bell
+silver
+ring bell
+dinner
+go to bell room
+search
+look for bell
+collection
+x bell collection
+get bell collection
+go to translation room
+consult contract about lie library
+consult contract about librarian
+consult contract about glass bell
+consult notes about glass bell
+go to records room
+consult records about glass bell
+go to bell room
+get glass bell
+go to lie library
+burn contract book with candle
+burn contract book
+break contract book
+x stand
+ring glass bell
+put contract book on stand
+look
+ring glass bell
+x seal ink
+x ink
+look
+inv
+x inkpot
+consult notes about inkpot
+consult notes about librarian
+x notes
+go to burial ground
+go to central crypt
+look
+w
+se
+look
+ne
+look
+nw
+look
+se
+ne
+ne
+s
+e
+sw
+sw
+ne
+se
+u
+go to crypt
+look
+think about inkpot
+
+# r11 hint engine: "Shall I go on?" -- no.
+no
+go to debtor's paradise
+look
+x graves
+look at graves
+nw
+e
+e
+sw
+x helmet
+wear helmet
+walk
+s
+go to middle of room
+listen
+n
+s
+ne
+sw
+x stones
+jump
+x stone
+open trapdoor
+look
+d
+n
+fill inkpot
+x inkpot
+x ink
+s
+go to lie library
+remove helmet
+go to lie library
+put inkpot on stand
+ring glass bell
+undo
+look
+consult papers about girdle
+consult notes about girdle
+go to bedroom
+crystal
+ring cow bell
+ring glass bell
+ring gong
+ring silver bell
+go to crypt
+n
+get girdle
+wear girdle
+go to beast
+kiss beast
+undo
+go to lie library
+ring glass bell
+go to beast
+kiss beast
+
+# The win prompt (RESTART, RESTORE or QUIT); quit ends the session.
+quit
