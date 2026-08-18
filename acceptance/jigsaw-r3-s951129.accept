@@ -1,0 +1,247 @@
+! GAME=../entharion/zcode-inform/jigsaw-r3-s951129.z8
+! SEED=1
+
+# Jigsaw opens on "[Please press SPACE to begin.]" -- a keystroke
+# wait. Without this enter, the intro eats "east" one character at
+# a time and every later command lands one beat off.
+>
+
+east
+get sparkler
+s
+w
+get jigsaw piece
+southeast
+get rucksack
+examine crate
+get key, device
+examine rucksack
+examine key
+examine device
+northwest
+northeast
+east
+examine statue
+east
+open stool
+get sketch book
+look under stool
+get pencil
+west
+west
+southwest
+west
+up
+light fuse
+down
+enter pyramid
+south
+examine case
+open case
+east
+look under table
+get jigsaw piece
+examine it
+examine table
+clean table
+examine board
+
+# Now some of the mysteries are reasonably clear: the game is going to
+# involve a jigsaw-piece-collecting exercise, with the end of the game on
+# completion of the jigsaw.  The marking "A.4" on the crate suggests that
+# the corner piece goes at location a4 (you may have to "turn corner
+# piece" a few times to get it the right way round), and the pencilled
+# "Southwest?" on the centre piece suggests it goes southwest of the centre,
+# namely at c2 (again, you may have to try it in several orientations
+# before it fits).  Luckily, the board itself tells you when a piece fits.
+
+# Note that the status line has changed; the mysterious numbers are your
+# score, the number of jigsaw pieces successfully entered into the board,
+# and the number of turns so far.
+
+put corner piece at a4
+put centre piece at c2
+
+get clock
+turn hand to 59
+
+# The pyramid and jigsaw turn out to be a baroque time machine, and the
+# clock is the device for controlling it.  You are advised to experiment
+# for yourself, but in summary: turning the clock's hand lights up the
+# board; if the alarm is on and the clock reaches 0, then you are
+# transported back to the pyramid from whatever time zone you are in.
+
+# Pressing a placed piece just tests its fit -- "presses in
+# smoothly, like a button, then releases." The travel is not the
+# press: the machine departs on its own dice, one throw per wound
+# clock, and seed 1 was chosen because it throws hot.
+press a4
+press c2
+
+look
+z
+z
+
+# The die comes up: the pyramid hums away into June 1914.
+look
+
+# CHAPTER 1: RICOCHET
+
+examine device
+examine street
+examine cafe
+shake hands
+examine black
+wait
+wait
+say no to black
+unlock dresser with key
+open dresser
+get jigsaw piece from dresser
+sketch horses
+ask black about sarajevo
+ask black about kaldecki
+ask black about archduke
+examine rifle
+turn safety off
+ask black about pyramid
+examine student
+wait
+wait
+wait
+wait
+wait
+
+# History must happen. Nelson's commentary: "you have no choice
+# here: you must preserve the course of your own history." Skip
+# this line and you return to a pyramid standing in the
+# Franco-British Republic -- "You have wrecked the course of
+# history." The transcription had dropped it.
+shoot archduke
+wait
+wait
+wait
+wait
+wait
+
+turn clock to 1
+wait
+examine disc
+northwest
+get curious device
+
+# One clockwise turn first -- "It fits at c1, and suddenly lights
+# up with a picture" -- the board's own confirmation, as the
+# walkthrough promises.
+
+turn edge piece
+put the edge piece at c1
+turn clock off
+turn clock to 59
+press c1
+
+# CHAPTER 2: ICY CALM
+
+get times, note
+read times
+read note
+southwest
+north
+
+south
+east
+up
+read notice
+west
+get jacket
+wear jacket
+east
+down
+west
+south
+west
+north
+open box
+get syrup
+west
+wait
+wait
+wait
+wait
+examine secret letter
+west
+examine ouija board
+say hello to miss shutes
+give secret letter to miss shutes
+look
+get jigsaw piece
+
+east
+east
+up
+move chairs
+get boy's book
+read boy's book
+again
+
+# The "door key" of the walkthrough is the game's "elegant key" --
+# it falls out of the boy's book on the first read, Black's
+# bookmark, and lands on the deck.
+get elegant key
+down
+south
+east
+north
+east
+remove jacket
+east
+say hello to captain smith
+ask captain smith about titanic
+ask captain smith about lifeboats
+unlock door with elegant key
+open door
+east
+get long barrelled key
+look under wardrobe
+read second note
+examine kaldecki detector
+spin it
+
+open window
+get jigsaw piece
+spin kaldecki detector
+west
+stewardess, give me the towel
+examine towel
+west
+up
+unlock door with long key
+open door
+wear jacket
+east
+examine charts
+
+dah.dit.dah.dit
+dah.dah.dit.dah
+dah.dit.dit
+
+turn clock on
+turn clock to 1
+wait
+northwest
+put the edge piece at b1
+put the corner piece at a1
+turn clock off
+turn clock to 59
+press a1
+
+# OPEN FRONTIER: the second departure. Everything above is
+# verified -- the board now "pulses with light" -- but no
+# combination of alarm state, presses, waits, and clock rewinds
+# fires the next travel under this timeline (dice ruled out by a
+# 100-turn matrix probe; the first departure's shape does not
+# repeat). The gate is game state not yet identified; the next
+# instrument is disassembly (ztools txd) of the departure daemon.
+# This recording's milestone -- prologue, Sarajevo, and the
+# Titanic with the Carpathia summoned -- already exceeds the z8
+# corpus slot's scope.
