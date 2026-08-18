@@ -422,12 +422,16 @@ class StageModel:
             self._windows[0].row = 0
             self._windows[0].column = 0
             self._windows[0].scroll_due = False
+            # Erased text cannot be unread: the whole screen is
+            # gone, so every [MORE] budget refills (§8.8.3.2.6).
+            self.rest()
 
             return (1, 1, self._lines, self._columns)
 
         if window == ERASE_KEEP_SPLIT:
             self._blank_rows(1, self._lines, self.background)
             self._paints.append(self._screen_fill(self.background))
+            self.rest()
 
             return (1, 1, self._lines, self._columns)
 
@@ -449,6 +453,14 @@ class StageModel:
         target.row = 0
         target.column = 0
         target.scroll_due = False
+
+        # Erased text cannot be unread: this window's [MORE]
+        # budget refills -- Shogun erases window 0 before printing
+        # its title menu into a freshly shrunken box, and a stale
+        # count would pause the menu mid-print (§8.8.3.2.6). An
+        # explicit never-pause stays in force.
+        if target.fed != NEVER_MORE:
+            target.fed = 0
 
         return (first_row, first_column, row_count, column_count)
 
