@@ -518,6 +518,42 @@ def test_a_screenful_earns_the_more_pause() -> None:
     assert_that(pauses).is_length(3)
 
 
+# An erase refills the [MORE] budget: erased text cannot be
+# unread. Shogun feeds its credits into a tall window 0, then
+# shrinks and erases it for the title menu -- a stale count would
+# pause the menu on its very first line (§8.8.3.2.6). An explicit
+# never-pause survives an erase, and the full-screen erases refill
+# every window's budget.
+def test_an_erase_refills_the_more_budget() -> None:
+    stage = staged()
+    pauses: list[tuple[int, int, int, int]] = []
+    stage.more = lambda line, column, ink, paper: pauses.append(
+        (line, column, ink, paper)
+    )
+
+    stage.write("\n".join(str(n) for n in range(1, 8)))
+    stage.place_window(0, 61, 1, 40, 200)
+    stage.erase_window(0)
+    stage.write("menu\n")
+
+    assert_that(pauses).is_empty()
+
+    stage.set_line_count(0, -999)
+    stage.erase_window(0)
+    stage.write("\n" * 30)
+
+    assert_that(pauses).is_empty()
+
+    stage.set_line_count(0, 0)
+    stage.write("\n\n")
+    stage.erase_window(-1)
+    stage.write("\n\n")
+    stage.erase_window(-2)
+    stage.write("\n\n")
+
+    assert_that(pauses).is_empty()
+
+
 # The damage sweep names changed rows once and clears its slate;
 # a cursor sent below units 1 clamps to the window's origin; the
 # stage reports its own cell dimensions.
