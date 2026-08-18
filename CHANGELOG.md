@@ -1,3 +1,35 @@
+## v0.9.0 (2026-08-18)
+
+### Feat
+
+- **glass**: zoom grows the grid, never the type (#149)
+- **glass**: the window takes its share of the desktop (--zoom) (#147)
+- **zmachine**: erase_line lands, pixel reach and all (§8.8.5.2) (#143)
+- **gallery**: plaques wear their pre-baked palettes (Bocfel BPal) (#142)
+- **glass**: colour -1 samples the pixel under the cursor (§8.3.1) (#141)
+- **stage**: a screenful earns its [MORE] (§8.8.3.2.6) (#140)
+- **glass**: the window wears its story's version badge (#139)
+- **stage**: the cursor tells the truth, proven by Inform's own v6 (#138)
+- **glass**: text lands in pixels, and the window takes the art's shape (#137)
+- **gallery**: adaptive chrome wears the scene's palette (APal) (#136)
+- **stage**: margins bound the flow (§8.8.3.2.1) (#135)
+- **png**: clear pixels stay clear, and the banner frames its scene (#134)
+- **stage**: eight §8.8 windows take their places on the glass (#133)
+- **reso**: grow the art by the Blorb's own elbow room (#132)
+- **pictures**: hang the Blorb gallery and let the glass draw it (#131)
+- **units**: the measuring glass retires the 1-by-1 font for v6 (#130)
+- **glass**: draw font 3 from §16's own bitmaps, retiring the tofu (#129)
+- **glass**: the third frontend — the corpus plays in a pygame window (#128)
+- **regtest**: cross-certified — same scripts, both runners, held to one verdict in CI (#127)
+- **regtest**: the community's tester, in-process — same script, same verdict, any platform (#126)
+
+### Fix
+
+- **stage**: an erase refills the [MORE] budget (§8.8.3.2.6) (#148)
+- **glass**: the [MORE] prompt cleans up after itself (§8.8.3.2.6) (#146)
+- **zmachine**: cursor properties answer the flowed cursor (§8.8.3.5) (#145)
+- **zscii**: alphabet slots hold their expansions (§3.5.5, §3.8.2.1) (#144)
+
 ## v0.8.0 (2026-08-16)
 
 ### Feat
