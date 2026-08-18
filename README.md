@@ -12,6 +12,15 @@
   <a href="https://github.com/jeffnyman/voxam/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="Voxam is released under the MIT license."></a>
 </p>
 
+
+<div align="center">
+
+| | Works On | |
+| :---: | :---: | :---: |
+| <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/os_windows.png" alt="Windows"> | <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/os_mac.png" alt="macOS"> | <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/os_linux.png" alt="Linux"> |
+
+</div>
+
 <p align="center">
   <a href="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml"><img src="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-green.svg" alt="Conventional Commits: 1.0.0"></a>
@@ -54,7 +63,18 @@ the first seeded, replayable *Beyond Zork* session anywhere. And
 the era plays illustrated now: *Arthur*, *Shogun*, and *Zork
 Zero* render their pictures, palettes, and window layouts in a
 real graphics window, held to the Standard's §8.8 screen model.
-Twenty-five recordings verify those sessions end-to-end with the
+The late formats have opened as well: version 8 is held to CZECH's
+exact tallies in continuous integration, *Jigsaw* -- Graham
+Nelson's epic of the twentieth century -- is recorded through its
+first two chapters, from the Sarajevo assassination to the
+Titanic's rescue summoned in real Morse code, and Emily Short's
+*Bronze* plays to its winning ending -- the King restored, his
+servants freed -- in a session adapted command by command from a
+surviving Release 12 transcript to the canonical Release 11 story
+file, its annotations recording every place the two releases
+disagree. Even version 7, the format Infocom never shipped, has a
+seeded recording, as far as we know the first anywhere.
+Thirty recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
 
@@ -66,9 +86,10 @@ an archaeology of where the games' published walkthroughs go wrong.
 
 Version `0.x`: early, honest, and playable.
 
-**Works today:** story file versions 1 through 5 -- Infocom's whole
-main-line catalog and the modern Inform and PunyInform games built
-on version 5 -- plus version 6, run against Infocom's own ZIPTEST
+**Works today:** story file versions 1 through 8 -- Infocom's
+whole catalog, the modern Inform and PunyInform games built on
+versions 5 and 8, and the rarely-sighted version 7 besides --
+including version 6, run against Infocom's own ZIPTEST
 checker and played through *Arthur*: the eight-window §8.8 ledger
 with its eighteen properties per window, user stacks, the
 formatted-text stream behind print_form, and the v6 cursor forms.
@@ -77,7 +98,10 @@ pictures, the palettes, and all eight windows for real -- while on
 a character glass a version 6 game still plays as flowing text,
 its graphical courtesies declared unavailable in the header and
 answered honestly when it asks anyway. Underneath all of it:
-the full parser and object machinery, a seeded random number
+the full parser and object machinery -- with code above the
+static-memory line decoded once and cached (§1.1), which is what
+lets an Inform 7 game spend three hundred thousand instructions on
+a single turn without the player noticing -- a seeded random number
 generator for reproducible sessions, the
 screen model (split windows, single-keystroke input), custom
 alphabet tables, the accented extra characters, and the Standard
