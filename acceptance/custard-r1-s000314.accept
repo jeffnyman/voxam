@@ -1,0 +1,80 @@
+! GAME=../entharion/zcode-inform/custard-r1-s000314.z7
+! SEED=57452
+
+# Custard reads its whole command line through its own read_char
+# editor -- the machinery behind its xyzzy input-mangling gimmick
+# -- so every command needs an explicit > enter after it, the
+# Bureaucracy convention. The name is a true line read and the
+# gender pick is a single keystroke; neither takes an enter.
+
+Jeff
+m
+
+i
+>
+examine uniform
+>
+examine tag
+>
+examine broom
+>
+examine pie
+>
+examine clockwork
+>
+take pie
+>
+eat pie
+>
+examine table
+>
+examine moon
+>
+n
+>
+examine breaker
+>
+turn on breaker
+>
+# The breaker starts the game's famous effect: the digits of pi
+# roll up every blank space on the screen. It is pure animation
+# -- the game expects you to keep playing straight through it.
+eat pie
+>
+examine gear
+>
+u
+>
+# The choice the game poses: lose your broom or your legs. The
+# broom wedged in the gear keeps the legs -- and the legs are what
+# turn off the lights at the end.
+put broom in gear
+>
+examine me
+>
+i
+>
+examine dollar
+>
+examine man
+>
+ask man about custard
+>
+ask man about me
+>
+# Buying the replacement custard returns you to the Bakery, lights
+# on, with the game's own hint: leave it on the table and go home.
+buy custard
+>
+examine pie
+>
+n
+>
+turn off lights
+>
+s
+>
+# The ending: your boss, custard on his face, "You pie switching
+# bastard!"
+put pie on table
+>
