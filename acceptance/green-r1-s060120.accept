@@ -1,0 +1,34 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/green-r1-s060120.z2
+
+examine me
+i
+examine basket
+open basket
+examine loaf
+close basket
+examine cloak
+examine quiver
+examine arrows
+examine bow
+south
+take coin
+examine coin
+southeast
+examine silver
+take silver
+northwest
+southwest
+take coin
+examine electrum
+southwest
+take yellow
+examine yellow
+southeast
+examine white coin
+take white coin
+examine fox
+east
+shoot fox
+kill fox
+quit
