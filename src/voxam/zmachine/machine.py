@@ -423,6 +423,7 @@ class Machine:
         self._rng = Randomizer(seed)
         self._frontend = frontend if frontend is not None else PlainFrontend()
         self._output = self._frontend.write
+        self._prints = 0
         self._input = input_source if input_source is not None else input
         self._key_source = key_source
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
@@ -684,6 +685,9 @@ class Machine:
         if self._redirections:
             self._redirections[-1][1].append(text)
         elif self._screen_selected:
+            # Counted so a timed read can tell whether its
+            # interrupt routine printed (§15 read remarks).
+            self._prints += 1
             self._output(text)
 
     def _op_log_shift(self, instruction: Instruction) -> None:
@@ -1756,7 +1760,9 @@ class Machine:
 
         return self._variables.read(STACK_VARIABLE)
 
-    def _timed_out(self, values: list[int], time_index: int) -> bool:
+    def _timed_out(
+        self, values: list[int], time_index: int, *, redisplay: bool = False
+    ) -> bool:
         """Let the patient typist's one interval elapse (§15 read).
 
         The instant typist never let real time pass, so a time and
@@ -1766,10 +1772,18 @@ class Machine:
         with no input consumed. A false return means the typist got
         there first, and the read proceeds as an untimed one.
 
+        With redisplay -- the line reads -- an interrupt that
+        printed and let input continue asks the frontend to show
+        the input line again, as §15's remarks prescribe: Jigsaw
+        prints each chapter's epigraph from exactly such a routine,
+        and the prompt would otherwise be stranded above the quote.
+
         Args:
             values: The instruction's resolved operands.
             time_index: Where the time operand sits, with the
                 routine in the slot after it.
+            redisplay: Whether a printing interrupt should end in
+                the input line redisplayed.
 
         Returns:
             Whether the interrupt terminated the read.
@@ -1784,7 +1798,16 @@ class Machine:
         if not time or not routine:
             return False
 
-        return bool(self._interrupt(routine))
+        if redisplay:
+            self._frontend.begin_input()
+
+        printed = self._prints
+        terminated = bool(self._interrupt(routine))
+
+        if redisplay and not terminated and self._prints != printed:
+            self._frontend.resume_input()
+
+        return terminated
 
     def _op_sread(self, instruction: Instruction) -> None:
         """Read a typed command into the buffers (§15 read, §13.6).
@@ -1862,7 +1885,7 @@ class Machine:
         # this prompt, so the patient interval applies here anew.
         self._typist_ready = None
 
-        if self._timed_out(values, time_index=2):
+        if self._timed_out(values, time_index=2, redisplay=True):
             # All input is erased and the read ends at once (§15
             # read): a counted buffer reports zero letters typed, a
             # terminated one an empty string, and the lexing the

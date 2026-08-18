@@ -2,6 +2,7 @@ import sys
 import types
 from collections.abc import Callable, Sequence
 from fractions import Fraction
+from typing import cast
 
 import pytest
 from assertpy import assert_that
@@ -17,7 +18,7 @@ from voxam.glass import (
 )
 from voxam.painter import IDLE_HEARTBEAT
 from voxam.png import Picture
-from voxam.screen import BOLD, REVERSE, UPPER
+from voxam.screen import BOLD, REVERSE, UPPER, ScreenModel
 from voxam.speaker import Fill, Finished, Speaker, Stream
 
 WHITE = (255, 255, 255)
@@ -558,6 +559,32 @@ def test_a_more_pause_near_the_edge_stays_inside_the_grid() -> None:
 
     assert_that(prompts).is_length(1)
     assert_that(prompts[0][:2]).is_equal_to((127, 235))
+
+
+# The glass rewrites the remembered prompt after a printing
+# interrupt (§15 read remarks) -- and on the stage, where the
+# cursor speaks units, the snapshot stays empty and the redisplay
+# stays quiet until a Version 6 game earns the arithmetic.
+def test_the_prompt_returns_after_an_interrupts_output() -> None:
+    frontend, _glass = windowed()
+
+    frontend.write("\n>")
+    frontend.begin_input()
+    frontend.write("\n\n   All the generals were on holiday.\n\n")
+    frontend.resume_input()
+
+    row, _column = cast("ScreenModel", frontend.model).cursor
+
+    assert_that(frontend.model.row_text(row)).is_equal_to(">")
+
+    staged, glass = windowed(version=6)
+
+    staged.write(">")
+    staged.begin_input()
+    before = len(glass.typed)
+    staged.resume_input()
+
+    assert_that(glass.typed).is_length(before)
 
 
 # Typing on the stage rubs out in pixels: the erased cell arrives

@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import pytest
 
-from voxam.frontend import PlainFrontend
+from voxam.frontend import Frontend, PlainFrontend
 from voxam.saves import SaveSlot
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.memory import Memory
@@ -53,8 +53,9 @@ def code_machine() -> Callable[..., Machine]:
         saves: SaveSlot | None = None,
         key_source: Callable[[float | None], str | None] | None = None,
         identity: Identity | None = None,
+        frontend: Frontend | None = None,
     ) -> Machine:
-        frontend = PlainFrontend(output)
+        frontend = frontend if frontend is not None else PlainFrontend(output)
 
         return Machine(
             _image(code, version),

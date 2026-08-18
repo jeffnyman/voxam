@@ -306,6 +306,7 @@ class GraphicsFrontend:
         )
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
+        self._prompt = ""
         # The frontend's colour book: the §8.3.1 codes, joined by
         # a dynamic code (16 and up, §8.3.5.2) for every colour
         # ever sampled off the glass by colour -1.
@@ -523,6 +524,34 @@ class GraphicsFrontend:
             self._model.erase_line()
 
         self._repaint()
+
+    def begin_input(self) -> None:
+        """Remember the prompt: the line's text left of the cursor.
+
+        On the stage the cursor speaks units, not cells, so the
+        prompt snapshot stays empty there until a Version 6 game
+        earns the arithmetic.
+        """
+
+        if self._stage is not None:
+            self._prompt = ""
+
+            return
+
+        model = cast("ScreenModel", self._model)
+        row, column = model.cursor
+        self._prompt = model.row_text(row)[: column - 1]
+
+    def resume_input(self) -> None:
+        """Show the prompt again after a printing interrupt (§15).
+
+        Jigsaw's chapter epigraphs print from a timed read's
+        interrupt: without this, the "> " strands above the
+        quotation and the player types into a promptless line.
+        """
+
+        if self._prompt:
+            self.write(self._prompt)
 
     def set_buffering(self, buffered: bool) -> None:
         """Flow the §7.2 buffering flag into the model."""
