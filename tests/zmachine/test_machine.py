@@ -165,6 +165,56 @@ def test_a_result_stored_to_variable_0_lands_on_the_callers_stack(
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
 
 
+# Code at or above the static-memory base cannot change (§1.1), so
+# its decoded instructions are cached with their handlers -- the
+# speed that makes Inform 7 games playable. The planted story puts
+# its code at $1c0, exactly the static base, and the cache fills.
+def test_static_code_is_decoded_once_and_cached() -> None:
+    data = bytearray(512)
+    data[0] = 3
+    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+    data[0x06:0x08] = (0x01C0).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0100).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+    data[0x1C0:0x1CC] = bytes(
+        [
+            *[0x0D, 0x11, 0x02],
+            *[0x0D, 0x10, 0x2A],
+            *[0x04, 0x11, 0x01, 0x3F, 0xFA],
+            0xBA,
+        ]
+    )
+    machine = Machine(Story(bytes(data)), PlainFrontend(lambda _t: None), lambda: "")
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(42)
+    assert_that(machine._code_cache).contains_key(0x1C0, 0x1C3, 0x1C6)
+
+
+# Code in dynamic memory may legally rewrite itself, so it is
+# decoded fresh on every visit: the program overwrites its own
+# store's constant mid-loop, and the second pass sees the new
+# value. A cache without the static floor would replay the old 42.
+def test_dynamic_code_may_rewrite_itself(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0x0D, 0x11, 0x02],
+            *[0x0D, 0x10, 0x2A],
+            *[0xE2, 0x17, 0x00, 0x45, 0x00, 0x63],
+            *[0x04, 0x11, 0x01, 0x3F, 0xF4],
+            0xBA,
+        ]
+    )
+    machine = code_machine(layout(program))
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(0x63)
+
+
 def test_unimplemented_opcodes_report_the_frontier(
     code_machine: Callable[..., Machine],
 ) -> None:

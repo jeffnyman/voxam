@@ -424,6 +424,16 @@ class Machine:
         self._frontend = frontend if frontend is not None else PlainFrontend()
         self._output = self._frontend.write
         self._prints = 0
+        # Decoded instructions at or above the static-memory base
+        # cannot change (§1.1) and are cached with their handlers:
+        # an Inform 7 game executes hundreds of thousands of
+        # instructions per turn, and re-decoding each visit made
+        # Bronze unplayably slow. Code in dynamic memory -- which a
+        # story may legally rewrite -- is decoded fresh every time.
+        self._code_floor = self._memory.header.static_memory_base
+        self._code_cache: dict[
+            int, tuple[Instruction, Callable[[Machine, Instruction], None]]
+        ] = {}
         self._input = input_source if input_source is not None else input
         self._key_source = key_source
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
@@ -636,13 +646,23 @@ class Machine:
             VoxamError: On any rule the instruction breaks.
         """
 
-        instruction = Instruction.decode(self._memory, self._pc)
-        handler = _HANDLERS.get(instruction.opcode.name)
+        cached = self._code_cache.get(self._pc)
 
-        if handler is None:
-            raise ZMachineUnimplementedError(
-                instruction.opcode.name, instruction.address
-            )
+        if cached is not None:
+            instruction, handler = cached
+        else:
+            instruction = Instruction.decode(self._memory, self._pc)
+            found = _HANDLERS.get(instruction.opcode.name)
+
+            if found is None:
+                raise ZMachineUnimplementedError(
+                    instruction.opcode.name, instruction.address
+                )
+
+            handler = found
+
+            if self._pc >= self._code_floor:
+                self._code_cache[self._pc] = (instruction, handler)
 
         handler(self, instruction)
 
