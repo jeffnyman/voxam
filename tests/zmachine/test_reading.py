@@ -276,6 +276,7 @@ ROUTINE_BASE = 0x70
 ROUTINE_PACKED = 0x1C
 MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 MARK_THEN_FALSE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB1])
+COUNT_THEN_TRUE = bytes([0x00, 0x95, 0x11, 0xB0])
 QUIT_IN_INTERRUPT = bytes([0x00, 0xBA])
 MARK = 0x63
 MARK_GLOBAL = 0x102
@@ -477,6 +478,63 @@ def test_a_timed_read_char_ends_when_the_interrupt_returns_true(
 
     assert_that(machine.memory.read_word(RESULT)).is_zero()
     assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# The typist is nimble as well as patient: when an interrupt ends
+# a timed read and the game loops straight back to the SAME read
+# -- Custard's pi-digit animation, retrying in a tight loop -- the
+# burned interval was typing time, and the retry finds the key
+# without the routine firing again. A timed read at a DIFFERENT
+# address is a new question and earns its own patient interval.
+# The program loops on one read_char until a key arrives, then
+# reads twice more at fresh addresses; the counting routine proves
+# exactly two firings: one ending the looped read's first pass,
+# one for the last read when the queue is spent.
+def test_a_terminating_interrupt_never_starves_the_typist(
+    code_machine: Callable[..., Machine],
+) -> None:
+    reads = bytes(
+        [
+            *[0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10],
+            *[0xA0, 0x10, 0xBF, 0xF8],
+            *[0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x12],
+            *[0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x13],
+            0xBA,
+        ]
+    )
+    lines = iter(["ab"])
+    machine = code_machine(reads, version=4, input_source=lambda: next(lines))
+    plant_routine(machine.memory, COUNT_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("a"))
+    assert_that(machine.memory.read_word(0x104)).is_equal_to(ord("b"))
+    assert_that(machine.memory.read_word(0x106)).is_zero()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(2)
+
+
+# A line read is a fresh sitting: readiness earned by a terminated
+# keystroke read does not carry to the prompt, and the whole next
+# line arrives there intact -- how Z-Tornado's Pause and its
+# ordinary prompts keep living together.
+def test_a_line_read_resets_the_typists_readiness(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes(
+        [
+            *[0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10],
+            *[0xE4, 0x0F, 0x01, 0x20, 0x01, 0x40],
+            0xBA,
+        ]
+    )
+    machine = reader(code_machine, "go", version=4, program=program)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_zero()
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
 
 
 # A line longer than one character is a run of keystrokes: the
