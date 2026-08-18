@@ -103,6 +103,20 @@ jobs:
       - name: Arthur, beyond the reference's reach
         run: uv run voxam --regtest regtest/arthur.regtest
 
+      # CZECH prints its whole verdict at boot and never prompts,
+      # which puts it beyond the regtest format's reach -- so the
+      # certification asserts its closing tallies directly, exact
+      # passed counts included, at every version the checker ships.
+      - name: CZECH, certified at every version on the shelf
+        run: |
+          declare -A passed=( [3]=349 [4]=367 [5]=406 [8]=406 )
+          for v in 3 4 5 8; do
+            out="$(uv run voxam --plain --seed 7 "entharion/zcode-checkers/czech/czech.z$v")"
+            echo "$out" | tail -4
+            echo "$out" | grep -q "Passed: ${passed[$v]}, Failed: 0, Print tests: 19"
+            echo "$out" | grep -q "Didn't crash: hooray!"
+          done
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest
