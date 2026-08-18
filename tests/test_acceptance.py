@@ -398,6 +398,37 @@ def test_the_recorder_round_trips_through_parse(tmp_path: Path) -> None:
     assert_that(warnings).is_empty()
 
 
+# The recorder is the file's only legitimate writer while a
+# session runs: an editor saving over the script mid-session
+# interleaves or discards appends, growing mystery gaps in the
+# recording. A size that moved between writes earns a loud warning
+# at the moment of the clobber; an untouched file earns silence,
+# and the recording carries on either way.
+def test_the_recorder_notices_another_writer(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    warnings: list[str] = []
+    recorder = Recorder(
+        target, game=tmp_path / "story.z3", seed=7, warn=warnings.append
+    )
+
+    recorder.line("look")
+
+    assert_that(warnings).is_empty()
+
+    with target.open("a", encoding="utf-8") as meddler:
+        meddler.write("# an editor saves over the live recording\n")
+
+    recorder.line("north")
+
+    assert_that(warnings).is_length(1)
+    assert_that(warnings[0]).contains("changed on disk mid-recording")
+
+    recorder.line("south")
+    recorder.close()
+
+    assert_that(warnings).is_length(1)
+
+
 # A recording never overwrites: an existing file is refused loudly.
 def test_the_recorder_refuses_an_existing_file(tmp_path: Path) -> None:
     target = tmp_path / "session.accept"
