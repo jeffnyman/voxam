@@ -42,11 +42,11 @@ with two guiding commitments: fidelity to the
 -- and reproducibility, so that a recorded play session replays
 identically, forever.
 
-Voxam is developed against real games. The *Zork* trilogy,
+VΘXΔM is developed against real games. The *Zork* trilogy,
 *Cutthroats*, *Deadline*, *Seastalker*, *Trinity*, *A Mind Forever
 Voyaging*, *The Hitchhiker's Guide to the Galaxy*, and -- filed in
 triplicate, blood pressure rising -- *Bureaucracy* have all been
-played to winning conclusions under Voxam, several across multiple
+played to winning conclusions under VΘXΔM, several across multiple
 releases and several to perfect scores, alongside modern classics
 from *Colossal Cave* to the IF Comp winner *All Roads*. The
 Version 6 era has opened: *Arthur: The Quest for Excalibur* plays
@@ -73,8 +73,16 @@ servants freed -- in a session adapted command by command from a
 surviving Release 12 transcript to the canonical Release 11 story
 file, its annotations recording every place the two releases
 disagree. Even version 7, the format Infocom never shipped, has a
-seeded recording, as far as we know the first anywhere.
-Thirty recordings verify those sessions end-to-end with the
+seeded recording, as far as we know the first anywhere. *Ballyhoo*
+joins the perfect scores -- 200 of 200, the circus saved, and
+three of its cruellest hidden state-gates excavated from Infocom's
+own source and annotated where every published walkthrough omits
+them. And Jon Ingold's *The Mulldoon Legacy* -- a game that
+teases players who act on knowledge their character hasn't earned
+("Playing a restored game are we?") -- is recorded deep into its
+museum, the first of the fortune teller's visions complete: a
+verified route through a game built to resist secondhand play.
+Thirty-four recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
 
@@ -113,7 +121,7 @@ format, auxiliary files cover the games that save fragments of
 themselves, UNDO is multi-level, and an acceptance-script harness
 records, replays, and probes whole playthroughs.
 
-At a real terminal, Voxam paints the screen: the blessed frontend
+At a real terminal, VΘXΔM paints the screen: the blessed frontend
 (an optional extra, named for both its temperament and the
 [blessed](https://pypi.org/project/blessed/) package behind it)
 renders the §8 screen model live -- a reverse-video status line
@@ -128,7 +136,12 @@ each glyph derived from the Standard's own bitmaps. The painter
 owns the keyboard too: line input is read raw and echoed through
 the screen model, so nothing but the painter ever writes to the
 glass, and the cursor keys reach the games that listen for them
-(§3.8.4) -- which is how *Beyond Zork*'s menus are driven. Timed
+(§3.8.4) -- which is how *Beyond Zork*'s menus are driven. At a
+prompt those same keys are a full line editor: left and right move
+within the line, edits land at the cursor, and up and down walk
+the session's command history, shell-style -- at the terminal and
+the pygame window alike, with single-keystroke reads still passing
+the arrows through to the games that claim them. Timed
 input runs on the real wall clock there, so a game like Z-Tornado
 plays in genuine real time. The architecture keeps a strict split
 between a pure screen model -- a grid of attributed cells held to
@@ -136,7 +149,7 @@ between a pure screen model -- a grid of attributed cells held to
 what changed, so the screen is as testable as the machine beneath
 it.
 
-Voxam reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
+VΘXΔM reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
 resource files as well: a `.zblorb` packaged story boots directly,
 and a sidecar `.blb` found beside a story by name announces its
 pictures and sounds at the banner. A cover picture -- *Beyond
@@ -148,8 +161,8 @@ declares sixel graphics also reports its cell size, so the art
 magnifies to the glass as it actually measures, and one that
 never learned sixel quietly gets the half-block painting instead
 of escape garbage. Art is a courtesy, never a gate: a
-cover Voxam cannot draw earns a note and the story plays on. And
-Voxam can claim any classic machine identity (`--interpreter
+cover VΘXΔM cannot draw earns a note and the story plays on. And
+VΘXΔM can claim any classic machine identity (`--interpreter
 amiga`, or the legendary Tandy bit via `--tandy`), which some
 early games answer with altered text and *Beyond Zork* answers
 with its whole screen-model personality (§11.1.3, §16).
@@ -209,7 +222,7 @@ declares none -- *The Lurking Horror* and *Sherlock* were both
 shipped to accept exactly that -- because a replay must land on
 the same bytes everywhere, speakers or no speakers.
 
-Voxam is verified against the community's interpreter test suites:
+VΘXΔM is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, 5, and 8 -- the last certifying the modern
 Inform format, held to its exact tallies in continuous
 integration), Praxix -- its Standard 1.1 section included --
@@ -228,7 +241,7 @@ substitute for saves: a script replays a whole game in moments.
 
 ## Installation
 
-Voxam requires Python 3.12 or later.
+VΘXΔM requires Python 3.12 or later.
 
 ```bash
 pip install voxam
@@ -250,19 +263,19 @@ pip install "voxam[screen,graphics,sound]"    # or: uv tool install "voxam[scree
 
 On Windows and macOS the sound extra is self-contained; on Linux,
 PortAudio comes from the distribution (`apt install libportaudio2`
-or the local equivalent). Without the extras, Voxam plays as a
+or the local equivalent). Without the extras, VΘXΔM plays as a
 plain text stream -- every game still works; the status line
 simply stays imaginary, and the sound games play in the conforming
 silence they were shipped to accept.
 
-Voxam ships no story files. Bring your own: the
+VΘXΔM ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts thousands of freely
 available games, and story files you own from commercial collections
 work as-is.
 
 ## Playing stories
 
-Point Voxam at a story file and play at the terminal:
+Point VΘXΔM at a story file and play at the terminal:
 
 ```bash
 voxam path/to/story.z3
@@ -298,14 +311,14 @@ mind their manners.
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
-Voxam and other interpreters.
+VΘXΔM and other interpreters.
 
 ### Best played with
 
 `--interpreter` is not a costume. Infocom's Version 6 games carry
 genuine per-machine code paths, chosen at startup from the
 header's interpreter number, and the flag picks which 1989 machine
-Voxam is pretending to be. Recommendations, earned from the games'
+VΘXΔM is pretending to be. Recommendations, earned from the games'
 own source rather than folklore:
 
 - ***Shogun*: the default.** Its own `DISPLAY-BORDER` routine
@@ -410,7 +423,7 @@ under its own seed, across as many sittings as the game demands.
 
 ### RegTest scripts
 
-Voxam also speaks [RegTest](https://eblong.com/zarf/plotex/regtest.html),
+VΘXΔM also speaks [RegTest](https://eblong.com/zarf/plotex/regtest.html),
 Andrew Plotkin's public-domain regression-test format for
 interactive fiction -- and speaks it twice over. A RegTest script
 of named tests, commands, and per-turn checks runs through the
@@ -437,7 +450,7 @@ interpreters can offer RegTest at all.
 
 ### Refusal warnings
 
-During a replay, Voxam listens for the parser's *refusal dialect* --
+During a replay, VΘXΔM listens for the parser's *refusal dialect* --
 responses like "You can't see any statuette here!" or "You should
 close it first" that mean a recorded command did not do what it
 said. Each one is reported with the script line that drew it:
@@ -490,7 +503,7 @@ and delete it. The harness is the part worth keeping.
 
 ## Development
 
-Working on Voxam itself needs
+Working on VΘXΔM itself needs
 [uv](https://docs.astral.sh/uv/) for dependency and environment
 management:
 
@@ -585,7 +598,7 @@ uv run cz bump
 
 An `entharion` submodule holds the specifications and story files this
 project is developed against. These are not required as part of building
-and deploying Voxam, but they help during development. Voxam does not
+and deploying VΘXΔM, but they help during development. VΘXΔM does not
 depend on anything under `entharion/`. It is not needed to install the
 project and CI does not fetch it. Git leaves submodules empty unless
 asked, so a plain clone simply skips it.

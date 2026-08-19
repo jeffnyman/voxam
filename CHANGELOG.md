@@ -1,3 +1,19 @@
+## v0.10.0 (2026-08-19)
+
+### Feat
+
+- **frontend**: the line editor -- cursor editing and command history at every painted prompt (#164)
+- **frontend**: the prompt returns after a printing interrupt (§15) (#156)
+- **accept**: the recorder notices another writer at its file (#155)
+
+### Fix
+
+- **zmachine**: the patient typist grows nimble fingers (§15 read_char) (#153)
+
+### Perf
+
+- **zmachine**: static code decodes once (§1.1) -- 19x for Inform 7 (#160)
+
 ## v0.9.0 (2026-08-18)
 
 ### Feat
