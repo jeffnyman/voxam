@@ -558,6 +558,30 @@ class ScreenModel:
                 self._paint(row, column - 1, self._blank_cell())
                 self._lower_cursor = (row, column - 1)
 
+    def retreat(self, cells: int) -> int:
+        """Move the selected window's cursor left without erasing.
+
+        The line editor's cursor motion (§15 read): unlike rub_out
+        nothing is blanked, and like rub_out the motion stops at
+        the left edge -- the editor never chews into an earlier
+        row, so on a line that wrapped only the final row is
+        editable. The cells actually moved come back so the
+        editor's own ledger stays honest.
+        """
+
+        self._flush()
+
+        if self._selected == UPPER:
+            row, column = self._upper_cursor
+            moved = min(cells, column - 1)
+            self._upper_cursor = (row, column - moved)
+        else:
+            row, column = self._lower_cursor
+            moved = min(cells, column - 1)
+            self._lower_cursor = (row, column - moved)
+
+        return moved
+
     def write_rectangle(self, rows: Sequence[str]) -> None:
         """Print a §15 rectangle, right and down from the cursor.
 

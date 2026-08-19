@@ -277,6 +277,21 @@ def test_rub_out_retreats_one_cell() -> None:
     assert_that(stage.get_cursor()).is_equal_to((1, 1))
 
 
+# The line editor's cursor motion retreats without erasing: the
+# text stays painted, the motion clamps at the window's left edge,
+# and the cells actually moved come back (§15 read).
+def test_retreat_moves_the_cursor_without_erasing() -> None:
+    stage = staged()
+
+    stage.write("hi")
+
+    assert_that(stage.retreat(1)).is_equal_to(1)
+    assert_that(stage.row_text(1)).is_equal_to("hi")
+    assert_that(stage.get_cursor()).is_equal_to((1, 11))
+    assert_that(stage.retreat(5)).is_equal_to(1)
+    assert_that(stage.get_cursor()).is_equal_to((1, 1))
+
+
 # A §15 rectangle prints right and down from the cursor without
 # wrapping, each row at the starting column, pressing onto the
 # window's bottom line when too tall.

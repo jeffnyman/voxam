@@ -600,6 +600,24 @@ class StageModel:
                 )
             )
 
+    def retreat(self, cells: int) -> int:
+        """Move the cursor left without erasing (§15 line editing).
+
+        The stage's half of the line editor's cursor motion:
+        rub_out's retreat without the blanking, stopped at the
+        window's left edge, with the cells actually moved answered
+        back.
+        """
+
+        current = self._windows[self._selected]
+
+        self._flush(current)
+
+        moved = min(cells, current.column)
+        current.column -= moved
+
+        return moved
+
     def write_rectangle(self, rows: Sequence[str]) -> None:
         """Print a §15 rectangle, right and down from the cursor.
 
