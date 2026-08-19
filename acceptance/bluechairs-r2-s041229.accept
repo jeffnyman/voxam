@@ -1,0 +1,159 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/bluechairs-r2-s041229.z5
+
+pay guy
+>
+>
+>
+>
+>
+no
+>
+so
+>
+no
+>
+
+down
+down
+north
+open cabinet
+take flashlight
+turn it on
+south
+up
+up
+search attic
+drink wine
+down
+down
+west
+
+dance
+dance southwest
+dance southwest
+dance east
+dance west
+dance west
+dance west
+dance west
+dance west
+
+wake guy
+yes
+ask guy for ride
+>
+open the window
+wait
+wait
+out
+east
+take sign
+east
+yes
+east
+no
+take sign
+east
+no
+take sign
+east
+yes
+take sign
+east
+put sign 3 in hole
+southeast
+put sign 1 in hole
+northeast
+put sign 2 in hole
+northwest
+put sign in hole
+southwest
+east
+in
+
+sit in chair
+>
+east
+east
+open case
+in
+west
+south
+west
+
+sit in chair
+wait
+wait
+wait
+blow out candles
+take envelope
+east
+north
+east
+east
+north
+north
+west
+north
+west
+put envelope in slot
+open door
+enter door
+z
+put tile in bank space
+
+north
+east
+south
+east
+east
+east
+east
+east
+south
+look under desk
+look at post-it
+turn dial to 6
+turn dial to 19
+turn dial to 8
+open door
+enter door
+
+get in bed
+>
+yes
+no
+north
+west
+west
+west
+open box
+take doughnut
+take fortune
+climb over the chairs
+
+get in the car
+>
+north
+up
+up
+west
+climb on bed
+climb into the hole in the ceiling
+up
+talk to her
+no
+>
+>
+>
+>
+
+get up
+down
+east
+look at girl
+read the back of the fortune
+east
+get in car
+quit
