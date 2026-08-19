@@ -303,6 +303,12 @@ class GraphicsFrontend:
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
         self._editor = LineEditor()
+        # The input caret: where the underline was last drawn, and
+        # whether a read is currently showing one. The v6 stage
+        # draws no caret of its own -- its games place and paint
+        # their own cursors.
+        self._caret: tuple[int, int] | None = None
+        self._typing = False
         self._prompt = ""
         # The frontend's colour book: the §8.3.1 codes, joined by
         # a dynamic code (16 and up, §8.3.5.2) for every colour
@@ -726,20 +732,31 @@ class GraphicsFrontend:
         Without a timeout the wait is infinite but attentive --
         the idle heartbeat fires exactly as it does at the
         terminal; with one, an expired wait answers None for the
-        machine's wall-clock interrupts.
+        machine's wall-clock interrupts. While the read waits, the
+        caret marks where input is going -- which is how a player
+        follows Bureaucracy's form as its cursor hops fields.
         """
 
         if self._stage is not None:
             self._stage.rest()
 
-        while True:
-            key = self._waited_key() if timeout is None else self._glass.key(timeout)
+        self._typing = True
+        self._show_caret()
 
-            if key is not None:
-                return key
+        try:
+            while True:
+                key = (
+                    self._waited_key() if timeout is None else self._glass.key(timeout)
+                )
 
-            if timeout is not None:
-                return None
+                if key is not None:
+                    return key
+
+                if timeout is not None:
+                    return None
+        finally:
+            self._typing = False
+            self._hide_caret()
 
     def read_line(self) -> str:
         """Read one line of raw typing, edited and echoed via the model.
@@ -747,15 +764,23 @@ class GraphicsFrontend:
         The same line editor the terminal painter runs: backspace
         rubs out, the left and right cursor keys move within the
         line, up and down walk the session's command history, and
-        every visible change to the window is the model's doing.
+        every visible change to the window is the model's doing --
+        with the caret showing where the next character lands.
         """
 
         if self._stage is not None:
             self._stage.rest()
 
-        return read_line_edited(
-            self._editor, self._model, self._waited_key, self._repaint
-        )
+        self._typing = True
+        self._show_caret()
+
+        try:
+            return read_line_edited(
+                self._editor, self._model, self._waited_key, self._repaint
+            )
+        finally:
+            self._typing = False
+            self._hide_caret()
 
     def clear(self) -> None:
         """Return the glass to a blank screen after a frontispiece.
@@ -837,6 +862,61 @@ class GraphicsFrontend:
 
         if rows:
             self._glass.present()
+
+        if self._typing:
+            # A repainted row overwrote any caret it held; forget
+            # the old drawing so the caret comes back at the
+            # cursor's (possibly new) cell.
+            if self._caret is not None and self._caret[0] in rows:
+                self._caret = None
+
+            self._show_caret()
+
+    def _show_caret(self) -> None:
+        """Underline the model's cursor cell so typing has a home.
+
+        The caret is an overlay, not a cell: it draws straight onto
+        the glass and marks its cell dirty in the shadow, so the
+        next honest repaint of that row wipes it without a trace. A
+        standing caret stays where it is -- a timed interrupt
+        printing an upper-window clock mid-read must not drag it
+        along -- and it re-homes to the cursor exactly when its own
+        row repaints, which is what typing does. The v6 stage draws
+        no caret -- its games place their own.
+        """
+
+        if self._stage is not None or self._caret is not None:
+            return
+
+        model = cast("ScreenModel", self._model)
+        row, column = model.cursor
+        column = min(column, model.columns)
+
+        _character, (ink, _paper, _bold, _italic, _graphics) = _appearance(
+            model.cell(row, column), self._colours
+        )
+
+        self._glass.fill(
+            (row - 1) * self.font_height + self.font_height - 1,
+            (column - 1) * self.font_width + 1,
+            2,
+            self.font_width,
+            ink,
+        )
+        self._glass.present()
+        self._shadow.setdefault(row, [None] * model.columns)[column - 1] = None
+        self._caret = (row, column)
+
+    def _hide_caret(self) -> None:
+        """Take the caret back off the glass, restoring its cell."""
+
+        if self._caret is None:
+            return
+
+        row, _column = self._caret
+        self._caret = None
+        self._paint_row(row)
+        self._glass.present()
 
     def _settle(self, stage: StageModel) -> bool:
         """Carry the stage's pending paints onto the glass.
