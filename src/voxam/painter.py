@@ -51,6 +51,10 @@ KEY_CHARACTERS = {
 }
 
 
+# The pause prompt a screenful of unread text waits behind
+# (§8.8.3.2.6's courtesy, offered on every painted screen).
+MORE_PROMPT = "[MORE]"
+
 # The §8.3.1 colour codes the painter can mix, named as blessed
 # knows them. Code 1 is the terminal's own default and needs no
 # sequence at all.
@@ -336,6 +340,7 @@ class ScreenFrontend:
         self._model = ScreenModel(
             columns=self.screen_columns, lines=self.screen_lines, version=version
         )
+        self._model.more = self._pause
         self._editor = LineEditor()
         self._prompt = ""
 
@@ -564,6 +569,7 @@ class ScreenFrontend:
         chopped into attentive heartbeats.
         """
 
+        self._model.rest()
         self._park()
 
         while True:
@@ -590,6 +596,7 @@ class ScreenFrontend:
         walk the session's command history.
         """
 
+        self._model.rest()
         self._park()
 
         return read_line_edited(
@@ -808,6 +815,37 @@ class ScreenFrontend:
 
         row, column = self._model.cursor
         self._out(self._terminal.move_xy(column - 1, row - 1))
+
+    def _pause(self) -> None:
+        """Hold a screenful behind [MORE] until any key arrives.
+
+        The model calls this mid-write, so the damage it has piled
+        up paints first -- the player must see what they are being
+        asked to read. The prompt is a reverse-video overlay at the
+        cursor; the keypress is spent on the pause, and repainting
+        the row from the model erases the prompt without a trace.
+        """
+
+        for damaged in self._model.sweep():
+            self._paint_row(damaged)
+
+        row, column = self._model.cursor
+        column = min(column, max(self._model.columns - len(MORE_PROMPT) + 1, 1))
+        self._out(
+            self._terminal.move_xy(column - 1, row - 1)
+            + self._terminal.normal
+            + self._terminal.reverse
+            + MORE_PROMPT
+            + self._terminal.normal
+        )
+
+        # A heartbeat expiry answers None so background work can
+        # run; only a real key ends the pause.
+        while self._waited_key() is None:
+            pass
+
+        self._paint_row(row)
+        self._park()
 
 
 def _pixel_scale(picture: Picture, width_pixels: int, height_pixels: int) -> int:

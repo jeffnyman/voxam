@@ -30,7 +30,7 @@ from voxam.editor import LineEditor, read_line_edited
 from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.gallery import Gallery
-from voxam.painter import IDLE_HEARTBEAT
+from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT
 from voxam.png import Picture
 from voxam.screen import (
     BOLD,
@@ -57,9 +57,6 @@ STAGE_VERSION = 6
 # icons directory, z1.ico through z8.ico.
 BADGED_VERSIONS = range(1, 9)
 
-# The pause prompt a screenful of scrolled text waits behind
-# (§8.8.3.2.6).
-MORE_PROMPT = "[MORE]"
 
 # One cell as the glass paints it: its character and its dress of
 # ink, paper, bold, italic, and the graphics-font flag.
@@ -318,6 +315,8 @@ class GraphicsFrontend:
 
         if self._stage is not None:
             self._stage.more = self._pause
+        else:
+            cast("ScreenModel", self._model).more = self._pause_cells
 
     @property
     def model(self) -> "ScreenModel | StageModel":
@@ -737,9 +736,7 @@ class GraphicsFrontend:
         follows Bureaucracy's form as its cursor hops fields.
         """
 
-        if self._stage is not None:
-            self._stage.rest()
-
+        self._model.rest()
         self._typing = True
         self._show_caret()
 
@@ -768,9 +765,7 @@ class GraphicsFrontend:
         with the caret showing where the next character lands.
         """
 
-        if self._stage is not None:
-            self._stage.rest()
-
+        self._model.rest()
         self._typing = True
         self._show_caret()
 
@@ -915,6 +910,53 @@ class GraphicsFrontend:
 
         row, _column = self._caret
         self._caret = None
+        self._paint_row(row)
+        self._glass.present()
+
+    def _pause_cells(self) -> None:
+        """Hold a screenful behind [MORE] until any key arrives.
+
+        The cell-model twin of the stage's pause: the model calls
+        mid-write, so its piled-up damage paints first; the prompt
+        overlays the cursor's cell in the window's own colours
+        reversed, its cells marked dirty in the shadow; and the
+        keypress is spent on the pause, with an honest row repaint
+        erasing the prompt.
+        """
+
+        model = cast("ScreenModel", self._model)
+
+        for damaged in model.sweep():
+            self._paint_row(damaged)
+
+        row, column = model.cursor
+        column = min(column, max(model.columns - len(MORE_PROMPT) + 1, 1))
+        _character, (ink, paper, _bold, _italic, _graphics) = _appearance(
+            model.cell(row, column), self._colours
+        )
+
+        self._glass.paint(
+            row,
+            column,
+            MORE_PROMPT,
+            paper,
+            ink,
+            bold=False,
+            italic=False,
+            graphics=False,
+        )
+        self._glass.present()
+
+        shadow = self._shadow.setdefault(row, [None] * model.columns)
+
+        for offset in range(len(MORE_PROMPT)):
+            shadow[column - 1 + offset] = None
+
+        # A heartbeat expiry answers None so background work can
+        # run; only a real key ends the pause.
+        while self._waited_key() is None:
+            pass
+
         self._paint_row(row)
         self._glass.present()
 
