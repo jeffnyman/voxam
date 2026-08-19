@@ -20,6 +20,7 @@ from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
 from typing import Protocol, cast
 
+from voxam.editor import LineEditor, read_line_edited
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.png import Picture
 from voxam.screen import (
@@ -49,12 +50,6 @@ KEY_CHARACTERS = {
     "KEY_RIGHT": "\x84",
 }
 
-# Line-editor vocabulary (§15 read): both classic delete bytes rub
-# out the last character, while escape and the §3.8.4 key codes
-# mean nothing to a line yet and are waited out.
-RUB_OUT_KEYS = ("\x7f", "\x08")
-INPUT_ONLY_FIRST = "\x81"
-INPUT_ONLY_LAST = "\x9a"
 
 # The §8.3.1 colour codes the painter can mix, named as blessed
 # knows them. Code 1 is the terminal's own default and needs no
@@ -341,6 +336,7 @@ class ScreenFrontend:
         self._model = ScreenModel(
             columns=self.screen_columns, lines=self.screen_lines, version=version
         )
+        self._editor = LineEditor()
         self._prompt = ""
 
     @property
@@ -582,50 +578,23 @@ class ScreenFrontend:
                 return None
 
     def read_line(self) -> str:
-        """Read one line of raw typing, echoed through the model.
+        """Read one line of raw typing, edited and echoed via the model.
 
         The terminal's own echo is never invited: keystrokes arrive
         raw through the same seam read_char uses, and every visible
         change to the glass is the painter's doing -- so a prompt
         on the bottom row can never make the real terminal scroll
-        the screen behind the model's back. Backspace rubs out the
-        last character of the line (§15 read's line editor); escape
-        and the §3.8.4 key codes mean nothing to a line yet and are
-        waited out.
+        the screen behind the model's back. The line editor gives
+        the classic vocabulary: backspace rubs out, the left and
+        right cursor keys move within the line, and up and down
+        walk the session's command history.
         """
 
         self._park()
-        typed: list[str] = []
 
-        while True:
-            key = self._waited_key()
-
-            if key is None or key == "\x1b" or self._input_only(key):
-                continue
-
-            if key == "\n":
-                self._model.write("\n")
-                self._repaint()
-
-                return "".join(typed)
-
-            if key in RUB_OUT_KEYS:
-                if typed:
-                    typed.pop()
-                    self._model.rub_out()
-                    self._repaint()
-
-                continue
-
-            typed.append(key)
-            self._model.write(key)
-            self._repaint()
-
-    @staticmethod
-    def _input_only(key: str) -> bool:
-        """Whether a key is one of the §3.8.4 input-only codes."""
-
-        return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
+        return read_line_edited(
+            self._editor, self._model, self._waited_key, self._repaint
+        )
 
     def _answered(self, query: str, end: str) -> str:
         """Ask the terminal a question and collect its escape answer.

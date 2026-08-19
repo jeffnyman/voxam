@@ -187,6 +187,34 @@ def test_rub_out_works_in_the_upper_window() -> None:
     assert_that(screen.cursor).is_equal_to((1, 1))
 
 
+# The line editor's cursor motion retreats without erasing: the
+# text stays painted, the motion clamps at the left edge, and the
+# cells actually moved come back (§15 read).
+def test_retreat_moves_the_cursor_without_erasing() -> None:
+    screen = small(version=5)
+
+    screen.write("ab")
+
+    assert_that(screen.retreat(1)).is_equal_to(1)
+    assert_that(screen.row_text(1)).is_equal_to("ab")
+    assert_that(screen.cursor).is_equal_to((1, 2))
+    assert_that(screen.retreat(5)).is_equal_to(1)
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
+# Retreat follows the selected window, clamped at the upper
+# window's left edge just the same.
+def test_retreat_works_in_the_upper_window() -> None:
+    screen = small(version=5)
+
+    screen.split_window(2)
+    screen.set_window(UPPER)
+    screen.set_cursor(1, 3)
+
+    assert_that(screen.retreat(9)).is_equal_to(2)
+    assert_that(screen.cursor).is_equal_to((1, 1))
+
+
 # A §15 rectangle in the upper window spreads right and down from
 # the cursor: each row returns to the starting column, so a map can
 # sit beside a story box without erasing its left edge -- which is

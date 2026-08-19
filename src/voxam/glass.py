@@ -26,15 +26,11 @@ from importlib import resources
 from itertools import groupby
 from typing import Any, Protocol, cast
 
+from voxam.editor import LineEditor, read_line_edited
 from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.gallery import Gallery
-from voxam.painter import (
-    IDLE_HEARTBEAT,
-    INPUT_ONLY_FIRST,
-    INPUT_ONLY_LAST,
-    RUB_OUT_KEYS,
-)
+from voxam.painter import IDLE_HEARTBEAT
 from voxam.png import Picture
 from voxam.screen import (
     BOLD,
@@ -306,6 +302,7 @@ class GraphicsFrontend:
         )
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
+        self._editor = LineEditor()
         self._prompt = ""
         # The frontend's colour book: the §8.3.1 codes, joined by
         # a dynamic code (16 and up, §8.3.5.2) for every colour
@@ -745,41 +742,20 @@ class GraphicsFrontend:
                 return None
 
     def read_line(self) -> str:
-        """Read one line of raw typing, echoed through the model.
+        """Read one line of raw typing, edited and echoed via the model.
 
         The same line editor the terminal painter runs: backspace
-        rubs out, escape and the §3.8.4 codes are waited out, and
+        rubs out, the left and right cursor keys move within the
+        line, up and down walk the session's command history, and
         every visible change to the window is the model's doing.
         """
-
-        typed: list[str] = []
 
         if self._stage is not None:
             self._stage.rest()
 
-        while True:
-            key = self._waited_key()
-
-            if key is None or key == "\x1b" or self._input_only(key):
-                continue
-
-            if key == "\n":
-                self._model.write("\n")
-                self._repaint()
-
-                return "".join(typed)
-
-            if key in RUB_OUT_KEYS:
-                if typed:
-                    typed.pop()
-                    self._model.rub_out()
-                    self._repaint()
-
-                continue
-
-            typed.append(key)
-            self._model.write(key)
-            self._repaint()
+        return read_line_edited(
+            self._editor, self._model, self._waited_key, self._repaint
+        )
 
     def clear(self) -> None:
         """Return the glass to a blank screen after a frontispiece.
@@ -837,12 +813,6 @@ class GraphicsFrontend:
             self.idle()
 
         return key
-
-    @staticmethod
-    def _input_only(key: str) -> bool:
-        """Whether a key is one of the §3.8.4 input-only codes."""
-
-        return INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST
 
     def _repaint(self) -> None:
         """Carry the model's changes to the glass, then present.

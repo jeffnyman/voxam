@@ -587,14 +587,17 @@ def test_the_prompt_returns_after_an_interrupts_output() -> None:
     assert_that(glass.typed).is_length(before)
 
 
-# Typing on the stage rubs out in pixels: the erased cell arrives
-# as a fill at the window's true position (§15 read).
+# Typing on the stage rubs out in pixels: the editor redraws the
+# line and blanks the remnant by overpainting a space at the
+# window's true position (§15 read).
 def test_v6_typing_rubs_out_in_pixels() -> None:
     frontend, glass = windowed(version=6, keys=["a", "\x7f", "\n"])
 
     frontend.read_line()
 
-    assert_that(glass.filled[-1]).is_equal_to((1, 1, 18, 9, (0, 0, 0)))
+    blanks = [entry for entry in glass.typed if entry[:3] == (1, 1, " ")]
+
+    assert_that(blanks).is_not_empty()
 
 
 # The status line draws through the model like any other row --

@@ -337,8 +337,9 @@ def test_read_line_backspace_stops_at_the_start() -> None:
     assert_that(frontend.read_line()).is_equal_to("n")
 
 
-# Escape, the §3.8.4 key codes, and unmapped escape sequences mean
-# nothing to a line editor yet: read_line waits them all out.
+# Escape, the §3.8.4 codes beyond the cursor keys, and unmapped
+# escape sequences mean nothing to a line: read_line waits them
+# out -- and cursor-up with no history yet is just as quiet.
 def test_read_line_waits_out_keys_a_line_cannot_use() -> None:
     keys = [
         StubKey("", "KEY_ESCAPE"),
@@ -352,6 +353,45 @@ def test_read_line_waits_out_keys_a_line_cannot_use() -> None:
 
     assert_that(line).is_equal_to("y")
     assert_that(frontend.model.row_text(1)).is_equal_to("y")
+
+
+# The cursor keys edit within the line: left walks back, an
+# insertion lands at the cursor, and the model repaints the whole
+# line -- glass and returned text agreeing (§15 read).
+def test_read_line_edits_mid_line() -> None:
+    keys = [
+        *(StubKey(character) for character in "gt"),
+        StubKey("", "KEY_LEFT"),
+        StubKey("e"),
+        StubKey("", "KEY_RIGHT"),
+        StubKey("", "KEY_ENTER"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    line = frontend.read_line()
+
+    assert_that(line).is_equal_to("get")
+    assert_that(frontend.model.row_text(1)).is_equal_to("get")
+
+
+# Cursor-up recalls the previous command from the session's
+# history, painted onto the glass like typing; the recalled line
+# replaces a longer draft cleanly.
+def test_read_line_recalls_history() -> None:
+    keys = [
+        *typing("inventory"),
+        *(StubKey(character) for character in "lo"),
+        StubKey("", "KEY_UP"),
+        StubKey("", "KEY_ENTER"),
+    ]
+    frontend, _out = painted(keys=keys)
+
+    first = frontend.read_line()
+    second = frontend.read_line()
+
+    assert_that(first).is_equal_to("inventory")
+    assert_that(second).is_equal_to("inventory")
+    assert_that(frontend.model.row_text(2)).is_equal_to("inventory")
 
 
 # A plain keystroke passes through read_key as itself, unechoed --
