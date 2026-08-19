@@ -1,0 +1,1032 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/curses-r16-s951024.z5
+
+>
+n. w. s
+x sheets
+push radio north
+turn it on
+w
+wait
+wait
+wait
+wait
+wait
+take gloves
+wear gloves
+e. e
+open demijohn
+s. s. se. e
+x rolls
+get battery
+open torch
+empty it
+put new battery in torch
+close torch
+s
+get rucksack
+
+n
+open cupboard
+n
+get painting
+get mask
+s. w. nw. n. n
+get red battery, map
+e
+get wrench
+enter dumbwaiter
+get wishbone
+pull rope
+get out
+get mouse
+s
+drop mouse
+mouse, w
+hole, w
+hole, w
+hole, w
+hole, n
+hole, w
+hole, n
+hole, s
+hole, e
+hole, s
+hole, e
+hole, e
+hole, e
+hole, e
+get key
+n
+enter dumbwaiter
+pull rope
+get out
+wear mask
+n
+unlock door with brass key
+open door
+s
+enter dumbwaiter
+pull rope
+get out
+w. s
+x teachest
+look inside it
+e
+lie down
+sleep
+e. n
+get mascot # (remember magic word 'lagach')
+drop mascot
+s. w. sw. e
+get up
+get all
+w. s
+get all from cupboard
+open parcel
+n. n. w
+x calendar
+
+turn calendar
+turn calendar
+turn calendar
+turn calendar
+turn calendar
+turn calendar
+turn calendar
+turn calendar
+w
+give chocolate to jemima
+remove mask
+say yellow
+e. e. s. s. se. w
+pull cord
+x postcard
+get flash
+open flash
+get nasty battery
+put nasty battery in flash
+close flash
+x photograph
+read about roger in history book
+
+e. e. n
+turn crank
+u. nw
+get key
+give wishbone to ghost
+se. d
+get brass key
+put torch, brass key in fireplace
+drop all
+enter fireplace
+d
+get all
+unlock hatch with brass key
+open hatch
+d. e
+turn off wheel
+turn wheel
+enter dumbwaiter
+pull rope
+pull rope
+get out
+w. s. s. se. e. n
+drop all
+get rucksack
+get all
+
+s. w. nw. n. n. w. w
+e. e. e
+turn off wheel
+turn wheel
+get bottle
+drop bottle in shaft
+turn wheel
+enter dumbwaiter
+get tablet
+get out
+w. s. s. se. d
+clean glass ball
+w
+get wrench
+fix pipe
+get books
+read romance novel
+read poetry book
+n. u
+push bell
+say even
+n. u
+get tarot cards
+d. e
+x mural
+w. s. w
+get handkerchief
+wave it
+board boat
+say time
+nw
+climb tree
+x maze
+d. w. w
+get all
+board roller
+turn it on
+
+e. e. e. w. n
+n. w. w. n. n
+n. n. w. w. w
+
+get off
+get miniature
+board roller
+
+e. e. e. s. s
+s. s. e. e. s. s
+
+turn off roller
+get off
+wear mask
+se. s. s. d
+turn wheel
+enter dumbwaiter
+pull rope
+pull rope
+get out
+w. s. s. se. s. s
+turn on projector
+turn dial
+get ace of cups
+put it in slot
+s
+search crates
+get bottle
+pull anchor
+put ship in mounted bottle
+x ship
+climb mast
+get flag
+go port
+get all
+go fore
+get branch
+go aft
+go aft
+turn wheel
+d
+
+get ace of cups
+get fool (from rucksack)
+put fool in slot
+n. n. e. s
+e. ne. n
+x cross
+read about alison in history book
+s. sw. w
+push s wall
+s
+lie down
+get flag (from rucksack)
+put flag on bed
+sleep (+5, 101)
+wait
+e. e
+turn wheel
+pinch me
+get out
+get stick
+wave stick
+break window
+s
+look under window
+get gold key
+
+n. n. n. w. nw. n
+close door
+get box
+open door
+unlock box with gold key
+open box
+get clover
+n. e
+enter dumbwaiter
+pull rope
+pull rope
+get out
+
+# Walkthroughs get stuck at this point.
+
+```
+n. e. e
+get sketch
+break frame
+get letter, sketch (+4, 125)
+open coffin
+wear gloves (if you took them off)
+read inscription
+read letter
+get rod (from rucksack)
+put rod in coffin
+close coffin
+open coffin
+get fire (+7, 132)
+get spar
+wave it (+6, 138)
+put it in coffin
+close coffin
+open coffin
+get returning
+get clover
+wave it (+6, 144)
+put it in coffin
+close coffin
+open coffin
+get luck
+get scroll
+se
+get painting (from rucksack)
+hang it on hook
+look in umbrella stand
+get sceptre
+
+[save file #5, curses_144.sav]
+
+6. Visit Hamburg and revisiting the maze
+----------------------------------------
+u
+u
+read about 1420 in map (+5, 149)
+turn door
+ne
+push ball sw
+push ball s (+3, 152)
+get tarot box
+open it
+e
+remove mask
+break cabinet
+get all from cabinet (+4, 156)
+get tablet, returning (from rucksack)
+strike returning (+5, 161)
+z
+z
+eat tablet
+get crook
+point returning at me (+5, 166)
+    If you're in 'Old Winery' then 's. s. se.'
+    If you're in 'Attic' then 's. se.'
+    If you're in 'Old Furniture' then 'se.'
+s
+s
+se
+s
+s
+get fool
+get miniature (from rucksack)
+put it in slot
+get returning (from rucksack)
+strike it
+s (+5, 171)
+e
+e
+e
+e
+e
+s
+e
+s
+e
+e
+s
+s
+w
+get weed bottle
+squeeze it
+e
+n
+n
+w
+w
+n
+w
+n
+w
+w
+w
+w
+w
+get bean pole
+point returning at me
+    If you're in 'Old Winery' then 's. s. se.'
+    If you're in 'Attic' then 's. se.'
+    If you're in 'Old Furniture' then 'se.'
+s
+w
+get book
+e
+n
+nw
+n
+n
+e
+turn wheel
+enter dumbwaiter
+pull rope
+pull rope
+get out
+n
+n
+nw
+board roller
+turn on roller
+n
+n
+e
+e
+e (+5, 176)
+get off
+get rose
+
+[save file #6, curses_176.sav]
+
+7. Revisit the unreal city, the universe maintainance room and play a 15-game
+-----------------------------------------------------------------------------
+d
+x mural
+read poetry book
+get tarot cards from tarot box
+n
+u
+put wands on deck
+put maiden on deck
+put star on deck
+push bell
+n
+u
+get cards
+d
+s
+w
+board boat
+say time
+s
+e
+e
+get quarterstaff
+wave it (+6, 182)
+put it in coffin
+close coffin
+open it
+get bronze
+get crook
+wave it (+6, 188)
+put it in coffin
+close coffin
+open it
+get husbandry
+get bean pole
+wave it (+6, 194)
+put it in coffin
+close coffin
+open it
+get stalking
+get wands
+wave it (+6, 200)
+put it in coffin
+close coffin
+open it
+get infinity
+se
+painting, lagach (to Crypt)
+get poetry book
+get bronze rod
+strike it
+point it at mural
+d
+get key
+e
+e
+read tombstone
+w
+w
+s
+smell
+smell (+6, 206)
+d (+5, 211)
+x switch
+turn switch off (Explanation: This turn off chance in universe and make determenistic.)
+u
+w
+x panel
+x bronze wall
+strike bronze rod
+point it at bronze wall
+n (+6, 217)
+x panel
+slide i
+slide k
+slide c
+slide a
+slide n
+slide e
+slide l
+slide o
+slide s
+slide t
+s
+slide k
+slide k (+15, 232)
+e
+u
+u
+u
+board roller
+w
+w
+w
+s
+s
+e
+turn off roller
+get off
+
+[save file #7, curses_232.sav]
+
+8. Visit ancient Greece
+-----------------------
+get orb (+4, 236)
+w
+se
+s
+e
+e
+se
+u
+u
+w
+s
+se
+s
+s
+get miniature
+get maiden (from rucksack)
+put it in slot
+s
+u
+e
+s
+get fire
+strike it
+point it at wall
+get luck
+strike it
+point it at me
+s
+s (+5, 241) (You are lucky and the universe is deterministic.)
+get coin
+se
+get stone (+4, 245)
+x it
+sw
+wake homer
+say agamemnon
+say ptolemy
+say yellow (+6, 251)
+d
+sw
+push statue ne
+push dionysus se
+push dionysus sw
+ne
+ne
+push demeter sw
+push demeter nw
+se
+push poseidon ne (+3, 254)
+sw
+put inscribed stone in opening
+d
+get gem (+4, 258)
+u
+u
+ne
+nw
+n
+n
+n
+get husbandry (from rucksack)
+strike it
+point it at goats
+e
+get fig
+s (+5, 263)
+give coin to bartender
+get dessert (+4, 267)
+n
+w
+w
+d
+give dessert to andromeda
+u
+sw
+play syrinx (+3, 270)
+put fig in urn
+priestess, tell me about fig (Remember the number of paces, two numbers (<X> and <Y>).)
+get returning (from rucksack)
+strike it
+point it at me
+    If you're in 'Old Winery' then 's. s. se.'
+    If you're in 'Attic' then 's. se.'
+    If you're in 'Old Furniture' then 'se.'
+
+[save file #8, curses_270.sav - This one contains 'in four paces and a pace'.]
+
+9. Visit the ruined castle café, ancient Greece again and Alexandria
+--------------------------------------------------------------------
+s
+s
+get maiden
+get castle
+put it in slot
+s (+5, 275)
+look under table
+x scarf
+pull blue wire
+pull green wire
+pull black wire
+pull red wire
+z
+z
+z
+z
+get returning (from rucksack)
+strike it
+point it at me
+    If you're in 'Old Winery' then 's. s. se.'
+    If you're in 'Attic' then 's. se.'
+    If you're in 'Old Furniture' then 'se.'
+s
+s
+get castle
+get star
+put it in slide
+s (+5, 280)
+d
+x frieze
+u
+get flash
+open flash
+set timer
+put timer in flash
+close flash
+put flash in device
+z
+z
+z
+z
+z
+z
+z (+50, 330)
+e
+e
+mosaic, lagach
+mural, lagach
+mural, lagach
+painting, lagach
+painting, lagach (You should be back at the Greek Frieze.)
+u
+get rucksack
+get all
+get returning (from rucksack)
+strike it
+point it at me
+    If you're in 'Old Winery' then 's. s. se.'
+    If you're in 'Attic' then 's. se.'
+    If you're in 'Old Furniture' then 'se.'
+s
+s
+get star
+get sketch
+put it in slide
+n
+z (until Austin appears.)
+push austin s
+jump (+3, 333)
+s
+n
+get smooth stone
+drop it in grating
+s
+se
+sw
+s
+x writings
+n
+blow bird whistle
+get cloak
+wear it (+3, 336)
+ne
+ne
+se (+5, 341)
+s
+anoint me
+n
+se
+get spindle
+nw
+z (Until messenger-boy arrives.)
+get tubes
+look in alpha
+look in kappa
+get short poem, epic poem
+put short poem in alpha
+put epic poem in kappa
+e
+give kappa to callimachus
+s
+give alpha to apollonius (+7, 348)
+get all
+n
+w
+nw
+n
+w (+5, 353)
+get stone (+4, 357) (This is actually a bug. You already got 4 points for the stone
+                     when you picked it up in the museum but during passage through
+                     the grating the stone flag got cleared.)
+get key
+(If you want you can play dice with the sailor to learn the ancient words for
+one to six.  They are, one:thu, two:zal, three:si, four:ca, five:mach, and
+six:huth.)
+e
+s
+sw
+nw
+n
+unlock grating with key
+open grating
+d (+5, 362)
+get heart
+board skiff
+sail
+sail
+sail (Until your at 'Garden Stream'.)
+get off
+
+[save file #9, curses_362.sav]
+
+10. Playing croquet
+-------------------
+s
+e
+e
+wear gloves
+get spindle (from rucksack)
+wave it (+6, 368)
+put it in coffin
+close coffin
+open it
+get ice
+get hairband (from rucksack)
+wave it (+6, 374)
+put it in coffin
+close coffin
+open it
+get sacrifice
+se
+u
+u
+w
+s
+se
+e
+s
+e
+ne
+d
+wave green branch
+get nuts (+4, 378)
+nw
+x mosaic
+get ball
+mosaic, lagach
+mural, lagach
+painting, lagach
+painting, lagach
+writings, lagach (You should be in 'White Hallway'.)
+ne
+e
+n
+get mallet
+s
+e
+walk <X> paces east (Could be west.)
+walk <Y> paces north (Could be south.)
+get implement (from rucksack)
+x it
+dig (+8, 386) (If you don't find anything here, try one of the other 4 combinations.)
+unlock strongbox with gothic key
+open it
+get astrolabe (+4, 390)
+fill hole
+get ball (from rucksack)
+drop it
+hit it with mallet
+nw (+5, 395)
+get nuts (from rucksack)
+put nuts in crack
+s
+blow bird whistle (+7, 402)
+get watch
+s
+w
+sw
+
+[save file #10, curses_402.sav]
+
+11. Visit the underworld and revisit Alexandria
+-----------------------------------------------
+painting, lagach
+frieze, lagach
+mosaic, lagach
+mural, lagach
+mural, lagach
+painting, lagach ((You should be in 'XIIth Dynasty Pyramid'.)
+n
+get gem
+put gem in socket
+d (+5, 407)
+lie down on couch
+sleep (+5, 412)
+lie down on couch
+sleep
+lie down on couch
+sleep
+lie down on couch
+sleep
+z (x8, Until the French soilders leave.)
+w
+get up
+w
+get up
+w
+get up
+w (You should be in 'The Height of Fashion'.)
+get up
+twist nose (+3, 415)
+w
+get model
+w (+5, 420)
+n (Move in various directions until you dislodge a greenish oak.)
+get oak
+get sceptre (from rucksack)
+put it in first socket
+turn it (Repeat until it rests at 'si'.)
+get sceptre
+put it in second socket
+turn it (Repeat until it rests at 'huth'.)
+get sceptre
+put it in third socket
+turn it (Repeat until it rests at 'thu'.)
+enter coffin
+close lid
+close lid
+u (+15, 435)
+w
+w
+u
+mural, lagach
+mural, lagach
+painting, lagach ((You should be in 'XIIth Dynasty Pyramid'.)
+n
+ne
+se
+remove cloak
+turn it
+wear it
+open door
+u (+5, 440)
+put oak on table (+3, 443)
+nw
+remove cloak
+turn it
+wear it
+ne
+n
+n
+remove cloak
+wear sash
+n (+5, 448)
+ne
+e
+s
+anoppe (+5, 453)
+get astrolabe (from rucksack)
+put it on mounting
+look in eyepiece
+get hand
+d
+d
+
+[save file #11, curses_453.sav]
+
+12. Around church
+-----------------
+w
+put hand on statue
+tighten hand
+get skull (from rucksack)
+put it on statue
+tighten it
+get heart (from rucksack)
+put it in statue
+get fire (from rucksack)
+strike it
+point it at statue (+15, 468)
+point e
+e
+point e
+e
+get rose (from rucksack)
+give it to knight
+get keepsake (from rucksack)
+show it to knight (+3, 471)
+point w
+w
+knight, open moonstone
+point d
+get ice (from rucksack)
+strike it
+point it at love
+get love
+get love (+1, 472)
+s
+get watch (from rucksack)
+hypnotize evans
+evans, give me mascot (+3, 475)
+s
+sw
+w
+s
+get model (from rucksack)
+look in mirror
+n
+e
+ne
+n
+
+[save file #12, curses_475.sav]
+
+13. Inside golden orb playing chess then infinity
+-------------------------------------------------
+get orb
+clean it
+get sacrifice (from rucksack)
+strike it
+point it at black (+10, 485)
+s
+sw
+w
+n
+w
+nw
+n
+n
+e
+turn wheel
+enter dumbwaiter
+pull rope
+get out
+w
+get wrought iron key (from rucksack)
+unlock door with it
+open door
+nw (+5, 490)
+get sacrifice (from rucksack)
+put it in socket
+get ice (from rucksack)
+put it in socket
+get love (from rucksack)
+put it in socket
+get fire (from rucksack)
+put it in socket
+get returning (from rucksack)
+put it in socket
+get husbandry (from rucksack)
+put it in socket
+get luck (from rucksack)
+put it in socket
+get bronze (from rucksack)
+put it in socket
+get stalking (from rucksack)
+put it in socket (+8, 498)
+put orb in opening
+
+[save file #13, curses_498.sav]
+
+14. Post-roman Britain (Master Game)
+------------------------------------
+get infinity rod
+strike it
+point it at lemniscus
+get torch
+w
+d
+swing rope
+get daisy (+4, 502)
+wear it
+u
+e
+ne
+e
+s
+get horn
+s
+e
+wear sandals
+w
+s (+5, 507)
+n
+w
+open cover
+put torch in well
+d (+4, 511)
+e
+wave horn (+6, 517)
+strike rod
+point it at me
+z (x5, Listen until the druids are finished talking.)
+w
+u (+5, 522)
+z (x4, Until the saxon spy in thrown into the tent.)
+get pole (+5, 527)
+e (+5, 532)
+get blue stone (+4, 536)
+wave pole (+6, 542)
+strike rod
+point it at me
+get rucksack
+get all
+
+[save file #14, curses_542.sav]
+
+15. Cleanup
+-----------
+read poetry book
+e. d
+get blue stone
+wave it
+give note to man
+say carte
+u. w. w
+board boat
+say time
+se. e
+enter dumbwaiter
+pull rope
+pull rope
+get out
+w. w. w
+kiss her
+e. e. s. d
