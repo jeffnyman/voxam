@@ -1,0 +1,511 @@
+! SEED=1
+! GAME=../entharion/zcode-infocom/ballyhoo-r97-s851218.z3
+
+south
+wait
+wait
+
+# The walkthrough only watches Comrade Thumb fail at the drinking
+# fountain; the game wants him helped. Lifting him for his drink
+# earns a salute -- and his silence later in Clown Alley, where an
+# unhelped Thumb rats out your disguise before the tip-off line
+# can be spoken.
+lift the midget
+
+wait
+wait
+west
+take clown mask
+south
+wait
+wait
+
+west
+examine taft
+take taft
+hide behind taft
+listen to conversation
+listen to conversation
+
+east
+east
+take pole
+north
+north
+north
+drop mask
+up
+east
+east
+east
+east
+east
+east
+take the balloon
+west
+west
+west
+west
+west
+west
+down
+down
+take all
+south
+south
+west
+south
+look in the cage
+look at the man
+untie balloon
+inhale helium
+harry, hello
+south
+west
+wear the mask
+knock on door
+south
+
+# Chuckles asks for this himself ("Johnny Tin Plate's out there
+# nosing around. Close it, will you?") -- and the door is the
+# whole ballgame: with it open he turns suspicious at the sixth
+# beat of the conversation and the tip-off is never spoken.
+close the door
+
+search ashes
+take scrap
+
+# Two beats more and Chuckles says the golden words -- "shoving
+# Annie Oakley under the old front by the elephant tent" -- then
+# catches himself mid-sentence, unmasks you, and hustles you out
+# to Camp, West: exactly where the route continues. The tip-off
+# (an exact CLOWN-COUNTER of 7 in the game's own source) is
+# banked before the ejection.
+wait
+wait
+
+go under wall
+east
+north
+east
+north
+northeast
+search garbage
+take ticket
+punch out the blue dot
+southwest
+south
+put the ticket in the slot
+east
+south
+southeast
+look in the cage
+take keys with pole
+unlock door
+open door
+north
+take bucket
+take headphones
+
+south
+northwest
+north
+west
+west
+south
+west
+south
+east
+examine the trailer
+unlock the compartment
+open the compartment
+take whip
+north
+east
+north
+put ticket in slot
+east
+east
+east
+north
+northeast
+take the stool
+northwest
+south
+west
+west
+west
+north
+north
+unlock cage
+open cage
+west
+examine the lions
+whip smooth lion
+whip smooth lion
+whip smooth lion
+lift grate
+throw meat in passage
+east
+west
+lower the grate
+search the stand
+east
+south
+south
+south
+west
+give case to harry
+north
+east
+put ticket in slot
+east
+east
+south
+show case to jenny
+give case to jenny
+north
+north
+give ticket to rimshaw
+rimshaw, hypnotize me
+wait
+wait
+wait
+wait
+buy candy
+give $1.85 to the hawker
+stand up
+east
+up
+east
+down
+east
+up
+east
+down
+south
+stand in line
+wait
+wait
+get out of long line
+stand in short line
+wait
+wait
+get out of long line
+yes
+stand in long line
+bite the banana
+drop banana
+north
+ask the hawker about candy
+up
+west
+down
+west
+up
+west
+down
+west
+stand up
+south
+west
+
+go under the wall
+search garbage
+take bar
+south
+east
+east
+north
+northeast
+show bar to tina
+tina, hello
+shake hands
+northwest
+take the radio
+
+south
+west
+west
+south
+southeast
+drop all except radio and headphones
+up
+set radio to 1170
+turn radio off
+rewind the tape
+wait
+play tape
+wait
+wait
+stop tape
+rewind tape
+turn radio on
+record
+wait
+wait
+wait
+wait
+wait
+stop tape
+rewind tape
+wait
+down
+take all
+
+northwest
+unlock cage
+open cage
+west
+play the tape
+search the straw
+open trap door
+take ribbon
+east
+close cage
+lock cage
+north
+west
+west
+south
+west
+touch wood with pole
+take mousetrap
+drop mousetrap
+take cheese
+put cheese on trap
+east
+west
+east
+west
+catch mouse with bucket
+take mouse
+east
+north
+east
+put ticket in slot
+east
+south
+show mouse to elephant
+show mouse to elephant
+wait
+southwest
+drop all
+up
+turn the crank
+look into wagon
+knock on door
+in
+lock the door
+search the desk
+take the spreadsheet
+move the desk
+up
+read the spreadsheet
+climb down ladder
+take all
+west
+ask harry about eddie
+
+east
+northeast
+southeast
+
+# The reward for the whole clown-trailer episode: the sideshow
+# front by the elephant tent takes the ticket and a secret panel
+# slides open. Without the Thumb favor and the closed door above,
+# this answers "You haven't been tipped off about that yet."
+
+slide ticket under front
+
+east
+take ticket
+bet 25 cents
+open the panel
+y
+y
+y
+y
+n
+open the panel
+west
+northwest
+north
+west
+examine thumb
+south
+northeast
+southeast
+slide ticket under front
+east
+look under table
+take suitcase
+wait
+west
+drop all
+up
+up
+wait
+east
+wait
+take shaft
+pull shaft
+down
+down
+take all except key, whip and stool
+
+northwest
+north
+west
+
+fill bucket with water
+south
+northeast
+north
+pour water on detective
+ask detective about chelsea
+drop bucket
+take ransom note
+take card
+read ransom note
+east
+south
+up
+take all
+
+up
+north
+west
+west
+west
+south
+west
+south
+east
+eddie, hello
+show eddie the ribbon
+show eddie the scrap
+show eddie the note
+show eddie the spreadsheet
+show eddie the card
+search pocket
+take veil
+wear veil
+wear the suit
+wear the jacket
+
+# The knock works here on replay -- curtains part, the German
+# accent leaves to fetch Eddie and Willie, and the trailer is
+# briefly unguarded. (A live session that answered "nothing
+# happens" had drifted from this file's state; the recording is
+# the truth.)
+knock on door
+east
+
+# Closing the door is what reveals the crowbar against the wall.
+close the door
+take crowbar
+move the moose
+open the door
+west
+west
+open trailer door with crowbar
+south
+take thumb
+north
+east
+east
+put thumb in hole
+
+# Thumb boosts Chelsea up to the opening on the second beat, and
+# she pauses there only an instant -- wait once more and she
+# drops back down (two failed boosts and the rescue is over).
+# The hoist must land exactly on the pause.
+wait
+wait
+take chelsea
+
+west
+north
+east
+northeast
+north
+west
+north
+north
+clap hands
+roustabout, get the net
+take off veil
+take off jacket
+take off suit
+drop all
+west
+take the stand
+east
+drop the stand
+take radio
+climb stand
+up
+drop radio
+down
+take pole
+climb stand
+up
+
+# The walkthrough warns the pole may drop on this climb; under
+# this seed it never does. The down/take-pole pair below is a
+# harmless leftover of a live retry ("You already have it") and
+# the verified finale continues from exactly this state.
+down
+take pole
+
+# The finale the walkthrough garbled, reconstructed from the
+# game's own source. Three interlocking gates: (1) shake the guy
+# wires -- never mentioned by any walkthrough -- to flush Mahler
+# from his perch onto the far platform (carry the radio: left on
+# that platform, he lands on it, "Crunch!"); (2) walk the rope to
+# the halfway point so the radio is close enough to hear WPDL's
+# fund appeal break into the music -- that announcement is what
+# makes the station's phone line answerable; (3) retreat, pledge
+# by phone from the Office, then cross again: the announcer plays
+# her withheld Vivaldi, and at the fifth step the becalmed ape
+# releases Chelsea into the net.
+climb stand
+up
+take radio
+shake the guy wires
+east
+east
+east
+west
+west
+west
+west
+drop radio
+drop pole
+down
+south
+south
+south
+east
+call wpdl
+west
+north
+north
+north
+climb stand
+up
+take all
+east
+east
+east
+east
+east
+
+# Bounced off the wire to Left Hanging, three beats of the crowd's
+# reconciliation below, and the sweaty-handed fall to victory --
+# into the net.
+wait
+wait
+wait
+quit
