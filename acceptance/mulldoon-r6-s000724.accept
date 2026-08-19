@@ -1,0 +1,399 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/mulldoon-r6-s000724.z8
+
+>
+i
+examine coral
+east
+east
+east
+east
+put coral in mesh
+enter vortex
+>
+
+i
+x note
+x back of note
+x key
+x torch
+x band
+x crocuses
+look in crocuses
+reach into crocuses
+x brick
+rub brick
+north
+
+x pillars
+x left pillar
+x right pillar
+x doors
+open doors
+x keypad
+push display
+push other
+push select
+unlock door with key
+open doors
+north
+
+x dais
+x button
+x branch
+take branch
+push button
+x plaque
+wait
+x tree
+x lights
+wait
+wait
+close doors
+west
+
+x vent
+look in vent
+take envelope
+throw brick at vent
+x shutters
+east
+northeast
+
+x sculpture
+x plaque
+x footlights
+east
+
+x sculpture
+turn beam
+swing beam
+x trough
+x plaque
+northeast
+take glass
+x glass
+put glass in hoop
+south
+
+x peasants
+x hut
+x man
+x satchel
+take satchel
+x box
+take matches
+x match
+take match
+x door
+open door
+east
+
+yes
+x table
+x teller
+ask teller about grandfather
+think about grandfather
+out
+
+# The two ups are the walkthrough's own demonstration failures:
+# first the chain (not brave enough), then bravely into the metal
+# shutters. The shop wing stays shuttered -- the route in is
+# nothing the walkthrough's room-keyed sections ever spell out.
+u
+u
+
+# To the foyer, whose central dais is the way up: examining it
+# reveals a small black button, and the exact dance below -- seen,
+# pushed, pushed, then stood upon -- is what summons an
+# upside-down Christmas tree through the ceiling hole on a cable.
+# (This game gates on discovered knowledge on purpose: touching
+# the corridor's secret wall before learning of it in-game earns
+# Ingold's taunt "Playing a restored game are we?")
+north
+west
+southwest
+x dais
+push dais
+push button
+stand on dais
+
+# The tree's fairy lights are not broken, merely loose.
+tighten bulbs
+
+# Both hands for the tree; the lit fairy lights replace the torch.
+drop all
+hold tree
+
+# "You'll have to get off the dais first. With a whirr, the tree
+# ascends back through the ceiling and you go with it."
+up
+
+# The Visitor's Information booth, and Grandfather's word puzzle:
+# CAME becomes CAMEO. Abbott's Records reveals the north exits
+# walled off from the Long East-West Corridor and Modern Art Wing
+# West.
+x booth
+enter booth
+x terminal
+type cameo
+type q
+out
+west
+
+x mat
+look under mat
+look in hole
+x blockage
+
+
+# The walkthrough's "Surrounded by Brochures" is another room --
+# northeast, through the bookshelves. Its room-keyed sections
+# never say so; the block was one missing direction.
+northeast
+
+x booklets
+x shelves
+x copier
+
+# Pushing the copier drags you along with it -- and reveals the
+# hatch. The copier's constant under-lid light is a lamp on
+# wheels, parked back northeast to light the hatch room.
+push copier south
+push copier onto mat
+push copier northeast
+
+open hatch
+east
+south
+
+x generator
+push switch
+throw switch
+x chute
+down
+southwest
+take torch
+west
+x north wall
+push north wall
+touch north wall
+north
+x footprints
+west
+
+x case
+x cards
+open case
+
+# The walkthrough's "Staff Room" is one unstated step north of
+# Anonymous Exhibits -- the third missing direction of the night.
+north
+
+# "How do you know he's called Old Giles?" -- the game teasing
+# walkthrough knowledge again. The conversation runs on coffee
+# time: the confession lands flat, two sips pass, THEN his
+# curiosity fires ("how did you get in here? The shutters were
+# down, weren't they?"), and only the second telling earns
+# "Come on, laddie, you'll have to show me."
+x man
+tell giles about me
+sit
+ask giles about grandfather
+ask giles about museum
+tell giles about secret door
+wait
+wait
+tell giles about secret door
+
+# He blocks the door until shown: touching the east wall under
+# his eye gets "Incredible! ... I'll wager even Edgar didn't!" --
+# and he opens the museum's shutters for good.
+stand
+south
+touch east wall
+wait
+north
+
+# The Staff Room loot: the screwdriver hides in the green chair's
+# feather stuffing, the unscrewed pane comes along (it has a date
+# with a sign-board), and the garden key lives in the Key Reserve.
+x reading
+take booklet
+read about mermaid in booklet
+read poster
+x cupboard
+open cupboard
+touch green chair
+open green chair
+reach in green chair
+take screwdriver
+close chair
+unscrew cupboard with screwdriver
+look up garden in cupboard
+
+# Giles takes five beats to come back from the shutters. The
+# walkthrough's coffee ceremony never fired for us (and a stray
+# yes/no near Giles is dangerous -- he answers "Are you off?"
+# by showing you OUT). The load-bearing lore asks fine without
+# it: the generator is "a crux point for the magic", and the
+# Magic itself is translocation.
+wait
+wait
+wait
+wait
+wait
+sit on green chair
+giles, what is the generator for
+giles, what is magic
+g
+g
+giles, where is edgar
+giles, who are you
+giles, where is botanical room
+stand
+say no
+
+# The monkey's lever hides under a flap; the cupboard's glass
+# pane completes the sign-board: "OPEN MONKEY RESERVE" -- and the
+# woken monkey drums "in an odd rhythm", noted for later.
+southwest
+x monkey
+open flap
+x lever
+x door
+x board
+put pane in frame
+pull lever
+z
+push lever
+
+east
+south
+
+# The Post Office machinery, catalogued for later: the fragile
+# message board's red wire, the scanner's crackling wiring, the
+# lion card in the tray, the crate missing bands for its pulley.
+x message board
+x image scanner
+open panel
+x wiring
+x tray
+take card
+x card
+x cutter
+x lever
+x crate
+x mechanism
+look in crate
+
+west
+x thermostat
+push reset
+touch reset
+x broom
+take broom
+east
+
+# Giles's shutters opened the whole museum: the shop wing now
+# walks straight into the Long East-West Corridor, and the route
+# to the History Exhibit is plain walking.
+east
+east
+northeast
+east
+south
+
+# The garden behind the History Exhibit, and the blanket in the
+# bower.
+unlock door with garden key
+open door
+south
+x bushes
+southeast
+x blanket
+take blanket
+northwest
+north
+
+# The pre-tree "drop all" landed everything ON the dais -- the
+# foyer floor shows nothing and "take all" finds nothing; it
+# takes "take all from dais" to get the brick back.
+north
+west
+southwest
+x dais
+take all from dais
+
+# The melt scene, decoded: the matchbox is wax-locked and the
+# lone match is wedged under a waxwork sandal -- it strikes IN
+# PLACE against the sandpaper brick, burns for exactly two turns,
+# and the "copy" the walkthrough lights is the copy of "Creatures
+# of Mythos" from the Staff Room. The game's own score text for
+# melting the satchel free: "four points for selective arson."
+northeast
+east
+south
+light match with brick
+light booklet with match
+melt man with booklet
+take satchel
+read scrap
+wear satchel
+
+# The fortune teller trades in silver and silence: every question
+# gets a finger to her lips, but the silver museum key on her palm
+# buys the reading. Time, Art or Force -- Time, "As it was". The
+# glass pendant she leaves on the table is the museum's missing
+# ping-pong-ball-sized hoop-piece (the clock glass never fit --
+# "a little too big", a silent failure the original session
+# carried for four hundred lines) AND the doorway to the visions:
+# it slings itself around your neck and your own hand touches the
+# disc, unasked.
+east
+give key to teller
+time
+think about time
+look
+take charm
+
+# As the Lady Nimue: a blue robe with one pocket, and a metal cube
+# whose rubbed edge calls down actual lightning. The village totem
+# has an empty square socket; the uphill traffic is "too fast to
+# stop" and the hill wants "a lift somehow" -- next expedition's
+# first puzzle.
+x me
+i
+x robe
+x cube
+rub cube
+stand
+x huts
+x villagers
+x tree
+x totem
+
+# The uphill lift, choreographed: the cube's lightning drops a
+# branch from the straggler tree; horses leap it, but a stone
+# cart "screams to a halt" on the fifth beat while the driver
+# clears the log -- and that one turn is the boarding window.
+take cube
+rub cube
+wait
+wait
+wait
+wait
+wait
+ride cart
+
+# The Old One's stronghold-to-be, and the purple teleport light
+# dispersed through a lens slung between treetops -- iron tool
+# heads immune, which the museum will surely make relevant.
+# Stepping into the light ends the vision on the half-built
+# walls, and the pendant hands you back to the fortune teller.
+x people
+x stone
+north
+x tool heads
+x platform
+get on platform
