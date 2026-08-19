@@ -117,6 +117,26 @@ class StubGlass:
         self.drawn.append((rows, line, column, size))
 
 
+class MeddlingGlass(StubGlass):
+    """A glass whose key read first runs a planted disturbance.
+
+    The disturbance stands in for a timed interrupt printing while
+    a read waits -- the machine's §15 seam, exercised without a
+    machine.
+    """
+
+    def __init__(self, keys: list[str | None] | None = None) -> None:
+        super().__init__(keys)
+        self.meddler: Callable[[], None] | None = None
+
+    def key(self, timeout: float | None) -> str | None:
+        if self.meddler is not None:
+            meddle, self.meddler = self.meddler, None
+            meddle()
+
+        return super().key(timeout)
+
+
 def windowed(
     version: int = 5, keys: list[str | None] | None = None
 ) -> tuple[GraphicsFrontend, StubGlass]:
@@ -619,6 +639,74 @@ def test_read_line_edits_through_the_model() -> None:
 
     assert_that(line).is_equal_to("hi")
     assert_that(frontend.model.row_text(1)).is_equal_to("hi")
+
+
+# A line read underlines the cursor's cell -- the caret is a
+# two-pixel bar at the cell's foot -- and it follows the typing
+# across the row, so a player always sees where input lands.
+def test_read_line_shows_a_moving_caret() -> None:
+    frontend, glass = windowed(keys=["h", "i", "\n"])
+
+    frontend.read_line()
+
+    carets = [entry for entry in glass.filled if entry[2:4] == (2, 9)]
+
+    assert_that(carets).is_not_empty()
+    assert_that({entry[1] for entry in carets}).is_length(3)
+
+
+# A keystroke read shows the caret too -- Bureaucracy's form hops
+# its cursor between fields through read_char, and the caret is
+# how a player follows it -- and the cell is restored afterwards.
+def test_read_key_shows_and_removes_the_caret() -> None:
+    frontend, glass = windowed(keys=["x"])
+
+    frontend.read_key()
+
+    carets = [entry for entry in glass.filled if entry[2:4] == (2, 9)]
+
+    assert_that(carets).is_not_empty()
+    assert_that(glass.painted).is_not_empty()
+
+
+# A print landing elsewhere mid-read -- a timed interrupt
+# updating an upper-window clock, Bureaucracy-style -- repaints
+# its own rows and leaves the settled caret exactly where it is,
+# rather than redrawing it every frame.
+def test_mid_read_prints_leave_the_caret_alone() -> None:
+    glass = MeddlingGlass(["x"])
+    frontend = GraphicsFrontend(5, glass=glass)
+
+    frontend.write("\n\n\n> ")
+    frontend.split_window(1)
+
+    def interruption() -> None:
+        frontend.set_window(1)
+        frontend.set_cursor(1, 1)
+        frontend.write("TIME  9:00")
+        frontend.set_window(0)
+
+    glass.meddler = interruption
+    frontend.read_key()
+
+    carets = [entry for entry in glass.filled if entry[2:4] == (2, 9)]
+
+    assert_that(carets).is_length(1)
+
+    # The meddler is spent; a further read runs the quiet path.
+    glass.keys = ["y"]
+    frontend.read_key()
+
+
+# The v6 stage draws no caret of its own: its games place and
+# paint their cursors, and an uninvited underline would sit on
+# top of their pixel layouts.
+def test_v6_reads_draw_no_caret() -> None:
+    frontend, glass = windowed(version=6, keys=["x"])
+
+    frontend.read_key()
+
+    assert_that(glass.filled).is_empty()
 
 
 # A repaint with no damage presents nothing: the frame only flips
