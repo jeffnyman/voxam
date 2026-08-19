@@ -187,6 +187,66 @@ def test_rub_out_works_in_the_upper_window() -> None:
     assert_that(screen.cursor).is_equal_to((1, 1))
 
 
+# A hung more callback fires after a screenful of lower-window
+# lines -- the window's height less the prompt's own line -- and
+# the count starts over after each pause (§8.8.3.2.6's courtesy,
+# offered on the two-window screen).
+def test_more_fires_at_a_screenful() -> None:
+    screen = small(version=5)
+    pauses: list[int] = []
+    screen.more = lambda: pauses.append(1)
+
+    screen.write("\n\n\n\n")
+
+    assert_that(pauses).is_empty()
+
+    screen.write("\n")
+
+    assert_that(pauses).is_length(1)
+
+    screen.write("\n\n\n\n\n")
+
+    assert_that(pauses).is_length(2)
+
+
+# Input rests the budget, and erasing the lower window refills it:
+# read text and erased text alike cannot be unread.
+def test_rest_and_erase_refill_the_more_budget() -> None:
+    screen = small(version=5)
+    pauses: list[int] = []
+    screen.more = lambda: pauses.append(1)
+
+    screen.write("\n\n\n\n")
+    screen.rest()
+    screen.write("\n\n\n\n")
+
+    assert_that(pauses).is_empty()
+
+    screen.erase_window(0)
+    screen.write("\n\n\n\n")
+
+    assert_that(pauses).is_empty()
+
+
+# The upper window neither scrolls nor counts, and a split narrows
+# the page to the lower window that remains.
+def test_upper_window_feeds_no_more_budget() -> None:
+    screen = small(version=5)
+    pauses: list[int] = []
+    screen.more = lambda: pauses.append(1)
+
+    screen.split_window(2)
+    screen.set_window(UPPER)
+    screen.write("\n\n\n\n\n\n\n\n")
+
+    assert_that(pauses).is_empty()
+
+    screen.set_window(0)
+    screen.write("\n\n\n")
+
+    assert_that(pauses).is_length(1)
+
+
 # The line editor's cursor motion retreats without erasing: the
 # text stays painted, the motion clamps at the left edge, and the
 # cells actually moved come back (§15 read).

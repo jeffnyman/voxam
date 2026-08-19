@@ -15,7 +15,7 @@ window hangs below it (§8.6.1.1); from Version 4 the upper window
 starts at the top of the screen (§8.7.2.1).
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from voxam.errors import ZMachineScreenError
@@ -111,6 +111,14 @@ class ScreenModel:
         self._pending: list[Cell] = []
         self._scroll_due = False
         self._damage: set[int] = set()
+        # [MORE] paging is interpreter courtesy: a frontend that
+        # wants a pause before a screenful of unread text scrolls
+        # away hangs a callback here, and the model counts the
+        # lower window's fed lines toward it. Left as None -- the
+        # plain stream, the tests -- nothing counts and nothing
+        # pauses, so recordings replay byte-identically.
+        self.more: Callable[[], None] | None = None
+        self._fed = 0
         self._upper_cursor = (1, 1)
         self._lower_cursor = (
             (lines, 1)
@@ -307,6 +315,32 @@ class ScreenModel:
         else:
             self._lower_cursor = (row + 1, 1)
 
+        self._feed_page()
+
+    def _feed_page(self) -> None:
+        """Count one fed line toward a [MORE] pause (§8.8.3.2.6 spirit).
+
+        A screenful is a lower window's height less one -- the line
+        the pause prompt itself stands on. The pause fires mid-write
+        by design: the callback repaints and waits for a key, and
+        reentrant reads of the grid are safe because a flush empties
+        its pending word before emitting.
+        """
+
+        if self.more is None:
+            return
+
+        self._fed += 1
+
+        if self._fed >= max(self._lines - self._split - 1, 1):
+            self._fed = 0
+            self.more()
+
+    def rest(self) -> None:
+        """Reset the [MORE] budget: input means everything was read."""
+
+        self._fed = 0
+
     def _scroll(self) -> None:
         """Scroll the lower window up one line (§8.7.3.1).
 
@@ -460,6 +494,12 @@ class ScreenModel:
         """
 
         self._flush()
+
+        # Erased text cannot be unread, so an erase refills the
+        # [MORE] budget -- the rested-erase rule, brought over from
+        # the v6 stage (§8.8.3.2.6).
+        if window != UPPER:
+            self._fed = 0
 
         if window == ERASE_UNSPLIT:
             self._clear_all()

@@ -641,6 +641,19 @@ def test_read_line_edits_through_the_model() -> None:
     assert_that(frontend.model.row_text(1)).is_equal_to("hi")
 
 
+# The cell model pages like the stage: a screenful at the pygame
+# window holds behind [MORE] in the window's colours reversed,
+# spends one key on the pause, and repaints the row clean.
+def test_cell_screenfuls_pause_behind_more() -> None:
+    frontend, glass = windowed(keys=[None, "x"])
+    frontend.idle = lambda: None
+
+    frontend.write("line\n" * 8)
+
+    assert_that(runs_containing(glass, "[MORE]")).is_not_empty()
+    assert_that(glass.keys).is_empty()
+
+
 # A line read underlines the cursor's cell -- the caret is a
 # two-pixel bar at the cell's foot -- and it follows the typing
 # across the row, so a player always sees where input lands.

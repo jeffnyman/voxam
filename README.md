@@ -143,7 +143,11 @@ the session's command history, shell-style -- at the terminal and
 the pygame window alike, with single-keystroke reads still passing
 the arrows through to the games that claim them. Timed
 input runs on the real wall clock there, so a game like Z-Tornado
-plays in genuine real time. The architecture keeps a strict split
+plays in genuine real time. And a screenful of unread text waits
+behind a reverse-video [MORE] until a key arrives -- at the
+terminal and the pygame window alike, for every story version --
+so a game's longest speech never outruns its reader.
+The architecture keeps a strict split
 between a pure screen model -- a grid of attributed cells held to
 §8 by golden-grid tests -- and a thin painter that only repaints
 what changed, so the screen is as testable as the machine beneath

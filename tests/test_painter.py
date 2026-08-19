@@ -394,6 +394,23 @@ def test_read_line_recalls_history() -> None:
     assert_that(frontend.model.row_text(2)).is_equal_to("inventory")
 
 
+# A screenful of prints pauses behind a reverse-video [MORE] at
+# the cursor, spends one key on the pause, and repaints the row
+# clean -- the top of Bureaucracy's post-form text wall survives.
+# The idle heartbeat is armed and expires once before the real
+# key: a heartbeat must never answer the pause, or [MORE] clicks
+# itself after a fifth of a second.
+def test_a_screenful_pauses_behind_more() -> None:
+    frontend, out = painted(keys=[StubKey(""), StubKey("x")])
+    frontend.idle = lambda: None
+
+    frontend.write("line\n" * 8)
+    text = "".join(out)
+
+    assert_that(text).contains("<rev>[MORE]")
+    assert_that(frontend.model.rendered()).does_not_contain("[MORE]")
+
+
 # A plain keystroke passes through read_key as itself, unechoed --
 # §15 read_char leaves echoing to the game.
 def test_read_key_passes_plain_keys_through() -> None:
