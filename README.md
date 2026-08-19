@@ -308,6 +308,24 @@ does not. `--interpreter` claims any §11.1.3 platform by name or
 number, and `--tandy` sets the bit that makes early Infocom games
 mind their manners.
 
+And before playing anything, `--header` reads a story's own
+manifest (§11.1) and reports it:
+
+```bash
+voxam --header path/to/story.z3
+```
+
+Release and serial answer "which version of this game is this?"
+in one command -- the question the corpus's release-archaeology
+keeps asking -- while the checksum is computed as §15's verify
+opcode would and judged against the stored word, so a corrupt
+download announces itself before it wastes an evening. Every
+table address arrives with its Standard citation, and the
+courtesies the game asks for -- pictures, sound, undo, a mouse,
+menus -- are decoded from the flags as the compiler shipped them,
+before any interpreter stamps in capabilities of its own. Packaged
+`.zblorb` stories work as-is.
+
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
