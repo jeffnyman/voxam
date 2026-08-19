@@ -1,0 +1,203 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/balances-r5-s961216.z5
+
+i
+examine book
+examine coin
+examine burin
+how do spells work
+spells
+who is Helistar
+what was the Great Change
+examine furniture
+examine box
+open box
+learn rezrov
+rezrov box
+
+take grimoire
+examine grimoire
+learn mortin
+learn lleps
+lleps mortin
+mortin
+
+west
+north
+examine horse
+examine oats
+examine scroll
+gnusto scroll
+learn bozbar
+bozbar horse
+ride horse
+examine snake
+examine cube
+learn yomin
+yomin snake
+jump
+
+take scroll
+examine scroll
+gnusto scroll
+north
+north
+ride horse
+
+take all but snake and cube
+learn mortin
+learn lleps
+lleps mortin
+mortin
+learn filfre
+filfre
+north
+
+examine tortoise
+learn yomin
+yomin tortoise
+learn bozbar
+bozbar tortoise
+look
+take scroll
+examine scroll
+northwest
+
+examine sapphire
+spells
+examine caskly
+caskly scroll
+examine scroll
+gnusto scroll
+examine door
+north
+
+examine carpet
+take carpet
+south
+learn rezrov
+rezrov door
+west
+
+learn frotz
+frotz coin
+examine cube
+examine crumpled
+take cube
+write cave on cube
+take crumpled
+gnusto crumpled
+east
+take gold coin from right pan
+take bronze coin from left pan
+east
+put gold coin on right
+put silver coin on left
+
+east
+southeast
+south
+learn urbzig
+urbzig snake
+take cube
+write chasm on featureless cube
+drop carpet
+sit on carpet
+
+stand
+sit on carpet
+stand
+take carpet
+east
+
+examine temple
+listen
+learn lobal
+lobal me
+listen
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+take feather
+examine feather
+west
+northwest
+west
+
+take silver
+put bronze on left
+put feather on left
+east
+southeast
+
+drop carpet
+sit on carpet
+stand
+take carpet
+examine barker
+examineboard
+learn yomin
+drop carpet
+sit on carpet
+
+learn yomin
+learn yomin
+learn yomin
+stand
+sit on carpet
+
+stand
+give silver to barker
+yomin barker
+take ticket 2306
+examine 2306 ticket
+yomin barker
+take ticket 5802
+examine 5802 ticket
+give ticket 2306 to barker
+give ticket 5802 to barker
+exmaine elephant
+write prize on featureless
+sit on carpet
+
+stand
+take carpet
+learn urbzig
+learn lleps
+lleps urbzig
+drop toy
+urbzig toy
+learn urbzig
+urbzig mace
+take cube
+write mace on featureless
+east
+
+learn frotz
+frotz temple
+
+examine podium
+clean podium
+examine socket
+
+examine bottom left socket
+put chasm cube in it
+
+examine bottom right socket
+put cave cube in it
+
+examine top left socket
+put prize cube in it
+
+examine top right socket
+put mace cube in it
+quit
