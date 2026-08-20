@@ -1,0 +1,39 @@
+name: Courtesy request
+description:
+  Something VΘXΔM does not do yet -- a feature, an interpreter
+  courtesy, an item from the README's "Not yet" list.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want, and what it unlocks
+      description: >
+        The best requests name a game: "Zork Zero's Tower of Bozbar
+        wants X" carries more weight than "X would be nice", because
+        a game gives the work an acceptance test.
+    validations:
+      required: true
+  - type: dropdown
+    id: standing
+    attributes:
+      label: Its standing in the Standard
+      description: >
+        Does the Z-Machine Standard require this, merely permit it,
+        or not speak of it at all?
+      options:
+        - The Standard requires it
+        - The Standard permits it (an interpreter courtesy)
+        - The Standard is silent; other interpreters do it
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: precedent
+    attributes:
+      label: Precedent
+      description: >
+        If another interpreter offers this, name it -- prior art
+        shapes how (and whether) a courtesy gets honored here.
+    validations:
+      required: false
