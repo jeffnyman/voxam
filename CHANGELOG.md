@@ -1,3 +1,29 @@
+## v1.0.0 (2026-08-20)
+
+Full Z-Machine Support: every §14 opcode handled, all eight versions played, all four graphical games in the corpus.
+
+### Feat
+
+- **scribe**: the session files -- SCRIPT's transcript, stream 4's command script, input stream 1's playback (§7, §10.2) (#186)
+- **machine**: the last three opcodes -- encode_text, buffer_screen, input_stream; all 120 of §14 now handled (#185)
+- **trace**: --trace writes every executed instruction, listing-style -- the golden trace, interrupts included (#184)
+- **listing**: --listing disassembles the story txd-style -- code found by decoding it, Zork I's 440 routines exact (#183)
+- **glass**: the clipboard pastes at the window -- Ctrl+V, Cmd+V, Shift+Insert through the key seam (#182)
+- **picfile**: Infocom's original MG1/EG1/CG1 picture files hang their art -- pix2gif's rules, FMV Poker's cards (#181)
+- **machine**: mouse clicks arrive as §10.3 input codes -- Solitaire Poker's buttons take a real click (#180)
+- **zscii**: surrogate halves fuse at the screen -- the smileys checker's six emoticons render (#177)
+- **machine**: timed line reads run live on the wall clock -- Border Zone's espionage engine ticks (#175)
+- **screen**: [MORE] paging for the two-window screen -- no speech outruns its reader (#172)
+- **glass**: an input caret at the pygame window -- the form's hopping cursor made visible (#171)
+- **cli**: --header glances at a story's manifest -- identity, memory map, and flags, cited (#170)
+
+### Fix
+
+- **screen**: the upper cursor tolerates overreach to the screen's edge -- Frotz's silence, bounded (#179)
+- **editor**: control characters wait out instead of crashing the session -- tab chief among them (#178)
+- **machine**: redisplay only when the story window printed -- no picket fence of prompts (#176)
+- **painter**: bold spaces shed their bold -- no glyph, no brightness patchwork (#174)
+
 ## v0.10.0 (2026-08-19)
 
 ### Feat

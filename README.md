@@ -22,6 +22,12 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/voxam/"><img src="https://img.shields.io/pypi/v/voxam.svg" alt="PyPI package latest release"></a>
+  <a href="https://pypi.org/project/voxam/"><img src="https://img.shields.io/pypi/pyversions/voxam.svg" alt="Supported Python versions"></a>
+  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen.svg" alt="Coverage: 100% branch, enforced in CI">
+</p>
+
+<p align="center">
   <a href="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml"><img src="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-green.svg" alt="Conventional Commits: 1.0.0"></a>
 </p>
@@ -97,7 +103,14 @@ an archaeology of where the games' published walkthroughs go wrong.
 
 ## Status
 
-Version `0.x`: early, honest, and playable.
+Version `1.0`: Full Z-Machine Support -- no longer a goal, a
+claim. Every opcode §14 defines has a handler, all eight story
+file versions play, and everything below is enforced in
+continuous integration rather than promised: a test suite at
+100% branch coverage, thirty-eight recorded playthroughs swept
+end-to-end, and the community's own checkers held to their exact
+tallies. The short list that remains is under **Not yet**; Glulx
+is the road to 2.0.
 
 **Works today:** story file versions 1 through 8 -- Infocom's
 whole catalog, the modern Inform and PunyInform games built on

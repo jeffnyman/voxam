@@ -1,6 +1,6 @@
 [project]
 name = "voxam"
-version = "0.10.0"
+version = "1.0.0"
 description = "An Interpreter for the Z-Machine and Glulx"
 readme = "README.md"
 authors = [
@@ -226,9 +226,5 @@ name = "cz_conventional_commits"
 # the package version and the git tag in lockstep.
 version_provider = "pep621"
 tag_format = "v$version"
-
-# While the project is 0.x, breaking changes bump the minor version rather
-# than promoting to 1.0.0. Remove this once the public interface stabilizes.
-major_version_zero = true
 
 update_changelog_on_bump = true

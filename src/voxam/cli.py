@@ -72,7 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="voxam",
-        description="An interpreter for Z-Machine (and, one day, Glulx) stories.",
+        description="A complete Z-Machine interpreter; Glulx to follow.",
     )
     parser.add_argument(
         "story",
@@ -163,7 +163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
 
-    print("\nVoxam Interpreter for Z-Machine and Glulx\n")
+    print("\nVoxam Interpreter for Z-Machine Stories\n")
 
     reported = _static_report(arguments)
 
