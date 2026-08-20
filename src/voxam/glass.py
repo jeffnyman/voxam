@@ -1296,6 +1296,7 @@ class _PygameGlass:
         # session, for comparing against what it SHOWS.
         self._snapshot = os.environ.get("VOXAM_SNAPSHOT")
         self._click: tuple[int, int] | None = None
+        self._pasted: list[str] = []
         self._tiles: dict[
             tuple[str, tuple[int, int, int], tuple[int, int, int]], Any
         ] = {}
@@ -1434,6 +1435,12 @@ class _PygameGlass:
         clock_start = module.time.get_ticks()
 
         while True:
+            if self._pasted:
+                # Pasted text drains one character per call, so the
+                # editor, timed reads, and the recorder all hear it
+                # as ordinary typing.
+                return self._pasted.pop(0)
+
             for event in module.event.get():
                 if event.type == module.QUIT:
                     raise EOFError
@@ -1459,6 +1466,21 @@ class _PygameGlass:
                     return "\xfe"
 
                 if event.type == module.KEYDOWN:
+                    # The paste chords a desktop expects: Ctrl+V --
+                    # Cmd+V through KMOD_META on a Mac -- and the
+                    # traditional Shift+Insert.
+                    pasting = (
+                        event.key == module.K_v
+                        and event.mod & (module.KMOD_CTRL | module.KMOD_META)
+                    ) or (
+                        event.key == module.K_INSERT and event.mod & module.KMOD_SHIFT
+                    )
+
+                    if pasting:
+                        self._pasted.extend(_pasteable(module))
+
+                        continue
+
                     named = self._keys.get(event.key)
 
                     if named is not None:
@@ -1666,6 +1688,25 @@ def _roomy_grid(
         lines -= 1
 
     return (_columns_for(standard, cell_width, cell_height), GLASS_LINES)
+
+
+def _pasteable(module: object) -> list[str]:
+    """The clipboard as keystrokes: printable text, returns kept.
+
+    A Windows clipboard ends its lines with a carriage-return
+    pair, so both forms collapse to the one newline the reader
+    takes as a return key -- a multi-line paste submits line by
+    line, exactly as it does at a terminal. Everything else
+    unprintable is dross no keyboard could type and is dropped
+    rather than arriving at §3.8 as a crash.
+    """
+
+    pygame: Any = module
+    text = pygame.scrap.get_text().replace("\r\n", "\n").replace("\r", "\n")
+
+    return [
+        character for character in text if character == "\n" or character.isprintable()
+    ]
 
 
 def _key_characters(module: object) -> dict[int, str]:
