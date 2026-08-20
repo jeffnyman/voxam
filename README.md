@@ -257,10 +257,7 @@ all one hundred and twenty of them, `encode_text` through
 `buffer_screen` -- has a handler, and every remaining gap halts
 loudly with a citation instead of guessing.
 
-**Not yet:** the transcript and command-file streams (§7.1's
-streams 2 and 4, and §10.2's input stream 1) -- the session files
-a game may ask for mid-play, which today halt loudly rather than
-invent files; the `<click y x>` recording token that will keep
+**Not yet:** the `<click y x>` recording token that will keep
 mouse sessions replayable, and *Zork Zero*'s Version 6 mouse
 minigames -- though the mouse itself is real now: at the pygame
 window a click arrives as §10.3's input code with its coordinates
@@ -402,6 +399,20 @@ Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
 VΘXΔM and other interpreters.
+
+The session files live beside the story the same way. Typing
+`script` in a game -- the command every Infocom manual documents
+for keeping a paper log -- writes the transcript to `zork1.scr`,
+opening with Infocom's own "Here begins a transcript" banner and
+closing at `unscript`; the player's commands appear between the
+game's text exactly as §7.1.1.1 asks, and 'Flags 2' bit 0 holds
+the stream's status at every moment, however the game works it --
+the §7.4 rule *A Mind Forever Voyaging* depends on. Output stream
+4 records the player's commands to `zork1.cmd` as they finish,
+and §10.2's input stream 1 plays such a file back, line by line
+in the very format stream 4 writes, reverting to the keyboard
+when the file runs dry. Nothing is created unless the game asks:
+a session that never touches the streams leaves no files behind.
 
 ### Best played with
 

@@ -366,16 +366,47 @@ def test_accept_and_replay_conflict(
     assert_that(capsys.readouterr().out).contains("pick one")
 
 
-# input_stream decodes fine but has no handler yet -- command-file
-# input is unbuilt -- so the CLI surfaces the frontier report and
-# exits 1.
-def test_reports_the_implementation_frontier(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    exit_code = main([str(broken_story(tmp_path, bytes([0xF3, 0x7F, 0x02])))])
+# The session files ride every command-line session: selecting the
+# transcript stream writes story.scr beside the story, and the old
+# frontier exit is gone -- SCRIPT is just a command that works.
+def test_the_transcript_lands_beside_the_story(tmp_path: Path) -> None:
+    story = broken_story(tmp_path, bytes([0xF3, 0x7F, 0x02, 0xB2, 0xB5, 0xC5, 0xBA]))
+    exit_code = main([str(story)])
 
-    assert_that(exit_code).is_equal_to(1)
-    assert_that(capsys.readouterr().out).contains("not yet implemented")
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(story.with_suffix(".scr").read_text(encoding="utf-8")).is_equal_to("hi")
+
+
+# Stream 4 records the typed command into story.cmd -- and input
+# stream 1 plays such a file back, echoing the command to the
+# screen while the empty stdin proves no keyboard was consulted.
+def test_commands_record_and_play_back_beside_the_story(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("north\n"))
+
+    recording = reading_story(tmp_path)
+    data = bytearray(recording.read_bytes())
+    data[0x40:0x4A] = bytes(
+        [0xF3, 0x7F, 0x04, 0xE4, 0x0F, 0x00, 0x50, 0x00, 0x58, 0xBA]
+    )
+    recording.write_bytes(bytes(data))
+
+    assert_that(main([str(recording)])).is_equal_to(0)
+    assert_that(recording.with_suffix(".cmd").read_text(encoding="utf-8")).is_equal_to(
+        "north\n"
+    )
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    data[0x40:0x4A] = bytes(
+        [0xF4, 0x7F, 0x01, 0xE4, 0x0F, 0x00, 0x50, 0x00, 0x58, 0xBA]
+    )
+    recording.write_bytes(bytes(data))
+
+    assert_that(main([str(recording)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("north")
 
 
 # The byte 0x00 decodes as 2OP:0, which no version defines, so the
