@@ -390,6 +390,20 @@ def test_a_printing_interrupt_redisplays_the_input_line(
     assert_that(keys.notices).is_empty()
 
 
+class InputNotices(PlainFrontend):
+    """A frontend that logs the §15 redisplay seams as they fire."""
+
+    def __init__(self) -> None:
+        super().__init__(lambda _text: None)
+        self.notices: list[str] = []
+
+    def begin_input(self) -> None:
+        self.notices.append("begin")
+
+    def resume_input(self) -> None:
+        self.notices.append("resume")
+
+
 # A live timed source runs the read on the wall clock: the source
 # waits the read's own interval (time/10 seconds), each expiry
 # fires the routine, and the completed line arrives through the
@@ -464,21 +478,10 @@ def test_a_live_timed_read_terminated_by_its_interrupt(
 def test_a_live_printing_interrupt_redisplays(
     code_machine: Callable[..., Machine],
 ) -> None:
-    class InputWatcher(PlainFrontend):
-        def __init__(self) -> None:
-            super().__init__(lambda _text: None)
-            self.notices: list[str] = []
-
-        def begin_input(self) -> None:
-            self.notices.append("begin")
-
-        def resume_input(self) -> None:
-            self.notices.append("resume")
-
     timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
     print_then_false = bytes([0x00, 0xE5, 0x7F, 0x58, 0xB1])
     answers = iter([None, "go"])
-    watcher = InputWatcher()
+    watcher = InputNotices()
     machine = code_machine(
         timed,
         version=4,
@@ -494,6 +497,53 @@ def test_a_live_printing_interrupt_redisplays(
     machine.run()
 
     assert_that(watcher.notices).is_equal_to(["begin", "resume"])
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+
+
+# An interrupt that prints only to the upper window -- Border
+# Zone's clock repainting its status every tick -- never disturbs
+# the input line, and earns no redisplay: without this rule every
+# tick appended another prompt, a picket fence of > characters.
+def test_an_upper_window_interrupt_earns_no_redisplay(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    # split_window 1; set_window 1; print_char 'X'; set_window 0; rfalse
+    status_tick = bytes(
+        [
+            0x00,
+            0xEA,
+            0x7F,
+            0x01,
+            0xEB,
+            0x7F,
+            0x01,
+            0xE5,
+            0x7F,
+            0x58,
+            0xEB,
+            0x7F,
+            0x00,
+            0xB1,
+        ]
+    )
+    answers = iter([None, "go"])
+    watcher = InputNotices()
+    machine = code_machine(
+        timed,
+        version=4,
+        input_source=lambda: "wrong",
+        frontend=watcher,
+        timed_input_source=lambda _seconds: next(answers),
+    )
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, status_tick)
+
+    machine.run()
+
+    assert_that(watcher.notices).is_equal_to(["begin"])
     assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
 
 

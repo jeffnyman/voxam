@@ -433,6 +433,10 @@ class Machine:
         self._frontend = frontend if frontend is not None else PlainFrontend()
         self._output = self._frontend.write
         self._prints = 0
+        # Whether the story window (window 0) is selected: the only
+        # window whose prints disturb the input line a timed read
+        # may need to redisplay (§15 read remarks).
+        self._story_window = True
         # Decoded instructions at or above the static-memory base
         # cannot change (§1.1) and are cached with their handlers:
         # an Inform 7 game executes hundreds of thousands of
@@ -721,8 +725,14 @@ class Machine:
             self._redirections[-1][1].append(text)
         elif self._screen_selected:
             # Counted so a timed read can tell whether its
-            # interrupt routine printed (§15 read remarks).
-            self._prints += 1
+            # interrupt routine disturbed the input line (§15 read
+            # remarks) -- which only a story-window print does.
+            # Border Zone's clock tick repaints the status window
+            # every interval, and redisplaying the untouched prompt
+            # for those would grow a picket fence of > characters.
+            if self._story_window:
+                self._prints += 1
+
             self._output(text)
 
     def _op_log_shift(self, instruction: Instruction) -> None:
@@ -2383,6 +2393,12 @@ class Machine:
                 # §8.8.5.3.1: erasing -1 selects window 0.
                 self._windows.selected = LOWER_WINDOW
 
+        if window == UNSPLIT_ERASE:
+            # Every version's erase -1 leaves the lower window
+            # selected (§8.7.3.3), which is the story window the
+            # redisplay accounting watches.
+            self._story_window = True
+
         self._frontend.erase_window(window)
         self._pc = instruction.next_address
 
@@ -2496,6 +2512,7 @@ class Machine:
         if self._memory.header.version == PACKED_PC_VERSION:
             selected = self._windows.resolve(window)
             self._windows.selected = selected
+            self._story_window = selected == 0
 
             if self._frontend.has_stage:
                 # The stage hears every selection. A cursor the
@@ -2515,6 +2532,7 @@ class Machine:
             elif selected <= UPPER_WINDOW:
                 self._frontend.set_window(selected)
         else:
+            self._story_window = window == 0
             self._frontend.set_window(window)
 
         self._pc = instruction.next_address
