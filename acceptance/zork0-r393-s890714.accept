@@ -1,0 +1,80 @@
+! SEED=24
+! GAME=../entharion/zcode-infocom/zork0-r393-s890714.z6
+
+# Prologue
+
+ne. s. w. e. w
+examine man
+dive under table
+stand up
+get the parchment
+>
+
+# Main Area of Castle
+
+up. s
+examine the rebus
+s
+take bag
+press button
+
+n. n. d. s. s
+take the sceptre
+sit on throne
+snap fingers
+stand up
+s
+take candle
+s. w. u. u
+take key
+say "Y"
+w. s
+take glove and cloak
+wear glove
+
+n. e. d. d. e. e.
+d. s. d
+take the cap
+wear it
+answer triplet
+sw
+open iron maiden
+open water chamber
+take metronome
+ne. n. u. w
+n. n. n. n
+n. e
+put sceptre in cauldron
+put metronome in cauldron
+
+# The Village Area
+
+e. d
+take walnut
+u. w. w
+ring the bell
+say "time"
+n
+take the worm
+nw. nw. u
+turn the wheel
+d. nw. nw. sw
+open the locker
+take the steel key
+ne. ne. se. e. n
+answer bookkeeper
+take coin
+s. e. s
+sing lullaby
+take package
+read it
+open it
+examine the pigeon
+eead the pigeon
+n. e
+up. up. up. up. up
+up. up. up. up. up
+up. up. up. up. up
+up. up. up. up
+s
+take the T-square
