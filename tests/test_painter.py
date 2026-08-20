@@ -478,9 +478,13 @@ def test_a_screenful_pauses_behind_more() -> None:
 
 
 # A plain keystroke passes through read_key as itself, unechoed --
-# §15 read_char leaves echoing to the game.
+# §15 read_char leaves echoing to the game. The terminal has no
+# mouse reporting yet, so clicks never arrive.
 def test_read_key_passes_plain_keys_through() -> None:
     frontend, out = painted(keys=[StubKey("n")])
+
+    assert_that(frontend.has_mouse).is_false()
+    assert_that(frontend.click_position()).is_none()
 
     out.clear()
     key = frontend.read_key()

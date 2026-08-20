@@ -243,9 +243,12 @@ characters at the screen, a community extension the Standard's
 rather than by accident of encoding. Every remaining gap halts
 loudly with a citation instead of guessing.
 
-**Not yet:** mouse input -- *Zork Zero*'s mouse minigames want
-real clicks, and a planned `<click y x>` recording token will keep
-those sessions replayable when they come; *Journey*, the last of
+**Not yet:** the `<click y x>` recording token that will keep
+mouse sessions replayable, and *Zork Zero*'s Version 6 mouse
+minigames -- though the mouse itself is real now: at the pygame
+window a click arrives as §10.3's input code with its coordinates
+in the header extension, which is how *Solitaire Poker*'s betting
+buttons take a real click. *Journey*, the last of
 the graphical four, not yet certified; the Blorb music formats,
 MOD and OGG (the entire vendored Infocom sound catalog is sampled
 AIFF and needs neither); and Glulx. For recorded sessions, seeds

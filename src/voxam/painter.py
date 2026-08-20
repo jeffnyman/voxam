@@ -295,6 +295,10 @@ class ScreenFrontend:
     # No in-play pictures: the sixel cover is a doorway courtesy,
     # and the header's cleared bit keeps the claim honest (§11.1.4).
     has_pictures = False
+    # Terminal mouse reporting is a protocol of its own; until the
+    # painter learns it, the request bit clears honestly
+    # (§10.3.1.1).
+    has_mouse = False
     # No stage: Version 6 windows keep the two-window mimicry a
     # cell terminal can honour.
     has_stage = False
@@ -650,6 +654,11 @@ class ScreenFrontend:
         self._composing = line is None
 
         return line
+
+    def click_position(self) -> tuple[int, int] | None:
+        """No clicks arrive until the painter learns mouse reporting."""
+
+        return None
 
     def abandon_input(self) -> None:
         """Erase the half-typed line a terminated timed read leaves.

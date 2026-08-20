@@ -10,6 +10,7 @@ from voxam.errors import (
 from voxam.frontend import PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
+from voxam.zmachine.story import Story
 
 TEXT_BUFFER = 0x120
 PARSE_BUFFER = 0x140
@@ -643,6 +644,110 @@ def test_show_status_stays_quiet_without_a_status_line(
 # read_char device 1, storing to G0, then quit.
 READ_CHAR = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
 RESULT = 0x100
+
+
+class ClickingFrontend(PlainFrontend):
+    """A frontend whose mouse has just clicked at (5, 3)."""
+
+    has_mouse = True
+
+    def __init__(self) -> None:
+        super().__init__(lambda _text: None)
+
+    def click_position(self) -> tuple[int, int] | None:
+        return (5, 3)
+
+
+# A mouse click arrives through the key seam as the character for
+# its §10.3.3 input code -- 254 single, 253 double -- and the
+# click's position lands in header extension words 1 and 2 before
+# delivery (§10.3.2).
+def test_clicks_deliver_their_code_and_coordinates(
+    code_machine: Callable[..., Machine],
+) -> None:
+    extension = 0x160
+    read_char = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+    keys = iter(["\xfe"])
+    machine = code_machine(
+        read_char,
+        version=5,
+        frontend=ClickingFrontend(),
+        key_source=lambda _timeout: next(keys),
+    )
+    machine.memory.write_word(0x36, extension)
+    machine.memory.write_word(extension, 2)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(machine.memory.read_word(extension + 2)).is_equal_to(5)
+    assert_that(machine.memory.read_word(extension + 4)).is_equal_to(3)
+
+
+# Without a header extension the story still hears the click -- it
+# just cannot ask where (§10.3.1). A double click is code 253.
+def test_clicks_without_an_extension_still_arrive(
+    code_machine: Callable[..., Machine],
+) -> None:
+    read_char = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+    keys = iter(["\xfd"])
+    machine = code_machine(
+        read_char,
+        version=5,
+        frontend=ClickingFrontend(),
+        key_source=lambda _timeout: next(keys),
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(253)
+
+
+# A timed keystroke read hears clicks the same way (§10.3.3).
+def test_timed_reads_hear_clicks(code_machine: Callable[..., Machine]) -> None:
+    extension = 0x160
+    timed = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    keys = iter([None, "\xfe"])
+    machine = code_machine(
+        timed,
+        version=5,
+        frontend=ClickingFrontend(),
+        key_source=lambda _timeout: next(keys),
+    )
+    machine.memory.write_word(0x36, extension)
+    machine.memory.write_word(extension, 2)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(machine.memory.read_word(extension + 2)).is_equal_to(5)
+
+
+# From Version 5 the mouse request answers honestly at boot
+# (§10.3.1.1): a frontend with real clicks keeps Flags 2 bit 5,
+# and the plain stream clears it -- which is how Solitaire Poker
+# knows whether to draw its clickable buttons.
+def test_the_mouse_request_answers_honestly_at_boot() -> None:
+    def mouse_wanting_story() -> Story:
+        data = bytearray(512)
+        data[0] = 5
+        data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+        data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+        data[0x0C:0x0E] = (0x0100).to_bytes(2, "big")
+        data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+        data[0x11] = 0x20
+        data[0x40] = 0xBA  # quit
+
+        return Story(bytes(data))
+
+    clicked = Machine(mouse_wanting_story(), ClickingFrontend())
+
+    assert_that(clicked.memory.read_byte(0x11) & 0x20).is_equal_to(0x20)
+
+    plain = Machine(mouse_wanting_story(), PlainFrontend(lambda _text: None))
+
+    assert_that(plain.memory.read_byte(0x11) & 0x20).is_zero()
 
 
 # A keystroke is the first character of the next input line: the
