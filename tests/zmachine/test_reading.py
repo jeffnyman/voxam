@@ -11,6 +11,7 @@ from voxam.frontend import PlainFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
+from voxam.zmachine.zscii import encode_word
 
 TEXT_BUFFER = 0x120
 PARSE_BUFFER = 0x140
@@ -1157,6 +1158,27 @@ def test_tokenise_consults_a_custom_dictionary(
     assert_that(parse_block(machine.memory, 1)).is_equal_to(
         (CUSTOM_DICTIONARY + 4, 2, 5)
     )
+
+
+# encode_text translates buffer characters to dictionary form (§15):
+# five characters from position 1 of the zscii-text buffer -- the
+# operands followed to the letter, no hunting for a 0 -- land at
+# coded-text as the very bytes a dictionary key wears (§3.7),
+# lowercasing on the way exactly as lookup does.
+def test_encode_text_writes_the_dictionary_form(
+    code_machine: Callable[..., Machine],
+) -> None:
+    program = bytes([0xFC, 0x14, 0x01, 0x50, 0x05, 0x01, 0x01, 0x80, 0xBA])
+    machine = code_machine(program, version=5)
+
+    for offset, character in enumerate("xHello"):
+        machine.memory.write_byte(0x150 + offset, ord(character))
+
+    machine.run()
+
+    encoded = bytes(machine.memory.read_byte(0x180 + index) for index in range(6))
+
+    assert_that(encoded).is_equal_to(encode_word(5, "hello"))
 
 
 # A count of -n means n entries unsorted (§13.5): convenient for a

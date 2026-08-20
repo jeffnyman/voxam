@@ -252,10 +252,15 @@ time. Even Borg's UTF-16 surrogate-pair test renders all six of
 its emoticons -- adjacent surrogate halves fuse into their astral
 characters at the screen, a community extension the Standard's
 16-bit unicode (§3.8.5) cannot express, honoured deliberately
-rather than by accident of encoding. Every remaining gap halts
+rather than by accident of encoding. Every opcode §14 defines --
+all one hundred and twenty of them, `encode_text` through
+`buffer_screen` -- has a handler, and every remaining gap halts
 loudly with a citation instead of guessing.
 
-**Not yet:** the `<click y x>` recording token that will keep
+**Not yet:** the transcript and command-file streams (§7.1's
+streams 2 and 4, and §10.2's input stream 1) -- the session files
+a game may ask for mid-play, which today halt loudly rather than
+invent files; the `<click y x>` recording token that will keep
 mouse sessions replayable, and *Zork Zero*'s Version 6 mouse
 minigames -- though the mouse itself is real now: at the pygame
 window a click arrives as §10.3's input code with its coordinates

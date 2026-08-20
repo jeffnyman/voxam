@@ -74,8 +74,10 @@ from voxam.zmachine.windows import (
 )
 from voxam.zmachine.zscii import (
     ZSCII_NEWLINE,
+    alphabets,
     char_to_zscii,
     decode_string,
+    encode_word,
     extras,
     fuse_surrogates,
     zscii_to_char,
@@ -259,6 +261,16 @@ TRANSCRIPT_STREAM = 2
 MEMORY_STREAM = 3
 COMMANDS_STREAM = 4
 REDIRECTION_LIMIT = 16
+
+# The two input streams (§10.2): the keyboard, and a file of
+# commands the game itself may ask to read from (§10.2.2).
+KEYBOARD_INPUT_STREAM = 0
+FILE_INPUT_STREAM = 1
+
+# buffer_screen's §8.8.7.1 modes: 0 for immediate updates, 1 to
+# allow a backing store, and -1 to force an update through without
+# changing the mode.
+SCREEN_BUFFER_FLUSH = -1
 
 # A memory-redirected table opens with a word for the character
 # count, data following from its third byte (§7.1.2.1). Selecting
@@ -477,6 +489,11 @@ class Machine:
         self._running = True
         self._screen_selected = True
         self._font = NORMAL_FONT
+        # buffer_screen's remembered advice (§8.8.7): the glasses
+        # paint immediately, which is the conduct required of an
+        # interpreter that ignores the advice, but the mode is
+        # still answered honestly.
+        self._screen_buffering = 0
         self._redirections: list[tuple[int, list[str], int | None]] = []
         self._saves = saves
         self._undo: deque[Snapshot] = deque(maxlen=UNDO_DEPTH)
@@ -683,9 +700,14 @@ class Machine:
     def step(self) -> None:
         """Fetch, decode, and execute a single instruction.
 
+        Every opcode §14 defines has a handler, so the lookup
+        cannot miss; the frontiers that remain are features inside
+        opcodes -- the transcript and command-file streams -- and
+        their handlers report them.
+
         Raises:
-            ZMachineUnimplementedError: If the decoded opcode has no
-                handler yet.
+            ZMachineUnimplementedError: On reaching one of those
+                in-opcode frontiers.
             VoxamError: On any rule the instruction breaks.
         """
 
@@ -695,14 +717,7 @@ class Machine:
             instruction, handler = cached
         else:
             instruction = Instruction.decode(self._memory, self._pc)
-            found = _HANDLERS.get(instruction.opcode.name)
-
-            if found is None:
-                raise ZMachineUnimplementedError(
-                    instruction.opcode.name, instruction.address
-                )
-
-            handler = found
+            handler = _HANDLERS[instruction.opcode.name]
 
             if self._pc >= self._code_floor:
                 self._code_cache[self._pc] = (instruction, handler)
@@ -2294,6 +2309,37 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_encode_text(self, instruction: Instruction) -> None:
+        """Encode buffer text in dictionary form (§15 encode_text).
+
+        The ZSCII characters -- length of them, from position from
+        in the zscii-text buffer -- are encoded exactly as a
+        dictionary key is (§3.7), under whatever alphabet and
+        extra-character tables are in force, and the six bytes land
+        at coded-text. The operands are followed to the letter: the
+        length given is the length used, with no hunting for a
+        terminating 0 the way §15's aside says some interpreters
+        do.
+        """
+
+        values = [self._value(operand) for operand in instruction.operands]
+        text, length, start, coded = values
+        word = "".join(
+            chr(self._memory.read_byte(text + start + offset))
+            for offset in range(length)
+        )
+        encoded = encode_word(
+            self._memory.header.version,
+            word,
+            alphabets(self._memory),
+            self._extras(),
+        )
+
+        for offset, value in enumerate(encoded):
+            self._memory.write_byte(coded + offset, value)
+
+        self._pc = instruction.next_address
+
     def _status(self) -> Status:
         """Assemble what the status line shows (§8.2).
 
@@ -2460,6 +2506,40 @@ class Machine:
         """Hand the word-wrap buffering toggle to the frontend (§8.7)."""
 
         self._frontend.set_buffering(bool(self._value(instruction.operands[0])))
+        self._pc = instruction.next_address
+
+    def _op_buffer_screen(self, instruction: Instruction) -> None:
+        """Take the display-buffering advice §8.8.7's way (§15).
+
+        Voxam's glasses paint every change as it happens, which is
+        exactly the conduct §8.8.7 requires of an interpreter that
+        ignores the advice: acting as though the mode were always
+        0. The advice is still remembered and the old mode stored,
+        and -1 forces an update without changing it -- instantly
+        satisfied on a display that was never behind.
+
+        Raises:
+            ZMachineInstructionError: For a mode §8.8.7.1 does not
+                define.
+        """
+
+        mode = signed(self._value(instruction.operands[0]))
+
+        if mode not in (0, 1, SCREEN_BUFFER_FLUSH):
+            msg = (
+                f"buffer_screen at ${instruction.address:04x} asks for "
+                f"mode {mode}, but §8.8.7.1 defines only 0, 1, and -1"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        previous = self._screen_buffering
+
+        if mode != SCREEN_BUFFER_FLUSH:
+            self._screen_buffering = mode
+
+        self._store_result(instruction.store_variable, previous)
+
         self._pc = instruction.next_address
 
     def _op_split_window(self, instruction: Instruction) -> None:
@@ -2797,6 +2877,40 @@ class Machine:
             msg = (
                 f"output_stream at ${instruction.address:04x} names "
                 f"stream {stream}, but §7.1 defines only 1 to 4"
+            )
+
+            raise ZMachineInstructionError(msg)
+
+        self._pc = instruction.next_address
+
+    def _op_input_stream(self, instruction: Instruction) -> None:
+        """Select the input stream (§10.2, §15 input_stream).
+
+        Stream 0 is the keyboard, which is already where every
+        Voxam session draws its keys -- and §10.2.2 leaves the
+        interpreter free to serve those keys from a script, which
+        is what --accept already does at the session's level.
+        Stream 1, a command file the game itself asks to read from
+        mid-play (§10.2.1), is a frontier still, loudly.
+
+        Raises:
+            ZMachineInstructionError: For a stream §10.2 does not
+                define.
+            ZMachineUnimplementedError: For stream 1, the game-
+                driven command file.
+        """
+
+        stream = self._value(instruction.operands[0])
+
+        if stream == FILE_INPUT_STREAM:
+            raise ZMachineUnimplementedError(
+                f"input stream {FILE_INPUT_STREAM}", instruction.address
+            )
+
+        if stream != KEYBOARD_INPUT_STREAM:
+            msg = (
+                f"input_stream at ${instruction.address:04x} names "
+                f"stream {stream}, but §10.2 defines only 0 and 1"
             )
 
             raise ZMachineInstructionError(msg)
@@ -3715,6 +3829,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "art_shift": Machine._op_art_shift,
     "aread": Machine._op_sread,
     "buffer_mode": Machine._op_buffer_mode,
+    "buffer_screen": Machine._op_buffer_screen,
     "call": Machine._op_call,
     "check_arg_count": Machine._op_check_arg_count,
     "clear_attr": Machine._op_clear_attr,
@@ -3732,6 +3847,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "dec": Machine._op_dec,
     "dec_chk": Machine._op_dec_chk,
     "div": Machine._op_div,
+    "encode_text": Machine._op_encode_text,
     "erase_window": Machine._op_erase_window,
     "erase_line": Machine._op_erase_line,
     "get_child": Machine._op_get_child,
@@ -3743,6 +3859,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "get_sibling": Machine._op_get_sibling,
     "inc": Machine._op_inc,
     "inc_chk": Machine._op_inc_chk,
+    "input_stream": Machine._op_input_stream,
     "insert_obj": Machine._op_insert_obj,
     "je": Machine._op_je,
     "jin": Machine._op_jin,

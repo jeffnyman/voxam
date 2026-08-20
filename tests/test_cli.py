@@ -372,7 +372,7 @@ def test_accept_and_replay_conflict(
 def test_reports_the_implementation_frontier(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    exit_code = main([str(broken_story(tmp_path, bytes([0xF4, 0x7F, 0x00])))])
+    exit_code = main([str(broken_story(tmp_path, bytes([0xF3, 0x7F, 0x02])))])
 
     assert_that(exit_code).is_equal_to(1)
     assert_that(capsys.readouterr().out).contains("not yet implemented")
