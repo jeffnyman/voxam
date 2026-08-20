@@ -15,7 +15,8 @@ The grammar, line by line:
     command          the same, without the prompt sugar
     <key>            a special key: <up> <down> <left> <right>
                      for the cursor keys, <escape> for the escape
-                     key -- one press per line
+                     key, <space> for the space bar -- one press
+                     per line
     (blank)          skipped
 
 An inline comment starts at whitespace followed by #. A command that
@@ -46,15 +47,18 @@ _INLINE_COMMENT = re.compile(r"\s+#")
 
 # The special keys a recording can press, one line each. The
 # translated command is the key's own input character -- the §3.8.4
-# cursor codes Beyond Zork's menus listen for, and the §3.8.2.6
-# escape -- which the keystroke seam spends as a single press. The
-# enter key stays what it always was: a bare >.
+# cursor codes Beyond Zork's menus listen for, the §3.8.2.6 escape,
+# and the space bar, which line-stripping would otherwise erase --
+# Journey's menus move their highlight with it. The keystroke seam
+# spends each as a single press; the enter key stays what it always
+# was: a bare >.
 KEY_TOKENS = {
     "<up>": "\x81",
     "<down>": "\x82",
     "<left>": "\x83",
     "<right>": "\x84",
     "<escape>": "\x1b",
+    "<space>": " ",
 }
 
 # What the replay transcript shows for a pressed key: the token,

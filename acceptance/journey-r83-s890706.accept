@@ -1,0 +1,128 @@
+! SEED=24
+! GAME=../entharion/zcode-infocom/journey-r83-s890706.z6
+
+# Journey has no command line: the whole interface is read_char
+# (§15), driven from ZIL's PARTY-INPUT loop. The vocabulary below:
+# a letter presses the first letter of a visible command (that is
+# the COMMAND-CHR every command carries), a bare > presses return
+# to activate the bolded default, <space> cycles the highlight
+# between the party column and the character grid -- the gateway
+# key, since letters only reach the commands of the mode the
+# highlight is in -- and the arrows walk the grid when two
+# characters offer the same first letter. Recorded through the
+# opening chapter: Lavos, Garlimon's hut, the flash flood, and
+# into the cave under Sunrise Mountain -- the release-gate slice;
+# the deep game is post-1.0 expedition country.
+
+# The boot questions: no saved game, two title pages.
+n
+>
+>
+
+# Start, from the opening menu.
+>
+
+# Webba's shop: enter, and Tag buys the map.
+e
+<space>
+b
+m
+
+# Praxix examines the map -- two spaces walk the highlight from
+# Buy through Exit to his Examine.
+<space>
+<space>
+>
+m
+
+# Webba asks about the Outlands; Reply is the bolded default.
+>
+
+# Exit the shop, down the road, into the Lands End tavern.
+e
+p
+e
+
+# Esher slips off to mingle.
+<space>
+l
+
+# Tag buys a round of drinks.
+<space>
+<space>
+b
+d
+
+# Exit -- and Minar makes his offer at the door. Accept.
+<space>
+>
+>
+
+# South out of Lavos, to the fork.
+<space>
+>
+
+# Minar scouts the left path and finds the bandits' leavings;
+# we take the right.
+<space>
+s
+<space>
+r
+
+# Camp; Minar's scouting turns up the rock cairn, and Praxix
+# examines the bodies of Garlimon's party: fire and water essence.
+<space>
+s
+e
+b
+
+# Over the mountains to the high plain and the smoke.
+<space>
+p
+<space>
+s
+<space>
+f
+
+# Garlimon's hut: knock, tell the truth, and let Minar look
+# around -- Bergon's sword trick unmasks the hermit.
+k
+>
+l
+
+# Leave with the thrown bag ("the water that heals, the fire
+# reveals"), and on to the stream.
+<space>
+>
+p
+
+# Esher examines the stream -- his Examine, not Praxix's, so the
+# arrows pick the row.
+<space>
+<down>
+>
+s
+
+# Find gold twice; the second try meets the flash flood.
+<space>
+f
+>
+
+# Praxix casts elevation at Tag, over the torrent.
+<space>
+c
+e
+t
+
+# Along the shore -- past the lake that took Minar -- to the
+# warm-spring cave.
+p
+<space>
+s
+
+# Glow on the staff, and in we go.
+c
+g
+s
+<space>
+e

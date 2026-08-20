@@ -82,7 +82,12 @@ teases players who act on knowledge their character hasn't earned
 ("Playing a restored game are we?") -- is recorded deep into its
 museum, the first of the fortune teller's visions complete: a
 verified route through a game built to resist secondhand play.
-Thirty-four recordings verify those sessions end-to-end with the
+Even *Journey* -- Infocom's menu-driven finale, a game with no
+command line at all -- replays through its opening chapter as pure
+keystrokes: letters press the commands they begin with, `<space>`
+walks the highlight between the party column and the character
+grid, and the arrows settle which Examine is whose.
+Thirty-eight recordings verify those sessions end-to-end with the
 acceptance harness described below, and their annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
 
@@ -262,8 +267,7 @@ mouse sessions replayable, and *Zork Zero*'s Version 6 mouse
 minigames -- though the mouse itself is real now: at the pygame
 window a click arrives as §10.3's input code with its coordinates
 in the header extension, which is how *Solitaire Poker*'s betting
-buttons take a real click. *Journey*, the last of
-the graphical four, not yet certified; the Blorb music formats,
+buttons take a real click. The Blorb music formats,
 MOD and OGG (the entire vendored Infocom sound catalog is sampled
 AIFF and needs neither); and Glulx. For recorded sessions, seeds
 substitute for saves: a script replays a whole game in moments.

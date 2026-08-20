@@ -59,9 +59,11 @@ plain command
 
 
 # A <key> line presses a special key: the cursor tokens translate
-# to their §3.8.4 input characters, case-blind, and the escape key
-# rides along. The `> <key>` prompt form stays a literal command --
-# the hatch for a game that really wants angle brackets.
+# to their §3.8.4 input characters, case-blind, the escape key
+# rides along, and <space> presses the space bar line-stripping
+# could never carry -- Journey's menus move on it. The `> <key>`
+# prompt form stays a literal command -- the hatch for a game that
+# really wants angle brackets.
 def test_key_tokens_press_their_characters(tmp_path: Path) -> None:
     script = AcceptanceScript.parse(
         script_file(
@@ -73,13 +75,14 @@ def test_key_tokens_press_their_characters(tmp_path: Path) -> None:
 <left>
 <right>
 <escape>
+<space>
 > <down>
 """,
         )
     )
 
     assert_that(script.commands).is_equal_to(
-        ("\x82", "\x81", "\x83", "\x84", "\x1b", "<down>")
+        ("\x82", "\x81", "\x83", "\x84", "\x1b", " ", "<down>")
     )
 
 
