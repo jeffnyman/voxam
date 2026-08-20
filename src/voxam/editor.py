@@ -36,6 +36,9 @@ INPUT_ONLY_FIRST = "\x81"
 INPUT_ONLY_LAST = "\x9a"
 ESCAPE = "\x1b"
 NEWLINE = "\n"
+# A bare carriage return IS the return key -- ZSCII 13 (§3.8.2.5)
+# -- on a terminal that hands it over without naming it.
+CARRIAGE_RETURN = "\r"
 
 # A session keeps this many submitted lines for recall.
 HISTORY_LIMIT = 100
@@ -285,7 +288,7 @@ def read_line_edited(
         if key is None or key == ESCAPE:
             continue
 
-        if key == NEWLINE:
+        if key in (NEWLINE, CARRIAGE_RETURN):
             canvas.write(NEWLINE)
             repaint()
 
@@ -296,7 +299,12 @@ def read_line_edited(
         if edit is not None:
             if edit(editor):
                 redraw()
-        elif INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST:
+        elif key < " " or (INPUT_ONLY_FIRST <= key <= INPUT_ONLY_LAST):
+            # The §3.8.4 input-only codes beyond the editing keys,
+            # and every raw control character -- the tab chief
+            # among them -- mean nothing to a line: no ZSCII code
+            # to submit (§3.8), no glyph to echo, so they are
+            # waited out rather than inserted to crash at submit.
             continue
         else:
             appending = editor.cursor == len(editor.text)
