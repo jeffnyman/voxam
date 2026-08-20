@@ -21,6 +21,10 @@ class GlulxMemoryError(VoxamError):
     """Raised when Glulx memory is used against its map's rules."""
 
 
+class GlulxStackError(VoxamError):
+    """Raised when the Glulx stack is used against its rules."""
+
+
 class GlulxStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Glulx story."""
 
