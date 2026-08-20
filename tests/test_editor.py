@@ -235,6 +235,20 @@ def test_loop_moves_right_after_left() -> None:
     assert_that(line).is_equal_to("ab")
 
 
+# Raw control characters -- the tab key's "\t" chief among them --
+# have no ZSCII code to submit (§3.8) and are waited out, where
+# inserting them would crash the session at submit. A bare
+# carriage return is the return key itself (§3.8.2.5), for a
+# terminal that hands it over unnamed.
+def test_control_characters_are_waited_out() -> None:
+    line, canvas, _repaints = run(LineEditor(), ["\t", "g", "\x01", "o", "\r"])
+
+    assert_that(line).is_equal_to("go")
+    assert_that(canvas.operations).is_equal_to(
+        [("write", "g"), ("write", "o"), ("write", "\n")]
+    )
+
+
 # An EXPIRED answer pauses the read: the loop hands back None with
 # the composed line intact, and a fresh=False call resumes it to
 # completion -- how a timed read survives its interrupts.
