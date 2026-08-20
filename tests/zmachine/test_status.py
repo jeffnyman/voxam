@@ -44,6 +44,7 @@ class Recorder:
     has_character_graphics = False
     has_colours = False
     has_pictures = False
+    has_mouse = False
     has_stage = False
     screen_lines = 24
     screen_columns = 64
@@ -119,6 +120,11 @@ class Recorder:
 
     def abandon_input(self) -> None:
         """Discard: the status tests never take timed input."""
+
+    def click_position(self) -> tuple[int, int] | None:
+        """Discard: the status tests never click."""
+
+        return None
 
     def set_buffering(self, buffered: bool) -> None:
         """Discard: the status tests never toggle buffering."""
@@ -247,6 +253,7 @@ def test_show_status_assembles_the_globals() -> None:
     assert_that(frontend.text).is_equal_to(["hi"])
     assert_that(frontend.picture_data(1)).is_none()
     assert_that(frontend.picture_census()).is_equal_to((0, 0))
+    assert_that(frontend.click_position()).is_none()
 
 
 # With bit 1 of Flags 1 set, the same globals are a clock reading:

@@ -34,6 +34,8 @@ def test_plain_frontend_declares_nothing_and_drops_the_status() -> None:
     assert_that(pieces).is_empty()
     assert_that(frontend.has_status_line).is_false()
     assert_that(frontend.has_screen_splitting).is_false()
+    assert_that(frontend.has_mouse).is_false()
+    assert_that(frontend.click_position()).is_none()
 
 
 # A stream has no styles (none were claimed, which §8.7 permits)

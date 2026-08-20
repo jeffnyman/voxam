@@ -26,6 +26,7 @@ class ScreenRecorder:
     font_width = 1
     font_height = 1
     has_pictures = False
+    has_mouse = False
     has_stage = False
 
     def __init__(self) -> None:
@@ -78,6 +79,11 @@ class ScreenRecorder:
 
     def abandon_input(self) -> None:
         """Discard: the screen tests never take timed input."""
+
+    def click_position(self) -> tuple[int, int] | None:
+        """Discard: the screen tests never click."""
+
+        return None
 
     def set_buffering(self, buffered: bool) -> None:
         self.buffering.append(buffered)
@@ -172,6 +178,7 @@ def test_text_styles_reach_the_frontend() -> None:
     frontend = run(bytes([0xF1, 0x7F, 0x02, 0xF1, 0x7F, 0x00, 0xBA]))
 
     assert_that(frontend.styles).is_equal_to([2, 0])
+    assert_that(frontend.click_position()).is_none()
 
 
 # erase_window's operand is signed: $ffff means -1, unsplit and

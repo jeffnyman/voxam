@@ -84,6 +84,8 @@ class Frontend(Protocol):
         has_character_graphics: Whether the §16 character graphics
             font can be drawn (§8.1.5.1).
         has_colours: Whether coloured text can be shown (§8.3).
+        has_mouse: Whether mouse clicks can arrive as input codes
+            (§10.3) -- true only at a windowed glass.
         has_pictures: Whether pictures can actually be drawn
             (§11.1.4) -- true only where a gallery of art hangs
             behind a glass with pixels.
@@ -117,6 +119,7 @@ class Frontend(Protocol):
     has_character_graphics: bool
     has_colours: bool
     has_pictures: bool
+    has_mouse: bool
     has_stage: bool
     screen_lines: int
     screen_columns: int
@@ -201,6 +204,15 @@ class Frontend(Protocol):
         ends with all input erased -- off the glass as well as out
         of the buffers, so the half-typed line does not linger
         beside whatever the routine printed.
+        """
+
+    def click_position(self) -> tuple[int, int] | None:
+        """Where the last mouse click landed, as (x, y) in units.
+
+        The machine writes these into header extension words 1 and
+        2 before delivering a click's input code (§10.3.2). None
+        means no click has happened -- every frontend without a
+        mouse, always.
         """
 
     def set_buffering(self, buffered: bool) -> None:
@@ -356,6 +368,9 @@ class PlainFrontend:
     # says so, and picture_data answers with the census of an
     # interpreter that has none (§11.1.4, §15).
     has_pictures = False
+    # No mouse can click a stream, and the request bit clears to
+    # say so (§10.3.1.1).
+    has_mouse = False
     # No stage either: Version 6 windows flow as text here, the
     # mimicry every recording replays in.
     has_stage = False
@@ -466,6 +481,11 @@ class PlainFrontend:
 
     def abandon_input(self) -> None:
         """Drop the erasure: the stream never echoed a pending line."""
+
+    def click_position(self) -> tuple[int, int] | None:
+        """No mouse ever clicks a stream (§10.3)."""
+
+        return None
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""

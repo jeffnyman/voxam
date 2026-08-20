@@ -47,6 +47,7 @@ class StubGlass:
         self.shifted: list[tuple[int, int, int, int, int]] = []
         self.samples: list[tuple[int, int]] = []
         self.pixel = (10, 20, 30)
+        self.clicked: tuple[int, int] | None = None
 
     def sample(self, line: int, column: int) -> tuple[int, int, int]:
         self.samples.append((line, column))
@@ -103,6 +104,9 @@ class StubGlass:
         self.timeouts.append(timeout)
 
         return self.keys.pop(0) if self.keys else None
+
+    def click(self) -> tuple[int, int] | None:
+        return self.clicked
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         self.pictures.append(rows)
@@ -993,6 +997,7 @@ def fake_pygame(
     module = types.SimpleNamespace(
         QUIT=1,
         KEYDOWN=2,
+        MOUSEBUTTONDOWN=5,
         WINDOWEXPOSED=7,
         SRCALPHA=65536,
         icons=icons,
@@ -1167,6 +1172,47 @@ def test_the_pygame_doorway_samples_a_pixel(
 # Keys translate to their §3.8 characters, printables pass through,
 # a timeout expires against the clock, and the close button ends
 # the session as end of input.
+# A left-button click is a keypress in §10.3's eyes: the doorway
+# answers the input code 254 as its character and keeps the
+# position -- 1-based pixels -- for click().
+def test_the_pygame_doorway_hears_clicks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+
+    assert_that(glass.click()).is_none()
+
+    scripted = iter(
+        [[types.SimpleNamespace(type=module.MOUSEBUTTONDOWN, button=1, pos=(10, 25))]]
+    )
+    module.event.get = lambda: next(scripted, [])
+
+    assert_that(glass.key(None)).is_equal_to("\xfe")
+    assert_that(glass.click()).is_equal_to((11, 26))
+
+
+# The frontend answers click positions in the story's own units:
+# character cells before Version 6, window pixels on the stage
+# (§10.3.2, §8.8.1).
+def test_click_positions_speak_the_versions_units() -> None:
+    frontend, glass = windowed()
+
+    assert_that(frontend.click_position()).is_none()
+
+    glass.clicked = (10, 37)
+
+    assert_that(frontend.click_position()).is_equal_to((2, 3))
+
+    staged, staged_glass = windowed(version=6)
+    staged_glass.clicked = (10, 37)
+
+    assert_that(staged.click_position()).is_equal_to((10, 37))
+
+
 def test_the_pygame_doorway_translates_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -39,6 +39,7 @@ from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
     FLAGS_2,
     FONT_FIELDS_VERSION,
+    HEADER_EXTENSION,
     PACKED_PC_VERSION,
     SCREEN_FIELDS_VERSION,
     STATUS_FLAGS_VERSION,
@@ -206,6 +207,15 @@ SOUND_ROUTINE_OPERAND = 3
 # set_margins names its window last, defaulting to the current one.
 STYLE_OPERATION_OPERAND = 2
 MARGIN_WINDOW_OPERAND = 2
+
+# §10.3 mouse input: clicks are keyboard input codes -- 254 a
+# single click, 253 a double -- delivered through the key seam as
+# characters no key actually types, with the click's coordinates
+# written into header extension words 1 and 2 before delivery
+# (§10.3.2, §10.3.3). The request bit answers honestly from
+# Version 5, where mouse support begins (§10.3, §10.3.1.1).
+CLICK_CODES = {"\xfe": 254, "\xfd": 253}
+EXTENSION_CLICK_WORDS = 2
 
 # read_mouse fills four words: y, x, button bits, menu word (§15).
 MOUSE_WORDS = 4
@@ -564,16 +574,23 @@ class Machine:
                     background=DEFAULT_BACKGROUND_COLOUR,
                 )
 
+                # These unit fields are Version 5 up, which is also
+                # where mouse support begins: the request answers
+                # honestly (§10.3.1.1) -- a glass with real clicks
+                # keeps the bit, everywhere else it clears, which
+                # is how Solitaire Poker knows whether to draw its
+                # clickable betting buttons.
+                header.declare_mouse(available=self._frontend.has_mouse)
+
                 if header.version == PACKED_PC_VERSION:
                     # In Version 6, Flags 2 bit 3 asks for pictures
-                    # rather than the §16 font (§11.1); the mouse
-                    # and menu requests fall unanswered (§11.1.2).
-                    # Flags 1 declares picture and sound
-                    # availability outright (§11.1.4, §9.1.1) --
-                    # pictures truthfully, now that a glass with a
-                    # gallery can draw them.
+                    # rather than the §16 font (§11.1); the menu
+                    # request falls unanswered (§11.1.2). Flags 1
+                    # declares picture and sound availability
+                    # outright (§11.1.4, §9.1.1) -- pictures
+                    # truthfully, now that a glass with a gallery
+                    # can draw them.
                     header.declare_character_graphics(available=False)
-                    header.declare_mouse(available=False)
                     header.declare_menus(available=False)
                     header.declare_pictures(available=self._frontend.has_pictures)
                     header.declare_sound_presence(available=self._frontend.has_sounds)
@@ -3015,6 +3032,36 @@ class Machine:
 
             self._interrupt(routine)
 
+    def _clicked(self, key: str) -> int | None:
+        """The input code for a mouse click, coordinates recorded.
+
+        §10.3.3: clicks are keyboard codes, 254 for a single click
+        and 253 for a double -- and before delivery the click's
+        position lands in header extension words 1 and 2, when the
+        story provides an extension that large (§10.3.2). Inform
+        6.12 and later always do; a story without one still hears
+        the click, it just cannot ask where.
+        """
+
+        code = CLICK_CODES.get(key)
+
+        if code is None:
+            return None
+
+        position = self._frontend.click_position()
+        extension = self._memory.read_word(HEADER_EXTENSION)
+
+        if (
+            position is not None
+            and extension
+            and self._memory.read_word(extension) >= EXTENSION_CLICK_WORDS
+        ):
+            x, y = position
+            self._memory.write_word(extension + 2, x)
+            self._memory.write_word(extension + 4, y)
+
+        return code
+
     def _keystroke(self) -> int:
         """Take one key from the queue, refilled a line at a time.
 
@@ -3043,6 +3090,11 @@ class Machine:
 
                 if key is None:
                     continue
+
+                clicked = self._clicked(key)
+
+                if clicked is not None:
+                    return clicked
 
                 try:
                     return char_to_zscii(key, self._extras())
@@ -3177,6 +3229,11 @@ class Machine:
                     return None
 
                 continue
+
+            clicked = self._clicked(key)
+
+            if clicked is not None:
+                return clicked
 
             try:
                 return char_to_zscii(key, self._extras())

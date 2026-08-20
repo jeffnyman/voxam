@@ -186,8 +186,13 @@ class Glass(Protocol):
         """One keypress, already §3.8-translated; None on expiry.
 
         The window's close button raises EOFError -- ending the
-        session the same way an exhausted input stream does.
+        session the same way an exhausted input stream does. A
+        mouse click arrives as the character for its §10.3 input
+        code, with the position kept for click().
         """
+
+    def click(self) -> tuple[int, int] | None:
+        """The last click's (x, y), in 1-based window pixels."""
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         """Show a cover picture centred until present() paints over."""
@@ -230,6 +235,9 @@ class GraphicsFrontend:
     has_timed_input = True
     has_character_graphics = True
     has_colours = True
+    # A window has a real pointer: clicks arrive as §10.3's input
+    # codes, so the mouse request bit stays set.
+    has_mouse = True
 
     def __init__(  # noqa: PLR0913 -- one seat per optional collaborator
         self,
@@ -759,6 +767,26 @@ class GraphicsFrontend:
             self._typing = False
             self._hide_caret()
 
+    def click_position(self) -> tuple[int, int] | None:
+        """The last mouse click, in the story's own units (§10.3.2).
+
+        A Version 6 story hears window pixels -- its §8.8 units --
+        while every earlier version hears character cells, both
+        1-based from the top left.
+        """
+
+        pixels = self._glass.click()
+
+        if pixels is None:
+            return None
+
+        x, y = pixels
+
+        if self._stage is not None:
+            return x, y
+
+        return (x - 1) // self.font_width + 1, (y - 1) // self.font_height + 1
+
     def read_line(self) -> str:
         """Read one line of raw typing, edited and echoed via the model.
 
@@ -1267,6 +1295,7 @@ class _PygameGlass:
         # the window was GIVEN, captured from inside a live
         # session, for comparing against what it SHOWS.
         self._snapshot = os.environ.get("VOXAM_SNAPSHOT")
+        self._click: tuple[int, int] | None = None
         self._tiles: dict[
             tuple[str, tuple[int, int, int], tuple[int, int, int]], Any
         ] = {}
@@ -1420,6 +1449,15 @@ class _PygameGlass:
 
                     continue
 
+                if event.type == module.MOUSEBUTTONDOWN and event.button == 1:
+                    # A click is a keypress in §10.3's eyes: the
+                    # input code 254 travels as its character, and
+                    # the position waits for click() -- 1-based, as
+                    # the screen's pixels are counted (§8.8.1).
+                    self._click = (event.pos[0] + 1, event.pos[1] + 1)
+
+                    return "\xfe"
+
                 if event.type == module.KEYDOWN:
                     named = self._keys.get(event.key)
 
@@ -1438,6 +1476,9 @@ class _PygameGlass:
                     return None
 
             module.time.wait(10)
+
+    def click(self) -> tuple[int, int] | None:
+        return self._click
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         surface = self._surface(rows)
