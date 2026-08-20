@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The Z-Machine Standard
+    url: https://jeffnyman.github.io/z-machine-standard/
+    about:
+      The recomposed Standard VΘXΔM is built against. Questions of the
+      form "how is this supposed to work?" usually have their answer
+      here, section and verse -- and an issue that cites its section
+      is halfway to being fixed.
+  - name: The README's "Not yet" list
+    url: https://github.com/jeffnyman/voxam#status
+    about:
+      The known gaps, honestly listed. Worth a glance before filing --
+      if it is on the list, it is a courtesy request, not a bug.

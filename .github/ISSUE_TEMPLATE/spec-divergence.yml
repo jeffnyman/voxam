@@ -1,0 +1,51 @@
+name: Spec divergence
+description:
+  VΘXΔM does something the Z-Machine Standard says it should not, or
+  fails to do something the Standard says it must.
+labels: ["spec"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Fidelity to the Standard is this project's first commitment,
+        so these reports get taken seriously -- and argued the way the
+        codebase itself argues, by citation. Every behavior in the
+        source carries its section number; a report that carries one
+        too is halfway home.
+  - type: input
+    id: section
+    attributes:
+      label: The section
+      description: >
+        Which part of the Standard
+        (https://jeffnyman.github.io/z-machine-standard/) is at stake?
+      placeholder: "§8.7.2.3.1"
+    validations:
+      required: true
+  - type: textarea
+    id: standard
+    attributes:
+      label: What the Standard says
+      description: Quote the sentence or two that decides it.
+    validations:
+      required: true
+  - type: textarea
+    id: voxam
+    attributes:
+      label: What VΘXΔM does
+      description: >
+        The observed behavior -- with a story file and seed if a game
+        surfaces it, or a code reference if you found it by reading.
+    validations:
+      required: true
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: What the reference interpreters do
+      description: >
+        Frotz and Bocfel are the useful comparisons. Sometimes the
+        answer is that the Standard's letter and the interpreters'
+        practice disagree -- those cases get settled deliberately
+        here, and documented in the code when practice wins.
+    validations:
+      required: false

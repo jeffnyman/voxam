@@ -1,0 +1,80 @@
+name: Game misbehavior
+description:
+  A story file plays wrong -- wrong text, a crash, a hang, a screen
+  drawn badly. VΘXΔM's own tools make these reports reproducible.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        The fastest route from report to fix is determinism: a seeded
+        session that misbehaves the same way every time, on any
+        machine. The fields below walk you to one.
+  - type: input
+    id: story
+    attributes:
+      label: The story file
+      description: >
+        Run `voxam --header story.z5` and copy the identity line --
+        release, serial, and version say exactly which build of the
+        game this is, which matters more often than you would think.
+      placeholder: "Zork I: release 88, serial 840726 (z3)"
+    validations:
+      required: true
+  - type: dropdown
+    id: frontend
+    attributes:
+      label: The frontend
+      description: Where were you playing when it happened?
+      options:
+        - Terminal (the painted screen)
+        - Pygame window (--graphics)
+        - Plain stream (--plain)
+        - More than one of them
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "Windows 11 / Python 3.13 / voxam 1.0.0"
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened, and what should have happened
+      description: >
+        The game's actual text or behavior, and what you expected. If
+        another interpreter (Frotz, Bocfel) behaves differently on the
+        same story file, say so -- that comparison localizes bugs fast.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: The route to it
+      description: >
+        Best: record the session and attach the file -- `voxam --record
+        session.accept --seed 1 story.z5`, play to the misbehavior,
+        then confirm `voxam --accept session.accept` replays it. A
+        recording is a bug report that fixes itself. Failing that, the
+        exact commands typed, in order, with the seed.
+      placeholder: |
+        ! SEED=1
+        ! GAME=story.z5
+        north
+        open window
+    validations:
+      required: false
+  - type: textarea
+    id: trace
+    attributes:
+      label: For crashes -- the last trace lines
+      description: >
+        If the session halts, rerun it with `--trace session.trace`
+        and paste the last few lines: the trace's final line is the
+        very instruction that halted the machine.
+      render: text
+    validations:
+      required: false
