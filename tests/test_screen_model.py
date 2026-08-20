@@ -473,9 +473,12 @@ def test_unknown_windows_cannot_be_selected() -> None:
 
 
 # set_cursor speaks (row, column) with (1,1) at the window's top
-# left, and moving outside the current upper size is illegal
-# (§8.7.2.3.1).
-def test_the_upper_cursor_moves_within_the_window_only() -> None:
+# left. §8.7.2.3.1 calls a move outside the upper window illegal,
+# but the settlement is Frotz's silent tolerance out to the
+# screen's edge -- Solitaire Poker splits 20 rows and deals from
+# row 21 -- while a move past the physical screen stays loud, and
+# a column past the width was never tolerated by anyone.
+def test_the_upper_cursor_tolerates_overreach_to_the_screen() -> None:
     screen = small(version=5)
 
     screen.split_window(2)
@@ -485,8 +488,16 @@ def test_the_upper_cursor_moves_within_the_window_only() -> None:
 
     assert_that(screen.row_text(2)).is_equal_to("  X")
 
+    screen.set_cursor(3, 1)
+    screen.write("Y")
+
+    assert_that(screen.row_text(3)).is_equal_to("Y")
+
     with pytest.raises(ZMachineScreenError, match=r"§8\.7\.2\.3\.1"):
-        screen.set_cursor(3, 1)
+        screen.set_cursor(HEIGHT + 1, 1)
+
+    with pytest.raises(ZMachineScreenError, match=r"§8\.7\.2\.3\.1"):
+        screen.set_cursor(1, WIDTH + 1)
 
 
 # The opcode has no effect when the lower window is selected --

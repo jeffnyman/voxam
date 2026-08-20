@@ -459,11 +459,22 @@ class ScreenModel:
         if self._selected != UPPER:
             return
 
-        if not (1 <= line <= self._split and 1 <= column <= self._columns):
+        # §8.7.2.3.1 calls a cursor outside the upper window
+        # illegal, but prescribes nothing for the interpreter --
+        # and Frotz checks nothing at all, silently placing the
+        # cursor wherever it was asked. Careless authors lean on
+        # that: Solitaire Poker splits a 20-row window and deals
+        # its cards from row 21. The settlement is Frotz's, out to
+        # the screen's edge; past the physical screen there is
+        # nothing to paint on, and the halt stays loud.
+        reach = self._lines - self._upper_top() + 1
+
+        if not (1 <= line <= reach and 1 <= column <= self._columns):
             msg = (
-                f"the cursor cannot move to ({line}, {column}) in an "
-                f"upper window {self._split} lines by {self._columns} "
-                f"(§8.7.2.3.1)"
+                f"the cursor cannot move to ({line}, {column}): even "
+                f"§8.7.2.3.1's tolerated overreach past the upper "
+                f"window's {self._split} lines ends at the screen, "
+                f"{reach} lines by {self._columns}"
             )
 
             raise ZMachineScreenError(msg)
