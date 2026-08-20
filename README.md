@@ -374,6 +374,25 @@ txd's own count. The listing is the excavation tool for games
 whose source never shipped: when an expedition stalls, the routine
 that decided can now be read.
 
+The listing has a live sibling: `--trace` rides any session --
+live play or a replayed recording -- and writes every instruction
+the machine actually executes to a file, rendered exactly as the
+listing renders it, interrupt routines included, closing with a
+tally of instructions run and distinct addresses touched:
+
+```bash
+voxam --accept recording.accept --trace session.trace
+```
+
+A replayed recording makes the trace a *golden* one: when another
+interpreter disagrees with VΘXΔM about a story, the first
+differing line of their traces is the bug -- and when a session
+halts, the trace's last line is the instruction that halted it.
+The two halves agree with each other too: every address a session
+executes appears in the static listing, which is also how you
+learn that one full walkthrough of a game may touch barely a
+third of its code.
+
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between

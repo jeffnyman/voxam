@@ -19,12 +19,15 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.listing import Tracer
 from voxam.listing import report as listing_report
 from voxam.png import decode
 from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.speaker import Speaker, open_sounddevice_stream
+from voxam.zmachine.instruction import Instruction
 from voxam.zmachine.machine import Identity, Machine
+from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
 
 if TYPE_CHECKING:
@@ -117,6 +120,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="list the story's code txd-style (§4, §14) and exit",
     )
     parser.add_argument(
+        "--trace",
+        type=Path,
+        help="write every executed instruction to this file, listing-style",
+    )
+    parser.add_argument(
         "--plain",
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
@@ -197,6 +205,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             resources=arguments.resources,
             pixels=arguments.pixels,
             zoom=arguments.zoom or None,
+            trace=arguments.trace,
         )
     )
 
@@ -241,6 +250,7 @@ def _story_report(
         arguments.record,
         arguments.resume,
         arguments.regtest,
+        arguments.trace,
     )
 
     if any(value is not None for value in others):
@@ -277,7 +287,7 @@ def _scripted_session(
         return _regtest_session(arguments.regtest)
 
     if arguments.resume is not None:
-        return _resumed_session(arguments.resume, identity)
+        return _resumed_session(arguments.resume, identity, arguments.trace)
 
     if script_path is not None:
         return _replay_script(
@@ -286,6 +296,7 @@ def _scripted_session(
             arguments.seed,
             handoff=arguments.replay is not None,
             identity=identity,
+            trace=arguments.trace,
         )
 
     return None
@@ -302,6 +313,7 @@ def _regtest_refusal(arguments: argparse.Namespace) -> str | None:
         arguments.replay,
         arguments.record,
         arguments.resume,
+        arguments.trace,
     )
 
     if any(value is not None for value in others):
@@ -398,7 +410,9 @@ def _record_refusal(
     return None
 
 
-def _resumed_session(script_path: Path, identity: Identity | None) -> int:
+def _resumed_session(
+    script_path: Path, identity: Identity | None, trace: Path | None = None
+) -> int:
     """Replay a recording, then record the player's continuation.
 
     The script replays to its last verified line, the terminal
@@ -425,6 +439,7 @@ def _resumed_session(script_path: Path, identity: Identity | None) -> int:
             handoff=True,
             identity=identity,
             recorder=recorder,
+            trace=trace,
         )
     finally:
         recorder.close()
@@ -467,6 +482,7 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
         pixels=arguments.pixels,
         zoom=arguments.zoom or None,
         recorder=recorder,
+        trace=arguments.trace,
     )
 
 
@@ -478,6 +494,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     handoff: bool,
     identity: Identity | None = None,
     recorder: Recorder | None = None,
+    trace: Path | None = None,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
@@ -522,7 +539,9 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         typed=watch.typed,
     )
 
-    code = _play(script.game, seed, source, PlainFrontend(tee), identity=identity)
+    code = _play(
+        script.game, seed, source, PlainFrontend(tee), identity=identity, trace=trace
+    )
     watch.finish()
 
     return code
@@ -923,6 +942,33 @@ def _show_cover(
     frontend.show_frontispiece(picture, pixels=pixels)
 
 
+def _tracing(
+    trace: Path | None,
+) -> tuple[Callable[[Memory, Instruction], None] | None, Callable[[], None]]:
+    """Open the execution-trace seam; inert without --trace.
+
+    Returns the machine's witness -- None when no trace was asked
+    for -- and a closer that writes the tallies and shuts the file.
+
+    Raises:
+        OSError: If the trace file cannot be opened for writing.
+    """
+
+    if trace is None:
+        return None, lambda: None
+
+    sink = trace.open("w", encoding="utf-8", newline="\n")
+    tracer = Tracer(sink.write)
+
+    print(f"Tracing to {trace}")
+
+    def close() -> None:
+        tracer.close()
+        sink.close()
+
+    return tracer.see, close
+
+
 def _play(  # noqa: PLR0913 -- one knob per session seam
     story_path: Path,
     seed: int | None,
@@ -936,6 +982,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     pixels: bool = False,
     zoom: float | None = None,
     recorder: Recorder | None = None,
+    trace: Path | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -945,11 +992,14 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     Blorb carrying an Exec resource, and a plain story may have a
     sidecar Blorb found beside it by name or given explicitly.
     With a recorder, every line and key on its way to the machine
-    is also written to the script being recorded.
+    is also written to the script being recorded. With a trace,
+    every instruction the machine executes is also written there,
+    rendered as the listing renders it.
     """
 
     try:
         story, blorb = _load_story(story_path, resources)
+        witness, close_trace = _tracing(trace)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
 
@@ -1007,6 +1057,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             key_source=key_source,
             identity=identity,
             timed_input_source=timed_input_source,
+            witness=witness,
         )
 
         if painted is not None:
@@ -1036,6 +1087,8 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
         if recorder is not None:
             recorder.close()
+
+        close_trace()
 
     print()
 

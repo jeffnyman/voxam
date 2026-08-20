@@ -19,6 +19,7 @@ not carried here: it recovers only routines whose initial local
 values themselves masquerade as code.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from voxam.errors import (
@@ -144,6 +145,46 @@ def report(story: Story) -> str:
     lines += _strings(memory, story.data, end)
 
     return "\n".join(lines)
+
+
+class Tracer:
+    """The listing's live sibling: a witness on the machine's step.
+
+    Every instruction the machine executes is rendered exactly as
+    the static listing renders it and written to the sink in
+    execution order -- a golden trace. When another interpreter
+    disagrees with Voxam about a story, the first differing line
+    of their traces is the bug; when a session halts, the trace's
+    last line is the instruction that halted it. The closing line
+    carries the tallies observability wants: how many instructions
+    ran, and from how many distinct addresses.
+    """
+
+    def __init__(self, sink: Callable[[str], object]) -> None:
+        """Aim the trace at a sink, one rendered line per step.
+
+        The sink's return value is ignored, so a file's write and
+        a list's append both serve.
+        """
+
+        self._sink = sink
+        self._executed = 0
+        self._addresses: set[int] = set()
+
+    def see(self, memory: Memory, instruction: Instruction) -> None:
+        """Witness one instruction on its way to execution."""
+
+        self._executed += 1
+        self._addresses.add(instruction.address)
+        self._sink(f"{_line(memory, instruction)}\n")
+
+    def close(self) -> None:
+        """Write the closing tallies."""
+
+        self._sink(
+            f"\n[end of trace: {self._executed} instructions "
+            f"at {len(self._addresses)} distinct addresses]\n"
+        )
 
 
 class _Surveyor:

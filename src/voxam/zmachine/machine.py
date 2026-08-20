@@ -394,6 +394,7 @@ class Machine:
         key_source: Callable[[float | None], str | None] | None = None,
         identity: Identity | None = None,
         timed_input_source: Callable[[float], str | None] | None = None,
+        witness: Callable[[Memory, Instruction], None] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -433,6 +434,10 @@ class Machine:
                 clock and answers None on expiry, keeping the
                 half-typed line composed. None keeps the patient
                 typist, so scripted sessions replay identically.
+            witness: An observer told of every instruction on its
+                way to execution, interrupt routines included --
+                the execution-trace seam. None, the usual case,
+                costs the step loop nothing.
         """
 
         self._story = story
@@ -466,6 +471,7 @@ class Machine:
         # it None and keep the patient typist, so recordings replay
         # byte-identically.
         self._timed_input_source = timed_input_source
+        self._witness = witness
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
@@ -700,6 +706,12 @@ class Machine:
 
             if self._pc >= self._code_floor:
                 self._code_cache[self._pc] = (instruction, handler)
+
+        if self._witness is not None:
+            # Told before the handler runs, so an instruction that
+            # halts the session is the trace's last line -- exactly
+            # where a debugger wants to be standing.
+            self._witness(self._memory, instruction)
 
         handler(self, instruction)
 
