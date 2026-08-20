@@ -550,7 +550,10 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
 
 
 def _graphics_frontend(
-    version: int, blorb: Blorb | None, zoom: float | None = None
+    version: int,
+    blorb: Blorb | None,
+    zoom: float | None = None,
+    story_path: Path | None = None,
 ) -> "GraphicsFrontend | None":
     """A pygame window, when the graphics extra allows.
 
@@ -571,11 +574,15 @@ def _graphics_frontend(
             if blorb is not None and blorb.resolution is not None
             else None
         )
+        art = _gallery(blorb)
+
+        if art is None and story_path is not None:
+            art = _picture_file_gallery(story_path)
 
         return GraphicsFrontend(
             version,
             speaker=_speaker(blorb),
-            gallery=_gallery(blorb),
+            gallery=art,
             standard=standard,
             zoom=zoom,
         )
@@ -586,6 +593,37 @@ def _graphics_frontend(
         )
 
         return None
+
+
+# The pre-Blorb picture files, found beside the story by its own
+# name -- the convention the DOS-era instructions describe when
+# they say to rename zork0.eg1 to FMVPOKER.EG1 (pix2gif).
+PICTURE_SUFFIXES = (".mg1", ".eg1", ".cg1")
+
+
+def _picture_file_gallery(story_path: Path) -> "Gallery | None":
+    """Art from a like-named MG1/EG1/CG1 file beside the story.
+
+    The original Infocom convention, honoured only when no Blorb
+    brought pictures: an unreadable file earns a note and the
+    session plays on unillustrated -- art is a courtesy, never a
+    gate.
+    """
+
+    for suffix in PICTURE_SUFFIXES:
+        sidecar = story_path.with_suffix(suffix)
+
+        if sidecar.exists():
+            from voxam.picfile import gallery as picture_gallery  # noqa: PLC0415
+
+            try:
+                return picture_gallery(sidecar.read_bytes())
+            except (OSError, VoxamError) as error:
+                print(f"voxam: the picture file cannot be read: {error}\n")
+
+                return None
+
+    return None
 
 
 def _gallery(blorb: Blorb | None) -> "Gallery | None":
@@ -889,7 +927,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     painted: ScreenFrontend | GraphicsFrontend | None = None
 
     if frontend is None and graphics:
-        painted = _graphics_frontend(header.version, blorb, zoom)
+        painted = _graphics_frontend(header.version, blorb, zoom, story_path)
 
     if frontend is None and painted is None and screen:
         painted = _screen_frontend(header.version, blorb)

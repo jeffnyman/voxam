@@ -16,6 +16,7 @@ report the grown size, because games lay out their whole stage
 from those words (Blorb: The Resolution Chunk).
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 
@@ -96,7 +97,7 @@ class Gallery:
 
     def __init__(
         self,
-        art: dict[int, bytes | Placard],
+        art: Mapping[int, bytes | Placard | Picture],
         release: int,
         resolution: Resolution | None = None,
         *,
@@ -106,8 +107,10 @@ class Gallery:
         """Hang the art: PNG bytes or placards, by picture number.
 
         Args:
-            art: Each picture number's PNG file bytes, or a
-                Placard where the Blorb held a Rect.
+            art: Each picture number's PNG file bytes, a Placard
+                where the Blorb held a Rect, or an already-decoded
+                Picture -- how the pre-Blorb MG1/EG1 files hang
+                their art, palettes long since applied.
             release: The picture file's release number.
             resolution: The Reso chunk's scaling instructions;
                 None means every picture is non-scalable.
@@ -173,7 +176,7 @@ class Gallery:
         if entry is None:
             return None
 
-        if isinstance(entry, Placard):
+        if isinstance(entry, Placard | Picture):
             return entry.height, entry.width
 
         return _measured(entry)
@@ -233,6 +236,11 @@ class Gallery:
 
         if entry is None or isinstance(entry, Placard):
             return None
+
+        if isinstance(entry, Picture):
+            # Pre-decoded art -- a picture file's -- carries its
+            # palette applied and joins no adaptive dance.
+            return entry
 
         if self._adaptive:
             if number in self._adaptive:
@@ -295,7 +303,7 @@ class Gallery:
 
         entry = self._art.get(replacement)
 
-        if entry is None or isinstance(entry, Placard):
+        if entry is None or isinstance(entry, Placard | Picture):
             msg = (
                 f"a BPal record names picture {replacement} as a "
                 f"baked replacement, but the Blorb holds no such "

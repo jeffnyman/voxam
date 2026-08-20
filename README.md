@@ -160,7 +160,16 @@ it.
 VΘXΔM reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
 resource files as well: a `.zblorb` packaged story boots directly,
 and a sidecar `.blb` found beside a story by name announces its
-pictures and sounds at the banner. A cover picture -- *Beyond
+pictures and sounds at the banner. The era before Blorb is
+honoured too: a like-named `.MG1`, `.EG1`, or `.CG1` file --
+Infocom's original DOS picture format, decoded by the rules of
+ztools' pix2gif -- hangs its art the same way. The decoder is
+really aimed at Infocom's own Version 6 games from their original
+DOS assets; it also lets the fan homebrew *Frobozz Magic
+Videopoker* find and deal its cards from a renamed Zork Zero
+graphics file, though that game hard-codes the DOS screen it was
+written for and lays itself out oddly on any other.
+A cover picture -- *Beyond
 Zork* ships one -- is shown before play at a painted terminal,
 scaled into half-block cells on any colour terminal or drawn at
 real resolution with `--pixels`, decoded by a pure-stdlib PNG
