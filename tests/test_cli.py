@@ -16,6 +16,7 @@ from voxam.blorb import Blorb, Resource
 from voxam.cli import (
     _gallery,
     _graphics_frontend,
+    _picture_file_gallery,
     _recorded_keys,
     _recorded_ticks,
     _screen_frontend,
@@ -1027,3 +1028,28 @@ def test_graphics_and_plain_are_two_glasses(
 
     assert_that(exit_code).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("two different glasses")
+
+
+# A like-named MG1/EG1/CG1 file beside the story hangs its art the
+# pre-Blorb way; an unreadable one earns a note and no gallery,
+# and no sidecar at all is quietly nothing (pix2gif's convention).
+def test_picture_file_sidecars_hang_or_decline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = tmp_path / "poker.z6"
+    story.write_bytes(b"")
+
+    assert_that(_picture_file_gallery(story)).is_none()
+
+    empty_book = bytes([0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 7, 0])
+    (tmp_path / "poker.eg1").write_bytes(empty_book)
+
+    book = _picture_file_gallery(story)
+
+    assert_that(book).is_not_none()
+    assert_that(book.count if book else -1).is_zero()
+
+    (tmp_path / "poker.eg1").write_bytes(b"XX")
+
+    assert_that(_picture_file_gallery(story)).is_none()
+    assert_that(capsys.readouterr().out).contains("picture file cannot be read")
