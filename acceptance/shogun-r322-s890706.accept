@@ -1,0 +1,90 @@
+! SEED=24
+! GAME=../entharion/zcode-infocom/shogun-r322-s890706.z6
+
+start
+>
+
+straighten the wheel
+lash the wheel
+specz, take the wheel
+down
+fore
+examine the crew
+vinck, go on deck
+ginsel, go on deck
+maetsukker, go on deck
+grab maetsukker
+aft
+aft
+port
+examine the desk
+open the desk
+take the quill and the key
+unlock the chest with the key
+open it
+take my rutter
+read it
+write in it
+put my rutter and the quill in the chest
+close the chest
+lock it with the key
+starboard
+starboard
+ask roper about my apple
+examine roper
+take my apple
+port
+eat the apple
+aft
+examine the desk
+open the desk
+take the flagon
+give water to the captain
+fore
+fore
+up
+unlash the wheel
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+turn the wheel to port
+straighten the wheel
+
+wait
+wait
+wait
+wait
+wait
+
+ring the bell
+wait
+raise the foresails
+wait
+wait
+wait
+wait
+
+turn the wheel to starboard
+turn the wheel to port
+turn the wheel to port
+straighten the wheel
+turn the wheel to starboard
+vinck, help me
+straighten the wheel
+
+wait
+wait
+wait
+wait
+wait
+turn the wheel to port
+
+quit
+>
+y
