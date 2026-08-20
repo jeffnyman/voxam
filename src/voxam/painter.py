@@ -18,9 +18,10 @@ terminal at all.
 import sys
 from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager
+from time import monotonic
 from typing import Protocol, cast
 
-from voxam.editor import LineEditor, read_line_edited
+from voxam.editor import EXPIRED, LineEditor, read_line_edited
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.png import Picture
 from voxam.screen import (
@@ -342,6 +343,9 @@ class ScreenFrontend:
         )
         self._model.more = self._pause
         self._editor = LineEditor()
+        # Whether a timed read left a half-typed line composed: the
+        # next line read resumes it instead of starting fresh.
+        self._composing = False
         self._prompt = ""
 
     @property
@@ -599,9 +603,73 @@ class ScreenFrontend:
         self._model.rest()
         self._park()
 
-        return read_line_edited(
-            self._editor, self._model, self._waited_key, self._repaint
+        fresh = not self._composing
+        self._composing = False
+        line = read_line_edited(
+            self._editor, self._model, self._waited_key, self._repaint, fresh=fresh
         )
+
+        # The untimed key source never expires, so the line is real.
+        return cast("str", line)
+
+    def read_line_until(self, seconds: float) -> str | None:
+        """Read a line on the clock, or None when the wait expires.
+
+        The live half of a §15 timed read: the machine calls with
+        the read's interval, runs the game's interrupt on None, and
+        calls again -- and the half-typed line survives between
+        calls, composed in the editor and standing on the glass.
+        Border Zone's whole real-time engine rides on these ticks.
+        """
+
+        self._model.rest()
+        self._park()
+
+        deadline = monotonic() + seconds
+
+        def ticking_key() -> str | None:
+            remaining = deadline - monotonic()
+
+            if remaining <= 0:
+                return EXPIRED
+
+            wait = (
+                min(remaining, IDLE_HEARTBEAT) if self.idle is not None else remaining
+            )
+            key = self._translated_key(wait)
+
+            if key is None and self.idle is not None:
+                self.idle()
+
+            return key
+
+        fresh = not self._composing
+        line = read_line_edited(
+            self._editor, self._model, ticking_key, self._repaint, fresh=fresh
+        )
+        self._composing = line is None
+
+        return line
+
+    def abandon_input(self) -> None:
+        """Erase the half-typed line a terminated timed read leaves.
+
+        §15 read: a true-returning interrupt ends the read with all
+        input erased -- so the composed line comes off the glass,
+        rubbed out from the editor's own accounting, and the next
+        read starts fresh.
+        """
+
+        if not self._composing:
+            return
+
+        pending = len(self._editor.text)
+        self._model.retreat(self._editor.cursor)
+        self._model.write(" " * pending)
+        self._model.retreat(pending)
+        self._editor.begin()
+        self._composing = False
+        self._repaint()
 
     def _answered(self, query: str, end: str) -> str:
         """Ask the terminal a question and collect its escape answer.

@@ -40,6 +40,12 @@ NEWLINE = "\n"
 # A session keeps this many submitted lines for recall.
 HISTORY_LIMIT = 100
 
+# A key source may answer this instead of a key to say a timed
+# wait expired (§15 read): the loop hands back None with the
+# composed line intact, so the read can resume after the game's
+# interrupt has run. NUL can never arrive as real typing.
+EXPIRED = "\x00"
+
 
 class LineCanvas(Protocol):
     """What the editor needs from a screen model to echo edits."""
@@ -222,7 +228,9 @@ def read_line_edited(
     canvas: LineCanvas,
     key_source: Callable[[], str | None],
     repaint: Callable[[], None],
-) -> str:
+    *,
+    fresh: bool = True,
+) -> str | None:
     """Run one line read through the editor, echoing via the canvas.
 
     The shared loop behind both painted frontends: keys arrive raw
@@ -235,12 +243,20 @@ def read_line_edited(
     rare line that wrapped only the final row redraws -- the
     returned line is right regardless, because the buffer, not the
     glass, is what the game receives.
+
+    A key source that answers EXPIRED ends the call with None: the
+    composed line stays in the editor and on the glass, and a later
+    call with fresh=False resumes it exactly where it stood -- how
+    a timed read survives its interrupts (§15 read).
     """
 
-    editor.begin()
-
-    painted = 0  # cells on the glass since the line began
-    at = 0  # the canvas cursor, in cells from the line's start
+    if fresh:
+        editor.begin()
+        painted = 0  # cells on the glass since the line began
+        at = 0  # the canvas cursor, in cells from the line's start
+    else:
+        painted = len(editor.text)
+        at = editor.cursor
 
     def redraw() -> None:
         nonlocal painted, at
@@ -262,6 +278,9 @@ def read_line_edited(
 
     while True:
         key = key_source()
+
+        if key == EXPIRED:
+            return None
 
         if key is None or key == ESCAPE:
             continue

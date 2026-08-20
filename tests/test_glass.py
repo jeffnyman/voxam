@@ -641,6 +641,48 @@ def test_read_line_edits_through_the_model() -> None:
     assert_that(frontend.model.row_text(1)).is_equal_to("hi")
 
 
+# The glass twin of the painter's timed read: pause on the
+# deadline with the line composed, resume to completion, and
+# abandonment erases the half-typed line from the window.
+def test_timed_reads_pause_resume_and_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 0.0}
+
+    def stepping() -> float:
+        clock["now"] += 0.4
+
+        return clock["now"]
+
+    monkeypatch.setattr("voxam.glass.monotonic", stepping)
+    frontend, glass = windowed(keys=["g", "o"])
+
+    line = frontend.read_line_until(1.0)
+
+    assert_that(line).is_none()
+    assert_that(frontend.model.row_text(1)).is_equal_to("go")
+
+    glass.keys = ["\n"]
+
+    assert_that(frontend.read_line_until(1.0)).is_equal_to("go")
+
+    frontend.abandon_input()  # nothing composed: quietly nothing
+    glass.keys = ["n", "o"]
+
+    assert_that(frontend.read_line_until(1.0)).is_none()
+
+    frontend.abandon_input()
+
+    assert_that(frontend.model.row_text(2)).is_equal_to("")
+
+    # With the idle heartbeat armed, an empty read lets background
+    # work run and the wait chunks at the heartbeat.
+    frontend.idle = lambda: None
+    glass.keys = [None, "g", "\n"]
+
+    assert_that(frontend.read_line_until(9.0)).is_equal_to("g")
+
+
 # The cell model pages like the stage: a screenful at the pygame
 # window holds behind [MORE] in the window's colours reversed,
 # spends one key on the pause, and repaints the row clean.

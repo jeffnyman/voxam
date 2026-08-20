@@ -117,6 +117,9 @@ class Recorder:
     def resume_input(self) -> None:
         """Discard: the status tests never take timed input."""
 
+    def abandon_input(self) -> None:
+        """Discard: the status tests never take timed input."""
+
     def set_buffering(self, buffered: bool) -> None:
         """Discard: the status tests never toggle buffering."""
 

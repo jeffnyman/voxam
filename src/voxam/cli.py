@@ -632,25 +632,32 @@ def _recorded_sources(
     recorder: Recorder | None,
     input_source: Callable[[], str] | None,
     key_source: Callable[[float | None], str | None] | None,
+    timed_input_source: Callable[[float], str | None] | None = None,
 ) -> tuple[
     Callable[[], str] | None,
     Callable[[float | None], str | None] | None,
+    Callable[[float], str | None] | None,
 ]:
-    """Tee both input seams through the recorder, when there is one.
+    """Tee every input seam through the recorder, when there is one.
 
     Without an input source of its own, a recorded session records
     the built-in prompt the machine would fall back to anyway.
     """
 
     if recorder is None:
-        return input_source, key_source
+        return input_source, key_source, timed_input_source
 
     lines = _recorded_lines(
         recorder, input_source if input_source is not None else input
     )
     keys = key_source if key_source is None else _recorded_keys(recorder, key_source)
+    ticks = (
+        timed_input_source
+        if timed_input_source is None
+        else _recorded_ticks(recorder, timed_input_source)
+    )
 
-    return lines, keys
+    return lines, keys, ticks
 
 
 def _recorded_lines(recorder: Recorder, source: Callable[[], str]) -> Callable[[], str]:
@@ -664,6 +671,22 @@ def _recorded_lines(recorder: Recorder, source: Callable[[], str]) -> Callable[[
         return line
 
     return _line
+
+
+def _recorded_ticks(
+    recorder: Recorder, source: Callable[[float], str | None]
+) -> Callable[[float], str | None]:
+    """Tee completed timed-read lines; an expiry is not a line."""
+
+    def _tick(seconds: float) -> str | None:
+        line = source(seconds)
+
+        if line is not None:
+            recorder.line(line)
+
+        return line
+
+    return _tick
 
 
 def _recorded_keys(
@@ -862,6 +885,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
     header = story.header
     key_source: Callable[[float | None], str | None] | None = None
+    timed_input_source: Callable[[float], str | None] | None = None
     painted: ScreenFrontend | GraphicsFrontend | None = None
 
     if frontend is None and graphics:
@@ -874,8 +898,16 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         frontend = painted
         input_source = painted.read_line
         key_source = painted.read_key
+        # The live half of §15 timed line reads: the painted
+        # frontends wait a read's own interval on the wall clock,
+        # which is what lets Border Zone's clock tick between
+        # keystrokes. Scripted sessions never set this, keeping
+        # the patient typist and byte-identical replays.
+        timed_input_source = painted.read_line_until
 
-    input_source, key_source = _recorded_sources(recorder, input_source, key_source)
+    input_source, key_source, timed_input_source = _recorded_sources(
+        recorder, input_source, key_source, timed_input_source
+    )
 
     print(
         f"Running {story_path.name}: release {header.release}, "
@@ -902,6 +934,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             saves=saves,
             key_source=key_source,
             identity=identity,
+            timed_input_source=timed_input_source,
         )
 
         if painted is not None:

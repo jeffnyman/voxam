@@ -76,6 +76,9 @@ class ScreenRecorder:
     def resume_input(self) -> None:
         """Discard: the screen tests never take timed input."""
 
+    def abandon_input(self) -> None:
+        """Discard: the screen tests never take timed input."""
+
     def set_buffering(self, buffered: bool) -> None:
         self.buffering.append(buffered)
 

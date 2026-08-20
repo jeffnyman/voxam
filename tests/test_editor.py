@@ -2,7 +2,7 @@
 
 from assertpy import assert_that
 
-from voxam.editor import HISTORY_LIMIT, LineEditor, read_line_edited
+from voxam.editor import EXPIRED, HISTORY_LIMIT, LineEditor, read_line_edited
 
 
 def composed(*lines: str) -> LineEditor:
@@ -32,7 +32,9 @@ class FakeCanvas:
         return cells
 
 
-def run(editor: LineEditor, keys: list[str | None]) -> tuple[str, FakeCanvas, int]:
+def run(
+    editor: LineEditor, keys: list[str | None]
+) -> tuple[str | None, FakeCanvas, int]:
     canvas = FakeCanvas()
     remaining = list(keys)
     repaints = 0
@@ -231,3 +233,22 @@ def test_loop_moves_right_after_left() -> None:
     line, _canvas, _repaints = run(LineEditor(), ["a", "\x83", "\x84", "b", "\n"])
 
     assert_that(line).is_equal_to("ab")
+
+
+# An EXPIRED answer pauses the read: the loop hands back None with
+# the composed line intact, and a fresh=False call resumes it to
+# completion -- how a timed read survives its interrupts.
+def test_expiry_pauses_and_resume_completes() -> None:
+    editor = LineEditor()
+    line, _canvas, _repaints = run(editor, ["g", "o", EXPIRED])
+
+    assert_that(line).is_none()
+    assert_that(editor.text).is_equal_to("go")
+
+    canvas = FakeCanvas()
+    keys = iter([" ", "n", "\n"])
+    resumed = read_line_edited(
+        editor, canvas, lambda: next(keys), lambda: None, fresh=False
+    )
+
+    assert_that(resumed).is_equal_to("go n")
