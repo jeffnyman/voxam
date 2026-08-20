@@ -394,6 +394,22 @@ def test_read_line_recalls_history() -> None:
     assert_that(frontend.model.row_text(2)).is_equal_to("inventory")
 
 
+# A bold space paints without its bold: there is no glyph to
+# embolden, and a terminal would brighten the blank's reverse
+# background into a patchwork -- Border Zone pads its status bar
+# with exactly such spaces. Bold text keeps its dress.
+def test_bold_spaces_shed_their_bold() -> None:
+    frontend, out = painted()
+
+    frontend.set_style(2)
+    frontend.write("a b")
+    text = "".join(out)
+
+    assert_that(text).contains("<n><b>a")
+    assert_that(text).contains("<n> ")
+    assert_that(text).contains("<n><b>b")
+
+
 # A screenful of prints pauses behind a reverse-video [MORE] at
 # the cursor, spends one key on the pause, and repaints the row
 # clean -- the top of Bureaucracy's post-form text wall survives.

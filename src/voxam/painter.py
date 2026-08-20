@@ -779,7 +779,17 @@ class ScreenFrontend:
         """
 
         if cell.font != GRAPHICS_FONT:
-            return cell.character, cell.style
+            style = cell.style
+
+            # A space has no glyph to embolden, but a terminal
+            # brightens a bold-reverse blank anyway -- so a status
+            # bar padded with bold spaces (Border Zone's) paints as
+            # a patchwork of greys. Blanks shed bold before
+            # painting, as the reference interpreters render them.
+            if cell.character == " ":
+                style &= ~BOLD
+
+            return cell.character, style
 
         if cell.character in FONT_3_REVERSED:
             return FONT_3_REVERSED[cell.character], cell.style ^ REVERSE
