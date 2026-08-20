@@ -19,6 +19,7 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.listing import report as listing_report
 from voxam.png import decode
 from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
@@ -111,6 +112,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="describe the story's header (§11.1) and exit",
     )
     parser.add_argument(
+        "--listing",
+        action="store_true",
+        help="list the story's code txd-style (§4, §14) and exit",
+    )
+    parser.add_argument(
         "--plain",
         action="store_true",
         help="keep the plain stream frontend even at a terminal",
@@ -150,8 +156,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print("\nVoxam Interpreter for Z-Machine and Glulx\n")
 
-    if arguments.header:
-        return _header_glance(arguments)
+    reported = _static_report(arguments)
+
+    if reported is not None:
+        return reported
 
     try:
         identity = _identity(arguments.interpreter, tandy=arguments.tandy)
@@ -193,11 +201,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
 
-def _header_glance(arguments: argparse.Namespace) -> int:
-    """Describe a story's header (§11.1) and finish.
+def _static_report(arguments: argparse.Namespace) -> int | None:
+    """Serve --header or --listing, when asked; None means neither.
 
-    The glance reads the pristine file -- no machine boots, no
-    identity is claimed -- so the session flags have nothing to do
+    The two reports read the same pristine story, so they share
+    their guards -- but each is its own document, and asking for
+    both at once is refused rather than half-served.
+    """
+
+    if arguments.header and arguments.listing:
+        print("voxam: --header and --listing are each their own report; pick one")
+
+        return EXIT_UNUSABLE
+
+    if arguments.header:
+        return _story_report(arguments, "--header", glance_report)
+
+    if arguments.listing:
+        return _story_report(arguments, "--listing", listing_report)
+
+    return None
+
+
+def _story_report(
+    arguments: argparse.Namespace,
+    flag: str,
+    composer: Callable[[Story], str],
+) -> int:
+    """Print a static report of the story file and finish.
+
+    Both reports read the pristine file: no machine boots, no
+    identity is claimed, so the session flags have nothing to do
     and are refused rather than silently ignored.
     """
 
@@ -210,12 +244,12 @@ def _header_glance(arguments: argparse.Namespace) -> int:
     )
 
     if any(value is not None for value in others):
-        print("voxam: --header only reads the story; drop the session flags")
+        print(f"voxam: {flag} only reads the story; drop the session flags")
 
         return EXIT_UNUSABLE
 
     if arguments.story is None:
-        print("voxam: --header needs a story file to describe")
+        print(f"voxam: {flag} needs a story file to describe")
 
         return EXIT_UNUSABLE
 
@@ -227,7 +261,7 @@ def _header_glance(arguments: argparse.Namespace) -> int:
         return EXIT_UNUSABLE
 
     print(f"{arguments.story.name}\n")
-    print(glance_report(story))
+    print(composer(story))
 
     return EXIT_OK
 
