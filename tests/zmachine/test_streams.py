@@ -126,3 +126,33 @@ def test_transcript_streams_are_a_reported_frontier(
 
     with pytest.raises(ZMachineUnimplementedError, match="output stream 2"):
         machine.run()
+
+
+# Input stream 0 is the keyboard, which is already where every
+# session's keys come from -- selecting it changes nothing (§10.2).
+def test_input_stream_zero_is_the_keyboard_already(
+    code_machine: Callable[..., Machine],
+) -> None:
+    _, screen = run(code_machine, bytes([0xF4, 0x7F, 0x00]) + PRINT_HI + QUIT)
+
+    assert_that(screen).is_equal_to("hi")
+
+
+# Input stream 1 -- a command file the game itself asks to read
+# from mid-play (§10.2.2) -- awaits a file to read from.
+def test_input_stream_one_is_a_reported_frontier(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0xF4, 0x7F, 0x01]) + QUIT, version=4)
+
+    with pytest.raises(ZMachineUnimplementedError, match="input stream 1"):
+        machine.run()
+
+
+def test_undefined_input_streams_halt(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = code_machine(bytes([0xF4, 0x7F, 0x02]) + QUIT, version=4)
+
+    with pytest.raises(ZMachineInstructionError, match="only 0 and 1"):
+        machine.run()

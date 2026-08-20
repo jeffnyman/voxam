@@ -4,6 +4,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import (
+    ZMachineInstructionError,
     ZMachineScreenError,
     ZMachineStackError,
     ZMachineUnimplementedError,
@@ -215,10 +216,14 @@ def test_dynamic_code_may_rewrite_itself(
     assert_that(machine.memory.read_word(0x100)).is_equal_to(0x63)
 
 
+# Every §14 opcode now has a handler; the frontiers that remain are
+# features inside opcodes -- the transcript stream here -- and they
+# still halt loudly, naming themselves and their address, with the
+# machine stopped exactly where it happened.
 def test_unimplemented_opcodes_report_the_frontier(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xF4, 0x7F, 0x00])))
+    machine = code_machine(layout(bytes([0xF3, 0x7F, 0x02])))
 
     with pytest.raises(ZMachineUnimplementedError, match="not yet implemented"):
         machine.run()
@@ -226,15 +231,15 @@ def test_unimplemented_opcodes_report_the_frontier(
     assert_that(machine.running).is_true()
 
 
-def test_the_frontier_report_names_the_opcode_and_address(
+def test_the_frontier_report_names_the_feature_and_address(
     code_machine: Callable[..., Machine],
 ) -> None:
-    machine = code_machine(layout(bytes([0xF4, 0x7F, 0x00])))
+    machine = code_machine(layout(bytes([0xF3, 0x7F, 0x02])))
 
     with pytest.raises(ZMachineUnimplementedError) as excinfo:
         machine.run()
 
-    assert_that(excinfo.value.opcode_name).is_equal_to("input_stream")
+    assert_that(excinfo.value.opcode_name).is_equal_to("output stream 2")
     assert_that(excinfo.value.address).is_equal_to(CODE)
     assert_that(machine.pc).is_equal_to(CODE)
 
@@ -633,6 +638,38 @@ def stacked_v6_machine(
         data[offset : offset + 2] = value.to_bytes(2, "big")
 
     return Machine(Story(bytes(data)), frontend, lambda: "")
+
+
+# buffer_screen remembers the advice and stores the mode each call
+# replaces; -1 forces an update through -- instantly satisfied on
+# glasses that paint at once -- without changing the mode
+# (§8.8.7.1). Voxam ignoring the advice while acting as mode 0 is
+# the conduct §8.8.7 itself licenses.
+def test_buffer_screen_stores_the_mode_it_replaces() -> None:
+    machine = stacked_v6_machine(
+        bytes(
+            [
+                *[0xBE, 0x1D, 0x7F, 0x01, 0x10],
+                *[0xBE, 0x1D, 0x3F, 0xFF, 0xFF, 0x11],
+                *[0xBE, 0x1D, 0x7F, 0x00, 0x12],
+                0xBA,
+            ]
+        )
+    )
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(0)
+    assert_that(machine.memory.read_word(0x82)).is_equal_to(1)
+    assert_that(machine.memory.read_word(0x84)).is_equal_to(1)
+
+
+# A mode §8.8.7.1 does not define halts loudly.
+def test_buffer_screen_refuses_undefined_modes() -> None:
+    machine = stacked_v6_machine(bytes([0xBE, 0x1D, 0x7F, 0x05, 0x10, 0xBA]))
+
+    with pytest.raises(ZMachineInstructionError, match="0, 1, and -1"):
+        machine.run()
 
 
 # A §6.6 user stack counts spare slots downward from its capacity,
