@@ -246,6 +246,48 @@ def test_clean_replays_draw_no_warnings(
     assert_that(capsys.readouterr().out).does_not_contain("looks refused")
 
 
+# --trace rides any session: a replay wearing it writes every
+# executed instruction to the named file, listing-style, closing
+# with the tallies -- while an unwritable trace path refuses before
+# any story runs.
+def test_a_replay_writes_its_trace(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+    trace = tmp_path / "session.trace"
+
+    exit_code = main(["--accept", str(script), "--trace", str(trace)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Tracing to")
+
+    written = trace.read_text(encoding="utf-8")
+
+    assert_that(written).contains("sread")
+    assert_that(written).contains("[end of trace:")
+
+    blocked = main(["--accept", str(script), "--trace", str(tmp_path)])
+
+    assert_that(blocked).is_equal_to(2)
+
+
+# --trace describes a running session, so the static reports refuse
+# it, and RegTest -- which runs machines of its own -- does too.
+def test_trace_refusals(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    story = reading_story(tmp_path)
+
+    listed = main(["--listing", str(story), "--trace", str(tmp_path / "t")])
+
+    assert_that(listed).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the session flags")
+
+    tested = main(["--regtest", "suite.reg", "--trace", str(tmp_path / "t")])
+
+    assert_that(tested).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the other flags")
+
+
 # The full replay loop: the script names its game, the command is
 # typed and echoed, and the exhausted script ends the session.
 def test_replays_an_acceptance_script(

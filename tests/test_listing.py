@@ -6,7 +6,9 @@ from pathlib import Path
 from assertpy import assert_that
 
 from voxam.cli import main
-from voxam.listing import report
+from voxam.frontend import PlainFrontend
+from voxam.listing import Tracer, report
+from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
 EXIT_OK = 0
@@ -298,6 +300,36 @@ def test_the_files_edge_and_unreadable_tails_stay_loud() -> None:
     assert_that(tail).contains("[end of file]")
     assert_that(tail).does_not_contain("padding")
     assert_that(tail).does_not_contain("unreadable")
+
+
+# The trace is the listing's live sibling: a machine wearing the
+# witness writes every executed instruction in execution order,
+# rendered exactly as the listing renders it, and the closing line
+# tallies instructions and distinct addresses -- the golden trace
+# another interpreter can diff against.
+def test_a_traced_machine_writes_its_golden_trace() -> None:
+    story = crafted(
+        {
+            0x40: bytes([0x00]),
+            0x41: bytes([0xB2, *HI, 0xBA]),
+        }
+    )
+    lines: list[str] = []
+    printed: list[str] = []
+    tracer = Tracer(lines.append)
+    machine = Machine(story, PlainFrontend(printed.append), witness=tracer.see)
+
+    machine.run()
+    tracer.close()
+
+    assert_that(printed).contains("hi")
+    assert_that(lines).is_equal_to(
+        [
+            '  $0041: print           "hi"\n',
+            "  $0044: quit\n",
+            "\n[end of trace: 2 instructions at 2 distinct addresses]\n",
+        ]
+    )
 
 
 # The real compiled fixtures list whole in every version family:
