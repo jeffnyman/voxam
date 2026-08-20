@@ -85,6 +85,20 @@ def test_a_packaged_story_is_found_and_foreign_code_is_not() -> None:
     assert_that(Blorb.parse(build_blorb([])).story).is_none()
 
 
+# The same Exec seat in the GLUL format is a packaged Glulx story
+# -- the .gblorb of games that outgrew the Z-Machine -- and each
+# format is invisible to the other's accessor.
+def test_a_packaged_glulx_story_is_found_and_z_code_is_not() -> None:
+    packaged = Blorb.parse(build_blorb([(b"Exec", 0, Chunk(b"GLUL", b"glulx-image"))]))
+
+    assert_that(packaged.glulx).is_equal_to(b"glulx-image")
+
+    zcode = Blorb.parse(build_blorb([(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))]))
+
+    assert_that(zcode.glulx).is_none()
+    assert_that(Blorb.parse(build_blorb([])).glulx).is_none()
+
+
 # The frontispiece names a cover picture; doubling it is refused
 # (Blorb: Frontispiece Chunk).
 def test_the_frontispiece_is_read_and_policed() -> None:
@@ -384,6 +398,30 @@ def test_a_zblorb_story_boots_from_its_package(
 
     assert_that(exit_code).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("packages no Z-code story")
+
+
+# A .gblorb carries a Glulx story in its Exec seat: it boots to the
+# honest frontier, header read and checksum judged (Glulx: The
+# Header), rather than to a version-70 riddle.
+def test_a_gblorb_lands_at_the_glulx_frontier(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    image = bytearray(0x200)
+    image[0:4] = b"Glul"
+    image[4:8] = (0x00030101).to_bytes(4, "big")
+    image[8:12] = (0x100).to_bytes(4, "big")
+    image[12:16] = (0x200).to_bytes(4, "big")
+    image[16:20] = (0x300).to_bytes(4, "big")
+    image[20:24] = (0x100).to_bytes(4, "big")
+    packaged = tmp_path / "game.gblorb"
+    packaged.write_bytes(build_blorb([(b"Exec", 0, Chunk(b"GLUL", bytes(image)))]))
+
+    exit_code = main([str(packaged)])
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(out).contains("Glulx 3.1.1, CHECKSUM MISMATCH")
+    assert_that(out).contains("road to 2.0")
 
 
 # A like-named Blorb beside the story is discovered on its own,

@@ -366,6 +366,56 @@ def test_accept_and_replay_conflict(
     assert_that(capsys.readouterr().out).contains("pick one")
 
 
+def glulx_story(tmp_path: Path, version: int = 0x00030102) -> Path:
+    """A tiny valid Glulx image, checksummed, written beside tmp."""
+
+    data = bytearray(0x200)
+    data[0:4] = b"Glul"
+    data[4:8] = version.to_bytes(4, "big")
+    data[8:12] = (0x100).to_bytes(4, "big")
+    data[12:16] = (0x200).to_bytes(4, "big")
+    data[16:20] = (0x300).to_bytes(4, "big")
+    data[20:24] = (0x100).to_bytes(4, "big")
+    checksum = sum(
+        int.from_bytes(data[at : at + 4], "big") for at in range(0, len(data), 4)
+    )
+    data[32:36] = (checksum % (1 << 32)).to_bytes(4, "big")
+    path = tmp_path / "tiny.ulx"
+    path.write_bytes(bytes(data))
+
+    return path
+
+
+# A Glulx story boots as far as 1.x honestly goes: the header is
+# read, the checksum verified, and execution reported as the
+# frontier it still is -- the road to 2.0.
+def test_a_glulx_story_boots_to_the_frontier(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main([str(glulx_story(tmp_path))])
+    out = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(out).contains("Glulx 3.1.2, checksum verified")
+    assert_that(out).contains("road to 2.0")
+
+    broken = main([str(glulx_story(tmp_path, version=0x00040000))])
+
+    assert_that(broken).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("2.0.0")
+
+
+# The static reports are Z-Machine instruments; a Glulx story gets
+# a plain refusal instead of a version-70 riddle.
+def test_the_static_reports_decline_glulx(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main(["--header", str(glulx_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("is Glulx")
+
+
 # The session files ride every command-line session: selecting the
 # transcript stream writes story.scr beside the story, and the old
 # frontier exit is gone -- SCRIPT is just a command that works.

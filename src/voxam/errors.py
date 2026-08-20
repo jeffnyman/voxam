@@ -17,6 +17,10 @@ class BlorbError(VoxamError):
     """Raised when a Blorb resource file cannot be used."""
 
 
+class GlulxStoryError(VoxamError):
+    """Raised when a file cannot be loaded as a Glulx story."""
+
+
 class IFFError(VoxamError):
     """Raised when bytes cannot be read as an IFF container."""
 
