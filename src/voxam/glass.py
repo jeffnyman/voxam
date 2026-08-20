@@ -24,9 +24,10 @@ from collections.abc import Callable, Sequence
 from fractions import Fraction
 from importlib import resources
 from itertools import groupby
+from time import monotonic
 from typing import Any, Protocol, cast
 
-from voxam.editor import LineEditor, read_line_edited
+from voxam.editor import EXPIRED, LineEditor, read_line_edited
 from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.gallery import Gallery
@@ -300,6 +301,9 @@ class GraphicsFrontend:
         self._shadow: dict[int, list[Appearance | None]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
         self._editor = LineEditor()
+        # Whether a timed read left a half-typed line composed: the
+        # next line read resumes it instead of starting fresh.
+        self._composing = False
         # The input caret: where the underline was last drawn, and
         # whether a read is currently showing one. The v6 stage
         # draws no caret of its own -- its games place and paint
@@ -769,13 +773,78 @@ class GraphicsFrontend:
         self._typing = True
         self._show_caret()
 
+        fresh = not self._composing
+        self._composing = False
+
         try:
-            return read_line_edited(
-                self._editor, self._model, self._waited_key, self._repaint
+            line = read_line_edited(
+                self._editor, self._model, self._waited_key, self._repaint, fresh=fresh
             )
         finally:
             self._typing = False
             self._hide_caret()
+
+        # The untimed key source never expires, so the line is real.
+        return cast("str", line)
+
+    def read_line_until(self, seconds: float) -> str | None:
+        """Read a line on the clock, or None when the wait expires.
+
+        The live half of a §15 timed read, twin to the painter's:
+        the half-typed line survives between calls, composed in the
+        editor and standing in the window, with the caret marking
+        where it left off.
+        """
+
+        self._model.rest()
+        self._typing = True
+        self._show_caret()
+
+        deadline = monotonic() + seconds
+
+        def ticking_key() -> str | None:
+            remaining = deadline - monotonic()
+
+            if remaining <= 0:
+                return EXPIRED
+
+            wait = (
+                min(remaining, IDLE_HEARTBEAT) if self.idle is not None else remaining
+            )
+            key = self._glass.key(wait)
+
+            if key is None and self.idle is not None:
+                self.idle()
+
+            return key
+
+        fresh = not self._composing
+
+        try:
+            line = read_line_edited(
+                self._editor, self._model, ticking_key, self._repaint, fresh=fresh
+            )
+        finally:
+            self._typing = False
+            self._hide_caret()
+
+        self._composing = line is None
+
+        return line
+
+    def abandon_input(self) -> None:
+        """Erase the half-typed line a terminated timed read leaves."""
+
+        if not self._composing:
+            return
+
+        pending = len(self._editor.text)
+        self._model.retreat(self._editor.cursor)
+        self._model.write(" " * pending)
+        self._model.retreat(pending)
+        self._editor.begin()
+        self._composing = False
+        self._repaint()
 
     def clear(self) -> None:
         """Return the glass to a blank screen after a frontispiece.

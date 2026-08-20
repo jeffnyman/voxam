@@ -143,7 +143,11 @@ the session's command history, shell-style -- at the terminal and
 the pygame window alike, with single-keystroke reads still passing
 the arrows through to the games that claim them. Timed
 input runs on the real wall clock there, so a game like Z-Tornado
-plays in genuine real time. And a screenful of unread text waits
+plays in genuine real time -- and so do timed line reads: while
+you think at *Border Zone*'s prompt, its espionage clock ticks on
+without you, the read's interrupt fired every interval exactly as
+§15 asks, with your half-typed command surviving each tick.
+And a screenful of unread text waits
 behind a reverse-video [MORE] until a key arrives -- at the
 terminal and the pygame window alike, for every story version --
 so a game's longest speech never outruns its reader.

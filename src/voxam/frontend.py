@@ -194,6 +194,15 @@ class Frontend(Protocol):
         redisplay the prompt strands above the quotation.
         """
 
+    def abandon_input(self) -> None:
+        """A timed read's interrupt terminated it: erase the input.
+
+        §15 read: when the interrupt routine returns true, the read
+        ends with all input erased -- off the glass as well as out
+        of the buffers, so the half-typed line does not linger
+        beside whatever the routine printed.
+        """
+
     def set_buffering(self, buffered: bool) -> None:
         """Turn word-wrap buffering on or off (§8.7)."""
 
@@ -454,6 +463,9 @@ class PlainFrontend:
 
     def resume_input(self) -> None:
         """Drop the redisplay, for the same reason as the notice."""
+
+    def abandon_input(self) -> None:
+        """Drop the erasure: the stream never echoed a pending line."""
 
     def set_buffering(self, buffered: bool) -> None:
         """Drop the toggle: an unwrapped stream needs no buffering."""

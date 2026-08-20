@@ -390,6 +390,113 @@ def test_a_printing_interrupt_redisplays_the_input_line(
     assert_that(keys.notices).is_empty()
 
 
+# A live timed source runs the read on the wall clock: the source
+# waits the read's own interval (time/10 seconds), each expiry
+# fires the routine, and the completed line arrives through the
+# source -- the patient typist never runs and the input source is
+# never consulted (§15 read).
+def test_a_live_timed_read_ticks_until_the_line(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    answers = iter([None, None, "go"])
+    intervals: list[float] = []
+
+    def ticking(seconds: float) -> str | None:
+        intervals.append(seconds)
+
+        return next(answers)
+
+    machine = code_machine(
+        timed,
+        version=4,
+        input_source=lambda: "wrong",
+        timed_input_source=ticking,
+    )
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, MARK_THEN_FALSE)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+    assert_that(intervals).is_equal_to([1.0, 1.0, 1.0])
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+
+# A true return from a live tick's interrupt ends the read with the
+# input erased -- from the buffers, and from the frontend, which is
+# told to abandon the half-typed line (§15 read).
+def test_a_live_timed_read_terminated_by_its_interrupt(
+    code_machine: Callable[..., Machine],
+) -> None:
+    class Abandoner(PlainFrontend):
+        def __init__(self) -> None:
+            super().__init__(lambda _text: None)
+            self.abandoned = 0
+
+        def abandon_input(self) -> None:
+            self.abandoned += 1
+
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    watcher = Abandoner()
+    machine = code_machine(
+        timed,
+        version=4,
+        input_source=lambda: "wrong",
+        frontend=watcher,
+        timed_input_source=lambda _seconds: None,
+    )
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, MARK_THEN_TRUE)
+
+    machine.run()
+
+    assert_that(text_in_buffer(machine.memory)).is_empty()
+    assert_that(watcher.abandoned).is_equal_to(1)
+
+
+# The §15 redisplay courtesy holds on the live clock too: a
+# printing interrupt that lets input continue earns a resume.
+def test_a_live_printing_interrupt_redisplays(
+    code_machine: Callable[..., Machine],
+) -> None:
+    class InputWatcher(PlainFrontend):
+        def __init__(self) -> None:
+            super().__init__(lambda _text: None)
+            self.notices: list[str] = []
+
+        def begin_input(self) -> None:
+            self.notices.append("begin")
+
+        def resume_input(self) -> None:
+            self.notices.append("resume")
+
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    print_then_false = bytes([0x00, 0xE5, 0x7F, 0x58, 0xB1])
+    answers = iter([None, "go"])
+    watcher = InputWatcher()
+    machine = code_machine(
+        timed,
+        version=4,
+        input_source=lambda: "wrong",
+        frontend=watcher,
+        timed_input_source=lambda _seconds: next(answers),
+    )
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    plant_routine(machine.memory, print_then_false)
+
+    machine.run()
+
+    assert_that(watcher.notices).is_equal_to(["begin", "resume"])
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+
+
 # In Version 5 the interrupted erasure speaks the counted dialect: a
 # zero typed count in byte 1, zero parse words, and 0 stored where
 # the terminating character would go (§15 read).

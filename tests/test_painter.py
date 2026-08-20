@@ -394,6 +394,56 @@ def test_read_line_recalls_history() -> None:
     assert_that(frontend.model.row_text(2)).is_equal_to("inventory")
 
 
+# A timed read answers None on the deadline with the half-typed
+# line still composed on the glass; the next call resumes it to
+# completion, and abandoning erases it -- §15's live line read,
+# the seam Border Zone's clock ticks through. The fake clock steps
+# two-fifths of a second per look, so two keys arrive and the
+# third look finds the deadline passed.
+def test_timed_reads_pause_resume_and_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 0.0}
+
+    def stepping() -> float:
+        clock["now"] += 0.4
+
+        return clock["now"]
+
+    monkeypatch.setattr("voxam.painter.monotonic", stepping)
+    out: list[str] = []
+    terminal = StubTerminal([StubKey("g"), StubKey("o")])
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+
+    line = frontend.read_line_until(1.0)
+
+    assert_that(line).is_none()
+    assert_that(frontend.model.row_text(1)).is_equal_to("go")
+
+    terminal.keys = [StubKey("", "KEY_ENTER")]
+
+    assert_that(frontend.read_line_until(1.0)).is_equal_to("go")
+
+    frontend.abandon_input()  # nothing composed: quietly nothing
+    terminal.keys = [StubKey("n"), StubKey("o")]
+
+    assert_that(frontend.read_line_until(1.0)).is_none()
+
+    frontend.abandon_input()
+
+    assert_that(frontend.model.row_text(2)).is_equal_to("")
+    terminal.keys = [*typing("go")]
+
+    assert_that(frontend.read_line()).is_equal_to("go")
+
+    # With the idle heartbeat armed, an empty read lets background
+    # work run and the wait chunks at the heartbeat.
+    frontend.idle = lambda: None
+    terminal.keys = [StubKey(""), *typing("hi")]
+
+    assert_that(frontend.read_line_until(9.0)).is_equal_to("hi")
+
+
 # A bold space paints without its bold: there is no glyph to
 # embolden, and a terminal would brighten the blank's reverse
 # background into a patchwork -- Border Zone pads its status bar

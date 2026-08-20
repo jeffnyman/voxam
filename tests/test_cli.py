@@ -17,6 +17,7 @@ from voxam.cli import (
     _gallery,
     _graphics_frontend,
     _recorded_keys,
+    _recorded_ticks,
     _screen_frontend,
     _speaker,
     main,
@@ -777,6 +778,25 @@ def test_recorded_keys_tee_into_the_script(tmp_path: Path) -> None:
 
     assert_that(lines).contains("<up>")
     assert_that(lines[-1]).is_equal_to(">")
+
+
+# Timed-read lines tee through the recorder too: an expiry is not
+# a line and records nothing, while the completed line lands in
+# the script exactly once.
+def test_recorded_ticks_tee_completed_lines(tmp_path: Path) -> None:
+    target = tmp_path / "ticks.accept"
+    recorder = Recorder(target, game=tmp_path / "story.z5", seed=7, warn=print)
+    answers = iter([None, "look"])
+    source = _recorded_ticks(recorder, lambda _seconds: next(answers))
+
+    assert_that(source(1.0)).is_none()
+    assert_that(source(1.0)).is_equal_to("look")
+
+    recorder.close()
+
+    lines = target.read_text(encoding="utf-8").splitlines()
+
+    assert_that(lines[-1]).is_equal_to("look")
 
 
 # Painted play records through the same tees: the line assembled

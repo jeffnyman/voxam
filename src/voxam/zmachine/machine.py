@@ -150,6 +150,9 @@ READ_CHAR_ROUTINE_OPERAND = 2
 # 0 where a terminating character would go (§15 read, §15 read_char).
 TIMED_READ_VERSION = 4
 INTERRUPT_TERMINATOR = 0
+TIMED_TIME_INDEX = 2
+TIMED_ROUTINE_INDEX = 3
+TENTHS_PER_SECOND = 10
 
 # set_font stores 0 for a font it will not grant (§15 set_font), and
 # a character terminal's screen units are characters, so every font
@@ -379,6 +382,7 @@ class Machine:
         saves: SaveSlot | None = None,
         key_source: Callable[[float | None], str | None] | None = None,
         identity: Identity | None = None,
+        timed_input_source: Callable[[float], str | None] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -413,6 +417,11 @@ class Machine:
             identity: Who the interpreter claims to be -- platform
                 number and Tandy bit; None claims the defaults
                 (§11.1.3, §11.1.4).
+            timed_input_source: The live half of §15 timed line
+                reads -- waits a read's own interval on the wall
+                clock and answers None on expiry, keeping the
+                half-typed line composed. None keeps the patient
+                typist, so scripted sessions replay identically.
         """
 
         self._story = story
@@ -436,6 +445,12 @@ class Machine:
         ] = {}
         self._input = input_source if input_source is not None else input
         self._key_source = key_source
+        # The live half of §15 timed line reads: a source that waits
+        # the read's own interval and answers None on expiry with
+        # the half-typed line kept composed. Scripted sessions leave
+        # it None and keep the patient typist, so recordings replay
+        # byte-identically.
+        self._timed_input_source = timed_input_source
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
@@ -1829,6 +1844,76 @@ class Machine:
 
         return terminated
 
+    def _line_outcome(self, values: list[int]) -> tuple[bool, str | None]:
+        """How a line read's timing plays out before any typing lands.
+
+        A live session with a wall clock runs a timed read in real
+        time -- the interrupt fires every time/10 seconds while the
+        player thinks, which is Border Zone's entire engine -- and
+        the completed line comes back with the verdict. Scripted
+        sessions fall through to the patient typist, whose line is
+        fetched later from the input source.
+
+        Returns:
+            Whether the read was terminated by its interrupt, and
+            the live line when one was typed.
+        """
+
+        source = self._timed_input_source
+
+        if (
+            source is not None
+            and self._memory.header.version >= TIMED_READ_VERSION
+            and len(values) > TIMED_ROUTINE_INDEX
+            and values[TIMED_TIME_INDEX]
+            and values[TIMED_ROUTINE_INDEX]
+        ):
+            ticked = self._ticked_line(
+                source, values[TIMED_TIME_INDEX], values[TIMED_ROUTINE_INDEX]
+            )
+
+            return ticked is None, ticked
+
+        return self._timed_out(values, time_index=2, redisplay=True), None
+
+    def _ticked_line(
+        self,
+        source: Callable[[float], str | None],
+        time: int,
+        routine: int,
+    ) -> str | None:
+        """Run a live timed line read on the wall clock (§15 read).
+
+        The frontend waits time/10 seconds at a stretch, keeping any
+        half-typed line composed between stretches; each expiry runs
+        the interrupt routine, with the §15 redisplay courtesy when
+        it printed. A true return ends the read with the input
+        erased from glass and buffers alike.
+
+        Returns:
+            The completed line, or None when the interrupt
+            terminated the read.
+        """
+
+        seconds = time / TENTHS_PER_SECOND
+
+        while True:
+            line = source(seconds)
+
+            if line is not None:
+                return line
+
+            self._frontend.begin_input()
+            printed = self._prints
+
+            if self._interrupt(routine):
+                self._frontend.abandon_input()
+
+                return None
+
+            if self._prints != printed:
+                self._frontend.resume_input()
+
     def _op_sread(self, instruction: Instruction) -> None:
         """Read a typed command into the buffers (§15 read, §13.6).
 
@@ -1905,7 +1990,9 @@ class Machine:
         # this prompt, so the patient interval applies here anew.
         self._typist_ready = None
 
-        if self._timed_out(values, time_index=2, redisplay=True):
+        terminated, ticked = self._line_outcome(values)
+
+        if terminated:
             # All input is erased and the read ends at once (§15
             # read): a counted buffer reports zero letters typed, a
             # terminated one an empty string, and the lexing the
@@ -1935,7 +2022,8 @@ class Machine:
                 )
                 for offset in range(preloaded)
             )
-            typed = self._input().lower()[: capacity - preloaded]
+            raw = ticked if ticked is not None else self._input()
+            typed = raw.lower()[: capacity - preloaded]
             line = held + typed
 
             self._memory.write_byte(text_buffer + 1, len(line))
@@ -1944,7 +2032,8 @@ class Machine:
             # Byte 0 holds n where the buffer is a string array of
             # length n: the typed letters plus the zero terminator
             # fit inside it, so the capacity is n - 1 (§15 read).
-            line = self._input().lower()[: capacity - 1]
+            raw = ticked if ticked is not None else self._input()
+            line = raw.lower()[: capacity - 1]
 
             self._write_text(text_buffer + 1, line, terminate=True)
 
