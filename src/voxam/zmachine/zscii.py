@@ -202,6 +202,70 @@ DICTIONARY_ZCHARS = {1: 6, 2: 6, 3: 6, 4: 9, 5: 9, 6: 9, 7: 9, 8: 9}
 PAD = 5
 
 
+# UTF-16's surrogate ranges: not characters at all, but halves of
+# an encoding for characters past $ffff -- which the Z-Machine's
+# 16-bit unicode cannot otherwise name (§3.8.5).
+HIGH_SURROGATE_FIRST = 0xD800
+HIGH_SURROGATE_LAST = 0xDBFF
+LOW_SURROGATE_FIRST = 0xDC00
+LOW_SURROGATE_LAST = 0xDFFF
+ASTRAL_BASE = 0x10000
+SURROGATE_SHIFT = 10
+REPLACEMENT_CHARACTER = "�"
+
+
+def fuse_surrogates(text: str) -> str:
+    """Fuse adjacent UTF-16 surrogate halves into their characters.
+
+    The Z-Machine's unicode is 16-bit, so no conforming story can
+    name a character past $ffff (§3.8.5) -- but UTF-16-native
+    interpreters historically passed surrogate halves through to
+    displays that fused them, an accidental extension that test
+    stories now probe deliberately (the smileys checker's six
+    emoticons). A well-formed adjacent pair becomes its astral
+    character; a half with no partner becomes the replacement
+    character, because an honest blot beats the codec crash a lone
+    surrogate causes. A pair split across two separate prints
+    arrives as two halves and blots twice -- the fusing sees one
+    print's text at a time, and real stories print their pairs
+    whole.
+    """
+
+    if all(not HIGH_SURROGATE_FIRST <= ord(ch) <= LOW_SURROGATE_LAST for ch in text):
+        return text
+
+    fused: list[str] = []
+    position = 0
+
+    while position < len(text):
+        code = ord(text[position])
+
+        if HIGH_SURROGATE_FIRST <= code <= HIGH_SURROGATE_LAST:
+            partner = ord(text[position + 1]) if position + 1 < len(text) else 0
+
+            if LOW_SURROGATE_FIRST <= partner <= LOW_SURROGATE_LAST:
+                fused.append(
+                    chr(
+                        ASTRAL_BASE
+                        + ((code - HIGH_SURROGATE_FIRST) << SURROGATE_SHIFT)
+                        + (partner - LOW_SURROGATE_FIRST)
+                    )
+                )
+                position += 2
+
+                continue
+
+            fused.append(REPLACEMENT_CHARACTER)
+        elif LOW_SURROGATE_FIRST <= code <= LOW_SURROGATE_LAST:
+            fused.append(REPLACEMENT_CHARACTER)
+        else:
+            fused.append(text[position])
+
+        position += 1
+
+    return "".join(fused)
+
+
 def decode_string(memory: Memory, address: int) -> tuple[str, int]:
     """Decode the encoded string beginning at an address (§3.2).
 

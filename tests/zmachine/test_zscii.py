@@ -10,6 +10,7 @@ from voxam.zmachine.zscii import (
     decode_string,
     encode_word,
     extras,
+    fuse_surrogates,
     zscii_to_char,
 )
 
@@ -562,3 +563,33 @@ def test_the_version_6_typography_codes_print_as_spaces() -> None:
 
     with pytest.raises(ZMachineTextError, match="not yet printable"):
         zscii_to_char(11, version=5)
+
+
+# The Z-Machine's unicode is 16-bit (§3.8.5), but UTF-16-native
+# interpreters historically fused adjacent surrogate halves into
+# astral characters -- the extension the smileys checker probes.
+# A well-formed pair becomes its emoticon.
+def test_adjacent_surrogates_fuse_into_astral_characters() -> None:
+    fused = fuse_surrogates("six: \ud83d\ude03 and \ud83d\ude34.")
+
+    assert_that(fused).is_equal_to("six: \U0001f603 and \U0001f634.")
+
+
+# Text without surrogates passes through untouched -- the same
+# object, since every screen print crosses this seam.
+def test_plain_text_passes_through_the_fusing_untouched() -> None:
+    text = "You are standing in an open field west of a white house."
+
+    assert_that(fuse_surrogates(text)).is_same_as(text)
+
+
+# A half with no partner becomes the replacement character: an
+# honest blot where a lone surrogate would crash the encoder. A
+# high half may be orphaned by the text's end, by an ordinary
+# character, or by another high half; a low half with no leader is
+# just as lost.
+def test_orphaned_surrogates_blot_honestly() -> None:
+    assert_that(fuse_surrogates("end\ud83d")).is_equal_to("end\ufffd")
+    assert_that(fuse_surrogates("\ud83dx")).is_equal_to("\ufffdx")
+    assert_that(fuse_surrogates("\ud83d\ud83d\ude03")).is_equal_to("\ufffd\U0001f603")
+    assert_that(fuse_surrogates("\ude03!")).is_equal_to("\ufffd!")
