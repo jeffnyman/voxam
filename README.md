@@ -236,8 +236,12 @@ Inform format, held to its exact tallies in continuous
 integration), Praxix -- its Standard 1.1 section included --
 TerpEtude, and Strict Z Test all pass clean; Infocom's own ZIPTEST
 opened the version 6 era and named its frontiers one opcode at a
-time. Every remaining gap halts loudly with a citation instead of
-guessing.
+time. Even Borg's UTF-16 surrogate-pair test renders all six of
+its emoticons -- adjacent surrogate halves fuse into their astral
+characters at the screen, a community extension the Standard's
+16-bit unicode (§3.8.5) cannot express, honoured deliberately
+rather than by accident of encoding. Every remaining gap halts
+loudly with a citation instead of guessing.
 
 **Not yet:** mouse input -- *Zork Zero*'s mouse minigames want
 real clicks, and a planned `<click y x>` recording token will keep

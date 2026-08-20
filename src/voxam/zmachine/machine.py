@@ -76,6 +76,7 @@ from voxam.zmachine.zscii import (
     char_to_zscii,
     decode_string,
     extras,
+    fuse_surrogates,
     zscii_to_char,
 )
 
@@ -733,7 +734,12 @@ class Machine:
             if self._story_window:
                 self._prints += 1
 
-            self._output(text)
+            # The screen boundary is where surrogate halves fuse
+            # into their astral characters (or blot honestly):
+            # stream 3 above keeps the raw 16-bit values a game
+            # may read back, and no encoder past this line can
+            # survive a lone surrogate.
+            self._output(fuse_surrogates(text))
 
     def _op_log_shift(self, instruction: Instruction) -> None:
         """Shift a word logically: zeros fill from either end (§15)."""
