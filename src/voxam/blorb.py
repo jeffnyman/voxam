@@ -41,6 +41,7 @@ USAGE_PICTURE = b"Pict"
 USAGE_SOUND = b"Snd "
 USAGE_EXEC = b"Exec"
 ZCODE_ID = b"ZCOD"
+GLULX_ID = b"GLUL"
 EXEC_NUMBER = 0
 
 # Pictures arrive as PNG or JPEG chunks, with Rect placeholders
@@ -244,6 +245,22 @@ class Blorb:
         executable = self.resource(USAGE_EXEC, EXEC_NUMBER)
 
         if executable is None or executable.chunk.chunk_id != ZCODE_ID:
+            return None
+
+        return executable.chunk.payload
+
+    @property
+    def glulx(self) -> bytes | None:
+        """The packaged Glulx story, when the Blorb carries one.
+
+        The same Exec seat, in the GLUL executable format instead
+        (Blorb: Code Resource Chunks) -- the .gblorb of modern
+        games that outgrew the Z-Machine.
+        """
+
+        executable = self.resource(USAGE_EXEC, EXEC_NUMBER)
+
+        if executable is None or executable.chunk.chunk_id != GLULX_ID:
             return None
 
         return executable.chunk.payload

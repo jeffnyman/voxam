@@ -18,6 +18,8 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.glulx.story import MAGIC as GLULX_MAGIC
+from voxam.glulx.story import Story as GlulxStory
 from voxam.listing import Tracer
 from voxam.listing import report as listing_report
 from voxam.png import decode
@@ -265,6 +267,14 @@ def _story_report(
         return EXIT_UNUSABLE
 
     try:
+        if _glulx_story(arguments.story) is not None:
+            print(
+                f"voxam: {flag} reads Z-Machine stories, and "
+                f"{arguments.story.name} is Glulx -- the road to 2.0"
+            )
+
+            return EXIT_UNUSABLE
+
         story, _blorb = _load_story(arguments.story, arguments.resources)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
@@ -837,8 +847,56 @@ def _speaker(blorb: Blorb | None) -> Speaker | None:
 
 
 # A Blorb may be the story itself (a packaged Exec resource) or a
-# sidecar of pictures and sounds beside a plain story file.
-BLORB_SUFFIXES = (".blb", ".blorb", ".zblorb")
+# sidecar of pictures and sounds beside a plain story file. The
+# .gblorb dress marks a packaged Glulx story, and .ulx a bare one.
+BLORB_SUFFIXES = (".blb", ".blorb", ".zblorb", ".gblorb")
+
+
+def _glulx_story(story_path: Path) -> GlulxStory | None:
+    """The Glulx story a path holds; None when it holds none.
+
+    A Blorb suffix answers by its GLUL Exec resource, any other
+    file by its magic number -- so Z-code paths fall through to
+    the Z-Machine loader untouched.
+
+    Raises:
+        GlulxStoryError: For a file that opens 'Glul' and then
+            breaks the header's promises.
+        OSError: For files that cannot be read.
+    """
+
+    if story_path.suffix.lower() in BLORB_SUFFIXES:
+        packaged = Blorb.load(story_path).glulx
+
+        return GlulxStory(packaged) if packaged is not None else None
+
+    with story_path.open("rb") as handle:
+        magic = handle.read(len(GLULX_MAGIC))
+
+    if magic != GLULX_MAGIC:
+        return None
+
+    return GlulxStory.load(story_path)
+
+
+def _glulx_landing(story_path: Path, story: GlulxStory) -> int:
+    """Boot a Glulx story as far as 1.x honestly goes.
+
+    The header is read and held to every promise it makes, the
+    checksum computed as an interpreter must (Glulx: The Header)
+    -- and execution reported as the frontier it still is.
+    """
+
+    verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
+
+    print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
+    print(
+        "voxam: this is a Glulx story, and Glulx is the road to 2.0 -- "
+        "the header is read and verified, but the machine does not yet "
+        "execute"
+    )
+
+    return EXIT_UNUSABLE
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:
@@ -999,6 +1057,11 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     """
 
     try:
+        glulx = _glulx_story(story_path)
+
+        if glulx is not None:
+            return _glulx_landing(story_path, glulx)
+
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)
     except (OSError, VoxamError) as error:

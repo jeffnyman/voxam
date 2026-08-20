@@ -282,7 +282,11 @@ window a click arrives as §10.3's input code with its coordinates
 in the header extension, which is how *Solitaire Poker*'s betting
 buttons take a real click. The Blorb music formats,
 MOD and OGG (the entire vendored Infocom sound catalog is sampled
-AIFF and needs neither); and Glulx. For recorded sessions, seeds
+AIFF and needs neither); and Glulx -- though the road to 2.0 now
+has an on-ramp: a `.ulx` or `.gblorb` story is recognized, its
+header read and held to every promise it makes, its checksum
+computed and judged (Glulx: The Header), and execution reported
+as the frontier it still is. For recorded sessions, seeds
 substitute for saves: a script replays a whole game in moments.
 
 ## Installation
