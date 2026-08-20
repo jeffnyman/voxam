@@ -353,6 +353,27 @@ menus -- are decoded from the flags as the compiler shipped them,
 before any interpreter stamps in capabilities of its own. Packaged
 `.zblorb` stories work as-is.
 
+Deeper than the manifest, `--listing` disassembles the whole story
+txd-style -- every routine with its locals, every opcode with its
+operands drawn for what they mean (call targets and jump
+destinations as the $addresses they reach, variables by name,
+inline text decoded), then the encoded strings that follow the
+code:
+
+```bash
+voxam --listing path/to/story.z3
+```
+
+Nothing in a story file says where its routines are, so they are
+found the way Mark Howell's txd found them: by decoding. A trial
+decode accepts an address as a routine only when every instruction
+holds together, the region grows through constant call operands to
+a fixed point, and whatever refuses to decode is reported as data
+rather than skipped -- Zork I lists its full 440 routines, exactly
+txd's own count. The listing is the excavation tool for games
+whose source never shipped: when an expedition stalls, the routine
+that decided can now be read.
+
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
