@@ -10,6 +10,7 @@ from voxam.errors import (
     ZMachineUnimplementedError,
 )
 from voxam.frontend import PlainFrontend
+from voxam.scribe import Scribe
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -618,6 +619,7 @@ def stacked_v6_machine(
     code: bytes,
     words: dict[int, int] | None = None,
     frontend: PlainFrontend | None = None,
+    scribe: Scribe | None = None,
 ) -> Machine:
     """A Version 6 machine: main routine at $100, globals at $80.
 
@@ -637,7 +639,7 @@ def stacked_v6_machine(
     for offset, value in (words or {}).items():
         data[offset : offset + 2] = value.to_bytes(2, "big")
 
-    return Machine(Story(bytes(data)), frontend, lambda: "")
+    return Machine(Story(bytes(data)), frontend, lambda: "", scribe=scribe)
 
 
 # buffer_screen remembers the advice and stores the mode each call
@@ -670,6 +672,36 @@ def test_buffer_screen_refuses_undefined_modes() -> None:
 
     with pytest.raises(ZMachineInstructionError, match="0, 1, and -1"):
         machine.run()
+
+
+# In Version 6 the game writes its own transcript: the player's
+# input is NOT echoed to stream 2 by the interpreter (§7.1.1.1).
+def test_version_6_reads_do_not_echo_to_the_transcript() -> None:
+    class PagingScribe:
+        def __init__(self) -> None:
+            self.pages: list[str] = []
+
+        def transcript(self, text: str) -> None:
+            self.pages.append(text)
+
+        def command(self, line: str) -> None:
+            """Never asked for in this test."""
+
+        def playback(self) -> str | None:
+            """Never asked for in this test."""
+
+    scribe = PagingScribe()
+    machine = stacked_v6_machine(
+        bytes([0xF3, 0x7F, 0x02])
+        + bytes([0xB2, 0xB5, 0xC5])
+        + bytes([0xE4, 0x3F, 0x00, 0x60, 0x00, 0xBA]),
+        words={0x60: 0x1400},
+        scribe=scribe,
+    )
+
+    machine.run()
+
+    assert_that(scribe.pages).is_equal_to(["hi"])
 
 
 # A §6.6 user stack counts spare slots downward from its capacity,

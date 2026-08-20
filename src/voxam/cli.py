@@ -14,7 +14,6 @@ from voxam.errors import (
     BlorbError,
     PNGError,
     VoxamError,
-    ZMachineUnimplementedError,
 )
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
@@ -24,6 +23,7 @@ from voxam.listing import report as listing_report
 from voxam.png import decode
 from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
+from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
 from voxam.zmachine.instruction import Instruction
 from voxam.zmachine.machine import Identity, Machine
@@ -34,10 +34,11 @@ if TYPE_CHECKING:
     from voxam.glass import GraphicsFrontend
     from voxam.painter import ScreenFrontend
 
-# Exit codes: 0 for a story that ran to quit, 1 for halting at a not
-# yet implemented opcode, 2 for a file that could not be run at all.
+# Exit codes: 0 for a story that ran to quit, 2 for a file or session
+# that could not run to its end. There is no longer a frontier exit:
+# every §14 opcode has a handler, and the streams' session files ride
+# along in every command-line session.
 EXIT_OK = 0
-EXIT_FRONTIER = 1
 EXIT_UNUSABLE = 2
 
 # RegTest's own exit contract: 1 when any check failed.
@@ -1046,6 +1047,11 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
 
     # Saved games live beside the story: zork1.z3 saves to zork1.sav.
     saves = FileSaveSlot(story_path.with_suffix(".sav"))
+    # So do the session files: the SCRIPT command's transcript in
+    # zork1.scr, the command script and its playback in zork1.cmd
+    # (§7.1.1, §7.1.2.3, §10.2). Nothing is created unless the game
+    # asks.
+    scribe = FileScribe(story_path.with_suffix(".scr"), story_path.with_suffix(".cmd"))
 
     try:
         machine = Machine(
@@ -1058,6 +1064,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             identity=identity,
             timed_input_source=timed_input_source,
             witness=witness,
+            scribe=scribe,
         )
 
         if painted is not None:
@@ -1071,10 +1078,6 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         print("\nvoxam: end of input")
 
         return EXIT_OK
-    except ZMachineUnimplementedError as error:
-        print(f"\nvoxam: {error}")
-
-        return EXIT_FRONTIER
     except VoxamError as error:
         print(f"\nvoxam: {error}")
 
@@ -1088,6 +1091,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         if recorder is not None:
             recorder.close()
 
+        scribe.close()
         close_trace()
 
     print()

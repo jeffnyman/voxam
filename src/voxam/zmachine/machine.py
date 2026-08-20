@@ -34,6 +34,7 @@ from voxam.frontend import (
     Status,
 )
 from voxam.saves import SaveSlot
+from voxam.scribe import Scribe
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
 from voxam.zmachine.header import (
@@ -267,6 +268,17 @@ REDIRECTION_LIMIT = 16
 KEYBOARD_INPUT_STREAM = 0
 FILE_INPUT_STREAM = 1
 
+# Bit 0 of 'Flags 2' is the transcript: §7.4 requires the flag to
+# hold stream 2's current status however the stream is worked, so
+# the flag simply IS the status.
+TRANSCRIPT_BIT = 0x01
+
+# The keys a command script can carry (§7.1.2.3): the plain ZSCII
+# printables land as one-character lines and the return key as an
+# empty one -- the same shapes the keystroke queue spends.
+KEY_RECORD_FIRST = 32
+KEY_RECORD_LAST = 126
+
 # buffer_screen's §8.8.7.1 modes: 0 for immediate updates, 1 to
 # allow a backing store, and -1 to force an update through without
 # changing the mode.
@@ -407,6 +419,7 @@ class Machine:
         identity: Identity | None = None,
         timed_input_source: Callable[[float], str | None] | None = None,
         witness: Callable[[Memory, Instruction], None] | None = None,
+        scribe: Scribe | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -450,6 +463,10 @@ class Machine:
                 way to execution, interrupt routines included --
                 the execution-trace seam. None, the usual case,
                 costs the step loop nothing.
+            scribe: Where the session files live -- the §7.1.1
+                transcript, the §7.1.2.3 command script, and the
+                §10.2 command playback. None makes those streams a
+                loudly reported frontier for this session.
         """
 
         self._story = story
@@ -484,6 +501,12 @@ class Machine:
         # byte-identically.
         self._timed_input_source = timed_input_source
         self._witness = witness
+        self._scribe = scribe
+        # Stream 4 and input stream 1 are machine state; stream 2's
+        # state lives in 'Flags 2' bit 0, which §7.4 makes the one
+        # truth however the stream is worked.
+        self._recording_commands = False
+        self._file_input = False
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
@@ -701,13 +724,11 @@ class Machine:
         """Fetch, decode, and execute a single instruction.
 
         Every opcode §14 defines has a handler, so the lookup
-        cannot miss; the frontiers that remain are features inside
-        opcodes -- the transcript and command-file streams -- and
-        their handlers report them.
+        cannot miss.
 
         Raises:
-            ZMachineUnimplementedError: On reaching one of those
-                in-opcode frontiers.
+            ZMachineUnimplementedError: On a session-file stream in
+                a session that carries no scribe to serve it.
             VoxamError: On any rule the instruction breaks.
         """
 
@@ -762,13 +783,25 @@ class Machine:
 
         While stream 3 is selected, text goes into the newest memory
         table and nowhere else -- not even other stream 3 tables
-        (§7.1.2.2). Otherwise it reaches the screen, unless the game
-        deselected that too, in which case it vanishes as asked.
+        (§7.1.2.2). Otherwise the transcript hears story-window text
+        whenever 'Flags 2' bit 0 says stream 2 is on -- the §7.4
+        truth, consulted at every print so a game working the flag
+        directly is honoured -- and the screen hears it unless the
+        game deselected that too, in which case it vanishes as
+        asked. Upper-window dressing stays out of the transcript,
+        the choice every terminal interpreter makes for §8.7.2's
+        status paints.
         """
 
         if self._redirections:
             self._redirections[-1][1].append(text)
-        elif self._screen_selected:
+
+            return
+
+        if self._story_window and self._transcripting():
+            self._scribe_for("output stream 2", self._pc).transcript(text)
+
+        if self._screen_selected:
             # Counted so a timed read can tell whether its
             # interrupt routine disturbed the input line (§15 read
             # remarks) -- which only a story-window print does.
@@ -784,6 +817,25 @@ class Machine:
             # may read back, and no encoder past this line can
             # survive a lone surrogate.
             self._output(fuse_surrogates(text))
+
+    def _transcripting(self) -> bool:
+        """Whether stream 2 is on: 'Flags 2' bit 0, the §7.4 truth."""
+
+        return bool(self._memory.read_word(FLAGS_2) & TRANSCRIPT_BIT)
+
+    def _scribe_for(self, feature: str, address: int) -> Scribe:
+        """The session files, or the loud frontier without them.
+
+        Raises:
+            ZMachineUnimplementedError: When this session has no
+                files for what the game asked (§7.1.1, §7.1.2.3,
+                §10.2).
+        """
+
+        if self._scribe is None:
+            raise ZMachineUnimplementedError(feature, address)
+
+        return self._scribe
 
     def _op_log_shift(self, instruction: Instruction) -> None:
         """Shift a word logically: zeros fill from either end (§15)."""
@@ -1923,6 +1975,9 @@ class Machine:
 
         if (
             source is not None
+            # A played-back line arrives instantly, so stream 1
+            # keeps the patient typist's timing (§10.2).
+            and not self._file_input
             and self._memory.header.version >= TIMED_READ_VERSION
             and len(values) > TIMED_ROUTINE_INDEX
             and values[TIMED_TIME_INDEX]
@@ -2082,20 +2137,22 @@ class Machine:
                 )
                 for offset in range(preloaded)
             )
-            raw = ticked if ticked is not None else self._input()
+            raw, played = (ticked, False) if ticked is not None else self._line_input()
             typed = raw.lower()[: capacity - preloaded]
             line = held + typed
 
             self._memory.write_byte(text_buffer + 1, len(line))
             self._write_text(text_buffer + 2 + preloaded, typed, terminate=False)
+            self._noted_input(typed, played=played)
         else:
             # Byte 0 holds n where the buffer is a string array of
             # length n: the typed letters plus the zero terminator
             # fit inside it, so the capacity is n - 1 (§15 read).
-            raw = ticked if ticked is not None else self._input()
+            raw, played = (ticked, False) if ticked is not None else self._line_input()
             line = raw.lower()[: capacity - 1]
 
             self._write_text(text_buffer + 1, line, terminate=True)
+            self._noted_input(line, played=played)
 
         # From Version 5 a zero parse buffer skips lexing (§15 read).
         if parse_buffer or not counted:
@@ -2105,6 +2162,76 @@ class Machine:
             self._store_result(instruction.store_variable, ZSCII_NEWLINE)
 
         self._pc = instruction.next_address
+
+    def _line_input(self) -> tuple[str, bool]:
+        """The next command line, and whether stream 1 supplied it.
+
+        A played-back line is echoed to the screen -- and through
+        the same §7 gate to the transcript -- since no fingers ever
+        typed it there; an exhausted or missing command file
+        quietly reverts to the keyboard, the freedom §10.2.2 grants
+        the interpreter (§10.2).
+        """
+
+        played = self._played_line()
+
+        if played is not None:
+            self._print(f"{played}\n")
+
+            return played, True
+
+        return self._input(), False
+
+    def _played_line(self) -> str | None:
+        """One line off the command file; None ends stream 1 (§10.2)."""
+
+        if not self._file_input or self._scribe is None:
+            return None
+
+        line = self._scribe.playback()
+
+        if line is None:
+            self._file_input = False
+
+        return line
+
+    def _noted_input(self, line: str, *, played: bool) -> None:
+        """A finished command's §7 echoes: transcript and stream 4.
+
+        Typed input echoes to the transcript outside Version 6
+        (§7.1.1.1), and the command stream records each command
+        whole as it finishes (§7.1.2.3). A played-back line gets
+        neither: it already echoed through the screen, and
+        re-recording playback would only copy the command file
+        onto itself.
+        """
+
+        if played or self._scribe is None:
+            return
+
+        if self._memory.header.version != PACKED_PC_VERSION and self._transcripting():
+            self._scribe.transcript(f"{line}\n")
+
+        if self._recording_commands:
+            self._scribe.command(line)
+
+    def _noted_key(self, code: int) -> None:
+        """A read_char keypress recorded to stream 4 (§7.1.2.3).
+
+        Printable keys land as one-character lines and the return
+        key as an empty one -- the shapes the keystroke queue
+        spends -- while keys with no such shape, and the timing
+        §7.1.2.3 itself says should only "ideally" be caught, are
+        left unrecorded.
+        """
+
+        if self._scribe is None or not self._recording_commands:
+            return
+
+        if code == ZSCII_NEWLINE:
+            self._scribe.command("")
+        elif KEY_RECORD_FIRST <= code <= KEY_RECORD_LAST:
+            self._scribe.command(chr(code))
 
     def _write_text(self, position: int, line: str, *, terminate: bool) -> None:
         """Lay typed text into the buffer, zero-terminated or not.
@@ -2845,15 +2972,20 @@ class Machine:
         does nothing. Stream 3 redirects text into a memory table --
         a word for the count, then the ZSCII characters -- and nests
         up to 16 deep; each deselection closes the newest table,
-        writing its count.
+        writing its count. Stream 2 is worked entirely through
+        'Flags 2' bit 0, which §7.4 requires to hold the stream's
+        status whichever way it was selected -- so the bit is the
+        status, and prints consult it. Stream 4 records the
+        player's commands as they finish (§7.1.2.3).
 
         Raises:
             ZMachineInstructionError: On a 17th nested redirection
                 (§7.1.2.1.1), a stream 3 selection with no table, a
                 deselection of a stream 3 that is not on, or a
                 stream number §7 does not define.
-            ZMachineUnimplementedError: For the transcript and
-                command-record streams.
+            ZMachineUnimplementedError: On selecting the transcript
+                or command streams in a session with no files for
+                them.
         """
 
         values = [self._value(operand) for operand in instruction.operands]
@@ -2869,10 +3001,15 @@ class Machine:
             self._redirect_into(instruction, values)
         elif stream == -MEMORY_STREAM:
             self._end_redirection(instruction)
-        elif abs(stream) in (TRANSCRIPT_STREAM, COMMANDS_STREAM):
-            raise ZMachineUnimplementedError(
-                f"output stream {abs(stream)}", instruction.address
-            )
+        elif abs(stream) == TRANSCRIPT_STREAM:
+            self._transcript_switch(instruction, on=stream > 0)
+        elif abs(stream) == COMMANDS_STREAM:
+            if stream > 0:
+                self._scribe_for(
+                    f"output stream {COMMANDS_STREAM}", instruction.address
+                )
+
+            self._recording_commands = stream > 0
         else:
             msg = (
                 f"output_stream at ${instruction.address:04x} names "
@@ -2883,31 +3020,54 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _transcript_switch(self, instruction: Instruction, *, on: bool) -> None:
+        """Work stream 2 by setting or clearing the §7.4 flag.
+
+        'A Mind Forever Voyaging' toggles the stream rapidly and
+        §7.1.1.2 asks that the transcript's destination be decided
+        once per session: both are satisfied because the toggle
+        costs nothing but the bit, and the file -- named by
+        convention, opened lazily -- is the same one throughout.
+
+        Raises:
+            ZMachineUnimplementedError: On selecting the stream in
+                a session with no transcript file.
+        """
+
+        if on:
+            self._scribe_for(f"output stream {TRANSCRIPT_STREAM}", instruction.address)
+
+        flags = self._memory.read_word(FLAGS_2)
+        flags = flags | TRANSCRIPT_BIT if on else flags & ~TRANSCRIPT_BIT
+
+        self._memory.write_word(FLAGS_2, flags)
+
     def _op_input_stream(self, instruction: Instruction) -> None:
         """Select the input stream (§10.2, §15 input_stream).
 
-        Stream 0 is the keyboard, which is already where every
-        Voxam session draws its keys -- and §10.2.2 leaves the
-        interpreter free to serve those keys from a script, which
-        is what --accept already does at the session's level.
-        Stream 1, a command file the game itself asks to read from
-        mid-play (§10.2.1), is a frontier still, loudly.
+        Stream 1 draws commands from the file stream 4 writes --
+        §10.2.1's own rule -- named by the session's convention
+        (§10.2.3 leaves the choice to the interpreter). When the
+        file is missing or runs dry, input reverts to the keyboard,
+        the freedom §10.2.2 grants. Stream 0 is the keyboard
+        itself.
 
         Raises:
             ZMachineInstructionError: For a stream §10.2 does not
                 define.
-            ZMachineUnimplementedError: For stream 1, the game-
-                driven command file.
+            ZMachineUnimplementedError: On selecting stream 1 in a
+                session with no command file seam at all.
         """
 
         stream = self._value(instruction.operands[0])
 
         if stream == FILE_INPUT_STREAM:
-            raise ZMachineUnimplementedError(
-                f"input stream {FILE_INPUT_STREAM}", instruction.address
-            )
+            self._scribe_for(f"input stream {FILE_INPUT_STREAM}", instruction.address)
 
-        if stream != KEYBOARD_INPUT_STREAM:
+            self._file_input = True
+        elif stream == KEYBOARD_INPUT_STREAM:
+            self._file_input = False
+        else:
             msg = (
                 f"input_stream at ${instruction.address:04x} names "
                 f"stream {stream}, but §10.2 defines only 0 and 1"
@@ -3205,7 +3365,21 @@ class Machine:
             The ZSCII code of the next keystroke.
         """
 
-        if self._key_source is not None:
+        if self._file_input and not self._pending_keys:
+            # Stream 1 serves keystrokes too (§7.1.2.3 records
+            # them, so §10.2.1's format carries them): each line
+            # queues like a scripted one, an empty line being the
+            # return key. A spent file falls through to whatever
+            # keyboard this session has.
+            played = self._played_line()
+
+            if played is not None:
+                if not played:
+                    return ZSCII_NEWLINE
+
+                self._pending_keys.extend(played)
+
+        if self._key_source is not None and not self._pending_keys:
             # A raw keyboard needs no queue: the frontend hands over
             # one real keystroke at a time, enter and all. A key
             # ZSCII has no code for is a key the story cannot hear
@@ -3304,7 +3478,7 @@ class Machine:
             else 0
         )
 
-        if self._key_source is not None and time and routine:
+        if self._key_source is not None and not self._file_input and time and routine:
             # A raw keyboard runs the timed read on the wall clock:
             # the routine fires every time/10 seconds the player
             # does not type (§15 read_char), and a true return ends
@@ -3313,6 +3487,8 @@ class Machine:
 
             if code is None:
                 code = INTERRUPT_TERMINATOR
+            else:
+                self._noted_key(code)
 
             self._store_result(instruction.store_variable, code)
             self._pc = instruction.next_address
@@ -3329,7 +3505,15 @@ class Machine:
 
             return
 
-        self._store_result(instruction.store_variable, self._keystroke())
+        fed = self._file_input
+        code = self._keystroke()
+
+        if not fed:
+            # A played-back key is never re-recorded: stream 4
+            # copying the command file onto itself helps no one.
+            self._noted_key(code)
+
+        self._store_result(instruction.store_variable, code)
         self._pc = instruction.next_address
 
     def _timed_keystroke(
