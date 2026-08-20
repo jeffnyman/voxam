@@ -973,7 +973,10 @@ class FakeSurface:
 
 
 def fake_pygame(
-    events: list[object] | None = None, *, bold_advance: int = 9
+    events: list[object] | None = None,
+    *,
+    bold_advance: int = 9,
+    clipboard: str = "",
 ) -> types.SimpleNamespace:
     screen = FakeScreen()
     queue = list(events or [])
@@ -1000,6 +1003,12 @@ def fake_pygame(
         MOUSEBUTTONDOWN=5,
         WINDOWEXPOSED=7,
         SRCALPHA=65536,
+        K_v=200,
+        K_INSERT=201,
+        KMOD_CTRL=64,
+        KMOD_SHIFT=1,
+        KMOD_META=1024,
+        scrap=types.SimpleNamespace(get_text=lambda: clipboard),
         icons=icons,
         flips=flips,
         snapshots=snapshots,
@@ -1044,8 +1053,10 @@ def fake_pygame(
     return module
 
 
-def keydown(module: types.SimpleNamespace, key: int, unicode: str = "") -> object:
-    return types.SimpleNamespace(type=module.KEYDOWN, key=key, unicode=unicode)
+def keydown(
+    module: types.SimpleNamespace, key: int, unicode: str = "", mod: int = 0
+) -> object:
+    return types.SimpleNamespace(type=module.KEYDOWN, key=key, unicode=unicode, mod=mod)
 
 
 # The doorway builds a real glass over the fake module: the window
@@ -1193,6 +1204,68 @@ def test_the_pygame_doorway_hears_clicks(
 
     assert_that(glass.key(None)).is_equal_to("\xfe")
     assert_that(glass.click()).is_equal_to((11, 26))
+
+
+# Ctrl+V empties the clipboard through the key seam one character
+# at a time, so pasted text is indistinguishable from typing: the
+# Windows return pair and a lone carriage return each collapse to
+# the newline the reader takes as a return key, a tab is dross no
+# keyboard could deliver and vanishes, and a key typed after the
+# paste waits its turn behind the drained characters.
+def test_the_pygame_doorway_pastes_the_clipboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame(clipboard="go\r\nnorth\rx\ty")
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    scripted = iter(
+        [
+            [keydown(module, module.K_v, mod=module.KMOD_CTRL)],
+            [keydown(module, 999, "z")],
+        ]
+    )
+    module.event.get = lambda: next(scripted, [])
+
+    assert_that([glass.key(None) for _ in range(11)]).is_equal_to(list("go\nnorth\nxy"))
+    assert_that(glass.key(None)).is_equal_to("z")
+
+
+# Every desktop's chord serves: Cmd+V arrives as KMOD_META on a
+# Mac, Shift+Insert is the traditional alternative, and a plain v
+# -- no chord held -- still just types a v. An empty clipboard
+# pastes nothing and the session simply reads on.
+def test_the_paste_chords_all_serve(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = fake_pygame(clipboard="hi")
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    scripted = iter(
+        [
+            [keydown(module, module.K_v, mod=module.KMOD_META)],
+            [keydown(module, module.K_INSERT, mod=module.KMOD_SHIFT)],
+        ]
+    )
+    module.event.get = lambda: next(scripted, [])
+
+    assert_that([glass.key(None) for _ in range(4)]).is_equal_to(list("hihi"))
+
+    bare = fake_pygame(clipboard="")
+
+    monkeypatch.setitem(sys.modules, "pygame", bare)
+
+    quiet = open_pygame_glass()
+    events = iter(
+        [
+            [keydown(bare, bare.K_v, "v", mod=bare.KMOD_CTRL)],
+            [keydown(bare, bare.K_v, "v")],
+        ]
+    )
+    bare.event.get = lambda: next(events, [])
+
+    assert_that(quiet.key(None)).is_equal_to("v")
 
 
 # The frontend answers click positions in the story's own units:

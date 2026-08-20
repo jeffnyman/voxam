@@ -141,7 +141,10 @@ prompt those same keys are a full line editor: left and right move
 within the line, edits land at the cursor, and up and down walk
 the session's command history, shell-style -- at the terminal and
 the pygame window alike, with single-keystroke reads still passing
-the arrows through to the games that claim them. Timed
+the arrows through to the games that claim them. Pasting works at
+the window too -- Ctrl+V, Cmd+V, or Shift+Insert empties the
+clipboard through the same key seam, a multi-line paste submitting
+line by line just as it would at a terminal. Timed
 input runs on the real wall clock there, so a game like Z-Tornado
 plays in genuine real time -- and so do timed line reads: while
 you think at *Border Zone*'s prompt, its espionage clock ticks on
