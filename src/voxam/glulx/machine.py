@@ -14,7 +14,7 @@ discipline was enforced a layer down, so the arithmetic here is
 ordinary Python, masked only where a store leaves the machine.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from voxam.errors import (
     GlulxFrontierError,
@@ -23,9 +23,10 @@ from voxam.errors import (
     GlulxMemoryError,
     GlulxSessionEnd,
 )
-from voxam.glulx import funcs, gestalt, search, strings
+from voxam.glulx import funcs, gestalt, search, serial, strings
 from voxam.glulx.bridge import Bridge
 from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.dispatch import CLASS_STREAM
 from voxam.glulx.iosys import IOMode, IOSystem
 from voxam.glulx.memory import (
     BYTE_MASK,
@@ -51,6 +52,9 @@ from voxam.glulx.rng import Randomizer
 from voxam.glulx.stack import DestType, Stack
 from voxam.glulx.story import Story
 
+if TYPE_CHECKING:
+    from voxam.glulx.glk.objects import Stream
+
 SIGN_BIT = 0x8000_0000
 WORD_RANGE = 1 << 32
 
@@ -58,6 +62,11 @@ WORD_RANGE = 1 << 32
 # does not exist, making INT_MIN / -1 an overflow (Glulx: Integer
 # Math).
 INT_MIN = -0x8000_0000
+
+# What a popped save stub stores after a restore: "you have just
+# been restored and are continuing from this instruction" (Glulx:
+# Game State).
+RESTORED = 0xFFFFFFFF
 
 # A branch offset of 0 or 1 does not jump: it returns 0 or 1 from
 # the current function (Glulx: Branches).
@@ -171,6 +180,7 @@ class Machine:
 
         self._story = story
         self.memory = Memory(story)
+        self.undo_chain: list[bytes] = []
         self.stack = Stack(story.stack_size)
         self.iosys = IOSystem()
         self.glk = glk
@@ -787,6 +797,76 @@ class Machine:
     def _op_gestalt(self, args: list[Any]) -> None:
         self._store(args[2], gestalt.answer(self, args[0], args[1]))
 
+    def _saved_stream(self, ident: int) -> "Stream | None":
+        """The Glk stream a save or restore names, or None bare."""
+
+        if self.bridge is None:
+            return None
+
+        # The registry is class-checked, so whatever answers for a
+        # stream id is a stream.
+        return cast("Stream | None", self.bridge.registry.lookup(CLASS_STREAM, ident))
+
+    def _op_save(self, args: list[Any]) -> None:
+        """Save the state to a Glk stream (Glulx: Game State).
+
+        The call stub is pushed first, so it lands inside the
+        save's own stack chunk; popping it stores the spoken
+        result and, after a later restore, the same stub stores -1
+        and execution continues from this very instruction (Glulx:
+        Contents of the Stack).
+        """
+
+        target = args[1]
+
+        self.stack.push_stub(target.desttype, target.addr, self.pc)
+
+        self._pop_stub(serial.save(self, self._saved_stream(args[0])))
+
+    def _op_restore(self, args: list[Any]) -> None:
+        """Restore the state from a Glk stream (Glulx: Game State).
+
+        On success the restored stack's own stub pops with -1 --
+        "you have just been restored" -- and this instruction
+        never stores at all; failure speaks 1 in place.
+        """
+
+        result = serial.restore(self, self._saved_stream(args[0]))
+
+        if result == serial.SUCCEEDED:
+            self._pop_stub(RESTORED)
+        else:
+            self._store(args[1], result)
+
+    def _op_saveundo(self, args: list[Any]) -> None:
+        """Save the state into the undo chain (Glulx: Game State)."""
+
+        target = args[0]
+
+        self.stack.push_stub(target.desttype, target.addr, self.pc)
+
+        self._pop_stub(serial.save_undo(self))
+
+    def _op_restoreundo(self, args: list[Any]) -> None:
+        """Restore the newest undo state (Glulx: Game State)."""
+
+        result = serial.restore_undo(self)
+
+        if result == serial.SUCCEEDED:
+            self._pop_stub(RESTORED)
+        else:
+            self._store(args[0], result)
+
+    def _op_hasundo(self, args: list[Any]) -> None:
+        """Whether an undo state waits: 0 yes, 1 no (Glulx: Game State)."""
+
+        self._store(args[0], serial.has_undo(self))
+
+    def _op_discardundo(self, _args: list[Any]) -> None:
+        """Let the newest undo state go (Glulx: Game State)."""
+
+        serial.discard_undo(self)
+
     def _op_linearsearch(self, args: list[Any]) -> None:
         self._store(args[7], search.linear_search(self.memory, *args[:7]))
 
@@ -946,6 +1026,12 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.GETIOSYS: (_SS, Machine._op_getiosys),
     Op.SETIOSYS: (_LL, Machine._op_setiosys),
     Op.GLK: (_LLS, Machine._op_glk),
+    Op.SAVE: (_LS, Machine._op_save),
+    Op.RESTORE: (_LS, Machine._op_restore),
+    Op.SAVEUNDO: (_S, Machine._op_saveundo),
+    Op.RESTOREUNDO: (_S, Machine._op_restoreundo),
+    Op.HASUNDO: (_S, Machine._op_hasundo),
+    Op.DISCARDUNDO: (_NONE, Machine._op_discardundo),
     Op.LINEARSEARCH: (_LLLLLLLS, Machine._op_linearsearch),
     Op.BINARYSEARCH: (_LLLLLLLS, Machine._op_binarysearch),
     Op.LINKEDSEARCH: (_LLLLLLS, Machine._op_linkedsearch),

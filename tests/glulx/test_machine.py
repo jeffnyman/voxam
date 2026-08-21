@@ -553,8 +553,8 @@ def test_lifecycle_and_map_opcodes(image: Callable[..., bytes]) -> None:
 def test_frontiers_and_faults_are_loud(image: Callable[..., bytes]) -> None:
     machine = boot(image)
 
-    with pytest.raises(GlulxFrontierError, match="save awaits its era"):
-        planted(machine, bytes([0x81, 0x23]))
+    with pytest.raises(GlulxFrontierError, match="malloc awaits its era"):
+        planted(machine, bytes([0x81, 0x78]))
 
     with pytest.raises(GlulxInstructionError, match="does not define"):
         planted(machine, bytes([0x7F]))

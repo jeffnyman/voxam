@@ -322,6 +322,48 @@ class Memory:
             self._protect_start = start
             self._protect_end = start + length
 
+    def original_run(self, address: int, count: int) -> bytes:
+        """What the game file held over a span; zeroes past its end.
+
+        The compressed save format XORs live RAM against the
+        original image, "as if the game file were extended with as
+        many zeroes as necessary" above EXTSTART (Glulx: The
+        Save-Game Format). Whole spans rather than single bytes,
+        because everything that asks XORs the answer -- and Inform
+        calls saveundo every turn.
+        """
+
+        head = self._image[address : address + count]
+
+        return head + bytes(count - len(head))
+
+    def overwrite_ram(self, contents: bytes) -> None:
+        """Lay restored RAM in from RAMSTART, sparing protection.
+
+        The protected range is "silently unaffected" by a restore
+        (Glulx: Game State). Skipping the writes is the right model
+        rather than saving and replacing the bytes, because the
+        restore may have resized memory underneath the range: a
+        range beyond the new end must come back zeroed by the
+        resize, not repopulated from the file.
+        """
+
+        start = self.ramstart
+        end = start + len(contents)
+        low = max(self._protect_start, start)
+        high = min(self._protect_end, end)
+
+        if high <= low:
+            self._data[start:end] = contents
+
+            return
+
+        if low > start:
+            self._data[start:low] = contents[: low - start]
+
+        if high < end:
+            self._data[high:end] = contents[high - start :]
+
     def reset(self) -> None:
         """Restore the boot image whole -- restart's work.
 
