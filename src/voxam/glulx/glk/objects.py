@@ -11,7 +11,7 @@ are the bridge era's business, so nothing here knows a VM exists.
 """
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import BinaryIO, ClassVar, NamedTuple, Protocol
 
 # What a non-Unicode stream substitutes for a character it cannot
@@ -71,6 +71,9 @@ class Buffer(Protocol):
 
     def __setitem__(self, index: int, value: int) -> None:
         """Store a character at an index."""
+
+    def __iter__(self) -> Iterator[int]:
+        """The characters in order."""
 
 
 # -- the constant families --------------------------------------------------
@@ -1075,12 +1078,20 @@ class PairWindow(SizelessWindow):
     """An internal node: a split of two (Glk: Window Arrangement).
 
     Attributes:
-        child1: The original window of the split.
-        child2: The window the split created.
-        key: The window the split's size is measured against.
+        child1: The window on the split's unconstrained side --
+            the original window, until a re-arrangement flips the
+            direction and swaps the children.
+        child2: The window on the side the direction names, which
+            carries the size constraint -- the split-off window,
+            at first.
+        key: The window the split's size is *measured* against.
+            Only the measurement: the constraint sits on child2's
+            side wherever the key lives, and the spec's own worked
+            example puts them apart on purpose (Glk: Changing
+            Window Constraints).
         size: The split's size, in the key window's units, or as a
             percentage for a proportional split.
-        key_box: The box the key window's side received, kept for
+        sized_box: The box the constrained side received, kept for
             displays that draw borders.
     """
 
@@ -1097,7 +1108,7 @@ class PairWindow(SizelessWindow):
         self.child2 = child2
         self.key = key
         self.size = size
-        self.key_box = (0, 0, 0, 0)
+        self.sized_box = (0, 0, 0, 0)
         self.set_method(method)
 
     def set_method(self, method: int) -> None:
@@ -1154,19 +1165,19 @@ class PairWindow(SizelessWindow):
             box1 = (left, top, right, middle)
             box2 = (left, middle, right, bottom)
 
-        # child1 is the original window, child2 the newly split-off
-        # one; the key window is whichever side the split measures.
+        # The direction decides the sides outright: child2 sits on
+        # the named side and takes the split's size, however deep
+        # the key window has since been buried -- "the key window
+        # for the original split is still the key window ... even
+        # though it's now a grandchild" (Glk: Window Opening,
+        # Closing, and Constraints).
         if self.backward:
-            self.key_box, other_box = box1, box2
+            self.sized_box, other_box = box1, box2
         else:
-            self.key_box, other_box = box2, box1
+            self.sized_box, other_box = box2, box1
 
-        if self.child2 is self.key:
-            self.child2.rearrange(self.key_box)
-            self.child1.rearrange(other_box)
-        else:
-            self.child1.rearrange(self.key_box)
-            self.child2.rearrange(other_box)
+        self.child2.rearrange(self.sized_box)
+        self.child1.rearrange(other_box)
 
 
 # -- other opaque classes ---------------------------------------------------

@@ -21,6 +21,10 @@ class GlulxFrontierError(VoxamError):
     """Raised when execution reaches a Glulx era not yet carried."""
 
 
+class GlulxGlkError(VoxamError):
+    """Raised when the Glk API is used against its rules."""
+
+
 class GlulxFunctionError(VoxamError):
     """Raised when an address cannot be entered as a Glulx function."""
 
@@ -31,6 +35,16 @@ class GlulxInstructionError(VoxamError):
 
 class GlulxMemoryError(VoxamError):
     """Raised when Glulx memory is used against its map's rules."""
+
+
+class GlulxSessionEnd(Exception):  # noqa: N818 -- not an error, so not named as one
+    """Raised when a Glk session ends on purpose.
+
+    Deliberately not a VoxamError: nothing has gone wrong. The
+    glk_exit function raises it, as does an input request no
+    display can ever answer; whoever runs the machine catches it
+    and stops, the way a quit opcode stops.
+    """
 
 
 class GlulxStackError(VoxamError):
