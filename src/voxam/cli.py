@@ -18,6 +18,10 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.resources import Resources as GlkResources
+from voxam.glulx.glk.stdio import StdioFrontend
+from voxam.glulx.machine import Machine as GlulxMachine
 from voxam.glulx.story import MAGIC as GLULX_MAGIC
 from voxam.glulx.story import Story as GlulxStory
 from voxam.listing import Tracer
@@ -879,24 +883,86 @@ def _glulx_story(story_path: Path) -> GlulxStory | None:
     return GlulxStory.load(story_path)
 
 
-def _glulx_landing(story_path: Path, story: GlulxStory) -> int:
-    """Boot a Glulx story as far as 1.x honestly goes.
+def _glulx_resources(story_path: Path, resources: Path | None) -> Blorb | None:
+    """The Blorb a Glulx session draws on, if any exists.
 
-    The header is read and held to every promise it makes, the
-    checksum computed as an interpreter must (Glulx: The Header)
-    -- and execution reported as the frontier it still is.
+    A packaged story is its own resource file; a bare one takes
+    the explicit path when given, or a like-named sidecar beside
+    it -- the same convention the Z-Machine loader keeps.
+
+    Raises:
+        BlorbError: For an unusable resource file.
+        OSError: For files that cannot be read.
     """
+
+    if story_path.suffix.lower() in BLORB_SUFFIXES:
+        return Blorb.load(story_path)
+
+    if resources is not None:
+        return Blorb.load(resources)
+
+    for suffix in BLORB_SUFFIXES:
+        sidecar = story_path.with_suffix(suffix)
+
+        if sidecar.exists():
+            return Blorb.load(sidecar)
+
+    return None
+
+
+def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
+    story_path: Path,
+    story: GlulxStory,
+    *,
+    seed: int | None,
+    resources: Path | None,
+    recorder: Recorder | None,
+    trace: Path | None,
+) -> int:
+    """Run a Glulx story over the stdio display.
+
+    The checksum verdict is printed but does not gate the run: the
+    verify opcode exists so a story can judge itself. Recording
+    and tracing are Z-Machine session instruments still, and are
+    declined by name rather than half-working.
+    """
+
+    if recorder is not None or trace is not None:
+        if recorder is not None:
+            recorder.close()
+
+        print(
+            "voxam: recording and tracing are Z-Machine session "
+            "instruments for now; a Glulx session runs without them"
+        )
+
+        return EXIT_UNUSABLE
 
     verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
 
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
-    print(
-        "voxam: this is a Glulx story, and Glulx is the road to 2.0 -- "
-        "the header is read and verified, but the machine does not yet "
-        "execute"
-    )
 
-    return EXIT_UNUSABLE
+    library = Glk(
+        StdioFrontend(),
+        resources=GlkResources(_glulx_resources(story_path, resources)),
+    )
+    machine = GlulxMachine(story, seed=seed, glk=library)
+
+    try:
+        machine.run()
+    except (OSError, VoxamError) as error:
+        print(f"\nvoxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    # A story that ends with quit rather than glk_exit never asked
+    # for a last flush; whatever its windows still hold is shown on
+    # the way out.
+    library.frontend.flush(library.root)
+
+    print()
+
+    return EXIT_OK
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:
@@ -1060,7 +1126,14 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         glulx = _glulx_story(story_path)
 
         if glulx is not None:
-            return _glulx_landing(story_path, glulx)
+            return _run_glulx(
+                story_path,
+                glulx,
+                seed=seed,
+                resources=resources,
+                recorder=recorder,
+                trace=trace,
+            )
 
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)

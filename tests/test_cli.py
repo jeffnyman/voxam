@@ -25,6 +25,7 @@ from voxam.cli import (
 )
 from voxam.gallery import Gallery, Resolution
 from voxam.iff import Chunk, chunk, write_form
+from voxam.iff import chunk as iff_chunk
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
 from voxam.speaker import Speaker
@@ -366,7 +367,30 @@ def test_accept_and_replay_conflict(
     assert_that(capsys.readouterr().out).contains("pick one")
 
 
-def glulx_story(tmp_path: Path, version: int = 0x00030102) -> Path:
+# A start function that quits at once, and one that opens a Glk
+# window, selects it, and prints "Hi" -- window id 1, because the
+# registry mints reproducible ids.
+GLULX_QUIT = bytes([0xC0, 0x00, 0x00, 0x81, 0x20])
+GLULX_HI = (
+    bytes([0xC0, 0x00, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x03])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x81, 0x30, 0x11, 0x00, 0x23, 0x05])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x81, 0x30, 0x11, 0x00, 0x2F, 0x01])
+    + bytes([0x81, 0x49, 0x11, 0x02, 0x00])
+    + bytes([0x70, 0x01, 0x48])
+    + bytes([0x70, 0x01, 0x69])
+    + bytes([0x81, 0x20])
+)
+
+
+def glulx_story(
+    tmp_path: Path, version: int = 0x00030102, code: bytes = GLULX_QUIT
+) -> Path:
     """A tiny valid Glulx image, checksummed, written beside tmp."""
 
     data = bytearray(0x200)
@@ -376,6 +400,8 @@ def glulx_story(tmp_path: Path, version: int = 0x00030102) -> Path:
     data[12:16] = (0x200).to_bytes(4, "big")
     data[16:20] = (0x300).to_bytes(4, "big")
     data[20:24] = (0x100).to_bytes(4, "big")
+    data[24:28] = (0x48).to_bytes(4, "big")
+    data[0x48 : 0x48 + len(code)] = code
     checksum = sum(
         int.from_bytes(data[at : at + 4], "big") for at in range(0, len(data), 4)
     )
@@ -386,23 +412,96 @@ def glulx_story(tmp_path: Path, version: int = 0x00030102) -> Path:
     return path
 
 
-# A Glulx story boots as far as 1.x honestly goes: the header is
-# read, the checksum verified, and execution reported as the
-# frontier it still is -- the road to 2.0.
-def test_a_glulx_story_boots_to_the_frontier(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+# A Glulx story runs: the banner speaks its version and checksum
+# verdict, the session plays through the stdio display, and a
+# story that opens a window and prints is heard. A header that
+# breaks its promises still fails loudly.
+def test_a_glulx_story_runs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     exit_code = main([str(glulx_story(tmp_path))])
     out = capsys.readouterr().out
 
-    assert_that(exit_code).is_equal_to(2)
+    assert_that(exit_code).is_equal_to(0)
     assert_that(out).contains("Glulx 3.1.2, checksum verified")
-    assert_that(out).contains("road to 2.0")
+
+    spoken = main([str(glulx_story(tmp_path, code=GLULX_HI))])
+
+    assert_that(spoken).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Hi")
 
     broken = main([str(glulx_story(tmp_path, version=0x00040000))])
 
     assert_that(broken).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("2.0.0")
+
+    # A story that faults mid-run fails loudly at its own fault.
+    crashing = main([str(glulx_story(tmp_path, code=bytes([0xC0, 0x00, 0x00, 0x7F])))])
+
+    assert_that(crashing).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("does not define")
+
+
+# A packaged .gblorb runs the same session its bare story would.
+def test_a_gblorb_story_runs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    image = glulx_story(tmp_path, code=GLULX_HI).read_bytes()
+    packaged = tmp_path / "tiny.gblorb"
+
+    placeholder = (1).to_bytes(4, "big") + b"Exec" + bytes(8)
+    offset = 12 + len(iff_chunk(b"RIdx", placeholder))
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Exec"
+        + (0).to_bytes(4, "big")
+        + offset.to_bytes(4, "big")
+    )
+    body = b"IFRS" + iff_chunk(b"RIdx", index) + iff_chunk(b"GLUL", image)
+
+    packaged.write_bytes(iff_chunk(b"FORM", body))
+
+    exit_code = main([str(packaged)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Hi")
+
+
+# The Z-Machine session instruments decline a Glulx story by name
+# rather than half-working.
+def test_glulx_declines_the_z_instruments(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = glulx_story(tmp_path)
+
+    traced = main([str(story), "--trace", str(tmp_path / "out.trace")])
+
+    assert_that(traced).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("Z-Machine session instruments")
+
+    recorded = main([str(story), "--record", str(tmp_path / "out.accept")])
+
+    assert_that(recorded).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("Z-Machine session instruments")
+
+
+# A Glulx session finds its resources the way a Z session does: a
+# like-named sidecar on its own, or wherever --resources points.
+def test_glulx_resources_are_found(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = glulx_story(tmp_path)
+    empty = iff_chunk(b"FORM", b"IFRS" + iff_chunk(b"RIdx", (0).to_bytes(4, "big")))
+
+    (tmp_path / "tiny.blorb").write_bytes(empty)
+
+    assert_that(main([str(story)])).is_equal_to(0)
+
+    elsewhere = tmp_path / "art.blorb"
+
+    elsewhere.write_bytes(empty)
+
+    assert_that(main([str(story), "--resources", str(elsewhere)])).is_equal_to(0)
+
+    capsys.readouterr()
 
 
 # The static reports are Z-Machine instruments; a Glulx story gets

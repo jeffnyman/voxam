@@ -400,10 +400,11 @@ def test_a_zblorb_story_boots_from_its_package(
     assert_that(capsys.readouterr().out).contains("packages no Z-code story")
 
 
-# A .gblorb carries a Glulx story in its Exec seat: it boots to the
-# honest frontier, header read and checksum judged (Glulx: The
-# Header), rather than to a version-70 riddle.
-def test_a_gblorb_lands_at_the_glulx_frontier(
+# A .gblorb carries a Glulx story in its Exec seat: it boots and
+# runs, the checksum verdict spoken but not gating -- and a broken
+# image still fails loudly, at its own fault rather than a
+# version-70 riddle.
+def test_a_gblorb_boots_its_glulx_story(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     image = bytearray(0x200)
@@ -421,7 +422,7 @@ def test_a_gblorb_lands_at_the_glulx_frontier(
 
     assert_that(exit_code).is_equal_to(2)
     assert_that(out).contains("Glulx 3.1.1, CHECKSUM MISMATCH")
-    assert_that(out).contains("road to 2.0")
+    assert_that(out).contains("not a function at all")
 
 
 # A like-named Blorb beside the story is discovered on its own,
