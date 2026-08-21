@@ -17,13 +17,12 @@ ordinary Python, masked only where a store leaves the machine.
 from typing import TYPE_CHECKING, Any, cast
 
 from voxam.errors import (
-    GlulxFrontierError,
     GlulxGlkError,
     GlulxInstructionError,
     GlulxMemoryError,
     GlulxSessionEnd,
 )
-from voxam.glulx import funcs, gestalt, search, serial, strings
+from voxam.glulx import floats, funcs, gestalt, search, serial, strings
 from voxam.glulx.accel import Accelerator
 from voxam.glulx.bridge import Bridge
 from voxam.glulx.glk.api import Glk
@@ -238,8 +237,6 @@ class Machine:
         Raises:
             GlulxInstructionError: For an opcode number the spec
                 does not define.
-            GlulxFrontierError: For an opcode whose era the
-                machine does not carry yet, named as such.
             VoxamError: On any rule the instruction breaks.
         """
 
@@ -266,11 +263,9 @@ class Machine:
         entry = _DISPATCH.get(opcode)
 
         if entry is None:
-            if opcode in Op.__members__.values():
-                msg = f"the opcode {name(opcode)} awaits its era"
-
-                raise GlulxFrontierError(msg)
-
+            # Every opcode Glulx 3.1.3 defines is dispatched -- the
+            # frontier arm that once answered here by era retired
+            # when the float eras completed the roster.
             msg = (
                 f"executed opcode {name(opcode)}, which Glulx 3.1.3 does "
                 f"not define (Glulx: Dictionary of Opcodes)"
@@ -1103,3 +1098,7 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.RESTART: (_NONE, Machine._op_restart),
     Op.DEBUGTRAP: (_L, Machine._op_debugtrap),
 }
+
+# The float and double families arrive as a prebuilt table:
+# sixty-one opcodes of one shape, kept in their own module.
+_DISPATCH.update(floats.DISPATCH)
