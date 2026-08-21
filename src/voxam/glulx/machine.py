@@ -21,7 +21,8 @@ from voxam.errors import (
     GlulxInstructionError,
     GlulxMemoryError,
 )
-from voxam.glulx import funcs
+from voxam.glulx import funcs, strings
+from voxam.glulx.iosys import IOSystem
 from voxam.glulx.memory import (
     BYTE_MASK,
     BYTE_WIDTH,
@@ -157,6 +158,8 @@ class Machine:
         self._story = story
         self.memory = Memory(story)
         self.stack = Stack(story.stack_size)
+        self.iosys = IOSystem()
+        self.string_table = 0
         self.pc = 0
         self._running = True
 
@@ -179,6 +182,8 @@ class Machine:
 
         self.memory.reset()
         self.stack.reset()
+        self.iosys.reset()
+        self.string_table = self._story.decoding_table
         self._running = True
         self.pc = funcs.push_call_frame(
             self.memory, self.stack, self._story.start_function, []
@@ -316,9 +321,13 @@ class Machine:
             raise GlulxInstructionError(msg)
 
         if stub.desttype in RESUME_TYPES:
-            msg = "string resumption awaits the strings era"
+            # A function called from inside a string has returned:
+            # its value is discarded and the print picks up where
+            # it left off (Glulx: Calling and Returning Within
+            # Strings).
+            strings.resume(self, stub)
 
-            raise GlulxFrontierError(msg)
+            return
 
         self._store(StoreTarget(stub.desttype, stub.destaddr), value)
 
@@ -326,9 +335,9 @@ class Machine:
         """Push the come-home stub, then enter the function."""
 
         self.stack.push_stub(target.desttype, target.addr, self.pc)
-        self._enter(addr, args)
+        self.enter_function(addr, args)
 
-    def _enter(self, addr: int, args: list[int]) -> None:
+    def enter_function(self, addr: int, args: list[int]) -> None:
         """Begin a call: every way of invoking a function lands here.
 
         The call opcodes and tailcall today; the accelerated
@@ -501,7 +510,7 @@ class Machine:
         call_args = funcs.pop_arguments(self.stack, count, self.memory)
 
         self.stack.leave_frame()
-        self._enter(addr, call_args)
+        self.enter_function(addr, call_args)
 
     def _op_catch(self, args: list[Any]) -> None:
         """Push a stub, store its token, then branch.
@@ -680,6 +689,40 @@ class Machine:
         for at, value in enumerate(values):
             self.stack.write_word(base + WORD_WIDTH * at, value)
 
+    def _op_streamchar(self, args: list[Any]) -> None:
+        """Print one character, its low byte (Glulx: Output)."""
+
+        strings.put_char(self, args[0] & BYTE_MASK)
+
+    def _op_streamunichar(self, args: list[Any]) -> None:
+        strings.put_char(self, args[0])
+
+    def _op_streamnum(self, args: list[Any]) -> None:
+        strings.stream_num(self, args[0])
+
+    def _op_streamstr(self, args: list[Any]) -> None:
+        strings.stream_string(self, args[0])
+
+    def _op_getstringtbl(self, args: list[Any]) -> None:
+        self._store(args[0], self.string_table)
+
+    def _op_setstringtbl(self, args: list[Any]) -> None:
+        """Point the decoder at another table (Glulx: Output).
+
+        The address is taken on trust, exactly as the spec allows:
+        a broken table announces itself at the next compressed
+        print, not here.
+        """
+
+        self.string_table = args[0]
+
+    def _op_getiosys(self, args: list[Any]) -> None:
+        self._store(args[0], self.iosys.mode)
+        self._store(args[1], self.iosys.rock)
+
+    def _op_setiosys(self, args: list[Any]) -> None:
+        self.iosys.select(args[0], args[1])
+
     def _op_getmemsize(self, args: list[Any]) -> None:
         self._store(args[0], self.memory.endmem)
 
@@ -735,6 +778,7 @@ _L = operands("L")
 _LL = operands("LL")
 _LLL = operands("LLL")
 _S = operands("S")
+_SS = operands("SS")
 _LS = operands("LS")
 _SL = operands("SL")
 _LLS = operands("LLS")
@@ -794,6 +838,14 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.ASTORES: (_LLL, Machine._op_astores),
     Op.ASTOREB: (_LLL, Machine._op_astoreb),
     Op.ASTOREBIT: (_LLL, Machine._op_astorebit),
+    Op.STREAMCHAR: (_L, Machine._op_streamchar),
+    Op.STREAMUNICHAR: (_L, Machine._op_streamunichar),
+    Op.STREAMNUM: (_L, Machine._op_streamnum),
+    Op.STREAMSTR: (_L, Machine._op_streamstr),
+    Op.GETSTRINGTBL: (_S, Machine._op_getstringtbl),
+    Op.SETSTRINGTBL: (_L, Machine._op_setstringtbl),
+    Op.GETIOSYS: (_SS, Machine._op_getiosys),
+    Op.SETIOSYS: (_LL, Machine._op_setiosys),
     Op.STKCOUNT: (_S, Machine._op_stkcount),
     Op.STKPEEK: (_LS, Machine._op_stkpeek),
     Op.STKSWAP: (_NONE, Machine._op_stkswap),
