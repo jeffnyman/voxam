@@ -62,7 +62,8 @@ class Capabilities:
         undo: saveundo and restoreundo; the save era carried them.
         ext_undo: hasundo and discardundo; the same era.
         malloc: malloc and mfree; the heap era carried them.
-        acceleration: The accel era.
+        acceleration: accelfunc and accelparam; the accel era
+            carried them.
         floats: The float era.
         doubles: The double era.
         glk: A Glk library is installed on this machine; the
@@ -75,7 +76,7 @@ class Capabilities:
     undo: bool = True
     ext_undo: bool = True
     malloc: bool = True
-    acceleration: bool = False
+    acceleration: bool = True
     floats: bool = False
     doubles: bool = False
     glk: bool = False
@@ -146,8 +147,9 @@ def answer(  # noqa: PLR0911, PLR0912 -- one flat return per selector
         return int(caps.acceleration)
 
     if selector == Gestalt.ACCEL_FUNC:
-        # No accelerated function is available until that era.
-        return 0
+        # Per function: which numbers this interpreter can replace
+        # (Glulx: Gestalt).
+        return int(argument in machine.accel.available)
 
     if selector == Gestalt.FLOAT:
         return int(caps.floats)

@@ -56,7 +56,7 @@ def test_every_selector_answers_for_this_build(
         6: 1,
         7: 1,
         8: 0,
-        9: 0,
+        9: 1,
         10: 0,
         11: 0,
         12: 1,
@@ -71,3 +71,6 @@ def test_every_selector_answers_for_this_build(
     assert_that(asked(image, 4, 1)).is_equal_to(1)
     assert_that(asked(image, 4, 2)).is_equal_to(0)
     assert_that(asked(image, 4, 9)).is_equal_to(0)
+    assert_that(asked(image, 10, 1)).is_equal_to(1)
+    assert_that(asked(image, 10, 13)).is_equal_to(1)
+    assert_that(asked(image, 10, 14)).is_equal_to(0)
