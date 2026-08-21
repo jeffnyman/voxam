@@ -20,6 +20,7 @@ def image() -> Callable[..., bytes]:
         checksum: int | None = None,
         magic: bytes = b"Glul",
         size: int | None = None,
+        code: bytes = b"",
     ) -> bytes:
         data = bytearray(size if size is not None else extstart)
         data[0:4] = magic
@@ -30,6 +31,9 @@ def image() -> Callable[..., bytes]:
         data[20:24] = stack.to_bytes(4, "big")
         data[24:28] = (0x48).to_bytes(4, "big")
         data[28:32] = (0x54).to_bytes(4, "big")
+        # The start function's seat: planted code begins at $48,
+        # exactly where the header's start-function word points.
+        data[0x48 : 0x48 + len(code)] = code
 
         if checksum is None:
             checksum = sum(
