@@ -17,6 +17,10 @@ class BlorbError(VoxamError):
     """Raised when a Blorb resource file cannot be used."""
 
 
+class GlulxFunctionError(VoxamError):
+    """Raised when an address cannot be entered as a Glulx function."""
+
+
 class GlulxInstructionError(VoxamError):
     """Raised when bytes cannot be decoded as a Glulx instruction."""
 
