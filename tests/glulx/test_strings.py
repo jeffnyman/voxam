@@ -5,8 +5,10 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import GlulxFrontierError, GlulxStringError
+from voxam.errors import GlulxGlkError, GlulxStringError
 from voxam.glulx import strings
+from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.objects import FileMode
 from voxam.glulx.iosys import IOMode, IOSystem
 from voxam.glulx.machine import Machine
 from voxam.glulx.stack import DestType
@@ -39,6 +41,23 @@ QUIT = bytes([0x81, 0x20])
 
 def booted(image: Callable[..., bytes]) -> Machine:
     return Machine(Story(image(code=CODE)))
+
+
+def glk_booted(image: Callable[..., bytes]) -> tuple[Machine, list[int]]:
+    """A machine speaking Glk, its current stream held for reading."""
+
+    library = Glk()
+    held = [0] * 16
+
+    library.glk_stream_set_current(
+        library.glk_stream_open_memory_uni(held, FileMode.WRITE, 0)
+    )
+
+    machine = Machine(Story(image(code=CODE)), glk=library)
+
+    machine.iosys.select(IOMode.GLK, 0)
+
+    return machine, held
 
 
 def spoken(image: Callable[..., bytes], plant: bytes) -> tuple[Machine, bytes]:
@@ -310,30 +329,37 @@ def test_stub_discipline_is_enforced(image: Callable[..., bytes]) -> None:
         strings.stream_string(wrong, TEXT, in_middle=strings.CSTRING)
 
 
-# Glk mode is the frontier it says it is: any character bound for
-# Glk halts by name, while zero-length strings pass through the
-# Glk loops untouched because there was nothing to print.
-def test_glk_output_is_an_honest_frontier(image: Callable[..., bytes]) -> None:
-    machine = booted(image)
+# Glk mode hands every character to the installed library: bytes
+# through the narrow put, wider characters through the Unicode
+# call, from every printing opcode alike. Without a library the
+# mode can only be forced, and forcing it is refused by name.
+def test_glk_output_reaches_the_library(image: Callable[..., bytes]) -> None:
+    machine, held = glk_booted(image)
 
-    machine.iosys.select(IOMode.GLK, 0)
+    strings.put_char(machine, 0x41)
 
-    with pytest.raises(GlulxFrontierError, match="awaits the Glk era"):
-        strings.put_char(machine, 0x41)
-
-    machine.memory.write_run(TEXT, bytes([0xE0, 0x00]))
+    machine.memory.write_run(TEXT, bytes([0xE0, 0x42, 0x00]))
     strings.stream_string(machine, TEXT)
 
-    machine.memory.write_run(0x1D0, bytes([0xE2, 0x00, 0x00, 0x00]) + bytes(4))
+    machine.memory.write_run(
+        0x1D0,
+        bytes([0xE2, 0x00, 0x00, 0x00])
+        + (0x2603).to_bytes(4, "big")
+        + (0x43).to_bytes(4, "big")
+        + bytes(4),
+    )
     strings.stream_string(machine, 0x1D0)
 
-    machine.memory.write_run(TEXT, bytes([0xE0, 0x41, 0x00]))
+    strings.stream_num(machine, 0xFFFFFFF9)
 
-    with pytest.raises(GlulxFrontierError, match="awaits the Glk era"):
-        strings.stream_string(machine, TEXT)
+    assert_that(held[:7]).is_equal_to([0x41, 0x42, 0x2603, 0x43, ord("-"), ord("7"), 0])
 
-    with pytest.raises(GlulxFrontierError, match="awaits the Glk era"):
-        strings.stream_num(machine, 7)
+    bare = booted(image)
+
+    bare.iosys.select(IOMode.GLK, 0)
+
+    with pytest.raises(GlulxGlkError, match="no Glk library"):
+        strings.put_char(bare, 0x41)
 
 
 # The null system decodes everything and prints nothing: characters,
@@ -348,6 +374,10 @@ def test_the_null_system_decodes_and_discards(
     strings.stream_num(machine, 0x2A)
     machine.memory.write_run(TEXT, bytes([0xE0, 0x41, 0x00]))
     strings.stream_string(machine, TEXT)
+    machine.memory.write_run(
+        0x1D0, bytes([0xE2, 0x00, 0x00, 0x00]) + (0x41).to_bytes(4, "big") + bytes(4)
+    )
+    strings.stream_string(machine, 0x1D0)
 
     nodes = (
         bytes([0x00])
@@ -488,24 +518,21 @@ def test_glk_mode_survives_what_prints_nothing(
     spent.iosys.select(IOMode.GLK, 0)
     strings.stream_num(spent, 7, charnum=1)
 
-    # And anything with a character to print reaches the frontier:
-    # a wide string, a char node, and both embedded string kinds.
-    loud = booted(image)
-
-    loud.iosys.select(IOMode.GLK, 0)
-    loud.memory.write_run(
-        0x1D0, bytes([0xE2, 0x00, 0x00, 0x00]) + (0x43).to_bytes(4, "big")
-    )
-
-    with pytest.raises(GlulxFrontierError, match="awaits the Glk era"):
-        strings.stream_string(loud, 0x1D0)
-
-    for node in (
-        bytes([0x02, 0x61]),
-        bytes([0x03, 0x58, 0x00]),
-        bytes([0x05]) + (0x59).to_bytes(4, "big") + bytes(4),
+    # And every node kind with a character to print delivers it: a
+    # char node, and both embedded string kinds walked to their
+    # terminators.
+    for node, expected in (
+        (bytes([0x02, 0x61]), [0x61]),
+        (bytes([0x03, 0x58, 0x59, 0x00]), [0x58, 0x59]),
+        (
+            bytes([0x05])
+            + (0x1F600).to_bytes(4, "big")
+            + (0x5A).to_bytes(4, "big")
+            + bytes(4),
+            [0x1F600, 0x5A],
+        ),
     ):
-        noisy = booted(image)
+        noisy, held = glk_booted(image)
         nodes = (
             bytes([0x00])
             + (TABLE + 21).to_bytes(4, "big")
@@ -518,10 +545,10 @@ def test_glk_mode_survives_what_prints_nothing(
         noisy.memory.write_run(TEXT, bytes([0xE1, 0x02]))
 
         noisy.string_table = TABLE
-        noisy.iosys.select(IOMode.GLK, 0)
 
-        with pytest.raises(GlulxFrontierError, match="awaits the Glk era"):
-            strings.stream_string(noisy, TEXT)
+        strings.stream_string(noisy, TEXT)
+
+        assert_that(held[: len(expected)]).is_equal_to(expected)
 
 
 # The bookkeeping opcodes: the table and io system read back what

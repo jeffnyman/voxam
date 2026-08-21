@@ -21,11 +21,15 @@ arrives. The null mode decodes and discards.
 
 from typing import TYPE_CHECKING
 
-from voxam.errors import GlulxFrontierError, GlulxStringError
+from voxam.errors import GlulxGlkError, GlulxStringError
 from voxam.glulx import funcs
 from voxam.glulx.iosys import IOMode
 from voxam.glulx.memory import WORD_MASK
 from voxam.glulx.stack import CallStub, DestType
+
+# One past the last character glk_put_char can carry whole; wider
+# characters go through the Unicode call instead (Glk: Output).
+GLK_BYTE_LIMIT = 0x100
 
 if TYPE_CHECKING:
     from voxam.glulx.machine import Machine
@@ -190,18 +194,28 @@ def _signed(value: int) -> int:
     return value - (1 << 32) if value & 0x8000_0000 else value
 
 
-def _put_glk(_machine: "Machine", character: int) -> None:
-    """The Glk emission seat -- a frontier until the Glk era.
+def _put_glk(machine: "Machine", character: int) -> None:
+    """Emit one character through the machine's Glk library.
+
+    The byte-sized put carries anything below 0x100; above that
+    the character needs the Unicode call, or a byte stream would
+    flatten it to '?' on the way through (Glk: Output).
 
     Raises:
-        GlulxFrontierError: Always, for now: Glk output awaits the
-            Glk era, and the character it would have printed is
-            named so the frontier is diagnosable.
+        GlulxGlkError: When Glk output is somehow selected with no
+            library installed -- setiosys falls back to the null
+            system, so only forcing the mode can arrange this.
     """
 
-    msg = f"Glk output of character {character} awaits the Glk era"
+    if machine.glk is None:
+        msg = "Glk output selected, but no Glk library is installed"
 
-    raise GlulxFrontierError(msg)
+        raise GlulxGlkError(msg)
+
+    if character < GLK_BYTE_LIMIT:
+        machine.glk.glk_put_char(character)
+    else:
+        machine.glk.glk_put_char_uni(character)
 
 
 class _Printer:
@@ -330,9 +344,7 @@ class _Printer:
                 return False
 
             if mode == IOMode.GLK:
-                # pragma: no cover -- the fallthrough lives when
-                # the Glk era makes _put_glk return.
-                _put_glk(self.machine, character)  # pragma: no cover
+                _put_glk(self.machine, character)
 
     def _compressed(self) -> bool:  # noqa: PLR0912 -- the tree walk stays whole
         """Walk the Huffman tree until the string ends or we suspend.
@@ -429,8 +441,7 @@ class _Printer:
         if mode == IOMode.GLK:
             _put_glk(self.machine, character)
 
-            # Reached only when the Glk era makes _put_glk return.
-            return True  # pragma: no cover
+            return True
 
         if mode == IOMode.FILTER:
             self._begin_substring()
@@ -470,14 +481,12 @@ class _Printer:
                 while (character := memory.read_byte(node)) != 0:
                     _put_glk(machine, character)
 
-                    # Walked only once the Glk era arrives.
-                    node += 1  # pragma: no cover
+                    node += 1
             else:
                 while (character := memory.read_word(node)) != 0:
                     _put_glk(machine, character)
 
-                    # Walked only once the Glk era arrives.
-                    node += 4  # pragma: no cover
+                    node += 4
 
         return False
 

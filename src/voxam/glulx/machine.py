@@ -18,11 +18,15 @@ from typing import Any
 
 from voxam.errors import (
     GlulxFrontierError,
+    GlulxGlkError,
     GlulxInstructionError,
     GlulxMemoryError,
+    GlulxSessionEnd,
 )
 from voxam.glulx import funcs, gestalt, strings
-from voxam.glulx.iosys import IOSystem
+from voxam.glulx.bridge import Bridge
+from voxam.glulx.glk.api import Glk
+from voxam.glulx.iosys import IOMode, IOSystem
 from voxam.glulx.memory import (
     BYTE_MASK,
     BYTE_WIDTH,
@@ -149,20 +153,29 @@ class Machine:
         stack: The value stack.
     """
 
-    def __init__(self, story: Story, seed: int | None = None) -> None:
+    def __init__(
+        self, story: Story, seed: int | None = None, glk: Glk | None = None
+    ) -> None:
         """Boot the machine: memory laid, stack raised, start called.
 
         Args:
             story: The validated story to run.
             seed: A session seed making the dice reproducible;
                 None means true entropy.
+            glk: A Glk library to speak through, or None. What the
+                machine can do follows from this: installing the
+                library is what flips the glk capability, so the
+                gestalt answer and the setiosys fallback both tell
+                the same truth.
         """
 
         self._story = story
         self.memory = Memory(story)
         self.stack = Stack(story.stack_size)
         self.iosys = IOSystem()
-        self.capabilities = gestalt.Capabilities()
+        self.glk = glk
+        self.bridge = Bridge(self.memory, glk, self.stack) if glk is not None else None
+        self.capabilities = gestalt.Capabilities(glk=glk is not None)
         self.string_table = 0
         self.pc = 0
         self._running = True
@@ -252,7 +265,12 @@ class Machine:
         args, pc = decode_operands(memory, self.stack, pc, oplist)
         self.pc = pc
 
-        handler(self, args)
+        try:
+            handler(self, args)
+        except GlulxSessionEnd:
+            # glk_exit, or input no display can ever answer: the
+            # session ends the way quit ends it.
+            self._running = False
 
     def run(self, limit: int | None = None) -> int:
         """Execute until the story quits; the step count comes back.
@@ -729,7 +747,42 @@ class Machine:
         self._store(args[1], self.iosys.rock)
 
     def _op_setiosys(self, args: list[Any]) -> None:
-        self.iosys.select(args[0], args[1])
+        """Select the output system (Glulx: Output).
+
+        Selecting an unsupported system selects the null system --
+        and Glk without a library installed is exactly that, so
+        the fallback here tells the same truth the gestalt answer
+        does.
+        """
+
+        mode, rock = args
+
+        if mode == IOMode.GLK and self.glk is None:
+            mode, rock = IOMode.NULL, 0
+
+        self.iosys.select(mode, rock)
+
+    def _op_glk(self, args: list[Any]) -> None:
+        """Call a Glk function by selector (Glulx: Miscellaneous).
+
+        The arguments come off the stack, first argument topmost,
+        just as the call opcodes leave them; any stack output
+        references push back before the result stores.
+
+        Raises:
+            GlulxGlkError: When no Glk library is installed. The
+                opcode always functions when one is -- Glk being
+                current is not required (Glulx: Output).
+        """
+
+        if self.bridge is None:
+            msg = "the glk opcode needs a Glk library, and none is installed"
+
+            raise GlulxGlkError(msg)
+
+        call_args = funcs.pop_arguments(self.stack, args[1], self.memory)
+
+        self._store(args[2], self.bridge.perform(args[0], call_args))
 
     def _op_gestalt(self, args: list[Any]) -> None:
         self._store(args[2], gestalt.answer(self, args[0], args[1]))
@@ -881,6 +934,7 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.SETSTRINGTBL: (_L, Machine._op_setstringtbl),
     Op.GETIOSYS: (_SS, Machine._op_getiosys),
     Op.SETIOSYS: (_LL, Machine._op_setiosys),
+    Op.GLK: (_LLS, Machine._op_glk),
     Op.STKCOUNT: (_S, Machine._op_stkcount),
     Op.STKPEEK: (_LS, Machine._op_stkpeek),
     Op.STKSWAP: (_NONE, Machine._op_stkswap),
