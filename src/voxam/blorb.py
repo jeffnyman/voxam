@@ -39,6 +39,7 @@ ENTRY_SIZE = 12
 # Resource Chunks). An Exec resource is numbered 0.
 USAGE_PICTURE = b"Pict"
 USAGE_SOUND = b"Snd "
+USAGE_DATA = b"Data"
 USAGE_EXEC = b"Exec"
 ZCODE_ID = b"ZCOD"
 GLULX_ID = b"GLUL"

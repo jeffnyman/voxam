@@ -458,7 +458,7 @@ def test_proportional_splits_divide_by_percentage() -> None:
 
     assert_that(status.bbox).is_equal_to((0, 0, 80, 6))
     assert_that(original.bbox).is_equal_to((0, 6, 80, 24))
-    assert_that(pair.key_box).is_equal_to((0, 0, 80, 6))
+    assert_that(pair.sized_box).is_equal_to((0, 0, 80, 6))
     assert_that(pair.width).is_equal_to(0)
 
 
@@ -487,10 +487,12 @@ def test_fixed_splits_measure_by_the_key_window() -> None:
     assert_that(original.bbox).is_equal_to((0, 0, 80, 0))
 
 
-# The key window is normally the split-off child, but a game can
-# re-key a pair onto the original side (Glk: Changing Window
-# Constraints); the layout must follow the key, not the position.
-def test_the_key_may_sit_on_either_side() -> None:
+# The key window only supplies the measurement system: the sized
+# side is always the one the direction names -- child2's side --
+# even when the key lives on the other side, which the spec's own
+# worked example does on purpose (Glk: Changing Window
+# Constraints).
+def test_the_key_only_measures() -> None:
     original = TextGridWindow()
     added = TextBufferWindow()
     pair = PairWindow(
@@ -499,8 +501,8 @@ def test_the_key_may_sit_on_either_side() -> None:
 
     pair.rearrange((0, 0, 80, 24))
 
-    assert_that(original.bbox).is_equal_to((0, 0, 5, 24))
-    assert_that(added.bbox).is_equal_to((5, 0, 80, 24))
+    assert_that(added.bbox).is_equal_to((0, 0, 5, 24))
+    assert_that(original.bbox).is_equal_to((5, 0, 80, 24))
 
 
 # A fileref records what the file is for, keeping only the type
