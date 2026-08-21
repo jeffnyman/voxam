@@ -573,16 +573,11 @@ def test_frontiers_and_faults_are_loud(image: Callable[..., bytes]) -> None:
         looper.run(limit=5)
 
 
-# The string-resumption stubs belong to the strings era and say
-# so; a string-terminator stub where a function result belongs is
-# an error in any era (Glulx: Call Stubs).
-def test_string_stubs_answer_for_their_era(image: Callable[..., bytes]) -> None:
+# A string-terminator stub where a function result belongs is an
+# error in any era (Glulx: Call Stubs); the resume stubs proper
+# are the strings module's business, tested with it.
+def test_a_misplaced_terminator_stub_is_loud(image: Callable[..., bytes]) -> None:
     machine = boot(image)
-
-    machine.stack.push_stub(DestType.RESUME_NUMBER, 0, 0)
-
-    with pytest.raises(GlulxFrontierError, match="strings era"):
-        machine._pop_stub(1)
 
     machine.stack.push_stub(DestType.RESUME_FUNCTION, 0, 0)
 

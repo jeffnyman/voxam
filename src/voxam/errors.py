@@ -41,6 +41,10 @@ class GlulxStoryError(VoxamError):
     """Raised when a file cannot be loaded as a Glulx story."""
 
 
+class GlulxStringError(VoxamError):
+    """Raised when bytes cannot be printed as a Glulx string."""
+
+
 class IFFError(VoxamError):
     """Raised when bytes cannot be read as an IFF container."""
 
