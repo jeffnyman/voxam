@@ -51,7 +51,7 @@ def test_every_selector_answers_for_this_build(
         0: 0x00030103,
         1: terp_version(),
         2: 1,
-        3: 0,
+        3: 1,
         5: 1,
         6: 1,
         7: 0,
@@ -59,7 +59,7 @@ def test_every_selector_answers_for_this_build(
         9: 0,
         10: 0,
         11: 0,
-        12: 0,
+        12: 1,
         13: 0,
         99: 0,
     }

@@ -59,8 +59,8 @@ class Capabilities:
         mem_copy: mzero and mcopy work; the exec-loop era.
         unicode: E2 strings, the wide nodes, streamunichar, and
             the type-14 stubs; the strings era.
-        undo: The save era will flip this.
-        ext_undo: hasundo and discardundo; the save era.
+        undo: saveundo and restoreundo; the save era carried them.
+        ext_undo: hasundo and discardundo; the same era.
         malloc: The heap era.
         acceleration: The accel era.
         floats: The float era.
@@ -72,8 +72,8 @@ class Capabilities:
     resize_mem: bool = True
     mem_copy: bool = True
     unicode: bool = True
-    undo: bool = False
-    ext_undo: bool = False
+    undo: bool = True
+    ext_undo: bool = True
     malloc: bool = False
     acceleration: bool = False
     floats: bool = False

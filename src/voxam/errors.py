@@ -37,6 +37,10 @@ class GlulxMemoryError(VoxamError):
     """Raised when Glulx memory is used against its map's rules."""
 
 
+class GlulxSaveError(VoxamError):
+    """Raised when a Glulx save file cannot be written or read."""
+
+
 class GlulxSessionEnd(Exception):  # noqa: N818 -- not an error, so not named as one
     """Raised when a Glk session ends on purpose.
 
