@@ -21,7 +21,7 @@ from voxam.errors import (
     GlulxInstructionError,
     GlulxMemoryError,
 )
-from voxam.glulx import funcs, strings
+from voxam.glulx import funcs, gestalt, strings
 from voxam.glulx.iosys import IOSystem
 from voxam.glulx.memory import (
     BYTE_MASK,
@@ -43,6 +43,7 @@ from voxam.glulx.operand import (
     sign_extend,
     store,
 )
+from voxam.glulx.rng import Randomizer
 from voxam.glulx.stack import DestType, Stack
 from voxam.glulx.story import Story
 
@@ -148,20 +149,27 @@ class Machine:
         stack: The value stack.
     """
 
-    def __init__(self, story: Story) -> None:
+    def __init__(self, story: Story, seed: int | None = None) -> None:
         """Boot the machine: memory laid, stack raised, start called.
 
         Args:
             story: The validated story to run.
+            seed: A session seed making the dice reproducible;
+                None means true entropy.
         """
 
         self._story = story
         self.memory = Memory(story)
         self.stack = Stack(story.stack_size)
         self.iosys = IOSystem()
+        self.capabilities = gestalt.Capabilities()
         self.string_table = 0
         self.pc = 0
         self._running = True
+        # The generator is deliberately not reseeded by restart:
+        # it is no part of saved state either (Glulx: The Random
+        # Number Generator).
+        self._random = Randomizer(seed)
 
         self.restart()
 
@@ -723,6 +731,33 @@ class Machine:
     def _op_setiosys(self, args: list[Any]) -> None:
         self.iosys.select(args[0], args[1])
 
+    def _op_gestalt(self, args: list[Any]) -> None:
+        self._store(args[2], gestalt.answer(self, args[0], args[1]))
+
+    def _op_random(self, args: list[Any]) -> None:
+        """Roll at three ranges (Glulx: The Random Number Generator).
+
+        A zero range asks for a full 32-bit value; a positive one
+        for 0 through the range less one; a negative one for the
+        mirror: range plus one through 0.
+        """
+
+        limit = signed(args[0])
+
+        if limit == 0:
+            value = self._random.word()
+        elif limit > 0:
+            value = self._random.below(limit)
+        else:
+            value = -self._random.below(-limit)
+
+        self._store(args[1], value)
+
+    def _op_setrandom(self, args: list[Any]) -> None:
+        """Reseed the dice; zero asks for genuine unpredictability."""
+
+        self._random.seed(args[0])
+
     def _op_getmemsize(self, args: list[Any]) -> None:
         self._store(args[0], self.memory.endmem)
 
@@ -851,6 +886,9 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.STKSWAP: (_NONE, Machine._op_stkswap),
     Op.STKROLL: (_LL, Machine._op_stkroll),
     Op.STKCOPY: (_L, Machine._op_stkcopy),
+    Op.GESTALT: (_LLS, Machine._op_gestalt),
+    Op.RANDOM: (_LS, Machine._op_random),
+    Op.SETRANDOM: (_L, Machine._op_setrandom),
     Op.GETMEMSIZE: (_S, Machine._op_getmemsize),
     Op.SETMEMSIZE: (_LS, Machine._op_setmemsize),
     Op.MZERO: (_LL, Machine._op_mzero),
