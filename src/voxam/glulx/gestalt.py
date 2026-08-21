@@ -65,7 +65,8 @@ class Capabilities:
         acceleration: The accel era.
         floats: The float era.
         doubles: The double era.
-        glk: The Glk era.
+        glk: A Glk library is installed on this machine; the
+            bridge answers the glk opcode and iosys mode 2 works.
     """
 
     resize_mem: bool = True
