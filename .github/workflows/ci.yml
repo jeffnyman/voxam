@@ -72,8 +72,10 @@ jobs:
   # POSIX-only, which is one reason the built-in runner exists;
   # this job is where the two are held to agreement. It fetches
   # the entharion submodule because the zork1 script plays a real
-  # game; arthur.regtest runs under the built-in runner alone (the
-  # reference's prompt framing cannot follow a keystroke prompt).
+  # game -- and because the Glulx certification below plays
+  # glulxercise; arthur.regtest runs under the built-in runner
+  # alone (the reference's prompt framing cannot follow a
+  # keystroke prompt).
   regtest:
     name: RegTest cross-certification
     runs-on: ubuntu-latest
@@ -116,6 +118,19 @@ jobs:
             echo "$out" | grep -q "Passed: ${passed[$v]}, Failed: 0, Print tests: 19"
             echo "$out" | grep -q "Didn't crash: hooray!"
           done
+
+      # Glulxercise is CZECH's Glulx counterpart: one "all" runs
+      # every section, and the certification asserts the exact
+      # tally -- 70 sections passed, no failures, and the closing
+      # verdict spoken -- through the same stdio session a player
+      # would use.
+      - name: Glulxercise, the whole battery
+        run: |
+          out="$(echo all | uv run voxam entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
+          echo "$out" | tail -3
+          test "$(echo "$out" | grep -c '^Passed\.$')" -eq 70
+          echo "$out" | grep -q "All tests passed."
+          ! echo "$out" | grep -q "FAILED"
 
   build:
     name: Build distribution
