@@ -58,9 +58,9 @@ def test_every_selector_answers_for_this_build(
         8: 0,
         9: 1,
         10: 0,
-        11: 0,
+        11: 1,
         12: 1,
-        13: 0,
+        13: 1,
         99: 0,
     }
 

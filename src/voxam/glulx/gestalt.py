@@ -64,8 +64,9 @@ class Capabilities:
         malloc: malloc and mfree; the heap era carried them.
         acceleration: accelfunc and accelparam; the accel era
             carried them.
-        floats: The float era.
-        doubles: The double era.
+        floats: The single-precision opcodes; the float era
+            carried them.
+        doubles: The double-precision opcodes; the same era.
         glk: A Glk library is installed on this machine; the
             bridge answers the glk opcode and iosys mode 2 works.
     """
@@ -77,8 +78,8 @@ class Capabilities:
     ext_undo: bool = True
     malloc: bool = True
     acceleration: bool = True
-    floats: bool = False
-    doubles: bool = False
+    floats: bool = True
+    doubles: bool = True
     glk: bool = False
 
 

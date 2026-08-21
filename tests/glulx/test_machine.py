@@ -6,11 +6,11 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import (
-    GlulxFrontierError,
     GlulxInstructionError,
     GlulxMemoryError,
 )
-from voxam.glulx.machine import Machine
+from voxam.glulx.machine import _DISPATCH, Machine
+from voxam.glulx.opcodes import Op
 from voxam.glulx.stack import DestType
 from voxam.glulx.story import Story
 
@@ -546,15 +546,14 @@ def test_lifecycle_and_map_opcodes(image: Callable[..., bytes]) -> None:
         planted(trapped, bytes([0x81, 0x01, 0x01, 0x07]))
 
 
-# The frontiers are honest: a defined opcode whose era is not yet
-# carried says so by name; an undefined number says the spec does
-# not know it; a pc off the map says where it ran; and a runaway
-# loop trips the run limit.
+# The roster is whole: every opcode Glulx 3.1.3 defines has a
+# dispatch entry, which is what let the frontier arm retire. An
+# undefined number says the spec does not know it; a pc off the
+# map says where it ran; and a runaway loop trips the run limit.
 def test_frontiers_and_faults_are_loud(image: Callable[..., bytes]) -> None:
     machine = boot(image)
 
-    with pytest.raises(GlulxFrontierError, match="numtof awaits its era"):
-        planted(machine, bytes([0x81, 0x90]))
+    assert_that(sorted(_DISPATCH)).is_equal_to(sorted(Op.__members__.values()))
 
     with pytest.raises(GlulxInstructionError, match="does not define"):
         planted(machine, bytes([0x7F]))
