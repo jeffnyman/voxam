@@ -61,7 +61,7 @@ class Capabilities:
             the type-14 stubs; the strings era.
         undo: saveundo and restoreundo; the save era carried them.
         ext_undo: hasundo and discardundo; the same era.
-        malloc: The heap era.
+        malloc: malloc and mfree; the heap era carried them.
         acceleration: The accel era.
         floats: The float era.
         doubles: The double era.
@@ -74,7 +74,7 @@ class Capabilities:
     unicode: bool = True
     undo: bool = True
     ext_undo: bool = True
-    malloc: bool = False
+    malloc: bool = True
     acceleration: bool = False
     floats: bool = False
     doubles: bool = False
@@ -139,9 +139,8 @@ def answer(  # noqa: PLR0911, PLR0912 -- one flat return per selector
 
     if selector == Gestalt.MALLOC_HEAP:
         # The heap's start address, or zero with no blocks extant
-        # (Glulx: Gestalt) -- and with no heap era yet, no block
-        # can exist.
-        return 0
+        # (Glulx: Gestalt).
+        return machine.heap.start
 
     if selector == Gestalt.ACCELERATION:
         return int(caps.acceleration)

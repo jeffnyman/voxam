@@ -21,7 +21,7 @@ format never consulted.
 import re
 from typing import TYPE_CHECKING
 
-from voxam.errors import GlulxFrontierError, GlulxSaveError, IFFError
+from voxam.errors import GlulxSaveError, IFFError
 from voxam.iff import Chunk, parse_form, write_form
 
 if TYPE_CHECKING:
@@ -175,32 +175,40 @@ def serialize(machine: "Machine") -> bytes:
 
     The caller must already have pushed the four-value call stub
     the spec requires, since it forms part of the stack chunk
-    (Glulx: Contents of the Stack). No MAll chunk is written: with
-    no heap era, the heap is never active, and an inactive heap's
-    chunk may be omitted (Glulx: Memory Allocation Heap).
+    (Glulx: Contents of the Stack). An MAll chunk is written only
+    while the heap is active; an inactive heap's chunk may be
+    omitted (Glulx: Memory Allocation Heap).
     """
 
-    return write_form(
-        SAVE_FORM,
-        [
-            Chunk(IDENTITY, machine.memory.read_run(0, IDENTITY_LENGTH)),
-            Chunk(COMPRESSED, _encode_memory(machine)),
-            Chunk(STACK, machine.stack.snapshot()),
-        ],
-    )
+    pieces = [
+        Chunk(IDENTITY, machine.memory.read_run(0, IDENTITY_LENGTH)),
+        Chunk(COMPRESSED, _encode_memory(machine)),
+    ]
+
+    summary = machine.heap.summary()
+
+    if summary:
+        pieces.append(
+            Chunk(HEAP, b"".join(word.to_bytes(4, "big") for word in summary))
+        )
+
+    pieces.append(Chunk(STACK, machine.stack.snapshot()))
+
+    return write_form(SAVE_FORM, pieces)
 
 
 def deserialize(machine: "Machine", data: bytes) -> None:
     """Restore a state a save file holds.
 
-    Order matters: memory first, because it sets the memory size,
-    then the stack.
+    Order matters: the live heap is dropped first -- it does not
+    survive into the restored state, and its shrink must land
+    before the memory chunk sets the size -- then memory, then the
+    heap summary above it, then the stack.
 
     Raises:
         GlulxSaveError: For bytes that are not an IFZS container,
-            a story that is not this one, or a missing chunk.
-        GlulxFrontierError: For a save with an active heap, which
-            awaits the heap era.
+            a story that is not this one, a missing chunk, or a
+            heap summary that contradicts itself.
     """
 
     try:
@@ -229,7 +237,7 @@ def deserialize(machine: "Machine", data: bytes) -> None:
 
         raise GlulxSaveError(msg)
 
-    _require_no_heap(chunks.get(HEAP, b""))
+    machine.heap.clear()
 
     if COMPRESSED in chunks:
         _decode_memory(machine, chunks[COMPRESSED])
@@ -240,6 +248,15 @@ def deserialize(machine: "Machine", data: bytes) -> None:
 
         raise GlulxSaveError(msg)
 
+    heap = chunks.get(HEAP, b"")
+
+    machine.heap.apply_summary(
+        [
+            int.from_bytes(heap[index : index + 4], "big")
+            for index in range(0, len(heap) - 3, 4)
+        ]
+    )
+
     stack = chunks.get(STACK)
 
     if stack is None:
@@ -248,23 +265,6 @@ def deserialize(machine: "Machine", data: bytes) -> None:
         raise GlulxSaveError(msg)
 
     machine.stack.restore(stack)
-
-
-def _require_no_heap(body: bytes) -> None:
-    """Refuse a save whose heap was active.
-
-    An inactive heap's MAll chunk "can contain 0,0 or it may be
-    omitted" (Glulx: Memory Allocation Heap); anything more names
-    blocks this machine cannot rebuild yet.
-
-    Raises:
-        GlulxFrontierError: For an MAll chunk with content.
-    """
-
-    if any(body):
-        msg = "the save file's allocation heap awaits the heap era"
-
-        raise GlulxFrontierError(msg)
 
 
 def save(machine: "Machine", stream: "Stream | None") -> int:

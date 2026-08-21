@@ -54,7 +54,7 @@ def test_every_selector_answers_for_this_build(
         3: 1,
         5: 1,
         6: 1,
-        7: 0,
+        7: 1,
         8: 0,
         9: 0,
         10: 0,

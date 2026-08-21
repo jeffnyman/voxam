@@ -7,7 +7,7 @@ from collections.abc import Callable
 import pytest
 from assertpy import assert_that
 
-from voxam.errors import GlulxFrontierError, GlulxSaveError
+from voxam.errors import GlulxSaveError
 from voxam.glulx import serial
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.dispatch import CLASS_STREAM
@@ -236,28 +236,43 @@ def test_wrong_save_files_are_refused(image: Callable[..., bytes]) -> None:
             serial.deserialize(machine, data)
 
 
-# A save whose heap was active awaits the heap era by name; the
-# inactive heap's 0,0 chunk passes through untouched.
-def test_active_heaps_await_their_era(image: Callable[..., bytes]) -> None:
+# The heap rides the save: an active heap writes its MAll chunk
+# and comes back rebuilt, blocks and gaps alike; an inactive one
+# writes no chunk at all, and restoring an inactive save onto an
+# active heap deactivates it.
+def test_the_heap_rides_the_save(image: Callable[..., bytes]) -> None:
     machine = booted(image)
 
     machine.stack.push_stub(DestType.DISCARD, 0, 0)
 
-    def with_heap(body: bytes) -> bytes:
-        return write_form(
-            serial.SAVE_FORM,
-            [
-                Chunk(serial.IDENTITY, identity(machine)),
-                Chunk(serial.COMPRESSED, (0x300).to_bytes(4, "big")),
-                Chunk(serial.HEAP, body),
-                Chunk(serial.STACK, machine.stack.snapshot()),
-            ],
-        )
+    bare = serial.serialize(machine)
 
-    serial.deserialize(machine, with_heap(bytes(8)))
+    _, pieces = parse_form(bare)
 
-    with pytest.raises(GlulxFrontierError, match="awaits the heap era"):
-        serial.deserialize(machine, with_heap((0x8000).to_bytes(4, "big") + bytes(4)))
+    assert_that([piece.chunk_id for piece in pieces]).does_not_contain(serial.HEAP)
+
+    first = machine.heap.alloc(0x40)
+    second = machine.heap.alloc(0x30)
+
+    saved = serial.serialize(machine)
+
+    _, pieces = parse_form(saved)
+
+    assert_that([piece.chunk_id for piece in pieces]).contains(serial.HEAP)
+
+    machine.heap.free(first)
+
+    serial.deserialize(machine, saved)
+
+    assert_that(machine.heap.summary()).is_equal_to(
+        [0x300, 2, first, 0x40, second, 0x30]
+    )
+
+    # An inactive-heap save lands on an active heap by clearing it.
+    serial.deserialize(machine, bare)
+
+    assert_that(machine.heap.active).is_false()
+    assert_that(machine.memory.endmem).is_equal_to(0x300)
 
 
 # The undo chain holds the newest handful of states and no more;
