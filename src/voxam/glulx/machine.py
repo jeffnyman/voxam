@@ -24,6 +24,7 @@ from voxam.errors import (
     GlulxSessionEnd,
 )
 from voxam.glulx import funcs, gestalt, search, serial, strings
+from voxam.glulx.accel import Accelerator
 from voxam.glulx.bridge import Bridge
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.dispatch import CLASS_STREAM
@@ -182,6 +183,7 @@ class Machine:
         self._story = story
         self.memory = Memory(story)
         self.heap = Heap(self.memory)
+        self.accel = Accelerator(self.memory)
         self.undo_chain: list[bytes] = []
         self.stack = Stack(story.stack_size)
         self.iosys = IOSystem()
@@ -381,12 +383,21 @@ class Machine:
     def enter_function(self, addr: int, args: list[int]) -> None:
         """Begin a call: every way of invoking a function lands here.
 
-        The call opcodes and tailcall today; the accelerated
-        functions and the string-decoding table's function nodes
-        will land here too when their eras arrive, because that is
-        what the spec means by a call including "any function
-        invocation of that address".
+        This is what the spec means by a call including "any
+        function invocation of that address" -- so the accelerated
+        replacements intercept here, covering the call opcodes,
+        tailcall, and the string-decoding table's function nodes
+        alike (Glulx: Accelerated Functions). An accelerated
+        function produces its result immediately, and the come-home
+        stub the caller just pushed pops straight back off.
         """
+
+        accelerated = self.accel.lookup(addr)
+
+        if accelerated is not None:
+            self._pop_stub(accelerated(args))
+
+            return
 
         self.pc = funcs.push_call_frame(self.memory, self.stack, addr, args)
 
@@ -872,6 +883,16 @@ class Machine:
 
         serial.discard_undo(self)
 
+    def _op_accelfunc(self, args: list[Any]) -> None:
+        """Install or cancel a replacement (Glulx: Accelerated Functions)."""
+
+        self.accel.set_func(args[0], args[1])
+
+    def _op_accelparam(self, args: list[Any]) -> None:
+        """Set a veneer parameter (Glulx: Accelerated Functions)."""
+
+        self.accel.set_param(args[0], args[1])
+
     def _op_malloc(self, args: list[Any]) -> None:
         """Claim heap memory (Glulx: Memory Allocation Heap).
 
@@ -1051,6 +1072,8 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.GETIOSYS: (_SS, Machine._op_getiosys),
     Op.SETIOSYS: (_LL, Machine._op_setiosys),
     Op.GLK: (_LLS, Machine._op_glk),
+    Op.ACCELFUNC: (_LL, Machine._op_accelfunc),
+    Op.ACCELPARAM: (_LL, Machine._op_accelparam),
     Op.MALLOC: (_LS, Machine._op_malloc),
     Op.MFREE: (_L, Machine._op_mfree),
     Op.SAVE: (_LS, Machine._op_save),
