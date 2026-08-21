@@ -23,7 +23,7 @@ from voxam.errors import (
     GlulxMemoryError,
     GlulxSessionEnd,
 )
-from voxam.glulx import funcs, gestalt, strings
+from voxam.glulx import funcs, gestalt, search, strings
 from voxam.glulx.bridge import Bridge
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.iosys import IOMode, IOSystem
@@ -787,6 +787,15 @@ class Machine:
     def _op_gestalt(self, args: list[Any]) -> None:
         self._store(args[2], gestalt.answer(self, args[0], args[1]))
 
+    def _op_linearsearch(self, args: list[Any]) -> None:
+        self._store(args[7], search.linear_search(self.memory, *args[:7]))
+
+    def _op_binarysearch(self, args: list[Any]) -> None:
+        self._store(args[7], search.binary_search(self.memory, *args[:7]))
+
+    def _op_linkedsearch(self, args: list[Any]) -> None:
+        self._store(args[6], search.linked_search(self.memory, *args[:6]))
+
     def _op_random(self, args: list[Any]) -> None:
         """Roll at three ranges (Glulx: The Random Number Generator).
 
@@ -872,6 +881,8 @@ _SL = operands("SL")
 _LLS = operands("LLS")
 _LLLS = operands("LLLS")
 _LLLLS = operands("LLLLS")
+_LLLLLLS = operands("LLLLLLS")
+_LLLLLLLS = operands("LLLLLLLS")
 
 # One combined table: each opcode's operand signature beside its
 # handler, so a step costs a single lookup.
@@ -935,6 +946,9 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.GETIOSYS: (_SS, Machine._op_getiosys),
     Op.SETIOSYS: (_LL, Machine._op_setiosys),
     Op.GLK: (_LLS, Machine._op_glk),
+    Op.LINEARSEARCH: (_LLLLLLLS, Machine._op_linearsearch),
+    Op.BINARYSEARCH: (_LLLLLLLS, Machine._op_binarysearch),
+    Op.LINKEDSEARCH: (_LLLLLLS, Machine._op_linkedsearch),
     Op.STKCOUNT: (_S, Machine._op_stkcount),
     Op.STKPEEK: (_LS, Machine._op_stkpeek),
     Op.STKSWAP: (_NONE, Machine._op_stkswap),
