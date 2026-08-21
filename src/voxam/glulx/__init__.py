@@ -1,4 +1,4 @@
-"""The Glulx machine: the road to 2.0.
+"""The Glulx machine, carried whole.
 
 Glulx is the 32-bit virtual machine modern Inform games compile to
 when they outgrow the Z-Machine, and Glk is the I/O layer they
@@ -8,7 +8,9 @@ Voxam, behavior argues by citation: (Glulx: The Header) names a
 section of the Glulx specification the way §1.1 names one of the
 Z-Machine Standard.
 
-This package opens with the honest boot: a Glulx story is
-recognized, its header read and verified, and execution reported
-as the frontier it still is. The machine follows, era by era.
+Every opcode the 3.1.3 roster defines is dispatched, and the
+glulxercise checker certifies the whole -- seventy sections,
+spoken through the same stdio session a player uses. What remains
+is glass, not machine: richer displays, and the courtesies that
+ride with them.
 """
