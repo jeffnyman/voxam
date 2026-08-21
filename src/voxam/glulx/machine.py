@@ -27,6 +27,7 @@ from voxam.glulx import funcs, gestalt, search, serial, strings
 from voxam.glulx.bridge import Bridge
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.dispatch import CLASS_STREAM
+from voxam.glulx.heap import Heap
 from voxam.glulx.iosys import IOMode, IOSystem
 from voxam.glulx.memory import (
     BYTE_MASK,
@@ -180,6 +181,7 @@ class Machine:
 
         self._story = story
         self.memory = Memory(story)
+        self.heap = Heap(self.memory)
         self.undo_chain: list[bytes] = []
         self.stack = Stack(story.stack_size)
         self.iosys = IOSystem()
@@ -211,6 +213,9 @@ class Machine:
         Glulx: The Header).
         """
 
+        # The heap goes first, before the map is rebuilt: it does
+        # not survive a restart (Glulx: Memory Allocation Heap).
+        self.heap.clear()
         self.memory.reset()
         self.stack.reset()
         self.iosys.reset()
@@ -867,6 +872,20 @@ class Machine:
 
         serial.discard_undo(self)
 
+    def _op_malloc(self, args: list[Any]) -> None:
+        """Claim heap memory (Glulx: Memory Allocation Heap).
+
+        The address stores, or zero for a refusal -- allocation is
+        never guaranteed.
+        """
+
+        self._store(args[1], self.heap.alloc(args[0]))
+
+    def _op_mfree(self, args: list[Any]) -> None:
+        """Release a heap block (Glulx: Memory Allocation Heap)."""
+
+        self.heap.free(args[0])
+
     def _op_linearsearch(self, args: list[Any]) -> None:
         self._store(args[7], search.linear_search(self.memory, *args[:7]))
 
@@ -906,10 +925,16 @@ class Machine:
     def _op_setmemsize(self, args: list[Any]) -> None:
         """Resize the map; success stores 0 (Glulx: Memory Map).
 
-        The heap era will add the refusal the spec makes while the
-        allocation heap is active: until malloc exists, no heap
-        can be.
+        Raises:
+            GlulxMemoryError: While the allocation heap is active
+                -- it owns the memory map then, and the opcode is
+                illegal (Glulx: Memory Allocation Heap).
         """
+
+        if self.heap.active:
+            msg = "setmemsize is illegal while the allocation heap is active"
+
+            raise GlulxMemoryError(msg)
 
         self.memory.set_size(args[0])
         self._store(args[1], 0)
@@ -1026,6 +1051,8 @@ _DISPATCH: dict[int, tuple[Any, Any]] = {
     Op.GETIOSYS: (_SS, Machine._op_getiosys),
     Op.SETIOSYS: (_LL, Machine._op_setiosys),
     Op.GLK: (_LLS, Machine._op_glk),
+    Op.MALLOC: (_LS, Machine._op_malloc),
+    Op.MFREE: (_L, Machine._op_mfree),
     Op.SAVE: (_LS, Machine._op_save),
     Op.RESTORE: (_LS, Machine._op_restore),
     Op.SAVEUNDO: (_S, Machine._op_saveundo),
