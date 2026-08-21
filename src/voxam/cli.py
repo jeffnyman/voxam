@@ -78,7 +78,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         prog="voxam",
-        description="A complete Z-Machine interpreter; Glulx to follow.",
+        description="An interpreter for Z-Machine and Glulx stories.",
     )
     parser.add_argument(
         "story",
@@ -169,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
 
-    print("\nVoxam Interpreter for Z-Machine Stories\n")
+    print("\nVoxam Interpreter for Z-Machine and Glulx Stories\n")
 
     reported = _static_report(arguments)
 
@@ -274,7 +274,7 @@ def _story_report(
         if _glulx_story(arguments.story) is not None:
             print(
                 f"voxam: {flag} reads Z-Machine stories, and "
-                f"{arguments.story.name} is Glulx -- the road to 2.0"
+                f"{arguments.story.name} is Glulx"
             )
 
             return EXIT_UNUSABLE

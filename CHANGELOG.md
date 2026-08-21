@@ -1,3 +1,25 @@
+## v1.1.0 (2026-08-21)
+
+### Feat
+
+- **glulx**: the stdio display -- voxam plays Glulx, and Adventure answers (#210)
+- **glulx**: floats and doubles complete the roster -- glulxercise says All tests passed (#209)
+- **glulx**: the accelerated veneer -- thirteen functions replaced, and glulxercise reaches 47 for 47 (#208)
+- **glulx**: the allocation heap -- malloc claims the map, and glulxercise reaches 46 for 46 (#207)
+- **glulx**: save and undo -- the state bottled, and glulxercise reaches 44 for 44 (#206)
+- **glulx**: the search opcodes -- and glulxercise passes every carried section, 36 for 36 (#205)
+- **glulx**: the bridge -- the glk opcode marshals, and glulxercise says hello (#204)
+- **glulx**: the glk function surface -- all 123 functions over a display contract (#203)
+- **glulx**: the glk dispatch table and object model -- prototypes generated, gi_dispa held as witness (#202)
+- **glulx**: gestalt and the dice -- capabilities answered from runtime truth, sessions seeded forever (#201)
+- **glulx**: strings -- the coroutine printer, Huffman and all, suspending into the machine and coming back (#200)
+- **glulx**: the machine executes -- the loop, eight opcode families, and frontiers that answer by name (#199)
+- **glulx**: function entry -- C0 on the stack, C1 in the locals, reserved types named for what they are (#196)
+- **glulx**: operand decoding -- sixteen modes, the 32-bit discipline, addresses that wrap where the spec says (#195)
+- **glulx**: the stack -- frames, locals, and call stubs, big-endian by ruling, strict where glulxe only remarks (#194)
+- **glulx**: the memory map -- ROM sacred, RAM growable, the protected range kept where glulxe drops it (#193)
+- **glulx**: the honest boot -- .ulx and .gblorb recognized, headers held to their promises, execution the 2.0 frontier (#192)
+
 ## v1.0.0 (2026-08-20)
 
 Full Z-Machine Support: every §14 opcode handled, all eight versions played, all four graphical games in the corpus.
