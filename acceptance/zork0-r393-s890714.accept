@@ -10,13 +10,26 @@ stand up
 get the parchment
 >
 
+# A second any-key pause follows the "94 YEARS LATER" title; a
+# missed press here once shifted every command a room short and
+# phantom-walked the whole first act (23 refusals, all flagged).
+
+>
+
 # Main Area of Castle
 
 up. s
 examine the rebus
+
+# The rebus is a v6 picture; its pause takes a key too.
+
+>
 s
 take bag
 press button
+
+# Pressing a key-shaped button frees one flattened animal from
+# the rebus -- this one, fittingly, the mouse.
 
 n. n. d. s. s
 take the sceptre
@@ -31,11 +44,14 @@ say "Y"
 w. s
 take glove and cloak
 wear glove
-
 n. e. d. d. e. e.
 d. s. d
 take the cap
-wear it
+
+# Dropping into the oubliette summons the jester. His riddles are
+# seed-random: at seed 24 he asks the not-a-twin riddle here.
+
+wait
 answer triplet
 sw
 open iron maiden
@@ -54,6 +70,11 @@ take walnut
 u. w. w
 ring the bell
 say "time"
+
+# The portcullis riddle's answer -- and the jester's parting gift
+# is a clown nose that suffocates in about thirty turns.
+
+remove the nose
 n
 take the worm
 nw. nw. u
@@ -63,18 +84,55 @@ open the locker
 take the steel key
 ne. ne. se. e. n
 answer bookkeeper
-take coin
+
+# The coin lands at your feet -- along with everything you were
+# holding, because "see you later, alligator" is literal. The
+# transformation pops off after a few turns; then gather up.
+
+z
+take all
 s. e. s
 sing lullaby
 take package
 read it
 open it
 examine the pigeon
-eead the pigeon
+read the pigeon
+
+# The ceramic pigeon package stays behind for now: hands are full
+# and the walkthrough wants it later, from a lighter load.
+
 n. e
+
+# The T-square is on Floor 19 -- eighteen flights up from the
+# lobby -- and hands must be one short of full to take it.
+
 up. up. up. up. up
 up. up. up. up. up
 up. up. up. up. up
-up. up. up. up
+up. up. up
 s
+wear the cap
 take the T-square
+n
+
+# Nineteen flights down is the Basement, one below the lobby; the
+# twentieth spends the move the jester's breeze steals mid-stair.
+
+down. down. down. down. down
+down. down. down. down. down
+down. down. down. down. down
+down. down. down. down. down
+look
+push the key-shaped button
+
+drop the walnut. drop the worm
+s
+get on stand
+get off
+take violin
+get on stand
+get off
+n. up. w. w. w
+
+nw. sw. se. se. se. se
