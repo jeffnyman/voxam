@@ -603,6 +603,66 @@ def test_the_timer_comes_round_and_round(monkeypatch: pytest.MonkeyPatch) -> Non
     assert_that(timer.timeout()).is_equal_to(2.0)
 
 
+# The recording seams hear input the moment it is accepted: every
+# finished line with its terminator, file-prompt answers included
+# (an escape-cancelled prompt records the empty line that cancels
+# on replay), and every keystroke a character read delivered.
+def test_the_recording_seams_hear_input() -> None:
+    lines: list[tuple[str, int]] = []
+    keys: list[int] = []
+    pressed = [
+        *typing("go"),
+        StubKey("a"),
+        StubKey("", "KEY_ESCAPE"),
+        StubKey("x"),
+        *typing("save"),
+        StubKey("", "KEY_ESCAPE"),
+    ]
+    out: list[str] = []
+    display = TerminalFrontend(
+        cast("Terminal", StubTerminal(pressed)),
+        out.append,
+        on_line=lambda text, terminator: lines.append((text, terminator)),
+        on_key=keys.append,
+    )
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+    window.line_request = LineRequest(None)
+    window.line_request.terminators = (KeyCode.ESCAPE,)
+
+    assert_that(display.read_line(window, 80)).is_equal_to(("go", 0))
+    assert_that(display.read_line(window, 80)).is_equal_to(("a", KeyCode.ESCAPE))
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(display.prompt_file(0, FileMode.WRITE)).is_equal_to("save")
+    assert_that(display.prompt_file(0, FileMode.WRITE)).is_none()
+
+    assert_that(lines).is_equal_to(
+        [("go", 0), ("a", KeyCode.ESCAPE), ("save", 0), ("", 0)]
+    )
+    assert_that(keys).is_equal_to([ord("x")])
+
+
+# A timer interrupting a read delivers nothing to the seams: no
+# line was accepted and no keystroke reached the game.
+def test_the_seams_ignore_a_timer(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+
+    keys: list[int] = []
+    out: list[str] = []
+    display = TerminalFrontend(
+        cast("Terminal", TickingTerminal([StubKey("")], clock)),
+        out.append,
+        on_key=keys.append,
+    )
+    Glk(display)
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+
+    display.set_timer(500)
+
+    assert_that(display.read_char(window)).is_none()
+    assert_that(keys).is_empty()
+
+
 class SoundStream:
     """Captures the speaker's callbacks so a test can drive them."""
 

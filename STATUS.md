@@ -295,9 +295,16 @@ no MOD decoder is aboard, whatever else can play. Plotkin's own
 And the acceptance harness speaks Glulx now: `--record` writes a
 session in the same grammar the Z-Machine records, `--accept`
 replays it with the refusal watch listening, and the corpus holds
-its first Glulx recording -- *Adventure*'s opening excursion,
+its first Glulx recordings -- *Adventure*'s opening excursion,
 provisions to grate to debris room and home on XYZZY, replaying
 byte-identical beside the Z-code excursions of the same cave.
+The harness hears keys, too: a live recording rides the painted
+glass, where a real arrow press lands in the script as the same
+`<up>` token Beyond Zork's menus have replayed through since the
+Z-Machine's key era, and a replayed token presses the Glk key it
+means. What the grammar cannot spell -- a function key, a
+terminator -- warns loudly and records plain, never silently
+wrong.
 
 ### The road to 1.5
 

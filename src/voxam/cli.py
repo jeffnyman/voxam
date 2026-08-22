@@ -19,6 +19,7 @@ from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
 from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.objects import KeyCode
 from voxam.glulx.glk.resources import Resources as GlkResources
 from voxam.glulx.glk.stdio import StdioFrontend
 from voxam.glulx.machine import Machine as GlulxMachine
@@ -959,9 +960,10 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     than half-working.
 
     With screen allowed, a live session at a real terminal gets
-    the painted display; anything riding the line seam -- a
-    recording, a replay -- keeps the stdio display, whose lines
-    are what the acceptance grammar speaks.
+    the painted display -- a recording included, riding the
+    glass's own seams so real keystrokes land in the script as
+    key tokens. A replay arrives as an input source and keeps the
+    stdio display, whose lines are what the grammar speaks.
     """
 
     if trace is not None:
@@ -975,22 +977,26 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
 
         return EXIT_UNUSABLE
 
-    if recorder is not None and input_source is None:
-        # A live recording: every line the player types goes onto
-        # the page as it is typed. A replayed prefix arrives as an
-        # input source instead, and stays off the page -- it is
-        # already there.
-        input_source = _recorded_lines(recorder, input)
-
     verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
 
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
 
     blorb = _glulx_resources(story_path, resources)
 
-    # A recording and a replay both arrive as an input source, so
-    # one condition covers everything the line seam carries.
-    painted = _terminal_frontend(blorb) if screen and input_source is None else None
+    # A replay arrives as an input source and keeps the stdio
+    # display; a live session earns the glass, recorder and all.
+    painted = (
+        _terminal_frontend(blorb, recorder=recorder)
+        if screen and input_source is None
+        else None
+    )
+
+    if painted is None and recorder is not None and input_source is None:
+        # Recording at the stdio display: every typed line goes
+        # onto the page as it is typed. A replayed prefix arrives
+        # as an input source instead, and stays off the page -- it
+        # is already there.
+        input_source = _recorded_lines(recorder, input)
     frontend: GlkFrontend = (
         painted
         if painted is not None
@@ -1036,14 +1042,18 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     return EXIT_OK
 
 
-def _terminal_frontend(blorb: Blorb | None = None) -> "TerminalFrontend | None":
+def _terminal_frontend(
+    blorb: Blorb | None = None, recorder: Recorder | None = None
+) -> "TerminalFrontend | None":
     """A painted Glk display, when the glass and the extra allow.
 
     The painted display wants a real terminal to paint on and the
     blessed package the `screen` extra installs; missing either,
     the caller falls back to the stdio display, which is always
     there. A Blorb with sounds may also bring a speaker along --
-    see _speaker for what that takes.
+    see _speaker for what that takes -- and a recorder rides the
+    glass's input seams, hearing lines and keystrokes as the
+    display accepts them.
     """
 
     if not sys.stdout.isatty():
@@ -1056,7 +1066,62 @@ def _terminal_frontend(blorb: Blorb | None = None) -> "TerminalFrontend | None":
     except ImportError:
         return None
 
-    return TerminalFrontend(speaker=_speaker(blorb))
+    on_line = on_key = None
+
+    if recorder is not None:
+        on_line, on_key = _recorded_glk(recorder)
+
+    return TerminalFrontend(speaker=_speaker(blorb), on_line=on_line, on_key=on_key)
+
+
+# The Glk keycodes the acceptance grammar can spell, as the input
+# characters their tokens replay through -- the same §3.8.4 and
+# §3.8.2.6 alphabet the Z-Machine's key seam records, so one
+# recorded <up> presses up on either machine. Return maps to the
+# newline the recorder turns into the grammar's bare prompt.
+GLK_KEY_CHARACTERS = {
+    KeyCode.UP: "\x81",
+    KeyCode.DOWN: "\x82",
+    KeyCode.LEFT: "\x83",
+    KeyCode.RIGHT: "\x84",
+    KeyCode.ESCAPE: "\x1b",
+    KeyCode.RETURN: "\n",
+}
+
+
+def _recorded_glk(
+    recorder: Recorder,
+) -> tuple[Callable[[str, int], None], Callable[[int], None]]:
+    """The glass's recording seams, bridged onto the grammar.
+
+    Lines record as lines. Keystrokes translate to the grammar's
+    key alphabet where a token exists, pass as themselves where
+    they are ordinary characters, and warn loudly where the
+    grammar has no spelling -- the same rule the Z-Machine's key
+    seam keeps. A terminator-ended line records plain, with a
+    warning, because the grammar cannot spell the terminator.
+    """
+
+    def line(text: str, terminator: int) -> None:
+        if terminator:
+            print(
+                "voxam: a terminator key ended the line; the "
+                "grammar cannot spell it, so the line records plain"
+            )
+
+        recorder.line(text)
+
+    def key(code: int) -> None:
+        character = GLK_KEY_CHARACTERS.get(code)
+
+        if character is not None:
+            recorder.key(character)
+        elif code <= sys.maxunicode:
+            recorder.key(chr(code))
+        else:
+            print(f"voxam: key 0x{code:X} has no token in the grammar; not recorded")
+
+    return line, key
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:
