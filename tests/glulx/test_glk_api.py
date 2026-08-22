@@ -961,6 +961,16 @@ def test_style_hints_and_measures() -> None:
     assert_that(telling.glk_style_measure(styled, Style.NORMAL, 0, None)).is_equal_to(1)
 
 
+# Music means MOD and song files; the only decoder aboard is
+# AIFF, so the music claim stays zero even where sampled sound
+# plays (Glk: Testing for Sound Capabilities).
+def test_music_is_never_claimed() -> None:
+    library = Glk(Sounder())
+
+    assert_that(library.glk_gestalt(GlkGestalt.SOUND, 0)).is_equal_to(1)
+    assert_that(library.glk_gestalt(GlkGestalt.SOUND_MUSIC, 0)).is_equal_to(0)
+
+
 # Sound channels exist only where the display plays; playing asks
 # the display and records what the channel is doing.
 def test_sound_channels_play_where_they_can() -> None:

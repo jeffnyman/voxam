@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 from assertpy import assert_that
 
+from voxam.aiff import Sound
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.objects import (
     BlankWindow,
@@ -12,14 +13,22 @@ from voxam.glulx.glk.objects import (
     KeyCode,
     LineRequest,
     PairWindow,
+    SoundChannel,
     Style,
     TextBufferWindow,
     TextGridWindow,
     Window,
     WindowMethod,
 )
-from voxam.glulx.glk.terminal import TerminalFrontend, Timer, _grouped
-from voxam.painter import MORE_PROMPT, Terminal
+from voxam.glulx.glk.terminal import (
+    FOREVER,
+    TerminalFrontend,
+    Timer,
+    _grouped,
+    _steps,
+)
+from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT, Terminal
+from voxam.speaker import Fill, Finished, Speaker, Stream
 
 
 class StubKey(str):
@@ -592,3 +601,257 @@ def test_the_timer_comes_round_and_round(monkeypatch: pytest.MonkeyPatch) -> Non
     assert_that(timer.timeout()).is_equal_to(0.0)
     assert_that(timer.due()).is_true()
     assert_that(timer.timeout()).is_equal_to(2.0)
+
+
+class SoundStream:
+    """Captures the speaker's callbacks so a test can drive them."""
+
+    def __init__(self, fill: Fill, finished: Finished) -> None:
+        self.fill = fill
+        self.finished = finished
+        self.aborted = False
+
+    def start(self) -> None:
+        pass
+
+    def abort(self) -> None:
+        self.aborted = True
+
+    def close(self) -> None:
+        pass
+
+
+def sounded() -> tuple[Speaker, list[SoundStream]]:
+    """A speaker with a two-byte sound and a frameless one."""
+
+    streams: list[SoundStream] = []
+
+    def opener(rate: float, fill: Fill, finished: Finished) -> Stream:
+        del rate
+
+        stream = SoundStream(fill, finished)
+        streams.append(stream)
+
+        return stream
+
+    sounds = {
+        3: Sound(1, 8, 1000.0, 2, b"\x01\x02"),
+        7: Sound(1, 8, 1000.0, 0, b""),
+    }
+
+    return Speaker(sounds, frozenset(), opener), streams
+
+
+def soundful(
+    keys: list[StubKey] | None = None,
+) -> tuple[TerminalFrontend, Speaker, list[SoundStream]]:
+    speaker, streams = sounded()
+    out: list[str] = []
+    display = TerminalFrontend(
+        cast("Terminal", StubTerminal(keys)), out.append, speaker=speaker
+    )
+
+    return display, speaker, streams
+
+
+# A speaker aboard makes the sound claim true; without one the
+# display claims nothing and refuses every play.
+def test_a_speaker_makes_the_sound_claim_true() -> None:
+    display, _ = glassed()
+
+    assert_that(display.sound).is_false()
+    assert_that(display.play_sound(SoundChannel(), 3, 1, 0)).is_false()
+
+    sounding, _, _ = soundful()
+
+    assert_that(sounding.sound).is_true()
+
+
+# A play starts the speaker, an unknown number refuses without
+# stopping what is already sounding, and a stop silences it.
+def test_sounds_play_through_the_speaker() -> None:
+    display, speaker, _ = soundful()
+    channel = SoundChannel()
+
+    assert_that(display.play_sound(channel, 3, 1, 0)).is_true()
+    assert_that(speaker.playing()).is_true()
+    assert_that(display.play_sound(channel, 99, 1, 0)).is_false()
+    assert_that(speaker.playing()).is_true()
+
+    display.stop_sound(channel)
+
+    assert_that(speaker.playing()).is_false()
+
+
+# The newest play takes the speaker; the displaced channel has
+# nothing sounding left to stop.
+def test_a_new_play_displaces_the_old() -> None:
+    display, speaker, _ = soundful()
+    first = SoundChannel()
+    second = SoundChannel()
+
+    display.play_sound(first, 3, 1, 0)
+    display.play_sound(second, 3, 1, 0)
+    display.stop_sound(first)
+
+    assert_that(speaker.playing()).is_true()
+
+    display.stop_sound(second)
+
+    assert_that(speaker.playing()).is_false()
+
+
+# Glk's until-stopped repeat count reaches the speaker as its own
+# forever: the sound cycles without ever reporting an end, where a
+# single play runs out with its buffer.
+def test_repeats_translate_to_the_speakers() -> None:
+    display, _, streams = soundful()
+
+    display.play_sound(SoundChannel(), 3, FOREVER, 0)
+
+    assert_that(streams[-1].fill(bytearray(4))).is_false()
+
+    display.play_sound(SoundChannel(), 3, 1, 0)
+
+    assert_that(streams[-1].fill(bytearray(4))).is_true()
+
+
+# Glk's 0x10000 volume scale lands on the speaker's eight steps,
+# rounded, and louder-than-loud is loud.
+def test_volume_translates_to_steps() -> None:
+    assert_that(_steps(0x10000)).is_equal_to(8)
+    assert_that(_steps(0x8000)).is_equal_to(4)
+    assert_that(_steps(0xFFFF)).is_equal_to(8)
+    assert_that(_steps(0x20000)).is_equal_to(8)
+    assert_that(_steps(0)).is_equal_to(0)
+
+
+# A pause is silence and an unpause starts the sound over: the
+# speaker owns no playback positions to resume from.
+def test_pause_is_silence_and_resume_starts_over() -> None:
+    display, speaker, streams = soundful()
+    channel = SoundChannel()
+    channel.sound = 3
+    channel.repeats = 1
+
+    display.play_sound(channel, 3, 1, 0)
+    display.pause_sound(channel, True)
+
+    assert_that(speaker.playing()).is_false()
+
+    display.pause_sound(channel, False)
+
+    assert_that(speaker.playing()).is_true()
+    assert_that(streams).is_length(2)
+
+    # Unpausing a channel with nothing on it starts nothing.
+    display.pause_sound(SoundChannel(), False)
+
+    assert_that(streams).is_length(2)
+
+
+# A volume change is remembered on the channel by Glk itself; the
+# display has nothing to do until the next play reads it.
+def test_a_volume_change_waits_for_the_next_play() -> None:
+    display, _, _ = soundful()
+
+    display.set_volume(SoundChannel(), 0x4000, 0)
+
+
+# The hush at session end silences whatever still sounds -- and is
+# safe to ask of a display that never had a speaker.
+def test_hush_silences_the_session() -> None:
+    display, speaker, _ = soundful()
+
+    display.play_sound(SoundChannel(), 3, 1, 0)
+    display.hush()
+
+    assert_that(speaker.playing()).is_false()
+
+    silent, _ = glassed()
+
+    silent.hush()
+
+
+# A sound that ends of its own accord posts the completion event
+# the play asked for, and the answer to the interrupted read is
+# None so glk_select can deliver it (Glk: Playing Sounds).
+def test_a_sound_ending_posts_its_notification() -> None:
+    display, _, _ = soundful([StubKey("x")])
+    library = Glk(display)
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+    channel = SoundChannel()
+    channel.sound = 7
+    channel.notify = 5
+
+    assert_that(display.play_sound(channel, 7, 1, 5)).is_true()
+    assert_that(display.read_char(window)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that(event.kind).is_equal_to(EventType.SOUND_NOTIFY)
+    assert_that(event.val1).is_equal_to(7)
+    assert_that(event.val2).is_equal_to(5)
+    assert_that(channel.sound).is_equal_to(0)
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+
+
+# A play that asked for no notification ends in silence: the
+# channel clears and the keystroke goes through undisturbed.
+def test_a_quiet_ending_posts_nothing() -> None:
+    display, _, _ = soundful([StubKey("x")])
+    library = Glk(display)
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+    channel = SoundChannel()
+    channel.sound = 7
+
+    display.play_sound(channel, 7, 1, 0)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(library.pending_events).is_empty()
+    assert_that(channel.sound).is_equal_to(0)
+
+
+# A channel stopped before its ending was heard is forgotten: the
+# speaker's answer finds no channel to blame it on and no event.
+def test_a_forgotten_ending_posts_nothing() -> None:
+    display, _, _ = soundful([StubKey("x")])
+    library = Glk(display)
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+    channel = SoundChannel()
+    channel.notify = 5
+
+    display.play_sound(channel, 7, 1, 5)
+    display.stop_sound(channel)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(library.pending_events).is_empty()
+
+
+# While a sound plays, an infinite wait is chopped into heartbeats
+# so the ending can be heard between keystrokes -- but a timer
+# already waiting less keeps its own shorter watch.
+def test_a_playing_sound_chops_the_wait(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+
+    speaker, _ = sounded()
+    terminal = StubTerminal([StubKey("x"), StubKey("y"), StubKey("z")])
+    out: list[str] = []
+    display = TerminalFrontend(cast("Terminal", terminal), out.append, speaker=speaker)
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+
+    display.play_sound(SoundChannel(), 3, FOREVER, 0)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(terminal.timeouts[-1]).is_equal_to(IDLE_HEARTBEAT)
+
+    display.set_timer(10_000)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("y"))
+    assert_that(terminal.timeouts[-1]).is_equal_to(IDLE_HEARTBEAT)
+
+    display.set_timer(50)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("z"))
+    assert_that(terminal.timeouts[-1]).is_equal_to(0.05)

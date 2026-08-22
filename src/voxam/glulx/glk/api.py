@@ -236,7 +236,7 @@ class Glk:
 
         return self.glk_gestalt_ext(selector, value, None)
 
-    def glk_gestalt_ext(  # noqa: PLR0911 -- one flat answer per selector
+    def glk_gestalt_ext(  # noqa: PLR0911, PLR0912 -- one flat answer per selector
         self, selector: int, value: int, array: Buffer | None
     ) -> int:
         """Ask a capability question with room for extra answers."""
@@ -277,9 +277,15 @@ class Glk:
             GlkGestalt.SOUND2,
             GlkGestalt.SOUND_VOLUME,
             GlkGestalt.SOUND_NOTIFY,
-            GlkGestalt.SOUND_MUSIC,
         ):
             return int(self.frontend.sound)
+
+        if selector == GlkGestalt.SOUND_MUSIC:
+            # Music means MOD and song files (Glk: Testing for
+            # Sound Capabilities); the only decoder aboard is
+            # AIFF, so the claim stays honestly zero whatever
+            # else the display can play.
+            return 0
 
         if selector == GlkGestalt.MOUSE_INPUT:
             # The argument is a window type, and only grids and
