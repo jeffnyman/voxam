@@ -1,0 +1,58 @@
+! SEED=10
+! GAME=../entharion/glulx-code/tiny-house-r1-s100425.ulx
+
+verbose
+notify on
+x me
+i
+x clothes
+ne
+x thermostat
+u
+x dresser
+open dresser
+x computer
+consult Wikipedia about Dan
+consult Wikipedia about universe
+consult Wikipedia about earth
+consult Wikipedia about xyzzy
+take computer
+again
+x bed
+look under bed
+x rifle
+x footlocker
+move footlocker
+x small door
+open it
+in
+take jar and bullets
+x jar
+count pennies
+x bullets
+load rifle
+out. d. sw. w.
+x mailbox
+open mailbox
+take leaflet
+read it
+
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+wait
+
+x salesman
+buy snuggy
+x snuggy
+e
