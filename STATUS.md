@@ -52,7 +52,7 @@ command line at all -- replays through its opening chapter as pure
 keystrokes: letters press the commands they begin with, `<space>`
 walks the highlight between the party column and the character
 grid, and the arrows settle which Examine is whose.
-Thirty-nine recordings verify those sessions end-to-end with the
+Forty recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -64,7 +64,7 @@ Full Z-Machine Support -- since `1.0`, no longer a goal but a
 claim. Every opcode §14 defines has a handler, all eight story
 file versions play, and everything below is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, thirty-nine recorded playthroughs swept
+100% branch coverage, forty recorded playthroughs swept
 end-to-end, and the community's own checkers held to their exact
 tallies. The short list that remains is under **Not yet**.
 
