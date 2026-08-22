@@ -4,6 +4,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.acceptance import (
+    CLICK,
     AcceptanceScript,
     Recorder,
     RefusalWatch,
@@ -104,6 +105,64 @@ def test_replay_echoes_key_tokens_readably() -> None:
     assert_that(source()).is_equal_to("\x82")
     assert_that(source()).is_equal_to("look")
     assert_that(echoed).is_equal_to(["<down>\n", "look\n"])
+
+
+# A <click x y> line presses the mouse: the command is the click's
+# §10.3.3 input character, and the coordinates wait beside the
+# commands, one pair per click in order, case-blind like the keys.
+def test_click_tokens_press_the_mouse(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=games/zork0.z6
+<click 12 5>
+push button
+<CLICK 3 900>
+""",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to((CLICK, "push button", CLICK))
+    assert_that(script.clicks).is_equal_to(((12, 5), (3, 900)))
+    assert_that(script.lines).is_equal_to((2, 3, 4))
+
+
+# A garbled click fails loudly like any typoed token, and a
+# coordinate no header extension word could hold is refused too.
+def test_bad_clicks_fail_loudly(tmp_path: Path) -> None:
+    with pytest.raises(AcceptanceError, match=r"a click is '<click x y>'"):
+        AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.z5\n<click 12>\n"))
+
+    with pytest.raises(AcceptanceError, match=r"fit a word"):
+        AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.z5\n<click 5 70000>\n"))
+
+
+# The replay transcript shows a click as a click, coordinates left
+# to the script file that holds them one line up.
+def test_replay_echoes_clicks_readably() -> None:
+    echoed: list[str] = []
+    source = replay([CLICK, "look"], echoed.append)
+
+    assert_that(source()).is_equal_to(CLICK)
+    assert_that(source()).is_equal_to("look")
+    assert_that(echoed).is_equal_to(["<click>\n", "look\n"])
+
+
+# A recorded click round-trips: the token the recorder writes is
+# the token parse reads back, coordinates and all.
+def test_recorded_clicks_round_trip(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    recorder = Recorder(target, game=tmp_path / "zork0.z6", seed=9, warn=print)
+
+    recorder.click(12, 5)
+    recorder.line("push button")
+    recorder.close()
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.commands).is_equal_to((CLICK, "push button"))
+    assert_that(script.clicks).is_equal_to(((12, 5),))
 
 
 # A relative game path counts from the script's own directory, so a

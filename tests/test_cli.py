@@ -1370,6 +1370,58 @@ def test_recorded_keys_tee_into_the_script(tmp_path: Path) -> None:
     assert_that(lines[-1]).is_equal_to(">")
 
 
+# A single click records as its token with the glass's own
+# coordinates; a double click still has no spelling and takes the
+# loud unrecorded path -- and without a clicks seam, so does a
+# single.
+def test_recorded_clicks_tee_into_the_script(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "clicks.accept"
+    recorder = Recorder(target, game=tmp_path / "story.z6", seed=7, warn=print)
+    presses = iter(["\xfe", "\xfd", "\xfe"])
+    positions = iter([(12, 5), None])
+    source = _recorded_keys(
+        recorder, lambda _timeout: next(presses), lambda: next(positions)
+    )
+
+    assert_that(source(None)).is_equal_to("\xfe")
+    assert_that(source(None)).is_equal_to("\xfd")
+    assert_that(source(None)).is_equal_to("\xfe")
+
+    recorder.close()
+
+    written = target.read_text(encoding="utf-8")
+
+    assert_that(written).contains("<click 12 5>")
+    assert_that(written).does_not_contain("\xfd")
+    assert_that(written).does_not_contain("\xfe")
+    assert_that(capsys.readouterr().out).contains("cannot spell")
+
+
+# A replayed <click x y> presses the mouse: the machine hears the
+# click's input code with the script's coordinates, and the
+# transcript shows a click was pressed.
+def test_replayed_clicks_press_the_mouse(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # read_char device 1 to the stack, then quit -- enough to hear
+    # one click. The stack store matters: this bare story has no
+    # globals table, and a global store would land in the header.
+    story = broken_story(tmp_path, bytes([0xF6, 0x7F, 0x01, 0x00, 0xBA]), version=5)
+    script = tmp_path / "session.accept"
+
+    script.write_text(
+        f"! GAME={story.name}\n! SEED=1\n\n<click 7 9>\n", encoding="utf-8"
+    )
+
+    replayed = main(["--accept", str(script)])
+    out = capsys.readouterr().out
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(out).contains("<click>")
+
+
 # Timed-read lines tee through the recorder too: an expiry is not
 # a line and records nothing, while the completed line lands in
 # the script exactly once.

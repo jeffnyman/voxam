@@ -57,6 +57,7 @@ def code_machine() -> Callable[..., Machine]:
         frontend: Frontend | None = None,
         timed_input_source: Callable[[float], str | None] | None = None,
         scribe: Scribe | None = None,
+        click_source: Callable[[], tuple[int, int] | None] | None = None,
     ) -> Machine:
         frontend = frontend if frontend is not None else PlainFrontend(output)
 
@@ -70,6 +71,7 @@ def code_machine() -> Callable[..., Machine]:
             identity=identity,
             timed_input_source=timed_input_source,
             scribe=scribe,
+            click_source=click_source,
         )
 
     return _build

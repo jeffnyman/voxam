@@ -231,12 +231,12 @@ all one hundred and twenty of them, `encode_text` through
 `buffer_screen` -- has a handler, and every remaining gap halts
 loudly with a citation instead of guessing.
 
-**Not yet:** the `<click y x>` recording token that will keep
-mouse sessions replayable, and *Zork Zero*'s Version 6 mouse
-minigames -- though the mouse itself is real now: at the pygame
+**Not yet:** *Zork Zero*'s Version 6 mouse minigames -- though
+the mouse is real and the grammar hears it now: at the pygame
 window a click arrives as §10.3's input code with its coordinates
 in the header extension, which is how *Solitaire Poker*'s betting
-buttons take a real click. And the Blorb music formats,
+buttons take a real click, and a recorded session spells it
+`<click x y>` and replays it coordinates and all. And the Blorb music formats,
 MOD and OGG (the entire vendored Infocom sound catalog is sampled
 AIFF and needs neither). For recorded sessions, seeds
 substitute for saves: a script replays a whole game in moments.
@@ -302,9 +302,13 @@ The harness hears keys, too: a live recording rides the painted
 glass, where a real arrow press lands in the script as the same
 `<up>` token Beyond Zork's menus have replayed through since the
 Z-Machine's key era, and a replayed token presses the Glk key it
-means. What the grammar cannot spell -- a function key, a
-terminator -- warns loudly and records plain, never silently
-wrong.
+means. And it hears the mouse: a click at a mouse-bearing glass
+records as `<click x y>` with the coordinates the story was told,
+and a replayed click presses §10.3's input code with the script's
+own coordinates -- on either machine's grammar, though only the
+Z-Machine has a glass that clicks today. What the grammar cannot
+spell -- a function key, a terminator, a double click -- warns
+loudly and records nothing, never silently wrong.
 
 ### The road to 1.5
 
@@ -312,12 +316,11 @@ What remains is glass, not machine, and it maps onto the minor
 releases ahead -- each shipping when its capability is coherent,
 not on a calendar:
 
-- **1.2, the complete harness.** The acceptance grammar learns to
-  spell raw keystrokes, so a session at the painted glass records
+- **1.2, the complete harness.** Done in the making: the grammar
+  spells raw keystrokes, so a session at the painted glass records
   and replays the way every line-driven session already does --
-  and the Z-Machine's mouse clicks earn their `<click y x>` token
-  in the same stroke. The recording campaign runs through this
-  era and keeps running.
+  and the Z-Machine's mouse clicks have their `<click x y>` token.
+  The recording campaign runs through this era and keeps running.
 - **1.3, the third glass.** The pygame frontend learns the Glk
   window tree: windows, text, and styles in a real window, the
   way it already serves every Z-Machine version.
