@@ -554,6 +554,30 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         typed=watch.typed,
     )
 
+    try:
+        glulx = _glulx_story(script.game)
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    if glulx is not None:
+        # The Glulx replay rides the stdio display's own seams:
+        # the source types, the witness listens for refusals.
+        code = _run_glulx(
+            script.game,
+            glulx,
+            seed=seed,
+            resources=None,
+            recorder=None,
+            trace=trace,
+            input_source=source,
+            witness=watch.saw,
+        )
+        watch.finish()
+
+        return code
+
     code = _play(
         script.game, seed, source, PlainFrontend(tee), identity=identity, trace=trace
     )
@@ -918,32 +942,44 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     resources: Path | None,
     recorder: Recorder | None,
     trace: Path | None,
+    input_source: Callable[[], str] | None = None,
+    witness: Callable[[str], None] | None = None,
 ) -> int:
     """Run a Glulx story over the stdio display.
 
     The checksum verdict is printed but does not gate the run: the
-    verify opcode exists so a story can judge itself. Recording
-    and tracing are Z-Machine session instruments still, and are
-    declined by name rather than half-working.
+    verify opcode exists so a story can judge itself. An input
+    source replaces the terminal -- the replay harness rides that
+    seam -- and a recorder writes every live line as it is typed,
+    the same acceptance grammar the Z-Machine records. Tracing is
+    a Z-Machine session instrument still, declined by name rather
+    than half-working.
     """
 
-    if recorder is not None or trace is not None:
+    if trace is not None:
         if recorder is not None:
             recorder.close()
 
         print(
-            "voxam: recording and tracing are Z-Machine session "
-            "instruments for now; a Glulx session runs without them"
+            "voxam: tracing is a Z-Machine session instrument for "
+            "now; a Glulx session runs without it"
         )
 
         return EXIT_UNUSABLE
+
+    if recorder is not None and input_source is None:
+        # A live recording: every line the player types goes onto
+        # the page as it is typed. A replayed prefix arrives as an
+        # input source instead, and stays off the page -- it is
+        # already there.
+        input_source = _recorded_lines(recorder, input)
 
     verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
 
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
 
     library = Glk(
-        StdioFrontend(),
+        StdioFrontend(input_source=input_source, witness=witness),
         resources=GlkResources(_glulx_resources(story_path, resources)),
     )
     machine = GlulxMachine(story, seed=seed, glk=library)
@@ -954,6 +990,9 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
         print(f"\nvoxam: {error}")
 
         return EXIT_UNUSABLE
+    finally:
+        if recorder is not None:
+            recorder.close()
 
     # A story that ends with quit rather than glk_exit never asked
     # for a last flush; whatever its windows still hold is shown on
@@ -1133,6 +1172,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
                 resources=resources,
                 recorder=recorder,
                 trace=trace,
+                input_source=input_source,
             )
 
         story, blorb = _load_story(story_path, resources)
