@@ -704,6 +704,47 @@ def test_clicks_without_an_extension_still_arrive(
     assert_that(machine.memory.read_word(0x100)).is_equal_to(253)
 
 
+# A scripted session presses the mouse through the click_source
+# seam: the coordinates come from the script, not from a frontend
+# that never saw a mouse -- and a source with no pair left leaves
+# the extension words unwritten, like a mouseless frontend would.
+def test_scripted_clicks_bring_their_own_coordinates(
+    code_machine: Callable[..., Machine],
+) -> None:
+    extension = 0x160
+    read_char = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+    keys = iter(["\xfe"])
+    machine = code_machine(
+        read_char,
+        version=5,
+        key_source=lambda _timeout: next(keys),
+        click_source=lambda: (7, 9),
+    )
+    machine.memory.write_word(0x36, extension)
+    machine.memory.write_word(extension, 2)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(machine.memory.read_word(extension + 2)).is_equal_to(7)
+    assert_that(machine.memory.read_word(extension + 4)).is_equal_to(9)
+
+    spent = iter(["\xfe"])
+    dry = code_machine(
+        read_char,
+        version=5,
+        key_source=lambda _timeout: next(spent),
+        click_source=lambda: None,
+    )
+    dry.memory.write_word(0x36, extension)
+    dry.memory.write_word(extension, 2)
+
+    dry.run()
+
+    assert_that(dry.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(dry.memory.read_word(extension + 2)).is_equal_to(0)
+
+
 # A timed keystroke read hears clicks the same way (§10.3.3).
 def test_timed_reads_hear_clicks(code_machine: Callable[..., Machine]) -> None:
     extension = 0x160

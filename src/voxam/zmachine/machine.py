@@ -420,6 +420,7 @@ class Machine:
         timed_input_source: Callable[[float], str | None] | None = None,
         witness: Callable[[Memory, Instruction], None] | None = None,
         scribe: Scribe | None = None,
+        click_source: Callable[[], tuple[int, int] | None] | None = None,
     ) -> None:
         """Boot the machine into its §5.4/§5.5 starting state.
 
@@ -467,6 +468,10 @@ class Machine:
                 transcript, the §7.1.2.3 command script, and the
                 §10.2 command playback. None makes those streams a
                 loudly reported frontier for this session.
+            click_source: Where a delivered click's coordinates
+                come from, one pair per click, when a script is
+                pressing the mouse; None asks the frontend, which
+                is where a live click actually landed (§10.3.2).
         """
 
         self._story = story
@@ -502,6 +507,7 @@ class Machine:
         self._timed_input_source = timed_input_source
         self._witness = witness
         self._scribe = scribe
+        self._click_source = click_source
         # Stream 4 and input stream 1 are machine state; stream 2's
         # state lives in 'Flags 2' bit 0, which §7.4 makes the one
         # truth however the stream is worked.
@@ -3334,7 +3340,11 @@ class Machine:
         if code is None:
             return None
 
-        position = self._frontend.click_position()
+        position = (
+            self._click_source()
+            if self._click_source is not None
+            else self._frontend.click_position()
+        )
         extension = self._memory.read_word(HEADER_EXTENSION)
 
         if (

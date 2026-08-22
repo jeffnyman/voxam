@@ -7,7 +7,14 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from voxam.acceptance import AcceptanceScript, Recorder, RefusalWatch, replay
+from voxam.acceptance import (
+    CLICK,
+    DOUBLE_CLICK,
+    AcceptanceScript,
+    Recorder,
+    RefusalWatch,
+    replay,
+)
 from voxam.blorb import PNG_ID, Blorb
 from voxam.errors import (
     AIFFError,
@@ -581,8 +588,19 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
 
         return code
 
+    # The script's click positions are spent one pair per click
+    # delivered, in order -- the machine asks at the very moment a
+    # replayed <click x y> line presses its input code.
+    positions = iter(script.clicks)
+
     code = _play(
-        script.game, seed, source, PlainFrontend(tee), identity=identity, trace=trace
+        script.game,
+        seed,
+        source,
+        PlainFrontend(tee),
+        identity=identity,
+        trace=trace,
+        click_source=lambda: next(positions, None),
     )
     watch.finish()
 
@@ -766,6 +784,7 @@ def _recorded_sources(
     input_source: Callable[[], str] | None,
     key_source: Callable[[float | None], str | None] | None,
     timed_input_source: Callable[[float], str | None] | None = None,
+    clicks: Callable[[], tuple[int, int] | None] | None = None,
 ) -> tuple[
     Callable[[], str] | None,
     Callable[[float | None], str | None] | None,
@@ -774,7 +793,9 @@ def _recorded_sources(
     """Tee every input seam through the recorder, when there is one.
 
     Without an input source of its own, a recorded session records
-    the built-in prompt the machine would fall back to anyway.
+    the built-in prompt the machine would fall back to anyway. The
+    clicks seam is the glass's own click_position, so a recorded
+    click carries the coordinates the story was told.
     """
 
     if recorder is None:
@@ -783,7 +804,11 @@ def _recorded_sources(
     lines = _recorded_lines(
         recorder, input_source if input_source is not None else input
     )
-    keys = key_source if key_source is None else _recorded_keys(recorder, key_source)
+    keys = (
+        key_source
+        if key_source is None
+        else _recorded_keys(recorder, key_source, clicks)
+    )
     ticks = (
         timed_input_source
         if timed_input_source is None
@@ -823,14 +848,38 @@ def _recorded_ticks(
 
 
 def _recorded_keys(
-    recorder: Recorder, source: Callable[[float | None], str | None]
+    recorder: Recorder,
+    source: Callable[[float | None], str | None],
+    clicks: Callable[[], tuple[int, int] | None] | None = None,
 ) -> Callable[[float | None], str | None]:
-    """Tee pressed keys; an expired timeout is nothing to record."""
+    """Tee pressed keys; an expired timeout is nothing to record.
+
+    A single click records as its token with the coordinates the
+    glass reports -- the same answer the machine is about to write
+    into the header extension (§10.3.2). A click the grammar
+    cannot spell -- a double, or a single with no position -- is
+    warned about loudly rather than handed to the key path, where
+    its character would pass for printable Latin-1 text and
+    record as a silently wrong command.
+    """
 
     def _key(timeout: float | None) -> str | None:
         key = source(timeout)
 
-        if key is not None:
+        if key is None:
+            return None
+
+        if key in (CLICK, DOUBLE_CLICK):
+            position = clicks() if key == CLICK and clicks is not None else None
+
+            if position is not None:
+                recorder.click(*position)
+            else:
+                print(
+                    "voxam: a click the grammar cannot spell "
+                    "(a double, or one with no position); not recorded"
+                )
+        else:
             recorder.key(key)
 
         return key
@@ -1267,6 +1316,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     zoom: float | None = None,
     recorder: Recorder | None = None,
     trace: Path | None = None,
+    click_source: Callable[[], tuple[int, int] | None] | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
 
@@ -1326,7 +1376,11 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
         timed_input_source = painted.read_line_until
 
     input_source, key_source, timed_input_source = _recorded_sources(
-        recorder, input_source, key_source, timed_input_source
+        recorder,
+        input_source,
+        key_source,
+        timed_input_source,
+        clicks=painted.click_position if painted is not None else None,
     )
 
     print(
@@ -1362,6 +1416,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
             timed_input_source=timed_input_source,
             witness=witness,
             scribe=scribe,
+            click_source=click_source,
         )
 
         if painted is not None:

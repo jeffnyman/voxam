@@ -17,6 +17,8 @@ The grammar, line by line:
                      for the cursor keys, <escape> for the escape
                      key, <space> for the space bar -- one press
                      per line
+    <click x y>      a single mouse click at (x, y), in the units
+                     the session's display reports (§10.3.2)
     (blank)          skipped
 
 An inline comment starts at whitespace followed by #. A command that
@@ -66,6 +68,21 @@ KEY_TOKENS = {
 # could not even encode.
 KEY_ECHOES = {character: token for token, character in KEY_TOKENS.items()}
 
+# A click travels the key seam as the character for its §10.3.3
+# input code, exactly as a mouse-bearing glass delivers it; the
+# coordinates travel beside the commands and are spent one pair
+# per click, in order. Only the single click has a spelling: no
+# display detects double clicks yet, so the grammar honestly
+# cannot hear one.
+CLICK = "\xfe"
+DOUBLE_CLICK = "\xfd"
+
+_CLICK_TOKEN = re.compile(r"<click (\d+) (\d+)>\Z")
+
+# Header extension words hold the position (§10.3.2), so a
+# coordinate past a word is a coordinate no story could read.
+_COORDINATE_CEILING = 0xFFFF
+
 
 @dataclass(frozen=True)
 class AcceptanceScript:
@@ -74,15 +91,19 @@ class AcceptanceScript:
     Attributes:
         game: The story file the session plays.
         seed: The session seed, or None for true entropy.
-        commands: The typed lines, in order.
+        commands: The typed lines, in order. A click appears as
+            its input character; its coordinates wait in clicks.
         lines: Each command's line number in the script file, in the
             same order -- so a warning can point at the file.
+        clicks: The click positions, in click order -- spent one
+            pair per delivered click.
     """
 
     game: Path
     seed: int | None
     commands: tuple[str, ...]
     lines: tuple[int, ...]
+    clicks: tuple[tuple[int, int], ...] = ()
 
     @classmethod
     def parse(cls, path: Path) -> Self:
@@ -104,6 +125,7 @@ class AcceptanceScript:
         seed: int | None = None
         commands: list[str] = []
         numbers: list[int] = []
+        clicks: list[tuple[int, int]] = []
         fenced = False
         lines = path.read_text(encoding="utf-8").splitlines()
 
@@ -129,8 +151,15 @@ class AcceptanceScript:
 
                     raise AcceptanceError(msg)
             else:
-                pressed = _key_token(line, number)
-                commands.append(pressed if pressed is not None else _command(line))
+                click = _click_token(line, number)
+
+                if click is not None:
+                    commands.append(CLICK)
+                    clicks.append(click)
+                else:
+                    pressed = _key_token(line, number)
+                    commands.append(pressed if pressed is not None else _command(line))
+
                 numbers.append(number)
 
         if game is None:
@@ -138,7 +167,13 @@ class AcceptanceScript:
 
             raise AcceptanceError(msg)
 
-        return cls(game=game, seed=seed, commands=tuple(commands), lines=tuple(numbers))
+        return cls(
+            game=game,
+            seed=seed,
+            commands=tuple(commands),
+            lines=tuple(numbers),
+            clicks=tuple(clicks),
+        )
 
 
 def replay(
@@ -183,7 +218,8 @@ def replay(
         if typed is not None:
             typed(index)
 
-        echo(KEY_ECHOES.get(command, command) + "\n")
+        shown = "<click>" if command == CLICK else KEY_ECHOES.get(command, command)
+        echo(shown + "\n")
 
         return command
 
@@ -429,6 +465,11 @@ class Recorder:
 
         self._write(encoded)
 
+    def click(self, x: int, y: int) -> None:
+        """Record one mouse click at (x, y), in display units."""
+
+        self._write(f"<click {x} {y}>")
+
     def key(self, character: str) -> None:
         """Record one pressed key."""
 
@@ -543,6 +584,39 @@ def _seed(value: str, number: int) -> int:
         raise AcceptanceError(msg) from None
 
 
+def _click_token(line: str, number: int) -> tuple[int, int] | None:
+    """Read a <click x y> line's coordinates.
+
+    A line that is not shaped like a click belongs to the other
+    grammars; one that starts a click but garbles it fails loudly,
+    like any typoed token. Coordinates land in header extension
+    words (§10.3.2), so a value past a word is refused too.
+
+    Raises:
+        AcceptanceError: For a malformed click, or a coordinate no
+            story could read back.
+    """
+
+    if not line.lower().startswith("<click"):
+        return None
+
+    matched = _CLICK_TOKEN.fullmatch(line.lower())
+
+    if matched is None:
+        msg = f"line {number}: a click is '<click x y>', not {line!r}"
+
+        raise AcceptanceError(msg)
+
+    x, y = int(matched.group(1)), int(matched.group(2))
+
+    if x > _COORDINATE_CEILING or y > _COORDINATE_CEILING:
+        msg = f"line {number}: a click coordinate must fit a word (§10.3.2)"
+
+        raise AcceptanceError(msg)
+
+    return (x, y)
+
+
 def _key_token(line: str, number: int) -> str | None:
     """Translate a <key> line into the character it presses.
 
@@ -567,7 +641,7 @@ def _key_token(line: str, number: int) -> str | None:
         return KEY_TOKENS[token]
 
     known = ", ".join(sorted(KEY_TOKENS))
-    msg = f"line {number}: unknown key {line!r}; the keys are: {known}"
+    msg = f"line {number}: unknown key {line!r}; the keys are: {known}, and <click x y>"
 
     raise AcceptanceError(msg)
 
