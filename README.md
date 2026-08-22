@@ -61,7 +61,7 @@ reach perfect scores with their sounds heard aloud; *Arthur*,
 *Shogun*, and *Zork Zero* render their art in a real graphics
 window; and even *Journey* -- Infocom's finale, a game with no
 command line at all -- replays through its opening chapter as
-pure keystrokes. Thirty-eight recordings verify those sessions
+pure keystrokes. Thirty-nine recordings verify those sessions
 end-to-end, their annotations doubling as an archaeology of where
 the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says
@@ -82,7 +82,7 @@ handler, all eight story file versions play -- version 6
 illustrated at a pygame window, painted at a terminal, spoken
 aloud with the sound extra -- and everything is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, thirty-eight recorded playthroughs swept
+100% branch coverage, thirty-nine recorded playthroughs swept
 end-to-end, and the community's checkers held to their exact
 tallies, CZECH at four versions among them.
 

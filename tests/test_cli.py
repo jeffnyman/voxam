@@ -465,9 +465,8 @@ def test_a_gblorb_story_runs(
     assert_that(capsys.readouterr().out).contains("Hi")
 
 
-# The Z-Machine session instruments decline a Glulx story by name
-# rather than half-working.
-def test_glulx_declines_the_z_instruments(
+# Tracing is still a Z-Machine instrument, declined by name.
+def test_glulx_declines_the_trace(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     story = glulx_story(tmp_path)
@@ -475,12 +474,120 @@ def test_glulx_declines_the_z_instruments(
     traced = main([str(story), "--trace", str(tmp_path / "out.trace")])
 
     assert_that(traced).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("Z-Machine session instruments")
+    assert_that(capsys.readouterr().out).contains("Z-Machine session instrument")
 
-    recorded = main([str(story), "--record", str(tmp_path / "out.accept")])
+    recorded = main(
+        [
+            str(story),
+            "--record",
+            str(tmp_path / "out.accept"),
+            "--trace",
+            str(tmp_path / "out.trace"),
+        ]
+    )
 
     assert_that(recorded).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("Z-Machine session instruments")
+
+
+# A start function that prints "Hi", asks for a line, and answers
+# "Ok" -- the smallest story with a conversation to record.
+def glulx_asks() -> bytes:
+    return (
+        bytes([0xC0, 0x00, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x03])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x23, 0x05])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x2F, 0x01])
+        + bytes([0x81, 0x49, 0x11, 0x02, 0x00])
+        + bytes([0x70, 0x01, 0x48])
+        + bytes([0x70, 0x01, 0x69])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x32])
+        + bytes([0x40, 0x82, 0x01, 0x20])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xD0, 0x04])
+        + bytes([0x40, 0x82, 0x01, 0x10])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xC0, 0x01])
+        + bytes([0x70, 0x01, 0x4F])
+        + bytes([0x70, 0x01, 0x6B])
+    )
+
+
+# A Glulx session records to the acceptance grammar and replays
+# from it: the same seed, the same commands, the same session --
+# the discipline the Z-Machine has kept since 0.4, now spoken by
+# the new machine.
+def test_glulx_records_and_replays(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = glulx_story(tmp_path, code=glulx_asks() + bytes([0x81, 0x20]))
+    target = tmp_path / "session.accept"
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("go north\n"))
+
+    recorded = main([str(story), "--record", str(target), "--seed", "7"])
+    out = capsys.readouterr().out
+
+    assert_that(recorded).is_equal_to(0)
+    assert_that(out).contains("Hi")
+    assert_that(out).contains("Ok")
+
+    script = target.read_text(encoding="utf-8")
+
+    assert_that(script).contains("! SEED=7")
+    assert_that(script).contains("go north")
+
+    replayed = main(["--accept", str(target)])
+    out = capsys.readouterr().out
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(out).contains("Hi")
+    assert_that(out).contains("go north")
+    assert_that(out).contains("Ok")
+    assert_that(out).does_not_contain("looks refused")
+
+
+# The refusal watch reads a Glulx conversation the same way it
+# reads a Z-Machine one: a response spoken in the refusal dialect
+# earns a warning naming the command and its line.
+def test_glulx_replays_hear_refusals(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head = glulx_asks() + bytes([0x70, 0x01, 0x0A]) + bytes([0x72, 0x02])
+    refusal = b"\xe0I beg your pardon.\x00"
+    address = 0x48 + len(head) + 2 + 2
+    code = head + address.to_bytes(2, "big") + bytes([0x81, 0x20]) + refusal
+    story = glulx_story(tmp_path, code=code)
+
+    script = tmp_path / "session.accept"
+
+    script.write_text(f"! GAME={story.name}\n! SEED=7\n\nplugh\n", encoding="utf-8")
+
+    replayed = main(["--accept", str(script)])
+    out = capsys.readouterr().out
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(out).contains("I beg your pardon")
+    assert_that(out).contains("'plugh' looks refused")
+
+    # A script naming a broken Glulx file fails at the header, not
+    # at the prompt.
+    corrupt = tmp_path / "broken.ulx"
+
+    corrupt.write_bytes(b"Glul" + bytes(8))
+
+    broken = tmp_path / "broken.accept"
+
+    broken.write_text(f"! GAME={corrupt.name}\n! SEED=1\n\nlook\n", encoding="utf-8")
+
+    assert_that(main(["--accept", str(broken)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("voxam:")
 
 
 # A Glulx session finds its resources the way a Z session does: a

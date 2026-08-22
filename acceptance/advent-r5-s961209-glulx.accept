@@ -1,0 +1,37 @@
+! SEED=10
+! GAME=../entharion/glulx-code/advent-r5-s961209.ulx
+
+# First Excursion -- the corpus's first Glulx recording: the same
+# Colossal Cave as the Z-code advent recordings beside it, in
+# Nelson's 1996 Glulx build (Release 5). The route stays above the
+# dwarves' patrol: provisions from the well house, down through
+# the grate, the cage and the rod from the debris room, and home
+# on the magic word -- XYZZY's first recorded round trip on this
+# machine.
+
+e
+get lamp
+get keys
+w
+s
+s
+s
+
+# The grate the keys were carried three rooms for.
+
+unlock grate with keys
+open grate
+d
+on
+w
+get cage
+w
+
+# The debris room, where the magic word is written on the wall.
+
+get rod
+xyzzy
+
+score
+quit
+yes

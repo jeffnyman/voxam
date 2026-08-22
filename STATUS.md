@@ -52,7 +52,7 @@ command line at all -- replays through its opening chapter as pure
 keystrokes: letters press the commands they begin with, `<space>`
 walks the highlight between the party column and the character
 grid, and the arrows settle which Examine is whose.
-Thirty-eight recordings verify those sessions end-to-end with the
+Thirty-nine recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -64,7 +64,7 @@ Full Z-Machine Support -- since `1.0`, no longer a goal but a
 claim. Every opcode §14 defines has a handler, all eight story
 file versions play, and everything below is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, thirty-eight recorded playthroughs swept
+100% branch coverage, thirty-nine recorded playthroughs swept
 end-to-end, and the community's own checkers held to their exact
 tallies. The short list that remains is under **Not yet**.
 
@@ -277,13 +277,19 @@ their files in the session, and piped input drives a game
 end-to-end. *Adventure* -- Crowther and Woods by way of Inform --
 plays interactively, status line and all.
 
+And the acceptance harness speaks Glulx now: `--record` writes a
+session in the same grammar the Z-Machine records, `--accept`
+replays it with the refusal watch listening, and the corpus holds
+its first Glulx recording -- *Adventure*'s opening excursion,
+provisions to grate to debris room and home on XYZZY, replaying
+byte-identical beside the Z-code excursions of the same cave.
+
 ### The road to 2.0
 
 What remains is glass, not machine: painted terminal windows (the
 Glulx sibling of the Z-Machine's §8 screen), sound through Glk
 channels into the same speaker the Z-Machine already owns, timer
-events, mouse and hyperlink input, style rendering, and recorded,
-replayable Glulx sessions in the acceptance harness -- perhaps,
+events, mouse and hyperlink input, and style rendering -- perhaps,
 one day, the browser, whose GlkOte protocol asks for the one
 architectural change the display contract was designed to permit.
 Version 2.0 is reserved for Glulx at experiential parity with the

@@ -14,6 +14,7 @@ come.
 
 import shutil
 import sys
+from collections.abc import Callable
 from typing import TextIO
 
 from voxam.errors import GlulxSessionEnd
@@ -49,11 +50,22 @@ class StdioFrontend(Frontend):
         input_stream: TextIO | None = None,
         *,
         size: tuple[int, int] | None = None,
+        input_source: Callable[[], str] | None = None,
+        witness: Callable[[str], None] | None = None,
     ) -> None:
-        """Stand over streams, stdout and stdin by default."""
+        """Stand over streams, stdout and stdin by default.
+
+        An input source replaces the stream for reading -- the
+        acceptance harness's replay callable slots in here, its
+        EOFError meaning the script ran dry. A witness receives
+        every run of buffer text as it renders, which is where the
+        refusal watch listens.
+        """
 
         self.output = output if output is not None else sys.stdout
         self.input = input_stream if input_stream is not None else sys.stdin
+        self._source = input_source
+        self._witness = witness
         self._size = size
         # Grids are redrawn only when they change, by window
         # identity.
@@ -99,6 +111,9 @@ class StdioFrontend(Frontend):
 
             if text:
                 self.output.write(text)
+
+                if self._witness is not None:
+                    self._witness(text)
 
     def _render_grid(self, window: TextGridWindow) -> None:
         """Draw a grid as a block, only when its contents moved."""
@@ -160,6 +175,12 @@ class StdioFrontend(Frontend):
         """
 
         self.output.flush()
+
+        if self._source is not None:
+            try:
+                return self._source()
+            except EOFError:
+                raise GlulxSessionEnd from None
 
         line = self.input.readline()
 

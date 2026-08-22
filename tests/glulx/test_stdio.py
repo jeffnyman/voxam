@@ -125,6 +125,46 @@ def test_input_reads_lines_and_keys() -> None:
         display.read_line(window, 80)
 
 
+# An input source replaces the stream: the harness's replay
+# callable slots in, and its exhaustion ends the session the way
+# end of input does. A witness hears every run of buffer text.
+def test_the_harness_seams() -> None:
+    lines = iter(["north", "south"])
+
+    def source() -> str:
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    heard: list[str] = []
+    out = StringIO()
+    display = StdioFrontend(
+        out,
+        StringIO("never read\n"),
+        size=(60, 20),
+        input_source=source,
+        witness=heard.append,
+    )
+    window = TextBufferWindow()
+
+    assert_that(display.read_line(window, 80)).is_equal_to(("north", 0))
+    assert_that(display.read_char(window)).is_equal_to(ord("s"))
+
+    with pytest.raises(GlulxSessionEnd):
+        display.read_line(window, 80)
+
+    library = Glk(display)
+    opened = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    library.glk_set_window(opened)
+    library.glk_put_string("A hollow voice says...")
+
+    display.flush(library.root)
+
+    assert_that(heard).is_equal_to(["A hollow voice says..."])
+
+
 # The file prompt asks in the stream: loading and saving speak
 # their own verbs, an empty answer cancels, and so does the end of
 # input.
