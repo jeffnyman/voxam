@@ -585,9 +585,17 @@ To move the pin by hand instead:
 
 ```bash
 git submodule update --remote entharion
+git submodule update --init --recursive entharion
 git add entharion
 git commit -m "chore(deps): update entharion submodule"
 ```
+
+The second command carries no `--remote` on purpose: it aligns
+entharion's own vendored submodules to the pointers the new pin
+records. It is a no-op when the update only added files, and the
+cure when a vendor pointer moved -- with `--remote` it would
+instead drag those checkouts past their recorded pointers and
+leave the submodule looking dirty.
 
 ---
 
