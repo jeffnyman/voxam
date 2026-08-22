@@ -283,6 +283,15 @@ everything riding the acceptance grammar's line seam keep the
 stdio display: buffer windows flowing as prose, grids drawn as
 blocks when they change.
 
+And the glass has ears: Glk sound channels play through the same
+speaker the Z-Machine's painted frontends own, AIFF resources
+from the gblorb decoded by the same census, completion events
+posted between keystrokes the way timer events are. The speaker's
+honest limit rides along -- one sampled sound at a time, the
+newest play winning -- and the music gestalt answers zero because
+no MOD decoder is aboard, whatever else can play. Plotkin's own
+*Sensory Jam* rings its gong here.
+
 And the acceptance harness speaks Glulx now: `--record` writes a
 session in the same grammar the Z-Machine records, `--accept`
 replays it with the refusal watch listening, and the corpus holds
@@ -292,11 +301,9 @@ byte-identical beside the Z-code excursions of the same cave.
 
 ### The road to 2.0
 
-What remains is glass, not machine: sound through Glk channels
-into the same speaker the Z-Machine already owns, graphics in
-their windows, mouse and hyperlink input, recordings that can
-spell the glass's raw keystrokes -- perhaps, one day, the
-browser, whose GlkOte protocol asks for the one architectural
-change the display contract was designed to permit. Version 2.0
-is reserved for Glulx at experiential parity with the Z-Machine
-of 1.0.
+What remains is glass, not machine: graphics in their windows,
+mouse and hyperlink input, recordings that can spell the glass's
+raw keystrokes -- perhaps, one day, the browser, whose GlkOte
+protocol asks for the one architectural change the display
+contract was designed to permit. Version 2.0 is reserved for
+Glulx at experiential parity with the Z-Machine of 1.0.

@@ -29,7 +29,7 @@ from voxam.iff import Chunk, chunk, write_form
 from voxam.iff import chunk as iff_chunk
 from voxam.painter import ScreenFrontend
 from voxam.png import SIGNATURE
-from voxam.speaker import Speaker
+from voxam.speaker import Speaker, open_sounddevice_stream
 
 
 def broken_story(tmp_path: Path, code: bytes, version: int = 3) -> Path:
@@ -631,6 +631,33 @@ def test_a_terminal_selects_the_glulx_glass(
     monkeypatch.setitem(sys.modules, "voxam.glulx.glk.terminal", None)
 
     assert_that(_terminal_frontend()).is_none()
+
+
+# The Glulx glass brings a speaker along when the Blorb's sounds
+# and the audio device allow, and claims sound exactly then --
+# the same courtesy _speaker pays the Z-Machine's glasses.
+def test_the_glulx_glass_brings_a_speaker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    bare = _terminal_frontend(None)
+
+    if bare is None:
+        pytest.fail("the glass opened")
+
+    assert_that(bare.sound).is_false()
+
+    speaker = Speaker({}, frozenset(), open_sounddevice_stream)
+
+    monkeypatch.setattr("voxam.cli._speaker", lambda _blorb: speaker)
+
+    sounding = _terminal_frontend(None)
+
+    if sounding is None:
+        pytest.fail("the glass opened")
+
+    assert_that(sounding.sound).is_true()
 
 
 # At a real terminal a Glulx session plays on the glass: the shell

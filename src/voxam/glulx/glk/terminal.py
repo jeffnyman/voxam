@@ -20,6 +20,14 @@ The terminal is in cbreak mode while reading, so it echoes
 nothing: Glk does the echoing into the window once a line is
 accepted, and until then the half-typed line is drawn here, as
 part of the layout but not yet part of the window.
+
+Sound arrives through the same Speaker the Z-Machine's painted
+frontends own, and inherits its honest limit: one sampled sound
+at a time. Glk allows a game many simultaneous channels; here the
+newest play takes the speaker, and a displaced channel simply
+falls silent -- no completion event, because its sound did not
+finish, it was shouldered aside. Games that layer music under
+effects lose the layering, never the session.
 """
 
 import sys
@@ -33,13 +41,22 @@ from voxam.glulx.glk.objects import (
     FileMode,
     KeyCode,
     PairWindow,
+    SoundChannel,
     Style,
     TextBufferWindow,
     TextGridWindow,
     Window,
 )
 from voxam.glulx.glk.wrap import Segment, Wrapper, plain
-from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, MORE_PROMPT, Terminal
+from voxam.painter import (
+    FALLBACK_COLUMNS,
+    FALLBACK_LINES,
+    IDLE_HEARTBEAT,
+    MORE_PROMPT,
+    Terminal,
+)
+from voxam.speaker import FULL_VOLUME as SPEAKER_FULL
+from voxam.speaker import Speaker
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -102,6 +119,12 @@ _CONTROL_KEYS = {
 _PRINTABLE_FLOOR = 0x20
 _CHARACTER_CEILING = 0x10FFFF
 
+# Full volume as Glk measures it (Glk: Other Sound Channel
+# Functions), and the repeat count that means "until stopped"
+# (Glk: Playing Sounds) as it arrives through a 32-bit machine.
+GLK_FULL_VOLUME = 0x10000
+FOREVER = 0xFFFFFFFF
+
 
 class Timer:
     """A repeating deadline, for a display that waits with one.
@@ -161,8 +184,14 @@ class TerminalFrontend(Frontend):
         out: "Callable[[str], None] | None" = None,
         *,
         size: tuple[int, int] | None = None,
+        speaker: Speaker | None = None,
     ) -> None:
-        """Stand over a terminal, a real blessed one by default."""
+        """Stand over a terminal, a real blessed one by default.
+
+        A speaker makes the sound claim true; without one the
+        display claims no sound and Glk refuses the channels
+        honestly (Glk: Testing for Sound Capabilities).
+        """
 
         if terminal is None:
             # Imported here because the blessed extra is optional:
@@ -184,6 +213,10 @@ class TerminalFrontend(Frontend):
         self._typed = ""
         self._typing: Window | None = None
         self.timer = Timer()
+        self._speaker = speaker
+        self.sound = speaker is not None
+        # The one channel the speaker is sounding for, if any.
+        self._sounding: SoundChannel | None = None
 
     # -- display -------------------------------------------------------------
 
@@ -376,6 +409,108 @@ class TerminalFrontend(Frontend):
 
         self.timer.set(millisecs)
 
+    # -- sound ---------------------------------------------------------------
+
+    def play_sound(
+        self, channel: SoundChannel, sound: int, repeats: int, notify: int
+    ) -> bool:
+        """Start a sound through the speaker; the newest play wins.
+
+        The channel's own volume and notify request are already on
+        the channel (Glk: Playing Sounds); what the speaker needs
+        is the translation -- Glk's 0x10000 scale to the speaker's
+        eight steps, and the until-stopped repeat count to the
+        speaker's zero.
+        """
+
+        del notify
+
+        if self._speaker is None:
+            return False
+
+        started = self._speaker.play(
+            sound,
+            _steps(channel.volume),
+            0 if repeats == FOREVER else repeats,
+        )
+
+        if started:
+            self._sounding = channel
+
+        return started
+
+    def stop_sound(self, channel: SoundChannel) -> None:
+        """Silence a channel -- if it is the one being heard.
+
+        A channel whose play was displaced by a newer one has
+        nothing sounding to stop.
+        """
+
+        if channel is self._sounding and self._speaker is not None:
+            self._speaker.stop()
+            self._sounding = None
+
+    def pause_sound(self, channel: SoundChannel, paused: bool) -> None:
+        """Pause as silence; resume as starting over.
+
+        The speaker owns no playback positions, so a paused sound
+        cannot pick up mid-sample: unpausing plays the channel's
+        sound again from its start. Neither edge is a natural
+        ending, so neither raises a completion event.
+        """
+
+        if paused:
+            self.stop_sound(channel)
+        elif channel.sound:
+            self.play_sound(channel, channel.sound, channel.repeats, channel.notify)
+
+    def set_volume(self, channel: SoundChannel, volume: int, duration: int) -> None:
+        """Take effect from the channel's next play.
+
+        The speaker scales samples once, when a play starts, so a
+        change of volume cannot reach a sound already sounding --
+        and a fade duration even less. The channel remembers the
+        volume (Glk: Other Sound Channel Functions), and the next
+        play_sound reads it from there.
+        """
+
+        del channel, volume, duration
+
+    def hush(self) -> None:
+        """Stop the speaker outright, for the end of the session.
+
+        A looping sound would otherwise play on past quit.
+        """
+
+        if self._speaker is not None:
+            self._speaker.stop()
+            self._sounding = None
+
+    def _listen(self) -> bool:
+        """Hear a sound ending naturally; did an event get posted?
+
+        A natural ending clears the channel, and one that asked
+        for notification posts the completion event (Glk: Playing
+        Sounds) for the next select to deliver.
+        """
+
+        if self._speaker is None or not self._speaker.finished():
+            return False
+
+        channel, self._sounding = self._sounding, None
+
+        if channel is None:
+            return False
+
+        ended, channel.sound = channel.sound, 0
+
+        if not channel.notify:
+            return False
+
+        self.post(Event(EventType.SOUND_NOTIFY, None, ended, channel.notify))
+
+        return True
+
     # -- input ---------------------------------------------------------------
 
     def read_line(self, window: Window, maxlen: int) -> tuple[str, int] | None:
@@ -434,15 +569,31 @@ class TerminalFrontend(Frontend):
         return self._key()
 
     def _key(self) -> int | None:
-        """Wait for a keystroke; None if a timer fired first.
+        """Wait for a keystroke; None if something else came up.
 
         A key pressed while text is waiting turns the page instead
         of reaching the game -- which is the whole point of the
-        pause, and why every input path goes through here.
+        pause, and why every input path goes through here. The
+        something else is a timer coming round or a sound ending
+        with a notification owed: either posts its event and
+        answers None, so glk_select can come back and deliver it.
         """
 
         while True:
-            code = self._translated(self.timer.timeout())
+            if self._listen():
+                return None
+
+            timeout = self.timer.timeout()
+
+            if self._sounding is not None and (
+                timeout is None or timeout > IDLE_HEARTBEAT
+            ):
+                # While a sound plays, the infinite wait is chopped
+                # into heartbeats so its ending can be heard
+                # between keystrokes, not just after one.
+                timeout = IDLE_HEARTBEAT
+
+            code = self._translated(timeout)
 
             if code is not None:
                 if self._turn_page():
@@ -599,6 +750,19 @@ def _grouped(row: list[str], styles: list[int]) -> list[Segment]:
             segments.append((style, character))
 
     return list(segments)
+
+
+def _steps(volume: int) -> int:
+    """Glk's 0x10000 volume scale as the speaker's eight steps.
+
+    Rounded to the nearest step and clamped from above: Glk allows
+    amplification past full volume, and the speaker's answer to
+    louder-than-loud is loud (Glk: Other Sound Channel Functions).
+    """
+
+    scaled = (volume * SPEAKER_FULL + GLK_FULL_VOLUME // 2) // GLK_FULL_VOLUME
+
+    return min(SPEAKER_FULL, scaled)
 
 
 def _stdout_write(text: str) -> None:

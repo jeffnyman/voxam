@@ -986,9 +986,11 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
 
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
 
+    blorb = _glulx_resources(story_path, resources)
+
     # A recording and a replay both arrive as an input source, so
     # one condition covers everything the line seam carries.
-    painted = _terminal_frontend() if screen and input_source is None else None
+    painted = _terminal_frontend(blorb) if screen and input_source is None else None
     frontend: GlkFrontend = (
         painted
         if painted is not None
@@ -1001,10 +1003,7 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
         # has not yet painted.
         painted.clear()
 
-    library = Glk(
-        frontend,
-        resources=GlkResources(_glulx_resources(story_path, resources)),
-    )
+    library = Glk(frontend, resources=GlkResources(blorb))
     machine = GlulxMachine(story, seed=seed, glk=library)
 
     try:
@@ -1014,6 +1013,11 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
 
         return EXIT_UNUSABLE
     finally:
+        if painted is not None:
+            # A looping sound would otherwise play on past quit:
+            # the session ends, the speaker falls silent with it.
+            painted.hush()
+
         if recorder is not None:
             recorder.close()
 
@@ -1032,13 +1036,14 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     return EXIT_OK
 
 
-def _terminal_frontend() -> "TerminalFrontend | None":
+def _terminal_frontend(blorb: Blorb | None = None) -> "TerminalFrontend | None":
     """A painted Glk display, when the glass and the extra allow.
 
     The painted display wants a real terminal to paint on and the
     blessed package the `screen` extra installs; missing either,
     the caller falls back to the stdio display, which is always
-    there.
+    there. A Blorb with sounds may also bring a speaker along --
+    see _speaker for what that takes.
     """
 
     if not sys.stdout.isatty():
@@ -1051,7 +1056,7 @@ def _terminal_frontend() -> "TerminalFrontend | None":
     except ImportError:
         return None
 
-    return TerminalFrontend()
+    return TerminalFrontend(speaker=_speaker(blorb))
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:

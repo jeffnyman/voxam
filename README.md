@@ -94,9 +94,9 @@ and doubles -- and the glulxercise checker certifies the whole of
 it in continuous integration: seventy sections, zero failures,
 "All tests passed." spoken through the same stdio session a
 player can pipe. A `.ulx` or `.gblorb` story plays on painted
-terminal glass today, windows and styles and timers in place;
-the rest of the richer glass -- sound, graphics, the mouse -- is
-the road to 2.0.
+terminal glass today -- windows, styles, timers, and Glk sound
+through the same speaker the Z-Machine owns; the rest of the
+richer glass -- graphics, the mouse -- is the road to 2.0.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -157,7 +157,8 @@ Glulx stories play the same way: a `.ulx` file or a packaged
 `.gblorb` is recognized by its own magic, and at a real terminal
 it earns the painted glass -- the Glk window tree drawn across
 the whole screen, status grids in place, buffer text wrapping
-behind a `[MORE]` pause, styles in terminal dress:
+behind a `[MORE]` pause, styles in terminal dress, and the
+gblorb's AIFF sounds playing when the sound extra is installed:
 
 ```bash
 voxam path/to/story.ulx
