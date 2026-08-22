@@ -270,12 +270,18 @@ seventy `Passed.` verdicts counted, the closing "All tests
 passed." demanded -- through the very stdio session a player
 would use: `echo all | voxam glulxercise.ulx`.
 
-At the terminal, a `.ulx` or packaged `.gblorb` story plays over
-the plain stream: buffer windows flow as prose, a status grid
-draws as a block when it changes, `save` and `restore` prompt for
-their files in the session, and piped input drives a game
-end-to-end. *Adventure* -- Crowther and Woods by way of Inform --
-plays interactively, status line and all.
+At a real terminal, a `.ulx` or packaged `.gblorb` story plays on
+painted glass: the window tree is drawn across the whole screen
+by way of the same blessed sliver the Z-Machine's painter uses,
+status grids sit in place at their boxes, buffer text wraps and
+scrolls behind a `[MORE]` pause, the eleven Glk styles dress in
+terminal attributes, timer events fire between keystrokes, and
+`save` asks its filename on the bottom line. *Adventure* --
+Crowther and Woods by way of Inform -- plays there the way
+glkterm would show it. Piped sessions, `--plain` sessions, and
+everything riding the acceptance grammar's line seam keep the
+stdio display: buffer windows flowing as prose, grids drawn as
+blocks when they change.
 
 And the acceptance harness speaks Glulx now: `--record` writes a
 session in the same grammar the Z-Machine records, `--accept`
@@ -286,11 +292,11 @@ byte-identical beside the Z-code excursions of the same cave.
 
 ### The road to 2.0
 
-What remains is glass, not machine: painted terminal windows (the
-Glulx sibling of the Z-Machine's §8 screen), sound through Glk
-channels into the same speaker the Z-Machine already owns, timer
-events, mouse and hyperlink input, and style rendering -- perhaps,
-one day, the browser, whose GlkOte protocol asks for the one
-architectural change the display contract was designed to permit.
-Version 2.0 is reserved for Glulx at experiential parity with the
-Z-Machine of 1.0.
+What remains is glass, not machine: sound through Glk channels
+into the same speaker the Z-Machine already owns, graphics in
+their windows, mouse and hyperlink input, recordings that can
+spell the glass's raw keystrokes -- perhaps, one day, the
+browser, whose GlkOte protocol asks for the one architectural
+change the display contract was designed to permit. Version 2.0
+is reserved for Glulx at experiential parity with the Z-Machine
+of 1.0.

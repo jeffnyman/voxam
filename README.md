@@ -93,8 +93,9 @@ allocation heap, the accelerated Inform veneer, IEEE-754 floats
 and doubles -- and the glulxercise checker certifies the whole of
 it in continuous integration: seventy sections, zero failures,
 "All tests passed." spoken through the same stdio session a
-player uses. A `.ulx` or `.gblorb` story plays at the terminal
-today; the richer glass -- painted windows, sound, timers -- is
+player can pipe. A `.ulx` or `.gblorb` story plays on painted
+terminal glass today, windows and styles and timers in place;
+the rest of the richer glass -- sound, graphics, the mouse -- is
 the road to 2.0.
 
 The full ledger -- what plays, what is certified, what remains --
@@ -153,18 +154,19 @@ the desktop it takes (0.85 by default; `--zoom 0` keeps the
 classic compact 80 by 24).
 
 Glulx stories play the same way: a `.ulx` file or a packaged
-`.gblorb` is recognized by its own magic and runs over the plain
-stream, buffer text flowing as prose and the status grid drawn as
-a block, with `save` and `restore` prompting for their files in
-the session:
+`.gblorb` is recognized by its own magic, and at a real terminal
+it earns the painted glass -- the Glk window tree drawn across
+the whole screen, status grids in place, buffer text wrapping
+behind a `[MORE]` pause, styles in terminal dress:
 
 ```bash
 voxam path/to/story.ulx
 ```
 
-The painted and pygame glasses are Z-Machine instruments still; a
-Glulx session keeps the classic stream, pipes included -- which
-is exactly how the glulxercise certification drives it.
+`--plain` keeps the classic stream, buffer text flowing as prose
+and grids drawn as blocks -- and a piped session keeps it on its
+own, which is exactly how the glulxercise certification drives
+it. The pygame glass is a Z-Machine instrument still.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.

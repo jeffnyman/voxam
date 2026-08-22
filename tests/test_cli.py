@@ -21,6 +21,7 @@ from voxam.cli import (
     _recorded_ticks,
     _screen_frontend,
     _speaker,
+    _terminal_frontend,
     main,
 )
 from voxam.gallery import Gallery, Resolution
@@ -607,6 +608,79 @@ def test_glulx_resources_are_found(
     elsewhere.write_bytes(empty)
 
     assert_that(main([str(story), "--resources", str(elsewhere)])).is_equal_to(0)
+
+    capsys.readouterr()
+
+
+# Where a piped stdout keeps the stdio display, a real terminal
+# earns the painted one -- unless the blessed extra never arrived,
+# in which case the stdio display carries on as always.
+def test_a_terminal_selects_the_glulx_glass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from voxam.glulx.glk.terminal import TerminalFrontend  # noqa: PLC0415
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    assert_that(_terminal_frontend()).is_none()
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    assert_that(_terminal_frontend()).is_instance_of(TerminalFrontend)
+
+    monkeypatch.setitem(sys.modules, "voxam.glulx.glk.terminal", None)
+
+    assert_that(_terminal_frontend()).is_none()
+
+
+# At a real terminal a Glulx session plays on the glass: the shell
+# is wiped before the story and the cursor retired below it after.
+def test_a_glulx_session_plays_on_the_glass(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    exit_code = main([str(glulx_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Running")
+
+
+# Anything riding the line seam keeps the stdio display even at a
+# terminal: the acceptance grammar speaks lines, and the glass's
+# raw keystrokes have no line spelling yet. --plain keeps it too,
+# by request rather than by need.
+def test_the_line_seam_keeps_the_stdio_display(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[bool] = []
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("voxam.cli._terminal_frontend", lambda: asked.append(True))
+
+    story = glulx_story(tmp_path, code=glulx_asks() + bytes([0x81, 0x20]))
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("go north\n"))
+
+    target = tmp_path / "session.accept"
+    recorded = main([str(story), "--record", str(target), "--seed", "7"])
+
+    assert_that(recorded).is_equal_to(0)
+    assert_that(asked).is_empty()
+
+    replayed = main(["--accept", str(target)])
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(asked).is_empty()
+
+    plain = main(["--plain", str(glulx_story(tmp_path))])
+
+    assert_that(plain).is_equal_to(0)
+    assert_that(asked).is_empty()
 
     capsys.readouterr()
 
