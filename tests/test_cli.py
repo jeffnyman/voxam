@@ -5,6 +5,7 @@ import sys
 import types
 import zlib
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import cast
 
@@ -17,6 +18,7 @@ from voxam.cli import (
     _gallery,
     _graphics_frontend,
     _picture_file_gallery,
+    _recorded_glk,
     _recorded_keys,
     _recorded_ticks,
     _screen_frontend,
@@ -25,9 +27,11 @@ from voxam.cli import (
     main,
 )
 from voxam.gallery import Gallery, Resolution
+from voxam.glulx.glk.objects import KeyCode as GlkKeyCode
+from voxam.glulx.glk.terminal import TerminalFrontend
 from voxam.iff import Chunk, chunk, write_form
 from voxam.iff import chunk as iff_chunk
-from voxam.painter import ScreenFrontend
+from voxam.painter import ScreenFrontend, Terminal
 from voxam.png import SIGNATURE
 from voxam.speaker import Speaker, open_sounddevice_stream
 
@@ -637,6 +641,7 @@ def test_a_terminal_selects_the_glulx_glass(
 # and the audio device allow, and claims sound exactly then --
 # the same courtesy _speaker pays the Z-Machine's glasses.
 def test_the_glulx_glass_brings_a_speaker(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
@@ -647,6 +652,15 @@ def test_the_glulx_glass_brings_a_speaker(
         pytest.fail("the glass opened")
 
     assert_that(bare.sound).is_false()
+
+    # A recorder rides in through the glass's seams.
+    recorder = Recorder(
+        tmp_path / "session.accept", game=tmp_path / "story.ulx", seed=7, warn=print
+    )
+
+    assert_that(_terminal_frontend(None, recorder)).is_not_none()
+
+    recorder.close()
 
     speaker = Speaker({}, frozenset(), open_sounddevice_stream)
 
@@ -675,10 +689,10 @@ def test_a_glulx_session_plays_on_the_glass(
     assert_that(capsys.readouterr().out).contains("Running")
 
 
-# Anything riding the line seam keeps the stdio display even at a
-# terminal: the acceptance grammar speaks lines, and the glass's
-# raw keystrokes have no line spelling yet. --plain keeps it too,
-# by request rather than by need.
+# A replay keeps the stdio display even at a terminal -- its
+# lines are what the grammar speaks -- and --plain keeps it by
+# request. A live recording asks for the glass now, and falls
+# back to recording at the stdio display when no glass answers.
 def test_the_line_seam_keeps_the_stdio_display(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -687,7 +701,10 @@ def test_the_line_seam_keeps_the_stdio_display(
     asked: list[bool] = []
 
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-    monkeypatch.setattr("voxam.cli._terminal_frontend", lambda: asked.append(True))
+    monkeypatch.setattr(
+        "voxam.cli._terminal_frontend",
+        lambda *_args, **_kwargs: asked.append(True),
+    )
 
     story = glulx_story(tmp_path, code=glulx_asks() + bytes([0x81, 0x20]))
 
@@ -697,19 +714,161 @@ def test_the_line_seam_keeps_the_stdio_display(
     recorded = main([str(story), "--record", str(target), "--seed", "7"])
 
     assert_that(recorded).is_equal_to(0)
-    assert_that(asked).is_empty()
+    assert_that(asked).is_length(1)
 
     replayed = main(["--accept", str(target)])
 
     assert_that(replayed).is_equal_to(0)
-    assert_that(asked).is_empty()
+    assert_that(asked).is_length(1)
 
     plain = main(["--plain", str(glulx_story(tmp_path))])
 
     assert_that(plain).is_equal_to(0)
-    assert_that(asked).is_empty()
+    assert_that(asked).is_length(1)
 
     capsys.readouterr()
+
+
+# The bridge between the glass's seams and the grammar: tokens
+# where tokens exist, plain characters where they are ordinary,
+# the bare prompt for Return, and loud warnings for everything
+# the grammar cannot spell.
+def test_the_glk_bridge_speaks_the_grammar(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "session.accept"
+    recorder = Recorder(target, game=tmp_path / "story.ulx", seed=7, warn=print)
+    line, key = _recorded_glk(recorder)
+
+    key(GlkKeyCode.UP)
+    key(GlkKeyCode.RETURN)
+    key(ord("x"))
+    key(GlkKeyCode.PAGE_UP)
+    key(0x01)
+    line("go north", 0)
+    line("g", GlkKeyCode.ESCAPE)
+    recorder.close()
+
+    written = target.read_text(encoding="utf-8").splitlines()
+
+    assert_that(written).contains("<up>")
+    assert_that(written).contains(">")
+    assert_that(written).contains("x")
+    assert_that(written).contains("go north")
+    assert_that(written).contains("g")
+
+    warned = capsys.readouterr().out
+
+    assert_that(warned).contains("key 0xFFFFFFF6 has no token")
+    assert_that(warned).contains("key 1 has no token")
+    assert_that(warned).contains("terminator")
+
+
+# A start function that opens a window, asks for one keystroke,
+# and answers "up!" for the up arrow and "no" for anything else --
+# the smallest story that can hear a key token.
+def glulx_hears() -> bytes:
+    return (
+        bytes([0xC0, 0x00, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x03])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x23, 0x05])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x2F, 0x01])
+        + bytes([0x81, 0x49, 0x11, 0x02, 0x00])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xD2, 0x01])
+        + bytes([0x40, 0x82, 0x01, 0x20])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xC0, 0x01])
+        + bytes([0x24, 0x36, 0x01, 0x01, 0x28, 0xFF, 0xFF, 0xFF, 0xFC, 0x0A])
+        + bytes([0x70, 0x01, 0x6E])
+        + bytes([0x70, 0x01, 0x6F])
+        + bytes([0x81, 0x20])
+        + bytes([0x70, 0x01, 0x75])
+        + bytes([0x70, 0x01, 0x70])
+        + bytes([0x70, 0x01, 0x21])
+        + bytes([0x81, 0x20])
+    )
+
+
+# A real keystroke at the glass lands in the script as its token,
+# and the replay presses the same key: record up, hear up -- the
+# roundtrip that makes a menu-driven session replayable.
+def test_glulx_keys_record_at_the_glass_and_replay(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = glulx_story(tmp_path, code=glulx_hears())
+    target = tmp_path / "session.accept"
+
+    class Key(str):
+        name: str | None = None
+
+        def __new__(cls, character: str, name: str | None = None) -> "Key":
+            key = super().__new__(cls, character)
+            key.name = name
+
+            return key
+
+    class Glass:
+        width = 40
+        height = 10
+        normal = reverse = bold = italic = ""
+
+        def __init__(self) -> None:
+            self.keys = [Key("", "KEY_UP")]
+
+        def move_xy(self, x: int, y: int) -> str:
+            del x, y
+
+            return ""
+
+        def cbreak(self) -> AbstractContextManager[object]:
+            return nullcontext()
+
+        def inkey(self, timeout: float | None = None) -> object:
+            del timeout
+
+            return self.keys.pop(0)
+
+    def scripted(
+        blorb: object = None, recorder: Recorder | None = None
+    ) -> TerminalFrontend:
+        del blorb
+
+        on_line = on_key = None
+
+        if recorder is not None:
+            on_line, on_key = _recorded_glk(recorder)
+
+        sink: list[str] = []
+
+        return TerminalFrontend(
+            cast("Terminal", Glass()), sink.append, on_line=on_line, on_key=on_key
+        )
+
+    monkeypatch.setattr("voxam.cli._terminal_frontend", scripted)
+
+    recorded = main([str(story), "--record", str(target), "--seed", "7"])
+
+    assert_that(recorded).is_equal_to(0)
+    assert_that(target.read_text(encoding="utf-8")).contains("<up>")
+
+    replayed = main(["--accept", str(target)])
+    out = capsys.readouterr().out
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(out).contains("up!")
+    assert_that(out).does_not_contain("\nno")
+
+    # A live session without a recorder gets the glass unseamed.
+    played = main([str(story)])
+
+    assert_that(played).is_equal_to(0)
 
 
 # The static reports are Z-Machine instruments; a Glulx story gets

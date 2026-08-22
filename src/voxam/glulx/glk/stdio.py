@@ -34,6 +34,19 @@ DEFAULT_SIZE = (80, 24)
 # on a very wide terminal.
 DIVIDER_LIMIT = 60
 
+# The acceptance grammar's key tokens replay as the Z-Machine's
+# input characters -- the §3.8.4 cursor codes and the §3.8.2.6
+# escape. Here those characters become the Glk keycodes they mean
+# (Glk: Character Input), so one recorded <up> presses up on
+# either machine.
+TOKEN_KEYCODES = {
+    "\x81": KeyCode.UP,
+    "\x82": KeyCode.DOWN,
+    "\x83": KeyCode.LEFT,
+    "\x84": KeyCode.RIGHT,
+    "\x1b": KeyCode.ESCAPE,
+}
+
 
 class StdioFrontend(Frontend):
     """A display over two text streams.
@@ -145,12 +158,17 @@ class StdioFrontend(Frontend):
 
         The input is line-buffered, so this is the same compromise
         cheapglk makes -- and a bare Return reads as the Return
-        keycode, which is what "press any key" prompts expect.
+        keycode, which is what "press any key" prompts expect. A
+        replayed key token arrives as its input character and
+        leaves as the Glk keycode it means.
         """
 
         line = self._readline()
 
-        return ord(line[0]) if line else KeyCode.RETURN
+        if not line:
+            return KeyCode.RETURN
+
+        return TOKEN_KEYCODES.get(line[0], ord(line[0]))
 
     def prompt_file(self, _usage: int, fmode: int) -> str | None:
         """Ask for a filename in the stream; empty cancels."""

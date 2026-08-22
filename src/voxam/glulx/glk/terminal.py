@@ -178,19 +178,27 @@ class TerminalFrontend(Frontend):
     # blessed reads a key with a timeout, so timers can fire.
     timer_input = True
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- one seam per session concern
         self,
         terminal: Terminal | None = None,
         out: "Callable[[str], None] | None" = None,
         *,
         size: tuple[int, int] | None = None,
         speaker: Speaker | None = None,
+        on_line: "Callable[[str, int], None] | None" = None,
+        on_key: "Callable[[int], None] | None" = None,
     ) -> None:
         """Stand over a terminal, a real blessed one by default.
 
         A speaker makes the sound claim true; without one the
         display claims no sound and Glk refuses the channels
         honestly (Glk: Testing for Sound Capabilities).
+
+        The seams hear input the moment it is accepted: on_line
+        every finished line with its terminator keycode (zero for
+        Return), file-prompt answers included, and on_key every
+        keystroke a character read delivered. A recording rides
+        them; the display itself neither knows nor cares.
         """
 
         if terminal is None:
@@ -217,6 +225,8 @@ class TerminalFrontend(Frontend):
         self.sound = speaker is not None
         # The one channel the speaker is sounding for, if any.
         self._sounding: SoundChannel | None = None
+        self._on_line = on_line
+        self._on_key = on_key
 
     # -- display -------------------------------------------------------------
 
@@ -547,6 +557,9 @@ class TerminalFrontend(Frontend):
         self._typed = ""
         self._typing = None
 
+        if self._on_line is not None:
+            self._on_line(text, terminator)
+
         return text, terminator
 
     def _edit(self, code: int, maxlen: int) -> None:
@@ -566,7 +579,12 @@ class TerminalFrontend(Frontend):
 
         del window
 
-        return self._key()
+        code = self._key()
+
+        if code is not None and self._on_key is not None:
+            self._on_key(code)
+
+        return code
 
     def _key(self) -> int | None:
         """Wait for a keystroke; None if something else came up.
@@ -690,15 +708,27 @@ class TerminalFrontend(Frontend):
                     continue
 
                 if code == KeyCode.RETURN:
-                    return self._typed.strip() or None
+                    return self._answered(self._typed.strip() or None)
 
                 if code == KeyCode.ESCAPE:
-                    return None
+                    return self._answered(None)
 
                 self._edit(code, width)
         finally:
             self._typed, self._typing = saved, saved_window
             self._repaint()
+
+    def _answered(self, name: str | None) -> str | None:
+        """Pass a file-prompt answer through the line seam.
+
+        The seam hears what a replay must feed the prompt: the
+        name, or the empty line that cancels.
+        """
+
+        if self._on_line is not None:
+            self._on_line(name or "", 0)
+
+        return name
 
     # -- styles --------------------------------------------------------------
 

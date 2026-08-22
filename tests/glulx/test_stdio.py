@@ -128,6 +128,31 @@ def test_input_reads_lines_and_keys() -> None:
 # An input source replaces the stream: the harness's replay
 # callable slots in, and its exhaustion ends the session the way
 # end of input does. A witness hears every run of buffer text.
+# A replayed key token arrives as its §3.8.4 input character and
+# presses the Glk key it means: one recorded <up> moves a menu on
+# either machine. Ordinary characters and the bare Return keep
+# their old readings.
+def test_replayed_key_tokens_press_their_glk_keys() -> None:
+    lines = iter(["\x81", "\x82", "\x83", "\x84", "\x1b", "x", ""])
+    display = StdioFrontend(
+        StringIO(), StringIO(), size=(60, 20), input_source=lambda: next(lines)
+    )
+    window = TextBufferWindow()
+    pressed = [display.read_char(window) for _ in range(7)]
+
+    assert_that(pressed).is_equal_to(
+        [
+            KeyCode.UP,
+            KeyCode.DOWN,
+            KeyCode.LEFT,
+            KeyCode.RIGHT,
+            KeyCode.ESCAPE,
+            ord("x"),
+            KeyCode.RETURN,
+        ]
+    )
+
+
 def test_the_harness_seams() -> None:
     lines = iter(["north", "south"])
 
