@@ -299,11 +299,37 @@ its first Glulx recording -- *Adventure*'s opening excursion,
 provisions to grate to debris room and home on XYZZY, replaying
 byte-identical beside the Z-code excursions of the same cave.
 
-### The road to 2.0
+### The road to 1.5
 
-What remains is glass, not machine: graphics in their windows,
-mouse and hyperlink input, recordings that can spell the glass's
-raw keystrokes -- perhaps, one day, the browser, whose GlkOte
-protocol asks for the one architectural change the display
-contract was designed to permit. Version 2.0 is reserved for
-Glulx at experiential parity with the Z-Machine of 1.0.
+What remains is glass, not machine, and it maps onto the minor
+releases ahead -- each shipping when its capability is coherent,
+not on a calendar:
+
+- **1.2, the complete harness.** The acceptance grammar learns to
+  spell raw keystrokes, so a session at the painted glass records
+  and replays the way every line-driven session already does --
+  and the Z-Machine's mouse clicks earn their `<click y x>` token
+  in the same stroke. The recording campaign runs through this
+  era and keeps running.
+- **1.3, the third glass.** The pygame frontend learns the Glk
+  window tree: windows, text, and styles in a real window, the
+  way it already serves every Z-Machine version.
+- **1.4, the senses.** Graphics windows and image drawing from
+  the gblorb, mouse input, hyperlink selection -- bundled because
+  the pygame glass is where all three become honest claims.
+- **1.5, Full Glulx.** The declaration release, in the manner of
+  1.0: the parity sweep, the deep certifications the recording
+  campaign has earned, performance work if a heavyweight has
+  convicted it, and the ledger brought current.
+
+### And then 2.0
+
+Version 2.0 is reserved for an evolution rather than a
+completion: a Lectrote-like interface speaking the GlkOte
+protocol, where the display no longer blocks for input but is
+handed events as they happen. That asks for the one architectural
+change the display contract was designed to permit -- glk_select
+suspending rather than calling read_line -- and the machine has
+been single-steppable since the frontier days for exactly that
+reason. The reference material is already vendored: GlkOte
+itself, and Quixe beside it.

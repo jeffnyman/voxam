@@ -96,7 +96,9 @@ it in continuous integration: seventy sections, zero failures,
 player can pipe. A `.ulx` or `.gblorb` story plays on painted
 terminal glass today -- windows, styles, timers, and Glk sound
 through the same speaker the Z-Machine owns; the rest of the
-richer glass -- graphics, the mouse -- is the road to 2.0.
+richer glass -- graphics, the mouse -- is the road to 1.5, Full
+Glulx. Version 2.0 is reserved for something newer still: a
+Lectrote-like interface on the GlkOte protocol.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
