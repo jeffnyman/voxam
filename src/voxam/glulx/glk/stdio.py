@@ -8,8 +8,8 @@ input stream.
 
 No cursor control, no styles, no partial redraw: this is the
 minimum viable Glk, the display glulxercise needs and a piped
-session can drive. Everything richer belongs to displays yet to
-come.
+session can drive. Everything richer belongs to the painted
+displays, voxam.glulx.glk.terminal first among them.
 """
 
 import shutil

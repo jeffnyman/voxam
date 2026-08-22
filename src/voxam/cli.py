@@ -38,6 +38,8 @@ from voxam.zmachine.story import Story
 
 if TYPE_CHECKING:
     from voxam.glass import GraphicsFrontend
+    from voxam.glulx.glk.frontend import Frontend as GlkFrontend
+    from voxam.glulx.glk.terminal import TerminalFrontend
     from voxam.painter import ScreenFrontend
 
 # Exit codes: 0 for a story that ran to quit, 2 for a file or session
@@ -944,8 +946,9 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     trace: Path | None,
     input_source: Callable[[], str] | None = None,
     witness: Callable[[str], None] | None = None,
+    screen: bool = False,
 ) -> int:
-    """Run a Glulx story over the stdio display.
+    """Run a Glulx story over a display.
 
     The checksum verdict is printed but does not gate the run: the
     verify opcode exists so a story can judge itself. An input
@@ -954,6 +957,11 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     the same acceptance grammar the Z-Machine records. Tracing is
     a Z-Machine session instrument still, declined by name rather
     than half-working.
+
+    With screen allowed, a live session at a real terminal gets
+    the painted display; anything riding the line seam -- a
+    recording, a replay -- keeps the stdio display, whose lines
+    are what the acceptance grammar speaks.
     """
 
     if trace is not None:
@@ -978,8 +986,23 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
 
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
 
+    # A recording and a replay both arrive as an input source, so
+    # one condition covers everything the line seam carries.
+    painted = _terminal_frontend() if screen and input_source is None else None
+    frontend: GlkFrontend = (
+        painted
+        if painted is not None
+        else StdioFrontend(input_source=input_source, witness=witness)
+    )
+
+    if painted is not None:
+        # The story deserves a clean glass: anything the shell left
+        # on screen would otherwise show through every row the game
+        # has not yet painted.
+        painted.clear()
+
     library = Glk(
-        StdioFrontend(input_source=input_source, witness=witness),
+        frontend,
         resources=GlkResources(_glulx_resources(story_path, resources)),
     )
     machine = GlulxMachine(story, seed=seed, glk=library)
@@ -999,9 +1022,36 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     # the way out.
     library.frontend.flush(library.root)
 
+    if painted is not None:
+        # The shell's next prompt belongs under the story, not
+        # somewhere mid-screen where the cursor was parked.
+        painted.retire()
+
     print()
 
     return EXIT_OK
+
+
+def _terminal_frontend() -> "TerminalFrontend | None":
+    """A painted Glk display, when the glass and the extra allow.
+
+    The painted display wants a real terminal to paint on and the
+    blessed package the `screen` extra installs; missing either,
+    the caller falls back to the stdio display, which is always
+    there.
+    """
+
+    if not sys.stdout.isatty():
+        return None
+
+    try:
+        # Imported here because the blessed extra is optional: the
+        # stdio display must keep working without it.
+        from voxam.glulx.glk.terminal import TerminalFrontend  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    return TerminalFrontend()
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:
@@ -1173,6 +1223,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
                 recorder=recorder,
                 trace=trace,
                 input_source=input_source,
+                screen=screen,
             )
 
         story, blorb = _load_story(story_path, resources)
