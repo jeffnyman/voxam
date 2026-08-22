@@ -61,7 +61,7 @@ reach perfect scores with their sounds heard aloud; *Arthur*,
 *Shogun*, and *Zork Zero* render their art in a real graphics
 window; and even *Journey* -- Infocom's finale, a game with no
 command line at all -- replays through its opening chapter as
-pure keystrokes. Thirty-nine recordings verify those sessions
+pure keystrokes. Forty recordings verify those sessions
 end-to-end, their annotations doubling as an archaeology of where
 the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says
@@ -74,31 +74,38 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.1`: Full Z-Machine support, and the Glulx machine
-whole.
+Version `1.2`: the glass era for Glulx, and the harness complete.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
 illustrated at a pygame window, painted at a terminal, spoken
 aloud with the sound extra -- and everything is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, thirty-nine recorded playthroughs swept
+100% branch coverage, forty recorded playthroughs swept
 end-to-end, and the community's checkers held to their exact
 tallies, CZECH at four versions among them.
 
-New in `1.1`, the Glulx machine: every opcode the Glulx 3.1.3
+The Glulx machine is `1.1`'s: every opcode the Glulx 3.1.3
 roster defines is dispatched -- the full Glk 0.7.6 dispatch layer
 behind the `glk` opcode, saves and undo in Quetzal, the
 allocation heap, the accelerated Inform veneer, IEEE-754 floats
 and doubles -- and the glulxercise checker certifies the whole of
 it in continuous integration: seventy sections, zero failures,
 "All tests passed." spoken through the same stdio session a
-player can pipe. A `.ulx` or `.gblorb` story plays on painted
-terminal glass today -- windows, styles, timers, and Glk sound
-through the same speaker the Z-Machine owns; the rest of the
-richer glass -- graphics, the mouse -- is the road to 1.5, Full
-Glulx. Version 2.0 is reserved for something newer still: a
-Lectrote-like interface on the GlkOte protocol.
+player can pipe.
+
+New in `1.2`, the glass and the grammar: a `.ulx` or `.gblorb`
+story plays on painted terminal glass -- the Glk window tree
+drawn whole, styles in terminal dress, timer events between
+keystrokes, and Glk sound through the same speaker the Z-Machine
+owns -- and the acceptance grammar can now spell every input any
+display can produce: raw keystrokes as the tokens Beyond Zork's
+menus always replayed through, and mouse clicks as `<click x y>`,
+recorded with their coordinates and replayed with the same. The
+rest of the richer glass -- graphics, the mouse at a Glulx
+window -- is the road to 1.5, Full Glulx. Version 2.0 is
+reserved for something newer still: a Lectrote-like interface on
+the GlkOte protocol.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).

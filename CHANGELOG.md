@@ -1,3 +1,13 @@
+## v1.2.0 (2026-08-22)
+
+### Feat
+
+- **harness**: the harness hears the mouse -- <click x y> recorded at the glass, replayed with its coordinates (#219)
+- **harness**: the harness hears keys -- glass keystrokes spelled as tokens, tokens pressed as glk keys (#218)
+- **glulx**: the glass has ears -- glk sound through the z-machine's own speaker (#215)
+- **glulx**: terminal glass -- the glk window tree painted whole, adventure in the frame (#214)
+- **glulx**: the harness speaks glulx -- adventure's first excursion on the record (#213)
+
 ## v1.1.0 (2026-08-21)
 
 ### Feat
