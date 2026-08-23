@@ -7,13 +7,16 @@ Z-Machine's graphics frontend drives -- the protocol from
 voxam.glass -- so a test drives the whole display with a stub and
 no window ever opens in continuous integration.
 
-The glass is cell-addressed, and for now every Glk measure stays
-in character cells: the default 1x1 metrics make each size
-conversion a no-op, exactly as at the terminal. Pixel metrics
-arrive with graphics windows, which is the next road stop -- along
-with the mouse, whose clicks the glass already hears but this
-display does not yet claim, so a stray click is swallowed rather
-than delivered to a game that never asked.
+The display's unit is the real pixel: the window tree is arranged
+over the glass's pixel grid, the metrics carry the font cell so a
+text window still answers its size in characters, and a graphics
+window's size is honestly its box (Glk: Graphics Windows). The
+graphics claim is true here -- canvases open, fill and erase in
+their own pixels, and persist between repaints, because their
+pixels are the game's work and painting over is only text's way
+of erasing. The mouse, whose clicks the glass already hears, is
+still unclaimed: a stray click is swallowed rather than delivered
+to a game that never asked.
 
 The window echoes nothing on its own: Glk does the echoing into
 the window once a line is accepted, and until then the half-typed
@@ -26,7 +29,7 @@ from typing import TYPE_CHECKING, cast
 
 from voxam.errors import GlulxSessionEnd
 from voxam.glass import INK_DEFAULT, PAPER_DEFAULT, open_pygame_glass
-from voxam.glulx.glk.objects import KeyCode
+from voxam.glulx.glk.objects import KeyCode, Metrics, Window
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
 from voxam.speaker import Speaker
 
@@ -56,8 +59,20 @@ KEY_CODES: dict[str, int] = {
 
 # The character a click travels as in §10.3's eyes. This display
 # does not claim the mouse yet, so a click is nothing usable -- it
-# waits for the graphics road stop.
+# waits for its own road stop.
 _CLICK = "\xfe"
+
+# A fresh canvas's background, until the game chooses another:
+# "The initial background color of each window is white" (Glk:
+# Graphics in Graphics Windows).
+_WHITE = (255, 255, 255)
+
+
+def _rgb(color: int) -> tuple[int, int, int]:
+    """A Glk 0x00RRGGBB color as an RGB triple (Glk: Graphics)."""
+
+    return ((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF)
+
 
 # The window badge a Glulx session wears: the packaged glulx.ico,
 # where a Z-Machine story wears its numbered z<version>.ico.
@@ -72,6 +87,10 @@ class GlassFrontend(PaintedFrontend):
     keystrokes, and the painted runs land in a list instead of a
     live window.
     """
+
+    # A real window draws in real pixels, so the graphics claim is
+    # true here and canvases open (Glk: Graphics Windows).
+    graphics = True
 
     def __init__(  # noqa: PLR0913 -- one seat per session concern
         self,
@@ -104,13 +123,23 @@ class GlassFrontend(PaintedFrontend):
             glass = open_pygame_glass(standard, BADGE, zoom)
 
         self._glass = glass
+        # The font cell in real pixels: what lets a text window
+        # answer its size in characters while the tree is arranged
+        # over the pixel grid.
+        self.metrics = Metrics(glass.cell_width, glass.cell_height)
+        # Each canvas's background color, once a game chooses one
+        # (Glk: Graphics in Graphics Windows).
+        self._backgrounds: dict[Window, tuple[int, int, int]] = {}
 
         super().__init__(speaker=speaker, on_line=on_line, on_key=on_key)
 
     def size(self) -> tuple[int, int]:
-        """The glass's grid, measured in cells."""
+        """The whole glass, measured in its real pixels."""
 
-        return (self._glass.columns, self._glass.lines)
+        return (
+            self._glass.columns * self._glass.cell_width,
+            self._glass.lines * self._glass.cell_height,
+        )
 
     def _begin(self) -> None:
         """Nothing to gather: runs paint straight onto the surface."""
@@ -129,7 +158,7 @@ class GlassFrontend(PaintedFrontend):
                 else (INK_DEFAULT, PAPER_DEFAULT)
             )
 
-            self._glass.paint(
+            self._glass.text(
                 y + 1,
                 column + 1,
                 text,
@@ -140,25 +169,76 @@ class GlassFrontend(PaintedFrontend):
                 graphics=False,
             )
 
-            column += len(text)
+            column += len(text) * self._glass.cell_width
 
     def _finish(self, cursor: tuple[int, int] | None) -> None:
-        if cursor is not None and cursor[0] < self._glass.columns:
-            # The block caret: a reversed space where the next
+        if cursor is not None and cursor[0] < self.size()[0]:
+            # The block caret: one filled cell where the next
             # character will land, since a window has no hardware
             # cursor of its own to park there.
-            self._glass.paint(
+            self._glass.fill(
                 cursor[1] + 1,
                 cursor[0] + 1,
-                " ",
-                PAPER_DEFAULT,
+                self._glass.cell_height,
+                self._glass.cell_width,
                 INK_DEFAULT,
-                bold=False,
-                italic=False,
-                graphics=False,
             )
 
         self._glass.present()
+
+    # -- graphics (Glk: Graphics in Graphics Windows) --------------------------
+
+    def set_background_color(self, window: Window, color: int) -> None:
+        """Remember the color; only future clears and erases wear it."""
+
+        self._backgrounds[window] = _rgb(color)
+
+    def erase_rect(
+        self, window: Window, left: int, top: int, width: int, height: int
+    ) -> None:
+        """Erase a rectangle to the canvas's background color."""
+
+        self._fill(window, left, top, width, height, self._background(window))
+
+    def fill_rect(  # noqa: PLR0913, PLR0917 -- the rectangle, colored
+        self, window: Window, color: int, left: int, top: int, width: int, height: int
+    ) -> None:
+        """Fill a rectangle with a color of the game's own."""
+
+        self._fill(window, left, top, width, height, _rgb(color))
+
+    def _background(self, window: Window) -> tuple[int, int, int]:
+        """The canvas's background: white until the game says else."""
+
+        return self._backgrounds.get(window, _WHITE)
+
+    def _fill(  # noqa: PLR0913, PLR0917 -- the rectangle, colored
+        self,
+        window: Window,
+        left: int,
+        top: int,
+        width: int,
+        height: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        """Paint a window-relative rectangle, clipped to its box.
+
+        "It is legitimate for part of the rectangle to fall
+        outside the window" (Glk: Graphics in Graphics Windows),
+        so whatever falls outside simply is not drawn -- and the
+        arguments are signed, so the overhang may be on any edge.
+        """
+
+        box_left, box_top, box_right, box_bottom = window.bbox
+        x0 = max(box_left + left, box_left)
+        y0 = max(box_top + top, box_top)
+        x1 = min(box_left + left + width, box_right)
+        y1 = min(box_top + top + height, box_bottom)
+
+        if x1 <= x0 or y1 <= y0:
+            return
+
+        self._glass.fill(y0 + 1, x0 + 1, y1 - y0, x1 - x0, colour)
 
     def _translated(self, timeout: float | None) -> int | None:
         """One glass read as a Glk code; None for nothing usable.

@@ -39,6 +39,7 @@ from voxam.glulx.glk.objects import (
     Event,
     EventType,
     FileMode,
+    GraphicsWindow,
     KeyCode,
     PairWindow,
     SoundChannel,
@@ -186,13 +187,21 @@ class PaintedFrontend(Frontend):
     # -- display -------------------------------------------------------------
 
     def clear(self) -> None:
-        """Paint every row blank, wiping what the shell left."""
+        """Paint every row blank, wiping what the shell left.
+
+        Positions here and throughout the painting walk are in
+        display units -- cells at a terminal, pixels at a window --
+        with the metrics converting the character counts, so the
+        one walk serves both.
+        """
 
         width, height = self.size()
+        cell = self.metrics
+        columns = int(width / cell.width)
         self._begin()
 
-        for row in range(height):
-            self._place(0, row, [(Style.NORMAL, " " * width)])
+        for row in range(int(height / cell.height)):
+            self._place(0, int(row * cell.height), [(Style.NORMAL, " " * columns)])
 
         self._finish(None)
 
@@ -222,24 +231,52 @@ class PaintedFrontend(Frontend):
         if isinstance(window, TextBufferWindow):
             return self._paint_buffer(window)
 
+        if isinstance(window, GraphicsWindow):
+            self._paint_graphics(window)
+
+            return None
+
         # A blank window shows blankness (Glk: Blank Windows) --
         # and so does anything else without text to paint. The box
         # is measured directly: a sizeless window answers the game
         # zero, but its box is still real and still needs covering.
         left, top, right, bottom = window.bbox
+        cell = window.metrics
+        columns = int((right - left) / cell.width)
 
-        for index in range(bottom - top):
-            self._place(left, top + index, [(Style.NORMAL, " " * (right - left))])
+        for index in range(int((bottom - top) / cell.height)):
+            self._place(
+                left, int(top + index * cell.height), [(Style.NORMAL, " " * columns)]
+            )
 
         return None
 
+    def _paint_graphics(self, window: GraphicsWindow) -> None:
+        """Honor a pending clear; otherwise leave the canvas alone.
+
+        Painting over is all the erasing there is for text, but a
+        graphics window's pixels are the game's own work: they
+        persist on the display until the game draws again, so the
+        repaint must not cover them. A pending clear erases the
+        whole canvas to its background (Glk: Graphics Windows).
+        """
+
+        if window.pending_clear:
+            self.erase_rect(window, 0, 0, window.width, window.height)
+            window.pending_clear = False
+
     def _paint_grid(self, window: TextGridWindow) -> tuple[int, int] | None:
         left, top, _, _ = window.bbox
+        cell = window.metrics
 
         # The grid's rows are already exactly its size: the model
         # resizes them with every rearrange.
         for index, cells in enumerate(window.lines):
-            self._place(left, top + index, _grouped(cells, window.styles[index]))
+            self._place(
+                left,
+                int(top + index * cell.height),
+                _grouped(cells, window.styles[index]),
+            )
 
         if self._typing is not window:
             return None
@@ -250,9 +287,11 @@ class PaintedFrontend(Frontend):
         column = min(window.cursor_x, max(0, window.width - 1))
         row = min(window.cursor_y, max(0, window.height - 1))
         text = self._typed[: max(0, window.width - column)]
-        self._place(left + column, top + row, [(Style.INPUT, text)])
+        x = int(left + column * cell.width)
+        y = int(top + row * cell.height)
+        self._place(x, y, [(Style.INPUT, text)])
 
-        return (left + column + len(text), top + row)
+        return (int(x + len(text) * cell.width), y)
 
     def _paint_buffer(self, window: TextBufferWindow) -> tuple[int, int] | None:
         wrapper = self._wrapper(window)
@@ -279,26 +318,30 @@ class PaintedFrontend(Frontend):
         # display scrolls the way a terminal does rather than
         # filling downwards.
         offset = height - len(visible) - (1 if more else 0)
+        cell = window.metrics
+        bottom = int(top + (height - 1) * cell.height)
 
         for index in range(height):
             line = visible[index - offset] if 0 <= index - offset < len(visible) else []
             pad = " " * max(0, window.width - len(plain(line)))
-            self._place(left, top + index, [*line, (Style.NORMAL, pad)])
+            self._place(
+                left, int(top + index * cell.height), [*line, (Style.NORMAL, pad)]
+            )
 
         if more:
             pad = " " * max(0, window.width - len(MORE_PROMPT))
             self._place(
                 left,
-                top + height - 1,
+                bottom,
                 [(Style.ALERT, MORE_PROMPT), (Style.NORMAL, pad)],
             )
 
-            return (left + len(MORE_PROMPT), top + height - 1)
+            return (int(left + len(MORE_PROMPT) * cell.width), bottom)
 
         if not typing or not visible:
             return None
 
-        return (left + len(plain(visible[-1])), top + height - 1)
+        return (int(left + len(plain(visible[-1])) * cell.width), bottom)
 
     def _wrapper(self, window: TextBufferWindow) -> Wrapper:
         """The kept text for a window, made current with its size."""
@@ -574,6 +617,9 @@ class PaintedFrontend(Frontend):
         verb = "Load from" if fmode == FileMode.READ else "Save to"
         prompt = f"{verb} which file? "
         width, height = self.size()
+        cell = self.metrics
+        columns = int(width / cell.width)
+        bottom = int((int(height / cell.height) - 1) * cell.height)
         # glkterm forces every window to the end before a prompt
         # like this one, so the player is answering a question
         # rather than fighting a pager for the keyboard.
@@ -583,11 +629,11 @@ class PaintedFrontend(Frontend):
 
         try:
             while True:
-                text = self._typed[: max(0, width - len(prompt) - 1)]
-                line = (prompt + text).ljust(width - 1)
+                text = self._typed[: max(0, columns - len(prompt) - 1)]
+                line = (prompt + text).ljust(columns - 1)
                 self._begin()
-                self._place(0, height - 1, [(Style.NORMAL, line)])
-                self._finish((len(prompt) + len(text), height - 1))
+                self._place(0, bottom, [(Style.NORMAL, line)])
+                self._finish((int((len(prompt) + len(text)) * cell.width), bottom))
 
                 code = self._key()
 
@@ -601,7 +647,7 @@ class PaintedFrontend(Frontend):
                 if code == KeyCode.ESCAPE:
                     return self._answered(None)
 
-                self._edit(code, width)
+                self._edit(code, columns)
         finally:
             self._typed, self._typing = saved, saved_window
             self._repaint()
