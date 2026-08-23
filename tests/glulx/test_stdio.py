@@ -27,6 +27,58 @@ def hooked(
     return StdioFrontend(out, StringIO(text), size=size), out
 
 
+# A script that carries clicks makes the mouse claim true, and
+# each mouse event spends the marker line and one position pair --
+# the very coordinates the recording's game was told. Without a
+# click source the display stays honestly mouseless.
+def test_scripted_clicks_answer_the_mouse() -> None:
+    lines = iter(["\xfe"])
+    clicks = iter([(7, 5)])
+    display = StdioFrontend(
+        StringIO(),
+        StringIO(),
+        size=(60, 20),
+        input_source=lambda: next(lines),
+        click_source=lambda: next(clicks, None),
+    )
+    window = TextBufferWindow()
+
+    assert_that(display.mouse_input).is_true()
+    assert_that(display.read_mouse(window)).is_equal_to((7, 5))
+
+    plain, _ = hooked()
+
+    assert_that(plain.mouse_input).is_false()
+    assert_that(plain.read_mouse(window)).is_none()
+
+
+# A script that speaks anything but a click while the game waits
+# for one has diverged from its recording, and so have clicks that
+# ran dry: either way the session ends with a loud note rather
+# than replaying wrong.
+def test_a_missing_click_ends_loudly() -> None:
+    lines = iter(["look", "\xfe", "\xfe"])
+    clicks = iter([(1, 1)])
+    out = StringIO()
+    display = StdioFrontend(
+        out,
+        StringIO(),
+        size=(60, 20),
+        input_source=lambda: next(lines),
+        click_source=lambda: next(clicks, None),
+    )
+    window = TextBufferWindow()
+
+    with pytest.raises(GlulxSessionEnd):
+        display.read_mouse(window)
+
+    assert_that(out.getvalue()).contains("a click the script does not spell")
+    assert_that(display.read_mouse(window)).is_equal_to((1, 1))
+
+    with pytest.raises(GlulxSessionEnd):
+        display.read_mouse(window)
+
+
 # Buffer text streams out as it accumulates, and each run prints
 # exactly once no matter how often the display is flushed.
 def test_buffer_text_streams_once() -> None:

@@ -14,9 +14,11 @@ window's size is honestly its box (Glk: Graphics Windows). The
 graphics claim is true here -- canvases open, fill and erase in
 their own pixels, and persist between repaints, because their
 pixels are the game's work and painting over is only text's way
-of erasing. The mouse, whose clicks the glass already hears, is
-still unclaimed: a stray click is swallowed rather than delivered
-to a game that never asked.
+of erasing. And the mouse is claimed: a click lands in whichever
+armed grid or canvas it hit, translated to that window's own
+units and posted as the event glk_select delivers -- while a
+click nothing asked for is still swallowed, as every interpreter
+swallows it.
 
 The window echoes nothing on its own: Glk does the echoing into
 the window once a line is accepted, and until then the half-typed
@@ -29,7 +31,15 @@ from typing import TYPE_CHECKING, cast
 
 from voxam.errors import GlulxSessionEnd, PNGError
 from voxam.glass import INK_DEFAULT, PAPER_DEFAULT, layered, open_pygame_glass
-from voxam.glulx.glk.objects import GraphicsWindow, KeyCode, Metrics, Window
+from voxam.glulx.glk.objects import (
+    Event,
+    EventType,
+    GraphicsWindow,
+    KeyCode,
+    Metrics,
+    TextGridWindow,
+    Window,
+)
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
 from voxam.png import decode
 from voxam.speaker import Speaker
@@ -60,9 +70,8 @@ KEY_CODES: dict[str, int] = {
     },
 }
 
-# The character a click travels as in §10.3's eyes. This display
-# does not claim the mouse yet, so a click is nothing usable -- it
-# waits for its own road stop.
+# The character a click travels as in §10.3's eyes; the position
+# itself waits on the glass's click() until asked for.
 _CLICK = "\xfe"
 
 # A fresh canvas's background, until the game chooses another:
@@ -94,6 +103,9 @@ class GlassFrontend(PaintedFrontend):
     # A real window draws in real pixels, so the graphics claim is
     # true here and canvases open (Glk: Graphics Windows).
     graphics = True
+    # A real window has a real pointer, so grids and canvases can
+    # carry a click (Glk: Mouse Input Events).
+    mouse_input = True
 
     def __init__(  # noqa: PLR0913 -- one seat per session concern
         self,
@@ -104,6 +116,7 @@ class GlassFrontend(PaintedFrontend):
         speaker: Speaker | None = None,
         on_line: "Callable[[str, int], None] | None" = None,
         on_key: "Callable[[int], None] | None" = None,
+        on_click: "Callable[[int, int], None] | None" = None,
     ) -> None:
         """Stand over a glass, a real pygame window by default.
 
@@ -120,6 +133,9 @@ class GlassFrontend(PaintedFrontend):
                 honestly.
             on_line: The line seam a recording rides.
             on_key: The keystroke seam a recording rides.
+            on_click: The click seam, hearing each delivered
+                click as the window-relative coordinates the game
+                itself was told.
         """
 
         if glass is None:
@@ -137,6 +153,7 @@ class GlassFrontend(PaintedFrontend):
         # the refusals, so a JPEG costs one attempt, not one per
         # draw.
         self._pictures: dict[int, Picture | None] = {}
+        self._on_click = on_click
 
         super().__init__(speaker=speaker, on_line=on_line, on_key=on_key)
 
@@ -362,7 +379,12 @@ class GlassFrontend(PaintedFrontend):
         except EOFError:
             raise GlulxSessionEnd from None
 
-        if character is None or character == _CLICK:
+        if character == _CLICK:
+            self._clicked()
+
+            return None
+
+        if character is None:
             return None
 
         code = KEY_CODES.get(character)
@@ -371,3 +393,69 @@ class GlassFrontend(PaintedFrontend):
             return code
 
         return ord(character)
+
+    def _clicked(self) -> None:
+        """Deliver the glass's click to whichever armed window it hit.
+
+        Only a grid or a canvas can carry a click, and only one
+        with a request standing (Glk: Mouse Input Events); the
+        coordinates the event carries are the window's own -- cells
+        in a grid, pixels on a canvas. A click nothing asked for is
+        swallowed, as every interpreter swallows it. Between two
+        armed windows the position decides; the grammar cannot
+        spell which window a recorded click chose, so a replay
+        leans on the request that is standing when it arrives.
+        """
+
+        position = self._glass.click()
+
+        if position is None:
+            return
+
+        # The glass counts its pixels 1-based; the boxes are 0-based.
+        x, y = position[0] - 1, position[1] - 1
+        windows = self.glk.windows if self.glk is not None else []
+
+        for window in windows:
+            if not window.mouse_request or not isinstance(
+                window, TextGridWindow | GraphicsWindow
+            ):
+                continue
+
+            left, top, right, bottom = window.bbox
+
+            if not (left <= x < right and top <= y < bottom):
+                continue
+
+            if isinstance(window, TextGridWindow):
+                cell = window.metrics
+                val1 = int((x - left) / cell.width)
+                val2 = int((y - top) / cell.height)
+            else:
+                val1, val2 = x - left, y - top
+
+            window.mouse_request = False
+            self.post(Event(EventType.MOUSE_INPUT, window, val1, val2))
+
+            if self._on_click is not None:
+                self._on_click(val1, val2)
+
+            return
+
+    def read_mouse(self, window: Window) -> tuple[int, int] | None:
+        """Wait at the glass; the click itself travels as an event.
+
+        _clicked posts the click with its window and coordinates
+        already resolved, so this wait only blocks until something
+        happens: a posted click or timer answers None, and
+        glk_select comes back round to find the event. A keystroke
+        while only the mouse is wanted means nothing, and the wait
+        resumes.
+        """
+
+        del window
+
+        while self._key() is not None:
+            pass
+
+        return None

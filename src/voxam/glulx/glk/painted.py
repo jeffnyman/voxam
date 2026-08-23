@@ -575,6 +575,13 @@ class PaintedFrontend(Frontend):
 
                 return code
 
+            if self.glk is not None and self.glk.pending_events:
+                # The wait heard something that was not a
+                # keystroke -- a click the display posted, say --
+                # and glk_select must come back round to deliver
+                # it, exactly as it does for a timer.
+                return None
+
             if self.timer.due():
                 self.post(Event(EventType.TIMER))
 

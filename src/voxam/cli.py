@@ -582,7 +582,13 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
 
     if glulx is not None:
         # The Glulx replay rides the stdio display's own seams:
-        # the source types, the witness listens for refusals.
+        # the source types, the witness listens for refusals, and
+        # a script that carries clicks answers the mouse events
+        # its recording's game asked for, one pair per click. A
+        # clickless script wires no click source, so its replay
+        # keeps the mouse gestalt at zero -- what a session
+        # recorded at the stdio display was told.
+        glulx_positions = iter(script.clicks)
         code = _run_glulx(
             script.game,
             glulx,
@@ -592,6 +598,9 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
             trace=trace,
             input_source=source,
             witness=watch.saw,
+            click_source=(
+                (lambda: next(glulx_positions, None)) if script.clicks else None
+            ),
         )
         watch.finish()
 
@@ -1005,6 +1014,7 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     trace: Path | None,
     input_source: Callable[[], str] | None = None,
     witness: Callable[[str], None] | None = None,
+    click_source: Callable[[], tuple[int, int] | None] | None = None,
     screen: bool = False,
     graphics: bool = False,
     zoom: float | None = None,
@@ -1066,7 +1076,9 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     frontend: GlkFrontend = (
         painted
         if painted is not None
-        else StdioFrontend(input_source=input_source, witness=witness)
+        else StdioFrontend(
+            input_source=input_source, witness=witness, click_source=click_source
+        )
     )
 
     if painted is not None:
@@ -1134,10 +1146,10 @@ def _glass_frontend(
             if blorb is not None and blorb.resolution is not None
             else None
         )
-        on_line = on_key = None
+        on_line = on_key = on_click = None
 
         if recorder is not None:
-            on_line, on_key = _recorded_glk(recorder)
+            on_line, on_key, on_click = _recorded_glk(recorder)
 
         return GlassFrontend(
             standard=standard,
@@ -1145,6 +1157,7 @@ def _glass_frontend(
             speaker=_speaker(blorb),
             on_line=on_line,
             on_key=on_key,
+            on_click=on_click,
         )
     except ImportError:
         print(
@@ -1182,7 +1195,9 @@ def _terminal_frontend(
     on_line = on_key = None
 
     if recorder is not None:
-        on_line, on_key = _recorded_glk(recorder)
+        # The terminal glass has no pointer, so the click seam
+        # stays unwired here.
+        on_line, on_key, _ = _recorded_glk(recorder)
 
     return TerminalFrontend(speaker=_speaker(blorb), on_line=on_line, on_key=on_key)
 
@@ -1204,7 +1219,9 @@ GLK_KEY_CHARACTERS = {
 
 def _recorded_glk(
     recorder: Recorder,
-) -> tuple[Callable[[str, int], None], Callable[[int], None]]:
+) -> tuple[
+    Callable[[str, int], None], Callable[[int], None], Callable[[int, int], None]
+]:
     """The glass's recording seams, bridged onto the grammar.
 
     Lines record as lines. Keystrokes translate to the grammar's
@@ -1212,7 +1229,10 @@ def _recorded_glk(
     they are ordinary characters, and warn loudly where the
     grammar has no spelling -- the same rule the Z-Machine's key
     seam keeps. A terminator-ended line records plain, with a
-    warning, because the grammar cannot spell the terminator.
+    warning, because the grammar cannot spell the terminator. And
+    clicks record as <click x y>, carrying the window-relative
+    coordinates the game itself was told -- what a replay must
+    feed back.
     """
 
     def line(text: str, terminator: int) -> None:
@@ -1234,7 +1254,10 @@ def _recorded_glk(
         else:
             print(f"voxam: key 0x{code:X} has no token in the grammar; not recorded")
 
-    return line, key
+    def click(x: int, y: int) -> None:
+        recorder.click(x, y)
+
+    return line, key, click
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:

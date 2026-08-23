@@ -16,6 +16,7 @@ from voxam.glulx.glk.objects import (
     Style,
     TextBufferWindow,
     Window,
+    WindowType,
 )
 from voxam.glulx.glk.resources import ImageInfo
 from voxam.painter import MORE_PROMPT
@@ -55,6 +56,8 @@ class StubGlass:
         self.fills: list[Filled] = []
         self.draws: list[tuple[object, int, int, tuple[int, int]]] = []
         self.presented = 0
+        # Where the last click landed, in 1-based window pixels.
+        self.click_position: tuple[int, int] | None = None
 
     def text(
         self,
@@ -101,6 +104,9 @@ class StubGlass:
             raise EOFError
 
         return self.keys.pop(0)
+
+    def click(self) -> tuple[int, int] | None:
+        return self.click_position
 
 
 class WideGlass(StubGlass):
@@ -528,6 +534,129 @@ def test_a_clear_lands_under_the_next_paint(tiny_png: bytes) -> None:
     assert_that(glass.fills).is_equal_to(
         [(1, 1, 6, 10, (255, 255, 255)), (1, 1, 2, 2, (255, 0, 0))]
     )
+
+
+# A click lands in whichever armed window it hit: the request
+# clears, the event posts with the window's own coordinates --
+# pixels on a canvas -- the interrupted read answers None so
+# glk_select can deliver it, and the click seam hears exactly what
+# the game heard. Once the request is spent, the next click finds
+# nothing armed and is swallowed.
+def test_a_click_posts_to_the_armed_canvas() -> None:
+    clicks: list[tuple[int, int]] = []
+    stub = StubGlass(["\xfe", "\xfe", "x"])
+    display = GlassFrontend(
+        cast("Glass", stub), on_click=lambda x, y: clicks.append((x, y))
+    )
+    library = Glk(display)
+    canvas = library.glk_window_open(None, 0, 0, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    library.glk_request_mouse_event(canvas)
+    stub.click_position = (6, 3)
+
+    assert_that(display.read_char(canvas)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that(event.kind).is_equal_to(EventType.MOUSE_INPUT)
+    assert_that(event.window).is_same_as(canvas)
+    assert_that((event.val1, event.val2)).is_equal_to((5, 2))
+    assert_that(canvas.mouse_request).is_false()
+    assert_that(clicks).is_equal_to([(5, 2)])
+
+    library.pending_events.clear()
+
+    assert_that(display.read_char(canvas)).is_equal_to(ord("x"))
+
+
+# A grid click speaks cells, not pixels: the position divides by
+# the font cell, so the game hears which character was clicked on
+# (Glk: Mouse Input Events).
+def test_a_grid_click_speaks_cells() -> None:
+    stub = WideGlass(["\xfe"])
+    display = GlassFrontend(cast("Glass", stub))
+    library = Glk(display)
+    grid = library.glk_window_open(None, 0, 0, WindowType.TEXT_GRID, 0)
+
+    if grid is None:
+        pytest.fail("the grid did not open")
+
+    library.glk_request_mouse_event(grid)
+    stub.click_position = (28, 40)
+
+    assert_that(display.read_char(grid)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that((event.val1, event.val2)).is_equal_to((3, 2))
+
+
+# Only grids and canvases carry the mouse: a click in an armed
+# text buffer, a click outside every armed box, and a click whose
+# position the glass has already forgotten all deliver nothing,
+# and the wait carries on to the next keystroke.
+def test_clicks_elsewhere_are_swallowed() -> None:
+    stub = StubGlass(["\xfe", "x"])
+    display = GlassFrontend(cast("Glass", stub))
+    library = Glk(display)
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the buffer did not open")
+
+    library.glk_request_mouse_event(window)
+    stub.click_position = (5, 3)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(library.pending_events).is_empty()
+
+    beyond = StubGlass(["\xfe", "x"])
+    outside = GlassFrontend(cast("Glass", beyond))
+    far = Glk(outside)
+    canvas = far.glk_window_open(None, 0, 0, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    far.glk_request_mouse_event(canvas)
+    beyond.click_position = (200, 200)
+
+    assert_that(outside.read_char(canvas)).is_equal_to(ord("x"))
+    assert_that(far.pending_events).is_empty()
+
+    ghost = StubGlass(["\xfe", "x"])
+    forgetful = GlassFrontend(cast("Glass", ghost))
+    haunt = Glk(forgetful)
+    haunted = haunt.glk_window_open(None, 0, 0, WindowType.GRAPHICS, 0)
+
+    if haunted is None:
+        pytest.fail("the canvas did not open")
+
+    haunt.glk_request_mouse_event(haunted)
+
+    assert_that(forgetful.read_char(haunted)).is_equal_to(ord("x"))
+
+
+# When only the mouse is wanted, the wait discards keystrokes and
+# ends on an interruption: the click answers through the event
+# queue, never the return value.
+def test_read_mouse_waits_through_keystrokes() -> None:
+    stub = StubGlass(["k", "\xfe"])
+    display = GlassFrontend(cast("Glass", stub))
+    library = Glk(display)
+    canvas = library.glk_window_open(None, 0, 0, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    library.glk_request_mouse_event(canvas)
+    stub.click_position = (2, 2)
+
+    assert_that(display.read_mouse(canvas)).is_none()
+    assert_that(library.pending_events[0].kind).is_equal_to(EventType.MOUSE_INPUT)
 
 
 # A line collects at the keyboard in the glass's §3.8 alphabet:

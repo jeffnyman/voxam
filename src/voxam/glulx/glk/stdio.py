@@ -47,6 +47,11 @@ TOKEN_KEYCODES = {
     "\x1b": KeyCode.ESCAPE,
 }
 
+# The character a replayed <click x y> travels the command stream
+# as -- §10.3's click code, the same marker the Z-Machine's replay
+# presses. The coordinates ride beside it on the click source.
+_CLICK = "\xfe"
+
 
 class StdioFrontend(Frontend):
     """A display over two text streams.
@@ -57,7 +62,7 @@ class StdioFrontend(Frontend):
 
     echoes_input = True
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- one seam per replay concern
         self,
         output: TextIO | None = None,
         input_stream: TextIO | None = None,
@@ -65,6 +70,7 @@ class StdioFrontend(Frontend):
         size: tuple[int, int] | None = None,
         input_source: Callable[[], str] | None = None,
         witness: Callable[[str], None] | None = None,
+        click_source: Callable[[], tuple[int, int] | None] | None = None,
     ) -> None:
         """Stand over streams, stdout and stdin by default.
 
@@ -72,13 +78,19 @@ class StdioFrontend(Frontend):
         acceptance harness's replay callable slots in here, its
         EOFError meaning the script ran dry. A witness receives
         every run of buffer text as it renders, which is where the
-        refusal watch listens.
+        refusal watch listens. A click source carries a replayed
+        script's click positions, and its presence is what makes
+        the mouse claim true: a live stdio session has no pointer,
+        but a replay must answer the mouse events its recording's
+        game asked for.
         """
 
         self.output = output if output is not None else sys.stdout
         self.input = input_stream if input_stream is not None else sys.stdin
         self._source = input_source
         self._witness = witness
+        self._clicks = click_source
+        self.mouse_input = click_source is not None
         self._size = size
         # Grids are redrawn only when they change, by window
         # identity.
@@ -169,6 +181,39 @@ class StdioFrontend(Frontend):
             return KeyCode.RETURN
 
         return TOKEN_KEYCODES.get(line[0], ord(line[0]))
+
+    def read_mouse(self, _window: Window) -> tuple[int, int] | None:
+        """A scripted click, spent as the script says click.
+
+        The command stream and the click positions travel in step:
+        when the game waits for a click, the next command must be
+        the grammar's click marker, and its coordinates come off
+        the click source -- the very coordinates the recording's
+        game was told. A script that speaks anything else here has
+        diverged from its game, and the session ends loudly rather
+        than replaying wrong.
+
+        Raises:
+            GlulxSessionEnd: When the script and the game disagree
+                about what comes next, or the clicks ran dry.
+        """
+
+        if self._clicks is None:
+            # No script aboard: the base answer, which sends
+            # glk_select to its own loud refusal.
+            return None
+
+        line = self._readline()
+        position = self._clicks() if line[:1] == _CLICK else None
+
+        if position is None:
+            self.output.write(
+                "\nvoxam: the game waits for a click the script does not spell\n"
+            )
+
+            raise GlulxSessionEnd
+
+        return position
 
     def prompt_file(self, _usage: int, fmode: int) -> str | None:
         """Ask for a filename in the stream; empty cancels."""
