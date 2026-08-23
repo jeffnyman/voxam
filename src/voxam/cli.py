@@ -4,6 +4,7 @@ import argparse
 import secrets
 import sys
 from collections.abc import Callable, Sequence
+from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -89,6 +90,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="voxam",
         description="An interpreter for Z-Machine and Glulx stories.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {metadata.version('voxam')}",
+        help="show Voxam's version and exit",
     )
     parser.add_argument(
         "story",
