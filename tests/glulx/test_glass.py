@@ -17,7 +17,9 @@ from voxam.glulx.glk.objects import (
     TextBufferWindow,
     Window,
 )
+from voxam.glulx.glk.resources import ImageInfo
 from voxam.painter import MORE_PROMPT
+from voxam.png import Picture, decode
 
 # One painted run, as the stub remembers it: 1-based pixel line
 # and column, the text, its ink and paper, and the bold and italic
@@ -51,6 +53,7 @@ class StubGlass:
         self.timeouts: list[float | None] = []
         self.painted: list[Painted] = []
         self.fills: list[Filled] = []
+        self.draws: list[tuple[object, int, int, tuple[int, int]]] = []
         self.presented = 0
 
     def text(
@@ -78,6 +81,15 @@ class StubGlass:
         colour: tuple[int, int, int],
     ) -> None:
         self.fills.append((line, column, height, width, colour))
+
+    def draw(
+        self,
+        rows: object,
+        line: int,
+        column: int,
+        size: tuple[int, int],
+    ) -> None:
+        self.draws.append((rows, line, column, size))
 
     def present(self) -> None:
         self.presented += 1
@@ -374,6 +386,148 @@ def test_rectangles_fill_clip_and_wear_backgrounds() -> None:
     display.fill_rect(window, 0xFF0000, 0, 30, 5, 5)
 
     assert_that(glass.fills).is_empty()
+
+
+# A PNG Pict draws onto the canvas at its window-relative corner,
+# the source rows handed over whole with the scaled size for the
+# glass to stretch.
+def test_a_pict_draws_scaled_on_the_canvas(tiny_png: bytes) -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (10, 2, 30, 8)))
+    info = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+
+    assert_that(display.draw_image(window, info, 2, 1, 4, 4)).is_true()
+
+    rows, line, column, size = glass.draws[-1]
+
+    assert_that((line, column)).is_equal_to((4, 13))
+    assert_that(size).is_equal_to((4, 4))
+    assert_that(rows).is_equal_to(
+        (((10, 20, 30), (40, 50, 60)), ((0, 0, 0), (0, 0, 0)))
+    )
+
+
+# Overhang is cut away by sampling only the visible pixels: the
+# draw lands at the intersection, sliced one-to-one, each pixel
+# read from its nearest-neighbour source in the scaled grid.
+def test_overhang_clips_to_the_canvas(tiny_png: bytes) -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    info = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+
+    assert_that(display.draw_image(window, info, -1, -1, 4, 4)).is_true()
+
+    rows, line, column, size = glass.draws[-1]
+
+    assert_that((line, column)).is_equal_to((1, 1))
+    assert_that(size).is_equal_to((3, 3))
+    assert_that(rows).is_equal_to(
+        (
+            ((10, 20, 30), (40, 50, 60), (40, 50, 60)),
+            ((0, 0, 0), (0, 0, 0), (0, 0, 0)),
+            ((0, 0, 0), (0, 0, 0), (0, 0, 0)),
+        )
+    )
+
+
+# A draw scaled to nothing or falling wholly off the canvas is
+# legitimate -- "the excess is not drawn" -- and succeeds while
+# drawing nothing.
+def test_fully_clipped_draws_are_legitimate(tiny_png: bytes) -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    info = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+
+    assert_that(display.draw_image(window, info, 50, 0, 4, 4)).is_true()
+    assert_that(display.draw_image(window, info, 0, 0, 0, 4)).is_true()
+    assert_that(glass.draws).is_empty()
+
+
+# Only canvases draw here, as the gestalt told the game -- and
+# only PNGs, since no JPEG decoder is aboard: both refusals answer
+# False, the spec's channel for an undrawn image.
+def test_undrawables_are_refused(tiny_png: bytes) -> None:
+    display, glass = glassed()
+    canvas = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    buffer = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 10, 6)))
+    pict = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+    jpeg = ImageInfo(2, b"JPEG", b"\xff\xd8not-a-png", 2, 2)
+
+    assert_that(display.draw_image(buffer, pict, 0, 0, 2, 2)).is_false()
+    assert_that(display.draw_image(canvas, jpeg, 0, 0, 2, 2)).is_false()
+    assert_that(glass.draws).is_empty()
+
+
+# A Pict decodes once per number, refusals included: the cache
+# remembers nothing-to-draw as firmly as it remembers pixels.
+def test_pictures_decode_once(monkeypatch: pytest.MonkeyPatch, tiny_png: bytes) -> None:
+    attempts: list[bytes] = []
+
+    def counting(data: bytes) -> Picture:
+        attempts.append(data)
+
+        return decode(data)
+
+    monkeypatch.setattr("voxam.glulx.glk.glass.decode", counting)
+
+    display, _ = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    pict = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+    jpeg = ImageInfo(2, b"JPEG", b"\xff\xd8not-a-png", 2, 2)
+
+    display.draw_image(window, pict, 0, 0, 2, 2)
+    display.draw_image(window, pict, 4, 0, 2, 2)
+    display.draw_image(window, jpeg, 0, 0, 2, 2)
+    display.draw_image(window, jpeg, 0, 0, 2, 2)
+
+    assert_that(attempts).is_length(2)
+
+
+# A fully transparent pixel travels with alpha zero -- its color
+# already composed away to black by the decoder, and irrelevant --
+# so the glass lets what is drawn beneath show through: the same
+# layering the Z-Machine's chrome rides.
+def test_clear_pixels_travel_with_alpha_zero(holey_png: bytes) -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    info = ImageInfo(3, b"PNG ", holey_png, 2, 1)
+
+    assert_that(display.draw_image(window, info, 0, 0, 2, 1)).is_true()
+
+    rows, *_ = glass.draws[-1]
+
+    assert_that(rows).is_equal_to((((200, 0, 0), (0, 0, 0, 0)),))
+
+
+# glk_window_clear only raises a flag for the repaint -- but paint
+# arriving before that repaint must land on the cleared canvas,
+# not be erased under it: the clear settles first, and the flush
+# afterwards has nothing left to erase.
+def test_a_clear_lands_under_the_next_paint(tiny_png: bytes) -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    info = ImageInfo(1, b"PNG ", tiny_png, 2, 2)
+
+    display.flush(window)
+    glass.fills.clear()
+
+    window.clear()
+
+    assert_that(display.draw_image(window, info, 0, 0, 2, 2)).is_true()
+    assert_that(glass.fills).is_equal_to([(1, 1, 6, 10, (255, 255, 255))])
+    assert_that(glass.draws).is_length(1)
+
+    glass.fills.clear()
+    display.flush(window)
+
+    assert_that(glass.fills).is_empty()
+
+    window.clear()
+    display.fill_rect(window, 0xFF0000, 0, 0, 2, 2)
+
+    assert_that(glass.fills).is_equal_to(
+        [(1, 1, 6, 10, (255, 255, 255)), (1, 1, 2, 2, (255, 0, 0))]
+    )
 
 
 # A line collects at the keyboard in the glass's §3.8 alphabet:

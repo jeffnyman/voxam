@@ -666,7 +666,7 @@ class GraphicsFrontend:
         factor = self._factor(number)
         size = (int(picture.width * factor), int(picture.height * factor))
 
-        self._glass.draw(_layered(picture), line, column, size)
+        self._glass.draw(layered(picture), line, column, size)
 
     def _redress(self) -> None:
         """Re-blit the on-screen chrome in the new Current Palette.
@@ -1181,7 +1181,7 @@ def _appearance(
     )
 
 
-def _layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
+def layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
     """A picture's rows with its clear pixels marked for the glass.
 
     A clear pixel travels as (red, green, blue, 0) -- alpha zero

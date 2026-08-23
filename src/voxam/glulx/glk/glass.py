@@ -27,17 +27,20 @@ park the way a terminal does.
 
 from typing import TYPE_CHECKING, cast
 
-from voxam.errors import GlulxSessionEnd
-from voxam.glass import INK_DEFAULT, PAPER_DEFAULT, open_pygame_glass
-from voxam.glulx.glk.objects import KeyCode, Metrics, Window
+from voxam.errors import GlulxSessionEnd, PNGError
+from voxam.glass import INK_DEFAULT, PAPER_DEFAULT, layered, open_pygame_glass
+from voxam.glulx.glk.objects import GraphicsWindow, KeyCode, Metrics, Window
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
+from voxam.png import decode
 from voxam.speaker import Speaker
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
     from voxam.glass import Glass
+    from voxam.glulx.glk.resources import ImageInfo
     from voxam.glulx.glk.wrap import Segment
+    from voxam.png import Picture
 
 # The §3.8-translated characters the glass's key() answers with, as
 # the Glk keycodes they mean (Glk: Character Input) -- one alphabet
@@ -130,6 +133,10 @@ class GlassFrontend(PaintedFrontend):
         # Each canvas's background color, once a game chooses one
         # (Glk: Graphics in Graphics Windows).
         self._backgrounds: dict[Window, tuple[int, int, int]] = {}
+        # Each Pict's decoded pixels, once per number -- including
+        # the refusals, so a JPEG costs one attempt, not one per
+        # draw.
+        self._pictures: dict[int, Picture | None] = {}
 
         super().__init__(speaker=speaker, on_line=on_line, on_key=on_key)
 
@@ -205,7 +212,105 @@ class GlassFrontend(PaintedFrontend):
     ) -> None:
         """Fill a rectangle with a color of the game's own."""
 
+        self._settled(window)
         self._fill(window, left, top, width, height, _rgb(color))
+
+    def draw_image(  # noqa: PLR0913, PLR0917 -- the six values of image_draw_scaled
+        self,
+        window: Window,
+        image: "ImageInfo",
+        val1: int,
+        val2: int,
+        width: int,
+        height: int,
+    ) -> bool:
+        """Draw a Pict onto a canvas, scaled and clipped.
+
+        Only graphics windows draw here, as the gestalt already
+        told the game (Glk: Testing for Graphics Capabilities),
+        and only PNG resources: no JPEG decoder is aboard, so a
+        JPEG Pict is refused whole rather than half-drawn. val1
+        and val2 are the upper-left corner in window pixels,
+        signed, and "it is legitimate for part of the image to
+        fall outside the window; the excess is not drawn" (Glk:
+        Graphics in Graphics Windows).
+        """
+
+        if not isinstance(window, GraphicsWindow):
+            return False
+
+        picture = self._picture(image)
+
+        if picture is None:
+            return False
+
+        self._settled(window)
+
+        if width <= 0 or height <= 0:
+            # Scaled to nothing is drawn as nothing.
+            return True
+
+        box_left, box_top, box_right, box_bottom = window.bbox
+        left = box_left + val1
+        top = box_top + val2
+        x0 = max(left, box_left)
+        y0 = max(top, box_top)
+        x1 = min(left + width, box_right)
+        y1 = min(top + height, box_bottom)
+
+        if x1 <= x0 or y1 <= y0:
+            # Fully off the canvas: legitimate, and nothing shows.
+            return True
+
+        rows = layered(picture)
+
+        if (x0, y0, x1, y1) != (left, top, left + width, top + height):
+            # The overhang is cut away by sampling only the
+            # visible pixels, each destination pixel reading its
+            # nearest-neighbour source; the glass then blits the
+            # slice one-to-one instead of scaling.
+            rows = tuple(
+                tuple(
+                    rows[(y - top) * picture.height // height][
+                        (x - left) * picture.width // width
+                    ]
+                    for x in range(x0, x1)
+                )
+                for y in range(y0, y1)
+            )
+
+        self._glass.draw(rows, y0 + 1, x0 + 1, (x1 - x0, y1 - y0))
+
+        return True
+
+    def _picture(self, image: "ImageInfo") -> "Picture | None":
+        """The decoded pixels, once per Pict number.
+
+        Whatever cannot decode -- a JPEG, a corrupt PNG -- is
+        remembered as nothing, so a refusal costs one attempt.
+        """
+
+        if image.number not in self._pictures:
+            try:
+                self._pictures[image.number] = decode(image.data)
+            except PNGError:
+                self._pictures[image.number] = None
+
+        return self._pictures[image.number]
+
+    def _settled(self, window: Window) -> None:
+        """Consume a pending clear before new paint lands.
+
+        glk_window_clear only raises the flag, and a repaint
+        honors it later -- but paint arriving in between must land
+        on the cleared canvas, not be erased under it, so the
+        clear happens now. An erase needs no such care: it paints
+        the same background the clear would.
+        """
+
+        if window.pending_clear:
+            window.pending_clear = False
+            self.erase_rect(window, 0, 0, window.width, window.height)
 
     def _background(self, window: Window) -> tuple[int, int, int]:
         """The canvas's background: white until the game says else."""
