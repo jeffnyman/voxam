@@ -29,6 +29,8 @@ from voxam.cli import (
     main,
 )
 from voxam.gallery import Gallery, Resolution
+from voxam.glass import Glass as PygameGlass
+from voxam.glulx.glk.glass import GlassFrontend as GlulxGlassFrontend
 from voxam.glulx.glk.objects import KeyCode as GlkKeyCode
 from voxam.glulx.glk.terminal import TerminalFrontend
 from voxam.iff import Chunk, chunk, write_form
@@ -752,7 +754,7 @@ def test_the_glk_bridge_speaks_the_grammar(
 ) -> None:
     target = tmp_path / "session.accept"
     recorder = Recorder(target, game=tmp_path / "story.ulx", seed=7, warn=print)
-    line, key = _recorded_glk(recorder)
+    line, key, click = _recorded_glk(recorder)
 
     key(GlkKeyCode.UP)
     key(GlkKeyCode.RETURN)
@@ -761,6 +763,7 @@ def test_the_glk_bridge_speaks_the_grammar(
     key(0x01)
     line("go north", 0)
     line("g", GlkKeyCode.ESCAPE)
+    click(5, 2)
     recorder.close()
 
     written = target.read_text(encoding="utf-8").splitlines()
@@ -770,6 +773,7 @@ def test_the_glk_bridge_speaks_the_grammar(
     assert_that(written).contains("x")
     assert_that(written).contains("go north")
     assert_that(written).contains("g")
+    assert_that(written).contains("<click 5 2>")
 
     warned = capsys.readouterr().out
 
@@ -857,7 +861,7 @@ def test_glulx_keys_record_at_the_glass_and_replay(
         on_line = on_key = None
 
         if recorder is not None:
-            on_line, on_key = _recorded_glk(recorder)
+            on_line, on_key, _ = _recorded_glk(recorder)
 
         sink: list[str] = []
 
@@ -881,6 +885,96 @@ def test_glulx_keys_record_at_the_glass_and_replay(
 
     # A live session without a recorder gets the glass unseamed.
     played = main([str(story)])
+
+    assert_that(played).is_equal_to(0)
+
+
+# A start function that opens a text grid, asks for one click,
+# and answers "up!" when the click's x lands on cell 5 -- the
+# smallest story that can hear the mouse. glulx_hears's skeleton,
+# with the mouse request in place of the key request.
+def glulx_awaits_click() -> bytes:
+    return (
+        bytes([0xC0, 0x00, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x04])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x23, 0x05])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x11, 0x00, 0x2F, 0x01])
+        + bytes([0x81, 0x49, 0x11, 0x02, 0x00])
+        + bytes([0x40, 0x81, 0x01])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xD4, 0x01])
+        + bytes([0x40, 0x82, 0x01, 0x20])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xC0, 0x01])
+        + bytes([0x24, 0x36, 0x01, 0x01, 0x28, 0x00, 0x00, 0x00, 0x05, 0x0A])
+        + bytes([0x70, 0x01, 0x6E])
+        + bytes([0x70, 0x01, 0x6F])
+        + bytes([0x81, 0x20])
+        + bytes([0x70, 0x01, 0x75])
+        + bytes([0x70, 0x01, 0x70])
+        + bytes([0x70, 0x01, 0x21])
+        + bytes([0x81, 0x20])
+    )
+
+
+# A real click at the pygame window lands in the script as
+# <click x y> with the coordinates the game itself was told, and
+# the replay answers the same mouse event with the same pair:
+# record the click, hear the click -- the roundtrip the whole
+# mouse era was for.
+def test_glulx_clicks_record_at_the_window_and_replay(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = glulx_story(tmp_path, code=glulx_awaits_click())
+    target = tmp_path / "session.accept"
+
+    class Clicky(WindowStub):
+        def click(self) -> tuple[int, int] | None:
+            # 1-based window pixels; at the stub's 9x18 cell this
+            # is the grid cell (5, 2).
+            return (46, 37)
+
+    def scripted(
+        blorb: object = None,
+        *,
+        zoom: float | None = None,
+        recorder: Recorder | None = None,
+    ) -> GlulxGlassFrontend:
+        del blorb, zoom
+
+        on_line = on_key = on_click = None
+
+        if recorder is not None:
+            on_line, on_key, on_click = _recorded_glk(recorder)
+
+        return GlulxGlassFrontend(
+            cast("PygameGlass", Clicky("\xfe")),
+            on_line=on_line,
+            on_key=on_key,
+            on_click=on_click,
+        )
+
+    monkeypatch.setattr("voxam.cli._glass_frontend", scripted)
+
+    recorded = main([str(story), "--graphics", "--record", str(target), "--seed", "7"])
+
+    assert_that(recorded).is_equal_to(0)
+    assert_that(target.read_text(encoding="utf-8")).contains("<click 5 2>")
+
+    replayed = main(["--accept", str(target)])
+    out = capsys.readouterr().out
+
+    assert_that(replayed).is_equal_to(0)
+    assert_that(out).contains("up!")
+    assert_that(out).does_not_contain("no\n")
+
+    # A live session without a recorder gets the window unseamed.
+    played = main([str(story), "--graphics"])
 
     assert_that(played).is_equal_to(0)
 
