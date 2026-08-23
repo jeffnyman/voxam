@@ -19,6 +19,7 @@ pixel wide); and the event pump sleeps between polls so a wait is
 not a spin.
 """
 
+import io
 import os
 from collections.abc import Callable, Sequence
 from fractions import Fraction
@@ -203,6 +204,17 @@ class Glass(Protocol):
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         """Show a cover picture centred until present() paints over."""
+
+    def photograph(
+        self, data: bytes
+    ) -> Sequence[Sequence[tuple[int, int, int]]] | None:
+        """Decode photographic bytes -- a JPEG -- to pixel rows.
+
+        The interpreter decodes PNG itself; JPEG it hands to the
+        window, whose pygame carries the decoders the interpreter
+        does not. Bytes nothing aboard can decode answer None, and
+        the picture is refused honestly.
+        """
 
     def draw(
         self,
@@ -1526,6 +1538,25 @@ class _PygameGlass:
 
     def click(self) -> tuple[int, int] | None:
         return self._click
+
+    def photograph(
+        self, data: bytes
+    ) -> Sequence[Sequence[tuple[int, int, int]]] | None:
+        module = self._pygame
+
+        try:
+            surface: Any = module.image.load(io.BytesIO(data))
+        except module.error:
+            return None
+
+        width, height = surface.get_size()
+
+        def pixel(x: int, y: int) -> tuple[int, int, int]:
+            colour = surface.get_at((x, y))
+
+            return (colour[0], colour[1], colour[2])
+
+        return tuple(tuple(pixel(x, y) for x in range(width)) for y in range(height))
 
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         surface = self._surface(rows)

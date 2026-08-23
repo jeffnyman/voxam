@@ -335,12 +335,13 @@ pixels, fills and erases clip to its own box, its pixels persist
 between repaints because they are the game's work -- and a moved
 canvas is cleared to background with the redraw event the spec
 demands posted to the game (Glk: Graphics Windows). The gblorb's
-PNG Picts draw onto the canvases scaled and clipped, full
-transparency carried through to the surface; a JPEG Pict is
-refused whole rather than half-drawn, and the transparency
-gestalt underclaims at zero because partial alpha is composed
-over black -- both honest refusals with their reasons written
-down. The mouse is claimed: a click lands in whichever armed
+Picts draw onto the canvases scaled and clipped -- PNG through
+the interpreter's own decoder with full transparency carried to
+the surface, JPEG through the window's, whose pygame reads what
+the interpreter does not; what neither can read is refused whole
+rather than half-drawn. The transparency gestalt underclaims at
+zero because partial alpha is composed over black -- an honest
+refusal with its reason written down. The mouse is claimed: a click lands in whichever armed
 grid or canvas it hit, delivered as the event glk_select expects
 in that window's own units, cells or pixels. And hyperlinks are
 claimed beside it: linked runs survive wrapping distinct, wear
