@@ -36,6 +36,12 @@
   <a href="https://vscode.dev/github/jeffnyman/voxam"><img alt="Open with vscode" src="https://img.shields.io/static/v1?logo=visualstudiocode&label=&message=Open%20in%20Visual%20Studio%20Code&labelColor=2c2c32&color=007acc&logoColor=007acc"></a>
 </p>
 
+<p align="center">
+  If you find any of this useful, consider leaving a ⭐️ for the repo.
+</p>
+
+---
+
 An interpreter for the Z-Machine and for Glulx, written in
 Python.
 
@@ -74,8 +80,7 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.4`: the senses -- graphics, images, the mouse, and
-hyperlinks at the Glulx window.
+Version `1.5`: Full Glulx, and the Treaty of Babel.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -110,19 +115,31 @@ in, one painted spine driving both Glk displays -- the window
 tree, buffers wrapped behind `[MORE]`, styles in the fitted
 faces, timers, and the Blorb's sound through the speaker.
 
-New in `1.4`, the senses: the window sees, draws, and points.
-Graphics windows open as true pixel canvases -- persistent,
-filled and erased in their own coordinates -- and the gblorb's
-PNG art draws onto them, scaled and clipped, transparency
-carried through. The mouse is claimed: a click lands in whichever
-armed grid or canvas it hit, in that window's own units, and
-hyperlinks are claimed beside it -- linked text wears the
-reader's blue, and a click on it delivers the link's value. The
-acceptance grammar spells both, `<click x y>` and `<link n>`
-carrying exactly what the game was told, recorded at the window
-and replayed anywhere. What remains -- JPEG art, partial
-transparency, and the last gestalt claims -- is the road to 1.5,
-Full Glulx, alongside the Treaty of Babel. Version 2.0 is
+The senses are `1.4`'s: graphics windows as true pixel canvases,
+the gblorb's art drawn onto them scaled and clipped, the mouse
+landing in whichever armed grid or canvas it hit, hyperlinks in
+the reader's blue and selected by click -- and the acceptance
+grammar spelling every one of those inputs, recorded at the
+window and replayed anywhere.
+
+New in `1.5`, the declaration: VΘXΔM claims Full Glulx, in the
+manner `1.0` claimed the Z-Machine. The machine is certified by
+glulxercise entire -- seventy sections, zero failures, held in
+continuous integration -- and the displays' claims are all true
+where made: JPEG art now draws through the window's own decoder,
+partial transparency travels whole to the blit, character input
+reaches graphics windows, and even the Z-Machine's double click
+found its code and its `<double-click x y>` spelling along the
+way. The exclusion ledger is two entries, both spec-sanctioned
+refusals with their reasons written down: MOD music, because no
+tracker decoder is aboard, and margin images in text buffers,
+which the Glk spec itself allows a library to decline. And the
+Treaty of Babel is aboard: `--babel` reports any story's IFID by
+the treaty's own per-format rules, a blorb's iFiction record
+answers first with its bibliography beside it, and every game
+that can be named plays under its own name in the title bar --
+modern games through their records, Infocom's whole catalog
+through a table of its 246 known releases. Version 2.0 is
 reserved for something newer still: a Lectrote-like interface on
 the GlkOte protocol.
 
@@ -236,6 +253,22 @@ courtesies the game asks for -- pictures, sound, undo, a mouse,
 menus -- are decoded from the flags as the compiler shipped them,
 before any interpreter stamps in capabilities of its own. Packaged
 `.zblorb` stories work as-is.
+
+`--babel` names the story instead: its IFID, computed by the
+Treaty of Babel's own per-format rules -- the `UUID://` brand
+where one is burned in, the human-readable legacy identities like
+`ZCODE-88-840726` from the header numbers otherwise -- and, when
+a blorb carries an iFiction record, the record's IFID first with
+its title, author, and headline beside it. Unlike the Z-Machine's
+own reports, this one speaks both machines:
+
+```bash
+voxam --babel path/to/story.gblorb
+```
+
+The same identities name the session itself: a game the iFiction
+record or the Infocom catalog knows plays under its own title, in
+the terminal's title bar and the pygame window's alike.
 
 Deeper than the manifest, `--listing` disassembles the whole story
 txd-style -- every routine with its locals, every opcode with its

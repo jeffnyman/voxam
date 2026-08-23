@@ -350,13 +350,67 @@ the reader's blue on the glass, and a click on one delivers its
 link value to a window that asked (Glk: Accepting Hyperlink
 Events). Both inputs speak the grammar -- `<click x y>` and
 `<link n>` -- so a session full of pointing records at the
-window and replays at the stdio display, byte for byte.
+window and replays at the stdio display, byte for byte. The
+double click found its spelling too: the pygame glass hears the
+fast pair, presses §10.3.3's own code on the Z-Machine, delivers
+a second mouse event on Glulx -- Glk knows only clicks -- and
+`<double-click x y>` replays it on either machine.
 
-### The road to 1.5
+And the Treaty of Babel is aboard. Every story Voxam plays can
+be asked its IFID -- `--babel` speaks both machines and their
+blorbs -- computed by the treaty's own per-format rules: the
+`UUID://` brand scanned out of byte-accessible memory where
+modern Inform burned one in, gated by the treaty's own pre-2006
+serial rule; the human-readable legacy identities otherwise,
+`ZCODE-release-serial` with the checksum appended exactly where
+the treaty says and withheld from Infocom's 8x serials and the
+untrusted forms, `GLULX-` identities in both the Inform and the
+alien flavors (Babel: The IFID unique identifier). A blorb's
+iFiction record answers first, its title, author, and headline
+reported beside the IFID; a record that will not parse earns a
+loud note while the story's own bytes answer instead. And the
+identities name the sessions: a modern game plays under its
+record's title, and Infocom's games -- which predate the treaty
+by two decades -- play under theirs by way of a table of all 246
+known releases in Andrew Plotkin's Obsessively Complete Infocom
+Catalog, keyed by the very IFIDs the headers compute. Trinity's
+terminal tab says Trinity; Scroll Thief's window says Scroll
+Thief.
 
-What remains is glass, not machine, and it maps onto the minor
-releases ahead -- each shipping when its capability is coherent,
-not on a calendar:
+### Full Glulx: the declaration
+
+VΘXΔM claims Full Glulx, in the manner 1.0 claimed the
+Z-Machine. The machine claim is glulxercise's: all seventy
+sections pass with zero failures, held to the exact tally in
+continuous integration. The display claims are all true where
+made and refused loudly where not, and after the last known
+shapes were built -- JPEG through the window's own decoder,
+partial alpha whole to the blit, character input in graphics
+windows -- the exclusion ledger has exactly two entries, both
+spec-sanctioned refusals with their reasons written down:
+
+- **MOD music.** The music gestalt answers zero because the only
+  audio decoder aboard is AIFF; a tracker player is an audio
+  engine of its own, for a handful of games (Glk: Testing for
+  Sound Capabilities).
+- **Margin images in text buffers.** Images draw in graphics
+  windows alone, as the DrawImage gestalt says per window type --
+  "libraries may implement both, neither, or only one" is the
+  spec's own sanction, and text flowed around margin art is the
+  one display feature it explicitly permits declining (Glk:
+  Testing for Graphics Capabilities).
+
+Everything else in the Glk 0.7.6 and Glulx 3.1.3 specifications
+that a blocking display can express is expressed, and enforced
+the way every Voxam claim is enforced: 100% branch coverage,
+forty recordings swept end-to-end, the checkers held to their
+tallies.
+
+### The road to 1.5, travelled
+
+What remained after 1.1 was glass, not machine, and it mapped
+onto the minor releases -- each shipped when its capability was
+coherent, not on a calendar:
 
 - **1.2, the complete harness.** Done in the making: the grammar
   spells raw keystrokes, so a session at the painted glass records
@@ -372,16 +426,12 @@ not on a calendar:
   selection -- bundled because the pygame glass is where all
   three become honest claims -- and the grammar's `<click x y>`
   and `<link n>` spelling every one of them.
-- **1.5, Full Glulx and the Treaty of Babel.** The declaration
-  release, in the manner of 1.0. First the last claims with
-  known shapes: JPEG art through the window's own decoder,
-  partial transparency carried honestly, character input in
-  graphics windows. Then the Treaty of Babel: IFIDs computed by
-  the treaty's per-format rules and the Blorb's iFiction record
-  read, so Voxam can name what it plays. Then the declaration
-  itself -- the parity sweep, the certifications, and a ledger
-  whose exclusion list is short and spec-sanctioned: MOD music
-  and margin images, refusals with their reasons written down.
+- **1.5, Full Glulx and the Treaty of Babel.** Done in the
+  making: the last claims with known shapes -- JPEG art through
+  the window's own decoder, partial transparency carried whole,
+  character input in graphics windows -- then the treaty entire,
+  IFIDs and iFiction and the Infocom catalog, and the
+  declaration above with its two-entry exclusion ledger.
 
 ### And then 2.0
 

@@ -1,3 +1,15 @@
+## v1.5.0 (2026-08-23)
+
+### Feat
+
+- **babel**: the iFiction record answers first -- the IFmd chunk read whole, bibliography in the report, and modern games name their own windows (#239)
+- **babel**: the Infocom catalog names its games -- 246 legacy IFIDs to titles, worn in the terminal's and the window's own title bars (#238)
+- **babel**: the treaty's IFID -- brands scanned, legacy headers spelled, and --babel reports both machines' identities (#237)
+- **glulx**: the canvas takes keystrokes -- character input was window-blind all along, and the gestalt now says so (#236)
+- **glulx**: partial alpha travels whole -- straight colors and opacities through the decoder, blended on the blit, and the transparency gestalt answers one and means it (#235)
+- **glulx**: JPEG draws through the window's own decoder -- pygame reads what the interpreter does not, and refusal narrows to what neither can (#234)
+- **machine**: the glass hears the double click -- §10.3.3's own code pressed, spelled as <double-click x y>, and replayed on either machine (#233)
+
 ## v1.4.0 (2026-08-23)
 
 ### Feat
