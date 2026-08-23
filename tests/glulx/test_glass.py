@@ -344,6 +344,28 @@ def test_a_timer_fires_between_keystrokes(monkeypatch: pytest.MonkeyPatch) -> No
     assert_that(display.read_line(window, 80)).is_equal_to(("go", 0))
 
 
+# The timer's deadline reaches the glass as the key wait's own
+# timeout, and a stopped timer leaves the wait unbounded -- the
+# spine's watch, kept at the window exactly as at the terminal.
+def test_the_timers_deadline_reaches_the_glass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
+    display, glass = glassed(["x", "y"])
+    window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 20, 3)))
+
+    display.set_timer(2000)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+    assert_that(glass.timeouts[-1]).is_equal_to(2.0)
+
+    display.set_timer(0)
+
+    assert_that(display.read_char(window)).is_equal_to(ord("y"))
+    assert_that(glass.timeouts[-1]).is_none()
+
+
 # The file prompt asks on the bottom row of the glass, and Return
 # answers -- the shared spine, painting through this display's own
 # cells.
