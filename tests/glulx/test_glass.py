@@ -10,45 +10,54 @@ from voxam.glulx.glk.glass import GlassFrontend
 from voxam.glulx.glk.objects import (
     EventType,
     FileMode,
+    GraphicsWindow,
     KeyCode,
+    Metrics,
     Style,
     TextBufferWindow,
     Window,
 )
 from voxam.painter import MORE_PROMPT
 
-# One painted run, as the stub remembers it: 1-based row and
-# column, the text, its ink and paper, and the bold and italic
+# One painted run, as the stub remembers it: 1-based pixel line
+# and column, the text, its ink and paper, and the bold and italic
 # flags.
 Painted = tuple[int, int, str, tuple[int, int, int], tuple[int, int, int], bool, bool]
+
+# One filled rectangle: 1-based pixel line and column, then the
+# height, width, and color the glass was handed.
+Filled = tuple[int, int, int, int, tuple[int, int, int]]
 
 
 class StubGlass:
     """A glass that remembers its blits and answers scripted keys.
 
     Only the sliver of the Glass protocol this display actually
-    drives is stubbed -- the pixel methods wait for the graphics
-    road stop -- so construction goes through a cast. Running out
-    of scripted keys plays the close button: EOFError, as the real
-    glass raises it.
+    drives is stubbed, so construction goes through a cast. Its
+    font cell is one pixel square, so pixel positions and cell
+    positions coincide and the expectations stay easy to read;
+    WideGlass carries the real scaling. Running out of scripted
+    keys plays the close button: EOFError, as the real glass
+    raises it.
     """
 
     columns = 30
     lines = 8
-    cell_width = 9
-    cell_height = 18
+    cell_width = 1
+    cell_height = 1
 
     def __init__(self, keys: "list[str | None] | None" = None) -> None:
         self.keys = list(keys or [])
         self.timeouts: list[float | None] = []
         self.painted: list[Painted] = []
+        self.fills: list[Filled] = []
         self.presented = 0
 
-    def paint(
+    def text(
         self,
-        row: int,
+        line: int,
         column: int,
-        text: str,
+        characters: str,
         ink: tuple[int, int, int],
         paper: tuple[int, int, int],
         *,
@@ -58,7 +67,17 @@ class StubGlass:
     ) -> None:
         del graphics
 
-        self.painted.append((row, column, text, ink, paper, bold, italic))
+        self.painted.append((line, column, characters, ink, paper, bold, italic))
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        self.fills.append((line, column, height, width, colour))
 
     def present(self) -> None:
         self.presented += 1
@@ -70,6 +89,13 @@ class StubGlass:
             raise EOFError
 
         return self.keys.pop(0)
+
+
+class WideGlass(StubGlass):
+    """A glass with a real font cell, for the scaling arithmetic."""
+
+    cell_width = 9
+    cell_height = 18
 
 
 class TickingGlass(StubGlass):
@@ -111,12 +137,14 @@ def saying(window: TextBufferWindow, text: str, style: int = Style.NORMAL) -> No
         window.put_char(ord(character))
 
 
-# The size is the glass's own grid, measured in cells -- and with
-# the default 1x1 metrics, cells are the only unit Glk hears.
-def test_the_size_is_the_glasses_grid() -> None:
+# The size is the whole glass in real pixels -- here one per
+# cell -- and the metrics carry the font cell, so a text window
+# still answers its size in characters.
+def test_the_size_is_the_glasses_pixels() -> None:
     display, _ = glassed()
 
     assert_that(display.size()).is_equal_to((30, 8))
+    assert_that(display.metrics).is_equal_to(Metrics(1, 1))
 
 
 # Without an injected glass, construction opens the real pygame
@@ -236,8 +264,8 @@ def test_the_pause_prompt_reverses_and_turns() -> None:
 
 
 # The line being typed is drawn in the input style with a block
-# caret painted where the next character will land -- a window has
-# no hardware cursor to park.
+# caret -- one filled font cell -- where the next character will
+# land: a window has no hardware cursor to park.
 def test_typing_wears_a_block_caret() -> None:
     display, glass = glassed()
     window = cast("TextBufferWindow", boxed(TextBufferWindow(), (0, 0, 10, 4)))
@@ -250,9 +278,7 @@ def test_typing_wears_a_block_caret() -> None:
     assert_that(glass.painted).contains(
         (4, 3, "go", INK_DEFAULT, PAPER_DEFAULT, True, False)
     )
-    assert_that(glass.painted).contains(
-        (4, 5, " ", PAPER_DEFAULT, INK_DEFAULT, False, False)
-    )
+    assert_that(glass.fills).contains((4, 5, 1, 1, INK_DEFAULT))
 
 
 # A typed line reaching the window's right edge leaves the caret
@@ -265,13 +291,89 @@ def test_a_full_line_keeps_the_caret_on_the_glass() -> None:
     display._typing = window
     display.flush(window)
 
-    caret = [
-        entry
-        for entry in glass.painted
-        if entry[3] == PAPER_DEFAULT and entry[4] == INK_DEFAULT
-    ]
+    assert_that(glass.fills).is_empty()
 
-    assert_that(caret).is_empty()
+
+# At a real font cell the tree is arranged in pixels: a text
+# window still lays out in characters by way of the metrics, each
+# row lands a cell-height down and each character a cell-width
+# along, and the caret is one font cell of ink.
+def test_a_real_cell_scales_the_painting() -> None:
+    stub = WideGlass()
+    display = GlassFrontend(cast("Glass", stub))
+
+    assert_that(display.size()).is_equal_to((270, 144))
+    assert_that(display.metrics).is_equal_to(Metrics(9, 18))
+
+    window = TextBufferWindow()
+    window.metrics = Metrics(9, 18)
+    window.rearrange((0, 0, 90, 72))
+
+    assert_that(window.width).is_equal_to(10)
+
+    saying(window, "> ")
+    display._typed = "go"
+    display._typing = window
+    display.flush(window)
+
+    assert_that(stub.painted).contains(
+        (55, 19, "go", INK_DEFAULT, PAPER_DEFAULT, True, False)
+    )
+    assert_that(stub.fills).contains((55, 37, 18, 9, INK_DEFAULT))
+
+
+# The graphics claim is true at a real window, and a fresh canvas
+# is erased to its background -- initially white -- exactly once:
+# its pixels are the game's own work and persist across repaints
+# (Glk: Graphics Windows).
+def test_a_canvas_opens_white_and_persists() -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 4)))
+
+    assert_that(display.graphics).is_true()
+
+    display.flush(window)
+
+    assert_that(glass.fills).contains((1, 1, 4, 10, (255, 255, 255)))
+
+    glass.fills.clear()
+    display.flush(window)
+
+    assert_that(glass.fills).is_empty()
+
+
+# A chosen background dresses future clears and erases; a filled
+# rectangle wears the game's own color. Both are window-relative
+# and clipped to the canvas: overhang on any edge is legitimate
+# and simply not drawn (Glk: Graphics in Graphics Windows).
+def test_rectangles_fill_clip_and_wear_backgrounds() -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (10, 10, 20, 20)))
+
+    display.flush(window)
+    glass.fills.clear()
+
+    display.set_background_color(window, 0x336699)
+    window.clear()
+    display.flush(window)
+
+    assert_that(glass.fills).contains((11, 11, 10, 10, (0x33, 0x66, 0x99)))
+
+    glass.fills.clear()
+    display.fill_rect(window, 0xFF0000, -2, -2, 5, 5)
+
+    assert_that(glass.fills).contains((11, 11, 3, 3, (255, 0, 0)))
+
+    display.erase_rect(window, 5, 5, 100, 100)
+
+    assert_that(glass.fills).contains((16, 16, 5, 5, (0x33, 0x66, 0x99)))
+
+    glass.fills.clear()
+    display.fill_rect(window, 0xFF0000, 0, 0, 0, 4)
+    display.fill_rect(window, 0xFF0000, 30, 0, 5, 5)
+    display.fill_rect(window, 0xFF0000, 0, 30, 5, 5)
+
+    assert_that(glass.fills).is_empty()
 
 
 # A line collects at the keyboard in the glass's §3.8 alphabet:

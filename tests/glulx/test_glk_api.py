@@ -502,6 +502,31 @@ def test_incoherent_splits_are_refused() -> None:
     ).is_not_none()
 
 
+# A rearrange that moves a real canvas clears it and owes the
+# game a redraw event -- "the window in question has been cleared
+# to its background color, and must be redrawn" (Glk: Window
+# Events). Opening one owes nothing: a fresh canvas is background
+# and the game knows it.
+def test_a_moved_canvas_earns_a_redraw_event() -> None:
+    library, first = rooted(Artist())
+    canvas = library.glk_window_open(first, ABOVE_FIXED, 8, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    assert_that(library.pending_events).is_empty()
+
+    pair = library.glk_window_get_parent(canvas)
+    library.glk_window_set_arrangement(pair, ABOVE_FIXED, 12, canvas)
+
+    redraws = [
+        event for event in library.pending_events if event.kind == EventType.REDRAW
+    ]
+
+    assert_that(redraws).is_length(1)
+    assert_that(redraws[0].window).is_same_as(canvas)
+
+
 # Changing a pair's direction moves the size constraint to the
 # other child while the glass stays where it is -- the spec's own
 # worked example (Glk: Changing Window Constraints).

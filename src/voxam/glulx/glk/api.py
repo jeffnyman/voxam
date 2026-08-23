@@ -215,6 +215,14 @@ class Glk:
 
         self.root.rearrange((0, 0, width, height))
 
+        for window in self.windows:
+            if isinstance(window, GraphicsWindow) and window.moved:
+                # The move cleared the canvas to background; the
+                # game owes it a redraw and is told so (Glk:
+                # Window Events).
+                window.moved = False
+                self.post_event(Event(EventType.REDRAW, window))
+
     # -- main (Glk: Your Program's Main Function) --------------------------
 
     def glk_exit(self) -> None:

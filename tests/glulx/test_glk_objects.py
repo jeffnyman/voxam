@@ -286,6 +286,33 @@ def test_extents_round_up_for_the_split() -> None:
     assert_that(pixels.height).is_equal_to(48)
 
 
+# A fresh canvas asks to be cleared -- its background starts
+# white -- and owes no redraw, since it opens as background and
+# the game knows it. A canvas whose real box changed lost its
+# pixels: it asks to be cleared again and owes the game a redraw
+# event (Glk: Window Events).
+def test_a_canvas_clears_on_open_and_on_loss() -> None:
+    window = GraphicsWindow()
+
+    assert_that(window.pending_clear).is_true()
+    assert_that(window.moved).is_false()
+
+    window.rearrange((0, 0, 64, 48))
+
+    assert_that(window.moved).is_false()
+
+    window.pending_clear = False
+    window.rearrange((0, 0, 64, 48))
+
+    assert_that(window.pending_clear).is_false()
+    assert_that(window.moved).is_false()
+
+    window.rearrange((10, 10, 74, 58))
+
+    assert_that(window.pending_clear).is_true()
+    assert_that(window.moved).is_true()
+
+
 # A degenerate box never reports a negative size.
 def test_boxes_clamp_at_nothing() -> None:
     window = GraphicsWindow()

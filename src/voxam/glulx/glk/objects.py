@@ -854,9 +854,45 @@ class GraphicsWindow(Window):
     The pixels themselves live in the display; the model holds the
     box and the requests, and its size *is* the box, because a
     graphics window measures in pixels.
+
+    Attributes:
+        moved: Raised by a rearrange that changed a real box. The
+            display's pixels are absolute and do not travel with
+            the box, so the canvas is cleared and the game is owed
+            a redraw event for it (Glk: Window Events).
     """
 
     wintype: ClassVar[int] = WindowType.GRAPHICS
+
+    def __init__(self, rock: int = 0) -> None:
+        """Open asking to be cleared: a fresh canvas is background.
+
+        The background color is initially white (Glk: Graphics
+        Windows), and whatever the display holds where the canvas
+        now hangs is someone else's leavings.
+        """
+
+        super().__init__(rock)
+
+        self.pending_clear = True
+        self.moved = False
+
+    def rearrange(self, box: tuple[int, int, int, int]) -> None:
+        """Take a new box; a changed one loses the canvas.
+
+        The spec allows a resized window's contents to be thrown
+        away so long as the game hears a redraw event -- "the
+        window in question has been cleared to its background
+        color, and must be redrawn" (Glk: Window Events). A fresh
+        window whose old box was empty owes no such event: it
+        opens as background and the game knows it.
+        """
+
+        if box != self.bbox:
+            self.pending_clear = True
+            self.moved = self.moved or (self.width > 0 and self.height > 0)
+
+        super().rearrange(box)
 
 
 class TextWindow(Window):
