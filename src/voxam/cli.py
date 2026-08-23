@@ -589,6 +589,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         # keeps the mouse gestalt at zero -- what a session
         # recorded at the stdio display was told.
         glulx_positions = iter(script.clicks)
+        glulx_links = iter(script.links)
         code = _run_glulx(
             script.game,
             glulx,
@@ -601,6 +602,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
             click_source=(
                 (lambda: next(glulx_positions, None)) if script.clicks else None
             ),
+            link_source=((lambda: next(glulx_links, None)) if script.links else None),
         )
         watch.finish()
 
@@ -1015,6 +1017,7 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     input_source: Callable[[], str] | None = None,
     witness: Callable[[str], None] | None = None,
     click_source: Callable[[], tuple[int, int] | None] | None = None,
+    link_source: Callable[[], int | None] | None = None,
     screen: bool = False,
     graphics: bool = False,
     zoom: float | None = None,
@@ -1077,7 +1080,10 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
         painted
         if painted is not None
         else StdioFrontend(
-            input_source=input_source, witness=witness, click_source=click_source
+            input_source=input_source,
+            witness=witness,
+            click_source=click_source,
+            link_source=link_source,
         )
     )
 
@@ -1146,10 +1152,10 @@ def _glass_frontend(
             if blorb is not None and blorb.resolution is not None
             else None
         )
-        on_line = on_key = on_click = None
+        on_line = on_key = on_click = on_link = None
 
         if recorder is not None:
-            on_line, on_key, on_click = _recorded_glk(recorder)
+            on_line, on_key, on_click, on_link = _recorded_glk(recorder)
 
         return GlassFrontend(
             standard=standard,
@@ -1158,6 +1164,7 @@ def _glass_frontend(
             on_line=on_line,
             on_key=on_key,
             on_click=on_click,
+            on_link=on_link,
         )
     except ImportError:
         print(
@@ -1195,9 +1202,9 @@ def _terminal_frontend(
     on_line = on_key = None
 
     if recorder is not None:
-        # The terminal glass has no pointer, so the click seam
-        # stays unwired here.
-        on_line, on_key, _ = _recorded_glk(recorder)
+        # The terminal glass has no pointer, so the click and
+        # link seams stay unwired here.
+        on_line, on_key, _, _ = _recorded_glk(recorder)
 
     return TerminalFrontend(speaker=_speaker(blorb), on_line=on_line, on_key=on_key)
 
@@ -1220,7 +1227,10 @@ GLK_KEY_CHARACTERS = {
 def _recorded_glk(
     recorder: Recorder,
 ) -> tuple[
-    Callable[[str, int], None], Callable[[int], None], Callable[[int, int], None]
+    Callable[[str, int], None],
+    Callable[[int], None],
+    Callable[[int, int], None],
+    Callable[[int], None],
 ]:
     """The glass's recording seams, bridged onto the grammar.
 
@@ -1229,10 +1239,10 @@ def _recorded_glk(
     they are ordinary characters, and warn loudly where the
     grammar has no spelling -- the same rule the Z-Machine's key
     seam keeps. A terminator-ended line records plain, with a
-    warning, because the grammar cannot spell the terminator. And
-    clicks record as <click x y>, carrying the window-relative
-    coordinates the game itself was told -- what a replay must
-    feed back.
+    warning, because the grammar cannot spell the terminator.
+    Clicks record as <click x y> and link selections as <link n>,
+    each carrying exactly what the game itself was told -- what a
+    replay must feed back.
     """
 
     def line(text: str, terminator: int) -> None:
@@ -1257,7 +1267,10 @@ def _recorded_glk(
     def click(x: int, y: int) -> None:
         recorder.click(x, y)
 
-    return line, key, click
+    def link(value: int) -> None:
+        recorder.link(value)
+
+    return line, key, click, link
 
 
 def _load_story(story_path: Path, resources: Path | None) -> tuple[Story, Blorb | None]:

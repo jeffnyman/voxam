@@ -19,6 +19,9 @@ The grammar, line by line:
                      per line
     <click x y>      a single mouse click at (x, y), in the units
                      the session's display reports (§10.3.2)
+    <link n>         a hyperlink selection, by the link value the
+                     session's display delivered (Glk: Accepting
+                     Hyperlink Events)
     (blank)          skipped
 
 An inline comment starts at whitespace followed by #. A command that
@@ -77,11 +80,21 @@ KEY_ECHOES = {character: token for token, character in KEY_TOKENS.items()}
 CLICK = "\xfe"
 DOUBLE_CLICK = "\xfd"
 
+# A link selection travels the command stream as its own marker
+# character -- one the key alphabet does not use -- and the link
+# value travels beside the commands, spent one per selection.
+LINK = "\xfc"
+
 _CLICK_TOKEN = re.compile(r"<click (\d+) (\d+)>\Z")
+_LINK_TOKEN = re.compile(r"<link (\d+)>\Z")
 
 # Header extension words hold the position (§10.3.2), so a
 # coordinate past a word is a coordinate no story could read.
 _COORDINATE_CEILING = 0xFFFF
+
+# Link values are 32-bit, and zero is Glk's own "not a link"
+# (Glk: Creating Hyperlinks) -- no display could ever deliver it.
+_LINK_CEILING = 0xFFFFFFFF
 
 
 @dataclass(frozen=True)
@@ -93,10 +106,14 @@ class AcceptanceScript:
         seed: The session seed, or None for true entropy.
         commands: The typed lines, in order. A click appears as
             its input character; its coordinates wait in clicks.
+            A link selection appears as its marker; its value
+            waits in links.
         lines: Each command's line number in the script file, in the
             same order -- so a warning can point at the file.
         clicks: The click positions, in click order -- spent one
             pair per delivered click.
+        links: The selected link values, in selection order --
+            spent one per delivered hyperlink event.
     """
 
     game: Path
@@ -104,6 +121,7 @@ class AcceptanceScript:
     commands: tuple[str, ...]
     lines: tuple[int, ...]
     clicks: tuple[tuple[int, int], ...] = ()
+    links: tuple[int, ...] = ()
 
     @classmethod
     def parse(cls, path: Path) -> Self:
@@ -126,6 +144,7 @@ class AcceptanceScript:
         commands: list[str] = []
         numbers: list[int] = []
         clicks: list[tuple[int, int]] = []
+        links: list[int] = []
         fenced = False
         lines = path.read_text(encoding="utf-8").splitlines()
 
@@ -152,10 +171,14 @@ class AcceptanceScript:
                     raise AcceptanceError(msg)
             else:
                 click = _click_token(line, number)
+                link = _link_token(line, number) if click is None else None
 
                 if click is not None:
                     commands.append(CLICK)
                     clicks.append(click)
+                elif link is not None:
+                    commands.append(LINK)
+                    links.append(link)
                 else:
                     pressed = _key_token(line, number)
                     commands.append(pressed if pressed is not None else _command(line))
@@ -173,6 +196,7 @@ class AcceptanceScript:
             commands=tuple(commands),
             lines=tuple(numbers),
             clicks=tuple(clicks),
+            links=tuple(links),
         )
 
 
@@ -218,7 +242,13 @@ def replay(
         if typed is not None:
             typed(index)
 
-        shown = "<click>" if command == CLICK else KEY_ECHOES.get(command, command)
+        if command == CLICK:
+            shown = "<click>"
+        elif command == LINK:
+            shown = "<link>"
+        else:
+            shown = KEY_ECHOES.get(command, command)
+
         echo(shown + "\n")
 
         return command
@@ -470,6 +500,11 @@ class Recorder:
 
         self._write(f"<click {x} {y}>")
 
+    def link(self, value: int) -> None:
+        """Record one hyperlink selection, by its link value."""
+
+        self._write(f"<link {value}>")
+
     def key(self, character: str) -> None:
         """Record one pressed key."""
 
@@ -617,6 +652,40 @@ def _click_token(line: str, number: int) -> tuple[int, int] | None:
     return (x, y)
 
 
+def _link_token(line: str, number: int) -> int | None:
+    """Read a <link n> line's value.
+
+    A line that is not shaped like a link belongs to the other
+    grammars; one that starts a link but garbles it fails loudly,
+    like any typoed token. Values are 32-bit and never zero --
+    zero is Glk's own "not a link", which no display could ever
+    deliver (Glk: Creating Hyperlinks).
+
+    Raises:
+        AcceptanceError: For a malformed link, or a value no
+            session could have delivered.
+    """
+
+    if not line.lower().startswith("<link"):
+        return None
+
+    matched = _LINK_TOKEN.fullmatch(line.lower())
+
+    if matched is None:
+        msg = f"line {number}: a link is '<link n>', not {line!r}"
+
+        raise AcceptanceError(msg)
+
+    value = int(matched.group(1))
+
+    if not 0 < value <= _LINK_CEILING:
+        msg = f"line {number}: a link value is 32-bit and never zero"
+
+        raise AcceptanceError(msg)
+
+    return value
+
+
 def _key_token(line: str, number: int) -> str | None:
     """Translate a <key> line into the character it presses.
 
@@ -641,7 +710,10 @@ def _key_token(line: str, number: int) -> str | None:
         return KEY_TOKENS[token]
 
     known = ", ".join(sorted(KEY_TOKENS))
-    msg = f"line {number}: unknown key {line!r}; the keys are: {known}, and <click x y>"
+    msg = (
+        f"line {number}: unknown key {line!r}; the keys are: "
+        f"{known}, <click x y>, and <link n>"
+    )
 
     raise AcceptanceError(msg)
 

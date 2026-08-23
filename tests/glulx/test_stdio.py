@@ -79,6 +79,40 @@ def test_a_missing_click_ends_loudly() -> None:
         display.read_mouse(window)
 
 
+# A script that carries link selections makes the hyperlink claim
+# true, and each event spends the marker line and one value -- the
+# very value the recording's game was told. A divergent line or a
+# dry source ends the session with a loud note.
+def test_scripted_links_answer_the_hyperlinks() -> None:
+    lines = iter(["\xfc", "look", "\xfc"])
+    values = iter([9])
+    out = StringIO()
+    display = StdioFrontend(
+        out,
+        StringIO(),
+        size=(60, 20),
+        input_source=lambda: next(lines),
+        link_source=lambda: next(values, None),
+    )
+    window = TextBufferWindow()
+
+    assert_that(display.hyperlink_input).is_true()
+    assert_that(display.read_hyperlink(window)).is_equal_to(9)
+
+    with pytest.raises(GlulxSessionEnd):
+        display.read_hyperlink(window)
+
+    assert_that(out.getvalue()).contains("a link the script does not spell")
+
+    with pytest.raises(GlulxSessionEnd):
+        display.read_hyperlink(window)
+
+    plain, _ = hooked()
+
+    assert_that(plain.hyperlink_input).is_false()
+    assert_that(plain.read_hyperlink(window)).is_none()
+
+
 # Buffer text streams out as it accumulates, and each run prints
 # exactly once no matter how often the display is flushed.
 def test_buffer_text_streams_once() -> None:

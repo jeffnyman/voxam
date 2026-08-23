@@ -37,6 +37,7 @@ from voxam.glulx.glk.objects import (
     GraphicsWindow,
     KeyCode,
     Metrics,
+    TextBufferWindow,
     TextGridWindow,
     Window,
 )
@@ -79,6 +80,11 @@ _CLICK = "\xfe"
 # Graphics in Graphics Windows).
 _WHITE = (255, 255, 255)
 
+# The ink a hyperlink wears: the blue every reader already knows
+# means "click here". The Terminal protocol carries no underline,
+# so color alone is the dress.
+LINK_INK = (0, 102, 204)
+
 
 def _rgb(color: int) -> tuple[int, int, int]:
     """A Glk 0x00RRGGBB color as an RGB triple (Glk: Graphics)."""
@@ -106,6 +112,10 @@ class GlassFrontend(PaintedFrontend):
     # A real window has a real pointer, so grids and canvases can
     # carry a click (Glk: Mouse Input Events).
     mouse_input = True
+    # And the pointer selects links: a click on a linked run in an
+    # armed text window delivers its value (Glk: Accepting
+    # Hyperlink Events).
+    hyperlink_input = True
 
     def __init__(  # noqa: PLR0913 -- one seat per session concern
         self,
@@ -117,6 +127,7 @@ class GlassFrontend(PaintedFrontend):
         on_line: "Callable[[str, int], None] | None" = None,
         on_key: "Callable[[int], None] | None" = None,
         on_click: "Callable[[int, int], None] | None" = None,
+        on_link: "Callable[[int], None] | None" = None,
     ) -> None:
         """Stand over a glass, a real pygame window by default.
 
@@ -136,6 +147,9 @@ class GlassFrontend(PaintedFrontend):
             on_click: The click seam, hearing each delivered
                 click as the window-relative coordinates the game
                 itself was told.
+            on_link: The hyperlink seam, hearing each delivered
+                selection as the link value the game itself was
+                told.
         """
 
         if glass is None:
@@ -154,6 +168,12 @@ class GlassFrontend(PaintedFrontend):
         # draw.
         self._pictures: dict[int, Picture | None] = {}
         self._on_click = on_click
+        self._on_link = on_link
+        # Where each linked run stands on the glass this frame:
+        # (left, top, right, bottom, value) in 0-based pixels,
+        # rebuilt with every repaint -- what turns a click into a
+        # selection.
+        self._links: list[tuple[int, int, int, int, int]] = []
 
         super().__init__(speaker=speaker, on_line=on_line, on_key=on_key)
 
@@ -166,21 +186,26 @@ class GlassFrontend(PaintedFrontend):
         )
 
     def _begin(self) -> None:
-        """Nothing to gather: runs paint straight onto the surface."""
+        """Start a frame: the link map is repainted with the text."""
+
+        self._links = []
 
     def _place(self, x: int, y: int, line: "Iterable[Segment]") -> None:
         column = x
 
-        for style, text in line:
+        for key, text in line:
             if not text:
                 continue
 
-            names = ATTRIBUTES.get(cast("int", style), ())
-            ink, paper = (
-                (PAPER_DEFAULT, INK_DEFAULT)
-                if "reverse" in names
-                else (INK_DEFAULT, PAPER_DEFAULT)
-            )
+            style, link = cast("tuple[int, int]", key)
+            names = ATTRIBUTES.get(style, ())
+
+            if "reverse" in names:
+                ink, paper = PAPER_DEFAULT, INK_DEFAULT
+            elif link:
+                ink, paper = LINK_INK, PAPER_DEFAULT
+            else:
+                ink, paper = INK_DEFAULT, PAPER_DEFAULT
 
             self._glass.text(
                 y + 1,
@@ -193,7 +218,14 @@ class GlassFrontend(PaintedFrontend):
                 graphics=False,
             )
 
-            column += len(text) * self._glass.cell_width
+            width = len(text) * self._glass.cell_width
+
+            if link:
+                self._links.append(
+                    (column, y, column + width, y + self._glass.cell_height, link)
+                )
+
+            column += width
 
     def _finish(self, cursor: tuple[int, int] | None) -> None:
         if cursor is not None and cursor[0] < self.size()[0]:
@@ -397,14 +429,16 @@ class GlassFrontend(PaintedFrontend):
     def _clicked(self) -> None:
         """Deliver the glass's click to whichever armed window it hit.
 
-        Only a grid or a canvas can carry a click, and only one
-        with a request standing (Glk: Mouse Input Events); the
-        coordinates the event carries are the window's own -- cells
-        in a grid, pixels on a canvas. A click nothing asked for is
-        swallowed, as every interpreter swallows it. Between two
-        armed windows the position decides; the grammar cannot
-        spell which window a recorded click chose, so a replay
-        leans on the request that is standing when it arrives.
+        A click on a linked run in a text window with a hyperlink
+        request delivers the link's value (Glk: Accepting
+        Hyperlink Events); otherwise a grid or a canvas with a
+        mouse request hears the click in its own coordinates --
+        cells in a grid, pixels on a canvas (Glk: Mouse Input
+        Events). A click nothing asked for is swallowed, as every
+        interpreter swallows it. Between two armed windows the
+        position decides; the grammar cannot spell which window a
+        recorded input chose, so a replay leans on the request
+        that is standing when it arrives.
         """
 
         position = self._glass.click()
@@ -415,6 +449,30 @@ class GlassFrontend(PaintedFrontend):
         # The glass counts its pixels 1-based; the boxes are 0-based.
         x, y = position[0] - 1, position[1] - 1
         windows = self.glk.windows if self.glk is not None else []
+
+        for window in windows:
+            if not window.hyperlink_request or not isinstance(
+                window, TextBufferWindow | TextGridWindow
+            ):
+                continue
+
+            left, top, right, bottom = window.bbox
+
+            if not (left <= x < right and top <= y < bottom):
+                continue
+
+            value = self._link_at(x, y)
+
+            if not value:
+                continue
+
+            window.hyperlink_request = False
+            self.post(Event(EventType.HYPERLINK, window, value, 0))
+
+            if self._on_link is not None:
+                self._on_link(value)
+
+            return
 
         for window in windows:
             if not window.mouse_request or not isinstance(
@@ -442,6 +500,15 @@ class GlassFrontend(PaintedFrontend):
 
             return
 
+    def _link_at(self, x: int, y: int) -> int:
+        """The link value painted at a pixel, or zero for none."""
+
+        for left, top, right, bottom, value in self._links:
+            if left <= x < right and top <= y < bottom:
+                return value
+
+        return 0
+
     def read_mouse(self, window: Window) -> tuple[int, int] | None:
         """Wait at the glass; the click itself travels as an event.
 
@@ -455,7 +522,26 @@ class GlassFrontend(PaintedFrontend):
 
         del window
 
-        while self._key() is not None:
-            pass
+        self._await()
 
         return None
+
+    def read_hyperlink(self, window: Window) -> int | None:
+        """Wait at the glass; the selection travels as an event.
+
+        The same wait as read_mouse: _clicked posts the hyperlink
+        event with its value already resolved off the painted link
+        map, and this only blocks until something happens.
+        """
+
+        del window
+
+        self._await()
+
+        return None
+
+    def _await(self) -> None:
+        """Wait out keystrokes until an interruption ends the wait."""
+
+        while self._key() is not None:
+            pass

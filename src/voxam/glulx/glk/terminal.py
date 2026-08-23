@@ -121,16 +121,25 @@ class TerminalFrontend(PaintedFrontend):
     def _render(self, line: "Iterable[Segment]") -> str:
         """Turn styled segments into a string of dressed text.
 
-        The wrapper keys segments by whatever it was given; this
-        display only ever gives it style numbers, so the key comes
-        back as the int it went in as.
+        The wrapper keys segments by whatever it was given; the
+        spine only ever gives it (style, link) pairs, so the key
+        comes back as the pair it went in as.
         """
 
-        return "".join(self._dressed(text, cast("int", style)) for style, text in line)
+        return "".join(
+            self._dressed(text, cast("tuple[int, int]", key)) for key, text in line
+        )
 
-    def _dressed(self, text: str, style: int) -> str:
-        """One run of text wearing its style's sequences."""
+    def _dressed(self, text: str, key: tuple[int, int]) -> str:
+        """One run of text wearing its style's sequences.
 
+        A link dresses as its style alone: the Terminal protocol
+        carries no underline, and the terminal claims no link
+        selection anyway -- writing links is legal everywhere,
+        showing them off is the window's claim (Glk: Hyperlinks).
+        """
+
+        style, _ = key
         names = ATTRIBUTES.get(style, ())
 
         if not names:

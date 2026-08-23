@@ -560,14 +560,18 @@ def test_style_measures_answer_in_cells() -> None:
     assert_that(measures).is_equal_to([0, 1, 0, 1, 0, 0, 0, 0, None])
 
 
-# A grid row's per-cell styles collapse into runs, a missing style
-# reading as normal.
+# A grid row's per-cell dress collapses into runs keyed by style
+# and link together, a missing style or link reading as plain --
+# so a linked run stays distinct from its neighbours.
 def test_grouping_collapses_a_row_into_runs() -> None:
-    assert_that(_grouped(["a", "b"], [Style.ALERT])).is_equal_to(
-        [(Style.ALERT, "a"), (Style.NORMAL, "b")]
+    assert_that(_grouped(["a", "b"], [Style.ALERT], [0, 0])).is_equal_to(
+        [((Style.ALERT, 0), "a"), ((Style.NORMAL, 0), "b")]
     )
-    assert_that(_grouped(["c", "d"], [Style.NORMAL, Style.NORMAL])).is_equal_to(
-        [(Style.NORMAL, "cd")]
+    assert_that(_grouped(["c", "d"], [Style.NORMAL, Style.NORMAL], [0, 0])).is_equal_to(
+        [((Style.NORMAL, 0), "cd")]
+    )
+    assert_that(_grouped(["e", "f"], [Style.NORMAL, Style.NORMAL], [7])).is_equal_to(
+        [((Style.NORMAL, 7), "e"), ((Style.NORMAL, 0), "f")]
     )
 
 

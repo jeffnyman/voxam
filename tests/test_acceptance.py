@@ -5,6 +5,7 @@ from assertpy import assert_that
 
 from voxam.acceptance import (
     CLICK,
+    LINK,
     AcceptanceScript,
     Recorder,
     RefusalWatch,
@@ -163,6 +164,70 @@ def test_recorded_clicks_round_trip(tmp_path: Path) -> None:
 
     assert_that(script.commands).is_equal_to((CLICK, "push button"))
     assert_that(script.clicks).is_equal_to(((12, 5),))
+
+
+# A <link n> line selects a hyperlink: the command is the link's
+# marker character, and the value waits beside the commands, one
+# per selection in order, case-blind like the keys.
+def test_link_tokens_select_hyperlinks(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=games/city.ulx
+<link 12>
+look
+<LINK 3>
+""",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to((LINK, "look", LINK))
+    assert_that(script.links).is_equal_to((12, 3))
+    assert_that(script.lines).is_equal_to((2, 3, 4))
+
+
+# A garbled link fails loudly like any typoed token; zero is Glk's
+# own "not a link" and a value past 32 bits is one no session
+# could have delivered, so both are refused.
+def test_bad_links_fail_loudly(tmp_path: Path) -> None:
+    with pytest.raises(AcceptanceError, match=r"a link is '<link n>'"):
+        AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.ulx\n<link one>\n"))
+
+    with pytest.raises(AcceptanceError, match=r"32-bit and never zero"):
+        AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.ulx\n<link 0>\n"))
+
+    with pytest.raises(AcceptanceError, match=r"32-bit and never zero"):
+        AcceptanceScript.parse(
+            script_file(tmp_path, "! GAME=g.ulx\n<link 4294967296>\n")
+        )
+
+
+# The replay transcript shows a link selection as a link, the
+# value left to the script file that holds it one line up.
+def test_replay_echoes_links_readably() -> None:
+    echoed: list[str] = []
+    source = replay([LINK, "look"], echoed.append)
+
+    assert_that(source()).is_equal_to(LINK)
+    assert_that(source()).is_equal_to("look")
+    assert_that(echoed).is_equal_to(["<link>\n", "look\n"])
+
+
+# A recorded link selection round-trips: the token the recorder
+# writes is the token parse reads back, value and all.
+def test_recorded_links_round_trip(tmp_path: Path) -> None:
+    target = tmp_path / "session.accept"
+    recorder = Recorder(target, game=tmp_path / "city.ulx", seed=9, warn=print)
+
+    recorder.link(12)
+    recorder.line("look")
+    recorder.close()
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.commands).is_equal_to((LINK, "look"))
+    assert_that(script.links).is_equal_to((12,))
 
 
 # A relative game path counts from the script's own directory, so a
