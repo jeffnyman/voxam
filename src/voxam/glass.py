@@ -190,6 +190,9 @@ class Glass(Protocol):
     def present(self) -> None:
         """Put the painted frame on screen."""
 
+    def entitle(self, title: str) -> None:
+        """Name the window, for a title bar that knows its game."""
+
     def key(self, timeout: float | None) -> str | None:
         """One keypress, already §3.8-translated; None on expiry.
 
@@ -268,6 +271,7 @@ class GraphicsFrontend:
         standard: tuple[int, int] | None = None,
         *,
         zoom: float | None = None,
+        title: str | None = None,
     ) -> None:
         """Wrap a window around a fresh screen model.
 
@@ -293,10 +297,16 @@ class GraphicsFrontend:
                 fill, satisfied by growing the grid -- more rows
                 and columns of the same type; None keeps the
                 classic 80 by 24.
+            title: What the window's title bar should say -- the
+                game's own name, when the catalog knows it; None
+                keeps the plain interpreter caption.
         """
 
         if glass is None:
             glass = open_pygame_glass(standard, version, zoom)
+
+        if title is not None:
+            glass.entitle(title)
 
         self._glass = glass
         self._speaker = speaker
@@ -1464,6 +1474,9 @@ class _PygameGlass:
 
         if self._snapshot:
             self._pygame.image.save(self._screen, self._snapshot)
+
+    def entitle(self, title: str) -> None:
+        self._pygame.display.set_caption(title)
 
     def key(self, timeout: float | None) -> str | None:
         module = self._pygame

@@ -49,6 +49,7 @@ class StubGlass:
         self.samples: list[tuple[int, int]] = []
         self.pixel = (10, 20, 30)
         self.clicked: tuple[int, int] | None = None
+        self.entitled: list[str] = []
 
     def sample(self, line: int, column: int) -> tuple[int, int, int]:
         self.samples.append((line, column))
@@ -100,6 +101,9 @@ class StubGlass:
 
     def present(self) -> None:
         self.presents += 1
+
+    def entitle(self, title: str) -> None:
+        self.entitled.append(title)
 
     def key(self, timeout: float | None) -> str | None:
         self.timeouts.append(timeout)
@@ -1006,6 +1010,7 @@ def fake_pygame(
     icons: list[object] = []
     flips: list[int] = []
     snapshots: list[tuple[object, object]] = []
+    captions: list[str] = []
     module = types.SimpleNamespace(
         QUIT=1,
         KEYDOWN=2,
@@ -1021,6 +1026,7 @@ def fake_pygame(
         icons=icons,
         flips=flips,
         snapshots=snapshots,
+        captions=captions,
         image=types.SimpleNamespace(
             load=lambda path: ("icon", path),
             save=lambda surface, path: snapshots.append((surface, path)),
@@ -1028,7 +1034,7 @@ def fake_pygame(
         init=lambda: None,
         display=types.SimpleNamespace(
             set_mode=lambda _size: screen,
-            set_caption=lambda _title: None,
+            set_caption=captions.append,
             set_icon=icons.append,
             flip=lambda: flips.append(1),
         ),
@@ -1269,6 +1275,32 @@ def test_layered_carries_partial_alpha() -> None:
     )
 
     assert_that(layered(picture)).is_equal_to((((10, 20, 30, 128), (40, 50, 60)),))
+
+
+# The window's title bar takes the game's own name: the frontend
+# entitles whatever glass it was handed, an untitled session
+# leaves the caption alone, and the real doorway captions through
+# pygame.
+def test_the_window_wears_the_games_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    glass = StubGlass()
+    GraphicsFrontend(3, glass=glass, title="Trinity — Voxam")
+
+    assert_that(glass.entitled).is_equal_to(["Trinity — Voxam"])
+
+    untitled = StubGlass()
+    GraphicsFrontend(3, glass=untitled)
+
+    assert_that(untitled.entitled).is_empty()
+
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    real = open_pygame_glass()
+
+    real.entitle("Trinity — Voxam")
+
+    assert_that(module.captions[-1]).is_equal_to("Trinity — Voxam")
 
 
 # The real window photographs JPEG bytes through pygame's own
