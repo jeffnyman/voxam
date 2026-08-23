@@ -109,6 +109,12 @@ class StubGlass:
     def click(self) -> tuple[int, int] | None:
         return self.click_position
 
+    def photograph(self, data: bytes) -> object:
+        del data
+
+        # A stub carries no pygame decoders; the real window does.
+        return None
+
 
 class WideGlass(StubGlass):
     """A glass with a real font cell, for the scaling arithmetic."""
@@ -450,9 +456,61 @@ def test_fully_clipped_draws_are_legitimate(tiny_png: bytes) -> None:
     assert_that(glass.draws).is_empty()
 
 
-# Only canvases draw here, as the gestalt told the game -- and
-# only PNGs, since no JPEG decoder is aboard: both refusals answer
-# False, the spec's channel for an undrawn image.
+# A JPEG draws after all, through the window's own decoder: the
+# glass photographs the bytes into rows, the frontend wraps them
+# as an opaque picture, and the decode is remembered once per
+# number like any other. A photograph with no pixels -- no rows,
+# or empty ones -- refuses instead.
+def test_a_jpeg_draws_through_the_windows_decoder() -> None:
+    class Photobooth(StubGlass):
+        def __init__(self) -> None:
+            super().__init__()
+            self.developed: list[bytes] = []
+
+        def photograph(self, data: bytes) -> object:
+            self.developed.append(data)
+
+            return [[(1, 2, 3), (4, 5, 6)]]
+
+    stub = Photobooth()
+    display = GlassFrontend(cast("Glass", stub))
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    jpeg = ImageInfo(4, b"JPEG", b"\xff\xd8photo", 2, 1)
+
+    assert_that(display.draw_image(window, jpeg, 0, 0, 2, 1)).is_true()
+    assert_that(display.draw_image(window, jpeg, 4, 0, 2, 1)).is_true()
+
+    rows, line, column, size = stub.draws[0]
+
+    assert_that((line, column)).is_equal_to((1, 1))
+    assert_that(size).is_equal_to((2, 1))
+    assert_that(rows).is_equal_to((((1, 2, 3), (4, 5, 6)),))
+    assert_that(stub.developed).is_length(1)
+
+    class Darkroom(StubGlass):
+        def photograph(self, data: bytes) -> object:
+            del data
+
+            return []
+
+    dark = GlassFrontend(cast("Glass", Darkroom()))
+
+    assert_that(dark.draw_image(window, jpeg, 0, 0, 2, 1)).is_false()
+
+    class Blankroll(StubGlass):
+        def photograph(self, data: bytes) -> object:
+            del data
+
+            return [[]]
+
+    blank = GlassFrontend(cast("Glass", Blankroll()))
+
+    assert_that(blank.draw_image(window, jpeg, 0, 0, 2, 1)).is_false()
+
+
+# Only canvases draw here, as the gestalt told the game -- and at
+# a stub glass, which photographs nothing, a JPEG refuses too:
+# both answer False, the spec's channel for an undrawn image.
 def test_undrawables_are_refused(tiny_png: bytes) -> None:
     display, glass = glassed()
     canvas = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))

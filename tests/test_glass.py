@@ -111,6 +111,14 @@ class StubGlass:
     def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
         self.pictures.append(rows)
 
+    def photograph(
+        self, data: bytes
+    ) -> Sequence[Sequence[tuple[int, int, int]]] | None:
+        del data
+
+        # A stub carries no pygame decoders; the real window does.
+        return None
+
     def draw(
         self,
         rows: Sequence[Sequence[tuple[int, ...]]],
@@ -1249,6 +1257,44 @@ def test_fast_close_clicks_double(monkeypatch: pytest.MonkeyPatch) -> None:
     clock["now"] = 1400
 
     assert_that(press(30, 27)).is_equal_to("\xfd")
+
+
+# The real window photographs JPEG bytes through pygame's own
+# decoder -- rows of RGB read off the loaded surface -- and
+# answers None for bytes pygame cannot read.
+def test_the_window_photographs_jpeg_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+
+    class Developed:
+        def get_size(self) -> tuple[int, int]:
+            return (2, 1)
+
+        def get_at(self, position: tuple[int, int]) -> tuple[int, int, int, int]:
+            x, y = position
+
+            return (x * 10, y, 7, 255)
+
+    module.error = ValueError
+    module.image.load = lambda _stream: Developed()
+
+    assert_that(glass.photograph(b"\xff\xd8photo")).is_equal_to(
+        (((0, 0, 7), (10, 0, 7)),)
+    )
+    # The stub glass, by contrast, honestly develops nothing.
+    assert_that(StubGlass().photograph(b"\xff\xd8photo")).is_none()
+
+    def refuse(_stream: object) -> object:
+        raise ValueError("not an image")
+
+    module.image.load = refuse
+
+    assert_that(glass.photograph(b"junk")).is_none()
 
 
 # Ctrl+V empties the clipboard through the key seam one character

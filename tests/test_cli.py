@@ -1826,6 +1826,13 @@ class WindowStub:
     def picture(self, rows: object) -> None:
         """Discard: the CLI tests never show a cover."""
 
+    def photograph(self, data: bytes) -> object:
+        """Decode nothing: the CLI tests never draw a JPEG."""
+
+        del data
+
+        return None
+
 
 # --graphics plays through the pygame window: with the doorway
 # monkeypatched to a stub glass, the whole session runs through
@@ -1941,6 +1948,10 @@ def test_the_glulx_window_takes_the_standard_shape(
     assert_that(_glass_frontend(None)).is_not_none()
     assert_that(captured["standard"]).is_none()
     assert_that(captured["zoom"]).is_none()
+
+    # The stub window, like any glass without pygame's decoders,
+    # honestly photographs nothing.
+    assert_that(WindowStub("").photograph(b"\xff\xd8photo")).is_none()
 
 
 # The pygame window brings a speaker along when the Blorb's sounds

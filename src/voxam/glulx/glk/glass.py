@@ -42,7 +42,7 @@ from voxam.glulx.glk.objects import (
     Window,
 )
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
-from voxam.png import decode
+from voxam.png import Picture, decode
 from voxam.speaker import Speaker
 
 if TYPE_CHECKING:
@@ -51,7 +51,6 @@ if TYPE_CHECKING:
     from voxam.glass import Glass
     from voxam.glulx.glk.resources import ImageInfo
     from voxam.glulx.glk.wrap import Segment
-    from voxam.png import Picture
 
 # The §3.8-translated characters the glass's key() answers with, as
 # the Glk keycodes they mean (Glk: Character Input) -- one alphabet
@@ -278,13 +277,14 @@ class GlassFrontend(PaintedFrontend):
         """Draw a Pict onto a canvas, scaled and clipped.
 
         Only graphics windows draw here, as the gestalt already
-        told the game (Glk: Testing for Graphics Capabilities),
-        and only PNG resources: no JPEG decoder is aboard, so a
-        JPEG Pict is refused whole rather than half-drawn. val1
-        and val2 are the upper-left corner in window pixels,
-        signed, and "it is legitimate for part of the image to
-        fall outside the window; the excess is not drawn" (Glk:
-        Graphics in Graphics Windows).
+        told the game (Glk: Testing for Graphics Capabilities).
+        PNG decodes through the interpreter's own decoder, JPEG
+        through the window's; what neither can read is refused
+        whole rather than half-drawn. val1 and val2 are the
+        upper-left corner in window pixels, signed, and "it is
+        legitimate for part of the image to fall outside the
+        window; the excess is not drawn" (Glk: Graphics in
+        Graphics Windows).
         """
 
         if not isinstance(window, GraphicsWindow):
@@ -334,20 +334,37 @@ class GlassFrontend(PaintedFrontend):
 
         return True
 
-    def _picture(self, image: "ImageInfo") -> "Picture | None":
+    def _picture(self, image: "ImageInfo") -> Picture | None:
         """The decoded pixels, once per Pict number.
 
-        Whatever cannot decode -- a JPEG, a corrupt PNG -- is
-        remembered as nothing, so a refusal costs one attempt.
+        The interpreter decodes PNG itself; anything else -- a
+        JPEG -- is offered to the glass, whose pygame carries
+        decoders the interpreter does not. What neither can read
+        is remembered as nothing, so a refusal costs one attempt.
         """
 
         if image.number not in self._pictures:
             try:
                 self._pictures[image.number] = decode(image.data)
             except PNGError:
-                self._pictures[image.number] = None
+                self._pictures[image.number] = self._photographed(image.data)
 
         return self._pictures[image.number]
+
+    def _photographed(self, data: bytes) -> Picture | None:
+        """A picture through the window's own decoder, or nothing.
+
+        The rows come back opaque -- JPEG carries no transparency
+        (Glk: Testing for Graphics Capabilities remarks as much)
+        -- so the Picture needs no clear mask.
+        """
+
+        rows = self._glass.photograph(data)
+
+        if not rows or not rows[0]:
+            return None
+
+        return Picture(len(rows[0]), len(rows), tuple(tuple(row) for row in rows), None)
 
     def _settled(self, window: Window) -> None:
         """Consume a pending clear before new paint lands.
