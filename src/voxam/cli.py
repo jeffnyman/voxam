@@ -16,6 +16,7 @@ from voxam.acceptance import (
     RefusalWatch,
     replay,
 )
+from voxam.babel import ifid
 from voxam.blorb import PNG_ID, Blorb
 from voxam.errors import (
     AIFFError,
@@ -146,6 +147,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="list the story's code txd-style (§4, §14) and exit",
     )
     parser.add_argument(
+        "--babel",
+        action="store_true",
+        help="report the story's IFID (Treaty of Babel) and exit",
+    )
+    parser.add_argument(
         "--trace",
         type=Path,
         help="write every executed instruction to this file, listing-style",
@@ -237,15 +243,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _static_report(arguments: argparse.Namespace) -> int | None:
-    """Serve --header or --listing, when asked; None means neither.
+    """Serve --header, --listing, or --babel; None means none asked.
 
-    The two reports read the same pristine story, so they share
-    their guards -- but each is its own document, and asking for
-    both at once is refused rather than half-served.
+    The reports read the same pristine story, so they share their
+    guards -- but each is its own document, and asking for more
+    than one at once is refused rather than half-served.
     """
 
-    if arguments.header and arguments.listing:
-        print("voxam: --header and --listing are each their own report; pick one")
+    chosen = [
+        flag
+        for flag, wanted in (
+            ("--header", arguments.header),
+            ("--listing", arguments.listing),
+            ("--babel", arguments.babel),
+        )
+        if wanted
+    ]
+
+    if len(chosen) > 1:
+        print(f"voxam: {' and '.join(chosen)} are each their own report; pick one")
 
         return EXIT_UNUSABLE
 
@@ -255,19 +271,19 @@ def _static_report(arguments: argparse.Namespace) -> int | None:
     if arguments.listing:
         return _story_report(arguments, "--listing", listing_report)
 
+    if arguments.babel:
+        return _babel_report(arguments)
+
     return None
 
 
-def _story_report(
-    arguments: argparse.Namespace,
-    flag: str,
-    composer: Callable[[Story], str],
-) -> int:
-    """Print a static report of the story file and finish.
+def _only_reads(arguments: argparse.Namespace, flag: str) -> int | None:
+    """Refuse what a static report cannot use; None to proceed.
 
-    Both reports read the pristine file: no machine boots, no
+    A report reads the pristine file: no machine boots, no
     identity is claimed, so the session flags have nothing to do
-    and are refused rather than silently ignored.
+    and are refused rather than silently ignored -- and a report
+    with no story named has nothing to describe.
     """
 
     others = (
@@ -288,6 +304,77 @@ def _story_report(
         print(f"voxam: {flag} needs a story file to describe")
 
         return EXIT_UNUSABLE
+
+    return None
+
+
+def _babel_report(arguments: argparse.Namespace) -> int:
+    """Print the story's IFID and finish.
+
+    Unlike the Z-Machine's own reports, the treaty speaks both
+    machines: a loose story answers from its bytes, a blorb from
+    the story it packages -- until an iFiction record arrives to
+    say otherwise (Babel: The IFID for a blorbed story file).
+    """
+
+    refused = _only_reads(arguments, "--babel")
+
+    if refused is not None:
+        return refused
+
+    try:
+        data = _story_bytes(arguments.story)
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    if data is None:
+        print(
+            f"voxam: {arguments.story.name} packages no story, and a "
+            "blorb without one is not itself a work of IF"
+        )
+
+        return EXIT_UNUSABLE
+
+    identity = ifid(data)
+
+    if identity is None:
+        print(f"voxam: {arguments.story.name} is neither Z-code nor Glulx")
+
+        return EXIT_UNUSABLE
+
+    print(f"{arguments.story.name}\n")
+    print(f"IFID: {identity}")
+
+    return EXIT_OK
+
+
+def _story_bytes(story_path: Path) -> bytes | None:
+    """A story's own bytes, unwrapped from a Blorb when packaged.
+
+    None only for a blorb that packages no story at all.
+    """
+
+    if story_path.suffix.lower() in BLORB_SUFFIXES:
+        blorb = Blorb.load(story_path)
+
+        return blorb.glulx if blorb.glulx is not None else blorb.story
+
+    return story_path.read_bytes()
+
+
+def _story_report(
+    arguments: argparse.Namespace,
+    flag: str,
+    composer: Callable[[Story], str],
+) -> int:
+    """Print a static report of the Z-Machine story file and finish."""
+
+    refused = _only_reads(arguments, flag)
+
+    if refused is not None:
+        return refused
 
     try:
         if _glulx_story(arguments.story) is not None:

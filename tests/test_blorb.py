@@ -376,6 +376,27 @@ def test_the_census_counts_resources() -> None:
     assert_that(Blorb.parse(build_blorb([])).described()).is_equal_to("no resources")
 
 
+# --babel unwraps a blorb to the story it packages -- the
+# treaty's rule until an iFiction record arrives to answer first
+# -- and a blorb with no story inside "is not itself a work of
+# IF and so does not have a IFID" (Babel: The IFID for a blorbed
+# story file).
+def test_babel_reports_the_packaged_story(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    packaged = tmp_path / "game.zblorb"
+    packaged.write_bytes(build_blorb([(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))]))
+
+    assert_that(main(["--babel", str(packaged)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("IFID: ZCODE-")
+
+    empty = tmp_path / "empty.blorb"
+    empty.write_bytes(build_blorb([]))
+
+    assert_that(main(["--babel", str(empty)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("packages no story")
+
+
 # A Blorb suffix on the story argument boots the packaged story;
 # one packaging nothing runnable reports and refuses.
 def test_a_zblorb_story_boots_from_its_package(
