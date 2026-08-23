@@ -33,7 +33,7 @@ from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.gallery import Gallery
 from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT
-from voxam.png import Picture
+from voxam.png import OPAQUE, Picture
 from voxam.screen import (
     BOLD,
     ERASE_KEEP_SPLIT,
@@ -228,12 +228,13 @@ class Glass(Protocol):
         The position is 1-based screen pixels, §8.8.1's own
         origin; size is the on-screen (width, height) the rows
         stretch to -- the Reso scaling, already decided. A pixel
-        may carry a fourth value of 0: fully transparent, letting
-        whatever is already drawn show through -- how Version 6
-        chrome layers over its scene art. The pixels stay until
-        text or another picture is painted over them, which is
-        exactly the §8.8.3 rule that nothing belongs to a window
-        once plotted.
+        may carry a fourth value: its alpha, 0 fully transparent
+        through 255 opaque, blended over whatever is already
+        drawn -- how Version 6 chrome layers over its scene art
+        with holes, and how a translucent Glulx picture settles
+        onto its canvas. The pixels stay until text or another
+        picture is painted over them, which is exactly the §8.8.3
+        rule that nothing belongs to a window once plotted.
         """
 
 
@@ -1201,13 +1202,23 @@ def _appearance(
 
 
 def layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
-    """A picture's rows with its clear pixels marked for the glass.
+    """A picture's rows dressed for the glass's own blending.
 
-    A clear pixel travels as (red, green, blue, 0) -- alpha zero
-    -- so the glass lets what is already drawn show through; a
-    picture with no transparency passes its rows unchanged
-    (Blorb: Picture Resource Chunks).
+    A partially see-through picture travels as (red, green, blue,
+    alpha) straight colors, blended on blit; one with only holes
+    marks each clear pixel (red, green, blue, 0); one with no
+    transparency passes its rows unchanged (Blorb: Picture
+    Resource Chunks).
     """
+
+    if picture.alpha is not None:
+        return tuple(
+            tuple(
+                pixel if value == OPAQUE else (*pixel, value)
+                for pixel, value in zip(row, alpha_row, strict=True)
+            )
+            for row, alpha_row in zip(picture.rows, picture.alpha, strict=True)
+        )
 
     if picture.clear is None:
         return picture.rows
@@ -1602,9 +1613,10 @@ class _PygameGlass:
     def _surface(self, rows: Sequence[Sequence[tuple[int, ...]]]) -> object:
         """Pixel rows as a surface, or None for an empty picture.
 
-        The surface carries per-pixel alpha, so a clear pixel --
-        a fourth value of 0 -- survives the scale and lets the
-        screen beneath show through the blit.
+        The surface carries per-pixel alpha, so a fourth value
+        survives the scale and blends on the blit -- a clear
+        pixel letting the screen beneath show through whole, a
+        translucent one settling over it.
         """
 
         height = len(rows)

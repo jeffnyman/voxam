@@ -14,6 +14,7 @@ from voxam.glass import (
     GraphicsFrontend,
     _fitted_faces,
     _key_characters,
+    layered,
     open_pygame_glass,
 )
 from voxam.painter import IDLE_HEARTBEAT
@@ -1257,6 +1258,17 @@ def test_fast_close_clicks_double(monkeypatch: pytest.MonkeyPatch) -> None:
     clock["now"] = 1400
 
     assert_that(press(30, 27)).is_equal_to("\xfd")
+
+
+# A translucent picture layers with its real opacities: straight
+# colors wearing their alpha for the glass to blend, opaque
+# pixels staying bare triples.
+def test_layered_carries_partial_alpha() -> None:
+    picture = Picture(
+        2, 1, (((10, 20, 30), (40, 50, 60)),), ((False, False),), ((128, 255),)
+    )
+
+    assert_that(layered(picture)).is_equal_to((((10, 20, 30, 128), (40, 50, 60)),))
 
 
 # The real window photographs JPEG bytes through pygame's own

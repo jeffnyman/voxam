@@ -339,9 +339,10 @@ Picts draw onto the canvases scaled and clipped -- PNG through
 the interpreter's own decoder with full transparency carried to
 the surface, JPEG through the window's, whose pygame reads what
 the interpreter does not; what neither can read is refused whole
-rather than half-drawn. The transparency gestalt underclaims at
-zero because partial alpha is composed over black -- an honest
-refusal with its reason written down. The mouse is claimed: a click lands in whichever armed
+rather than half-drawn. And transparency is claimed whole: a
+translucent picture keeps its straight colors and opacities
+through the decoder and blends on the blit, so the transparency
+gestalt answers one and means it. The mouse is claimed: a click lands in whichever armed
 grid or canvas it hit, delivered as the event glk_select expects
 in that window's own units, cells or pixels. And hyperlinks are
 claimed beside it: linked runs survive wrapping distinct, wear

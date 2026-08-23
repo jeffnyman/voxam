@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import cast
 
 import pytest
@@ -546,6 +547,23 @@ def test_pictures_decode_once(monkeypatch: pytest.MonkeyPatch, tiny_png: bytes) 
     display.draw_image(window, jpeg, 0, 0, 2, 2)
 
     assert_that(attempts).is_length(2)
+
+
+# A translucent Pict settles onto the canvas with its real
+# opacities: straight colors wearing their alpha, handed to the
+# glass to blend on the blit -- the transparency gestalt's claim
+# made true.
+def test_translucent_picts_blend(indexed_png: "Callable[..., bytes]") -> None:
+    display, glass = glassed()
+    window = cast("GraphicsWindow", boxed(GraphicsWindow(), (0, 0, 10, 6)))
+    data = indexed_png(((200, 0, 0), (9, 9, 9)), alphas=bytes([255, 128]))
+    info = ImageInfo(6, b"PNG ", data, 2, 1)
+
+    assert_that(display.draw_image(window, info, 0, 0, 2, 1)).is_true()
+
+    rows, *_ = glass.draws[-1]
+
+    assert_that(rows).is_equal_to((((200, 0, 0), (9, 9, 9, 128)),))
 
 
 # A fully transparent pixel travels with alpha zero -- its color

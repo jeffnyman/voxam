@@ -104,6 +104,60 @@ def test_the_paeth_filter_tries_all_three_neighbours() -> None:
     assert_that(picture.rows[1]).is_equal_to(((5, 5, 5), (1, 1, 1), (9, 9, 9)))
 
 
+# A truecolour picture with a translucent pixel keeps its straight
+# source colors and carries the alpha channel whole, the clear
+# flags still marking the fully transparent -- a display that can
+# blend does the composing itself.
+def test_partial_alpha_travels_straight() -> None:
+    raw = bytes([0, 100, 150, 200, 128, 10, 20, 30, 0, 40, 50, 60, 255])
+    picture = decode(picture_bytes(3, 1, 8, 6, raw))
+
+    assert_that(picture.rows[0]).is_equal_to(
+        ((100, 150, 200), (10, 20, 30), (40, 50, 60))
+    )
+    assert_that(picture.alpha).is_equal_to(((128, 0, 255),))
+    assert_that(picture.clear).is_equal_to(((False, True, False),))
+
+
+# With only full opacity and full transparency aboard, the alpha
+# channel is dropped and the picture decodes exactly as it always
+# has: composed rows, and the clear flags saying everything.
+def test_binary_alpha_stays_composed() -> None:
+    raw = bytes([0, 100, 150, 200, 255, 10, 20, 30, 0])
+    picture = decode(picture_bytes(2, 1, 8, 6, raw))
+
+    assert_that(picture.alpha).is_none()
+    assert_that(picture.rows[0]).is_equal_to(((100, 150, 200), (0, 0, 0)))
+    assert_that(picture.clear).is_equal_to(((False, True),))
+
+
+# Grey-with-alpha and palette pictures carry partial alpha the
+# same way: straight greys, straight palette entries, and the
+# opacities aboard beside them.
+def test_grey_and_palette_partial_alpha() -> None:
+    raw = bytes([0, 200, 77, 100, 255])
+    grey = decode(picture_bytes(2, 1, 8, 4, raw))
+
+    assert_that(grey.rows[0]).is_equal_to(((200, 200, 200), (100, 100, 100)))
+    assert_that(grey.alpha).is_equal_to(((77, 255),))
+
+    plotted = decode(
+        picture_bytes(
+            2,
+            1,
+            8,
+            3,
+            bytes([0, 0, 1]),
+            palette=bytes([200, 0, 0, 9, 9, 9]),
+            alphas=bytes([255, 128]),
+        )
+    )
+
+    assert_that(plotted.rows[0]).is_equal_to(((200, 0, 0), (9, 9, 9)))
+    assert_that(plotted.alpha).is_equal_to(((255, 128),))
+    assert_that(plotted.clear).is_equal_to(((False, False),))
+
+
 # A palette picture at bit depth 4 -- Beyond Zork's own shape --
 # unpacks two indices per byte, and its data may arrive split
 # across several IDAT chunks.
@@ -137,13 +191,15 @@ def test_greyscale_depths_scale_to_full_range() -> None:
     )
 
 
-# Alpha channels compose over black, the screen a cover shows on:
-# half-transparent orange darkens by half.
-def test_alpha_composes_over_black() -> None:
+# A half-transparent pixel keeps its straight orange and carries
+# its opacity: composing is the display's business now, and the
+# clear flags still mark the fully see-through.
+def test_partial_alpha_keeps_straight_colors() -> None:
     raw = bytes([0, 200, 100, 50, 128, 255, 255, 255, 0])
     picture = decode(picture_bytes(2, 1, 8, 6, raw))
 
-    assert_that(picture.rows[0]).is_equal_to(((100, 50, 25), BLACK))
+    assert_that(picture.rows[0]).is_equal_to(((200, 100, 50), WHITE))
+    assert_that(picture.alpha).is_equal_to(((128, 0),))
     assert_that(picture.clear).is_equal_to(((False, True),))
 
 
@@ -156,16 +212,18 @@ def test_grey_alpha_composes_over_black() -> None:
     assert_that(picture.clear).is_equal_to(((False, True),))
 
 
-# A tRNS chunk gives palette entries alphas; entries beyond its end
-# stay opaque.
-def test_palette_transparency_composes_and_defaults_opaque() -> None:
+# A tRNS chunk gives palette entries alphas; entries beyond its
+# end stay opaque, and a partial entry rides the alpha channel
+# with its straight palette color.
+def test_palette_transparency_defaults_opaque() -> None:
     palette = bytes([200, 100, 50, 10, 20, 30])
     raw = bytes([0, 0, 1])
     picture = decode(
         picture_bytes(2, 1, 8, 3, raw, palette=palette, alphas=bytes([128]))
     )
 
-    assert_that(picture.rows[0]).is_equal_to(((100, 50, 25), (10, 20, 30)))
+    assert_that(picture.rows[0]).is_equal_to(((200, 100, 50), (10, 20, 30)))
+    assert_that(picture.alpha).is_equal_to(((128, 255),))
     assert_that(picture.clear).is_equal_to(((False, False),))
 
 

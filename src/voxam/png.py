@@ -68,20 +68,27 @@ class Picture:
     Attributes:
         width: The width in pixels.
         height: The height in pixels.
-        rows: One tuple of (red, green, blue) triples per row, each
-            channel 0 to 255, alpha already composed over black --
-            the terminal a cover picture is shown on.
+        rows: One tuple of (red, green, blue) triples per row,
+            each channel 0 to 255. With no alpha aboard these are
+            composed over black -- the terminal a cover picture
+            is shown on; with alpha carried they are the straight
+            source colors, for a display that can truly blend.
         clear: Which pixels are fully transparent, one tuple of
             flags per row -- or None for a picture with no
             transparency at all. Version 6 art layers its chrome
             with see-through holes, and only full transparency
             matters there (Blorb: Picture Resource Chunks).
+        alpha: Per-pixel opacity, one tuple of 0-255 values per
+            row -- or None when no pixel is partially
+            see-through, in which case the clear flags already
+            say everything transparency has to say.
     """
 
     width: int
     height: int
     rows: tuple[tuple[tuple[int, int, int], ...], ...]
     clear: tuple[tuple[bool, ...], ...] | None = None
+    alpha: tuple[tuple[int, ...], ...] | None = None
 
 
 def decode(
@@ -131,16 +138,35 @@ def decode(
         raise PNGError(msg)
 
     lines = _unfiltered(inflated, height, stride, bytes_back)
-    rows = tuple(
-        _pixels(line, width, depth, colour_type, palette, alphas) for line in lines
-    )
-    clear = (
-        tuple(_clear_row(line, width, depth, colour_type, alphas) for line in lines)
-        if _translucent(colour_type, alphas)
+    translucent = _translucent(colour_type, alphas)
+    alpha = (
+        tuple(_alpha_row(line, width, depth, colour_type, alphas) for line in lines)
+        if translucent
         else None
     )
 
-    return Picture(width, height, rows, clear)
+    if alpha is not None and not any(
+        0 < value < OPAQUE for row in alpha for value in row
+    ):
+        # Nothing is partially see-through: the clear flags say it
+        # all, and the rows stay composed over black as ever, so a
+        # picture of holes and solids decodes exactly as it always
+        # has.
+        alpha = None
+
+    rows = tuple(
+        _pixels(line, width, depth, colour_type, palette, alphas)
+        if alpha is None
+        else _straight_pixels(line, width, depth, colour_type, palette)
+        for line in lines
+    )
+    clear = (
+        tuple(_clear_row(line, width, depth, colour_type, alphas) for line in lines)
+        if translucent
+        else None
+    )
+
+    return Picture(width, height, rows, clear, alpha)
 
 
 def palette(data: bytes) -> tuple[tuple[int, int, int], ...]:
@@ -415,6 +441,56 @@ def _over_black(channels: bytes | bytearray, alpha: int) -> tuple[int, int, int]
         channels[0] * alpha // OPAQUE,
         channels[1] * alpha // OPAQUE,
         channels[2] * alpha // OPAQUE,
+    )
+
+
+def _straight_pixels(
+    line: bytearray,
+    width: int,
+    depth: int,
+    colour_type: int,
+    palette: tuple[tuple[int, int, int], ...],
+) -> tuple[tuple[int, int, int], ...]:
+    """One scanline's source colors, uncomposed.
+
+    Only the alpha-bearing color types arrive here: a picture
+    with partial alpha keeps its straight colors, and a display
+    that can truly blend does the composing itself.
+
+    Raises:
+        PNGError: For a palette index beyond the palette.
+    """
+
+    if colour_type == TRUE_ALPHA:
+        return tuple(
+            (line[4 * index], line[4 * index + 1], line[4 * index + 2])
+            for index in range(width)
+        )
+
+    if colour_type == GREY_ALPHA:
+        return tuple((line[2 * index],) * 3 for index in range(width))
+
+    # Composing over black at full opacity is the identity, so the
+    # palette path reuses _from_palette for its bounds check alone.
+    return tuple(
+        _from_palette(value, palette, b"") for value in _unpacked(line, width, depth)
+    )
+
+
+def _alpha_row(
+    line: bytearray, width: int, depth: int, colour_type: int, alphas: bytes
+) -> tuple[int, ...]:
+    """One scanline's opacity, pixel by pixel."""
+
+    if colour_type == TRUE_ALPHA:
+        return tuple(line[4 * index + 3] for index in range(width))
+
+    if colour_type == GREY_ALPHA:
+        return tuple(line[2 * index + 1] for index in range(width))
+
+    return tuple(
+        alphas[index] if index < len(alphas) else OPAQUE
+        for index in _unpacked(line, width, depth)
     )
 
 

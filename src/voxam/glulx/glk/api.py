@@ -284,6 +284,14 @@ class Glk:
             # alignments, flow breaks -- remain unclaimed.
             return int(self.frontend.graphics and value == WindowType.GRAPHICS)
 
+        if selector == GlkGestalt.GRAPHICS_TRANSPARENCY:
+            # Alpha travels the whole way at a drawing display:
+            # the decoder keeps translucent pictures' straight
+            # colors and opacities, and the window blends them on
+            # the blit -- "the appropriate degree of transparency"
+            # made true (Glk: Testing for Graphics Capabilities).
+            return int(self.frontend.graphics)
+
         if selector in (
             GlkGestalt.SOUND,
             GlkGestalt.SOUND2,
@@ -330,13 +338,8 @@ class Glk:
         ):
             return 1
 
-        # Everything else -- graphics char input, and notably
-        # graphics transparency: the PNG decoder keeps only full
-        # transparency, composing partial alpha over black, which
-        # is not "the appropriate degree of transparency" the
-        # selector promises (Glk: Testing for Graphics
-        # Capabilities), so the claim stays honestly zero -- and
-        # every selector from a Glk yet to be written: zero is the
+        # Everything else -- graphics char input -- and every
+        # selector from a Glk yet to be written: zero is the
         # honest answer for the unsupported and the unknown alike.
         return 0
 
