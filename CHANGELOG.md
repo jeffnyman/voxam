@@ -1,3 +1,11 @@
+## v1.3.0 (2026-08-23)
+
+### Feat
+
+- **glulx**: the pygame glass sounds -- the Blorb's speaker rides into the window through the painted spine (#224)
+- **glulx**: the pygame glass speaks Glulx -- one painted spine, two displays, --graphics opens the window, and it wears the glulx badge (#223)
+- **cli**: --version speaks the installed release, straight from the distribution metadata (#222)
+
 ## v1.2.0 (2026-08-22)
 
 ### Feat

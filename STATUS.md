@@ -310,6 +310,21 @@ Z-Machine has a glass that clicks today. What the grammar cannot
 spell -- a function key, a terminator, a double click -- warns
 loudly and records nothing, never silently wrong.
 
+The third glass is open: `--graphics` plays a Glulx story in the
+pygame window, no terminal needed. The display logic the terminal
+glass proved -- the whole-tree repaint, the wrapped buffers and
+their `[MORE]` pager, the line editor, the timer, the speaker --
+was lifted into one painted spine both displays now ride, so the
+window inherited sound and timers the day it opened. The window
+itself supplies only what a window can: the fitted bold and
+italic faces, reverse as an ink-and-paper swap, a block caret
+where a terminal would park its hardware cursor, a glulx badge on
+the frame, and a close button that ends the session the way an
+exhausted input stream does. The clicks the glass already hears
+are swallowed honestly for now -- the mouse is 1.4's claim to
+make -- and replays keep the stdio display, as the grammar
+requires.
+
 ### The road to 1.5
 
 What remains is glass, not machine, and it maps onto the minor
@@ -321,9 +336,10 @@ not on a calendar:
   and replays the way every line-driven session already does --
   and the Z-Machine's mouse clicks have their `<click x y>` token.
   The recording campaign runs through this era and keeps running.
-- **1.3, the third glass.** The pygame frontend learns the Glk
-  window tree: windows, text, and styles in a real window, the
-  way it already serves every Z-Machine version.
+- **1.3, the third glass.** Done in the making: the pygame
+  frontend speaks the Glk window tree -- windows, text, styles,
+  sound, and timers in a real window, one painted spine shared
+  with the terminal glass.
 - **1.4, the senses.** Graphics windows and image drawing from
   the gblorb, mouse input, hyperlink selection -- bundled because
   the pygame glass is where all three become honest claims.
