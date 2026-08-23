@@ -1119,8 +1119,9 @@ def _glass_frontend(
     The flag was explicit, so a missing extra earns a note before
     the session falls back to the terminal glass or the stream.
     The Blorb's Reso chunk shapes the window as it does for the
-    Z-Machine, and a recorder rides the same seams the terminal
-    glass offers.
+    Z-Machine, a recorder rides the same seams the terminal glass
+    offers, and a Blorb with sounds may bring a speaker along --
+    see _speaker for what that takes.
     """
 
     try:
@@ -1139,7 +1140,11 @@ def _glass_frontend(
             on_line, on_key = _recorded_glk(recorder)
 
         return GlassFrontend(
-            standard=standard, zoom=zoom, on_line=on_line, on_key=on_key
+            standard=standard,
+            zoom=zoom,
+            speaker=_speaker(blorb),
+            on_line=on_line,
+            on_key=on_key,
         )
     except ImportError:
         print(

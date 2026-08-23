@@ -1752,6 +1752,36 @@ def test_the_glulx_window_takes_the_standard_shape(
     assert_that(captured["zoom"]).is_none()
 
 
+# The pygame window brings a speaker along when the Blorb's sounds
+# and the audio device allow, and claims sound exactly then -- the
+# same courtesy _speaker pays every other glass.
+def test_the_glulx_window_brings_a_speaker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "voxam.glulx.glk.glass.open_pygame_glass",
+        lambda *_args, **_kwargs: WindowStub(""),
+    )
+
+    bare = _glass_frontend(None)
+
+    if bare is None:
+        pytest.fail("the window opened")
+
+    assert_that(bare.sound).is_false()
+
+    speaker = Speaker({}, frozenset(), open_sounddevice_stream)
+
+    monkeypatch.setattr("voxam.cli._speaker", lambda _blorb: speaker)
+
+    sounding = _glass_frontend(None)
+
+    if sounding is None:
+        pytest.fail("the window opened")
+
+    assert_that(sounding.sound).is_true()
+
+
 def test_graphics_and_plain_are_two_glasses(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
