@@ -17,6 +17,7 @@ from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
 from voxam.cli import (
     _gallery,
+    _glass_frontend,
     _graphics_frontend,
     _picture_file_gallery,
     _recorded_glk,
@@ -1673,6 +1674,82 @@ def test_graphics_without_the_extra_notes_and_falls_back(
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(capsys.readouterr().out).contains("needs the pygame-ce extra")
+
+
+# --graphics on a Glulx story plays through the pygame window:
+# with the doorway monkeypatched to a stub glass, the whole
+# session runs through the real GlassFrontend -- no terminal
+# needed, so a piped session still earns the window.
+def test_glulx_graphics_play_runs_through_the_window(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "voxam.glulx.glk.glass.open_pygame_glass",
+        lambda _standard=None, _version=0, _zoom=None: WindowStub(""),
+    )
+
+    exit_code = main(["--graphics", str(glulx_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("checksum verified")
+
+
+# Without the pygame extra, a Glulx --graphics earns the same note
+# the Z-Machine's does, and the session falls back down the glass
+# chain -- here to the stdio display, no terminal claimed.
+def test_glulx_graphics_without_the_extra_notes_and_falls_back(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "pygame", None)
+
+    exit_code = main(["--graphics", str(glulx_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("needs the pygame-ce extra")
+
+
+# The Blorb's Reso standard window size travels to the pygame
+# doorway for Glulx as it does for the Z-Machine, the window wears
+# the glulx badge, and a recorder rides in through the seams.
+def test_the_glulx_window_takes_the_standard_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def opened(
+        standard: tuple[int, int] | None = None,
+        version: int | str = 0,
+        zoom: float | None = None,
+    ) -> WindowStub:
+        captured["standard"] = standard
+        captured["version"] = version
+        captured["zoom"] = zoom
+
+        return WindowStub("")
+
+    monkeypatch.setattr("voxam.glulx.glk.glass.open_pygame_glass", opened)
+
+    shaped = Blorb((), None, None, frozenset(), resolution=Resolution(320, 200))
+    recorder = Recorder(
+        tmp_path / "session.accept", game=tmp_path / "story.ulx", seed=7, warn=print
+    )
+
+    assert_that(_glass_frontend(shaped, zoom=0.5, recorder=recorder)).is_not_none()
+
+    recorder.close()
+
+    assert_that(captured["standard"]).is_equal_to((320, 200))
+    assert_that(captured["version"]).is_equal_to("glulx")
+    assert_that(captured["zoom"]).is_equal_to(0.5)
+
+    assert_that(_glass_frontend(None)).is_not_none()
+    assert_that(captured["standard"]).is_none()
+    assert_that(captured["zoom"]).is_none()
 
 
 def test_graphics_and_plain_are_two_glasses(

@@ -48,6 +48,8 @@ from voxam.zmachine.story import Story
 if TYPE_CHECKING:
     from voxam.glass import GraphicsFrontend
     from voxam.glulx.glk.frontend import Frontend as GlkFrontend
+    from voxam.glulx.glk.glass import GlassFrontend
+    from voxam.glulx.glk.painted import PaintedFrontend
     from voxam.glulx.glk.terminal import TerminalFrontend
     from voxam.painter import ScreenFrontend
 
@@ -1004,6 +1006,8 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     input_source: Callable[[], str] | None = None,
     witness: Callable[[str], None] | None = None,
     screen: bool = False,
+    graphics: bool = False,
+    zoom: float | None = None,
 ) -> int:
     """Run a Glulx story over a display.
 
@@ -1015,11 +1019,13 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     a Z-Machine session instrument still, declined by name rather
     than half-working.
 
-    With screen allowed, a live session at a real terminal gets
-    the painted display -- a recording included, riding the
-    glass's own seams so real keystrokes land in the script as
-    key tokens. A replay arrives as an input source and keeps the
-    stdio display, whose lines are what the grammar speaks.
+    With graphics asked for, a live session gets the pygame
+    window; with screen allowed, one at a real terminal gets the
+    terminal glass -- a recording included either way, riding the
+    painted display's own seams so real keystrokes land in the
+    script as key tokens. A replay arrives as an input source and
+    keeps the stdio display, whose lines are what the grammar
+    speaks.
     """
 
     if trace is not None:
@@ -1040,12 +1046,16 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     blorb = _glulx_resources(story_path, resources)
 
     # A replay arrives as an input source and keeps the stdio
-    # display; a live session earns the glass, recorder and all.
-    painted = (
-        _terminal_frontend(blorb, recorder=recorder)
-        if screen and input_source is None
-        else None
-    )
+    # display; a live session earns a glass, recorder and all --
+    # the pygame window when asked for, the terminal otherwise.
+    painted: PaintedFrontend | None = None
+
+    if input_source is None:
+        if graphics:
+            painted = _glass_frontend(blorb, zoom=zoom, recorder=recorder)
+
+        if painted is None and screen:
+            painted = _terminal_frontend(blorb, recorder=recorder)
 
     if painted is None and recorder is not None and input_source is None:
         # Recording at the stdio display: every typed line goes
@@ -1096,6 +1106,48 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     print()
 
     return EXIT_OK
+
+
+def _glass_frontend(
+    blorb: Blorb | None = None,
+    *,
+    zoom: float | None = None,
+    recorder: Recorder | None = None,
+) -> "GlassFrontend | None":
+    """A pygame-windowed Glk display, when the graphics extra allows.
+
+    The flag was explicit, so a missing extra earns a note before
+    the session falls back to the terminal glass or the stream.
+    The Blorb's Reso chunk shapes the window as it does for the
+    Z-Machine, and a recorder rides the same seams the terminal
+    glass offers.
+    """
+
+    try:
+        # Imported here because the graphics extra is optional; the
+        # ImportError itself rises from opening the window.
+        from voxam.glulx.glk.glass import GlassFrontend  # noqa: PLC0415
+
+        standard = (
+            (blorb.resolution.width, blorb.resolution.height)
+            if blorb is not None and blorb.resolution is not None
+            else None
+        )
+        on_line = on_key = None
+
+        if recorder is not None:
+            on_line, on_key = _recorded_glk(recorder)
+
+        return GlassFrontend(
+            standard=standard, zoom=zoom, on_line=on_line, on_key=on_key
+        )
+    except ImportError:
+        print(
+            "voxam: the graphics window needs the pygame-ce extra "
+            "(voxam[graphics]); staying with the terminal\n"
+        )
+
+        return None
 
 
 def _terminal_frontend(
@@ -1351,6 +1403,8 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
                 trace=trace,
                 input_source=input_source,
                 screen=screen,
+                graphics=graphics,
+                zoom=zoom,
             )
 
         story, blorb = _load_story(story_path, resources)

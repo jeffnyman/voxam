@@ -1204,7 +1204,7 @@ def _layered(picture: Picture) -> Sequence[Sequence[tuple[int, ...]]]:
 
 def open_pygame_glass(
     standard: tuple[int, int] | None = None,
-    version: int = 0,
+    version: int | str = 0,
     zoom: float | None = None,
 ) -> Glass:
     """Open a real pygame window, the graphics extra permitting.
@@ -1218,7 +1218,9 @@ def open_pygame_glass(
             declared one; the glass keeps its proportions (Blorb:
             The Resolution Chunk).
         version: The story version, whose numbered badge becomes
-            the window's icon; 0 leaves the icon alone.
+            the window's icon -- or a badge named outright, the
+            way a Glulx session asks for its own; 0 leaves the
+            icon alone.
         zoom: The fraction of the desktop the window should fill,
             satisfied by growing the grid -- more rows and columns
             of the same modest type, a genuinely roomier screen
@@ -1249,7 +1251,7 @@ class _PygameGlass:
         self,
         pygame: object,
         standard: tuple[int, int] | None = None,
-        version: int = 0,
+        version: int | str = 0,
         zoom: float | None = None,
     ) -> None:
         module: Any = pygame
@@ -1567,23 +1569,25 @@ class _PygameGlass:
         return surface
 
 
-def _badge(module: object, version: int) -> None:
-    """Give the window the story version's own icon.
+def _badge(module: object, version: int | str) -> None:
+    """Give the window the story's own icon.
 
-    Each Z-Machine version ships a numbered badge in the
-    package's icons directory; the window wears the one for the
-    story it is playing. Set before the display opens, as pygame
-    prefers.
+    Each Z-Machine version ships a numbered badge in the package's
+    icons directory, and the window wears the one for the story it
+    is playing; a badge named outright -- glulx -- is worn as it
+    is. Set before the display opens, as pygame prefers.
     """
 
-    if version not in BADGED_VERSIONS:
+    if isinstance(version, str):
+        name = f"{version}.ico"
+    elif version in BADGED_VERSIONS:
+        name = f"z{version}.ico"
+    else:
         return
 
     pygame: Any = module
 
-    with resources.as_file(
-        resources.files("voxam") / "icons" / f"z{version}.ico"
-    ) as path:
+    with resources.as_file(resources.files("voxam") / "icons" / name) as path:
         pygame.display.set_icon(pygame.image.load(str(path)))
 
 

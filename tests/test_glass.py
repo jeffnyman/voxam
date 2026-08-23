@@ -1431,7 +1431,8 @@ def test_the_pygame_doorway_draws_at_pixel_positions(
 
 # The window wears the story version's own badge: the packaged
 # z<version>.ico becomes the pygame icon, set before the display
-# opens; version 0 -- no story named -- leaves the icon alone.
+# opens; a badge named outright -- glulx -- is worn as it is, and
+# version 0 -- no story named -- leaves the icon alone.
 def test_the_window_wears_the_version_badge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1444,9 +1445,14 @@ def test_the_window_wears_the_version_badge(
     assert_that(module.icons).is_length(1)
     assert_that(str(module.icons[0][1])).ends_with("z6.ico")
 
+    open_pygame_glass(None, "glulx")
+
+    assert_that(module.icons).is_length(2)
+    assert_that(str(module.icons[1][1])).ends_with("glulx.ico")
+
     open_pygame_glass()
 
-    assert_that(module.icons).is_length(1)
+    assert_that(module.icons).is_length(2)
 
 
 # A standard window size shapes the doorway's glass: the height
