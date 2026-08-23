@@ -74,7 +74,8 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.3`: the third glass -- Glulx in the pygame window.
+Version `1.4`: the senses -- graphics, images, the mouse, and
+hyperlinks at the Glulx window.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -103,18 +104,27 @@ can produce: raw keystrokes as the tokens Beyond Zork's menus
 always replayed through, and mouse clicks as `<click x y>`,
 recorded with their coordinates and replayed with the same.
 
-New in `1.3`, the third glass: `--graphics` opens a Glulx story
-in the pygame window, the same window every Z-Machine version
-plays in. One painted spine now drives both Glk displays -- the
-window tree, buffers wrapped behind `[MORE]`, styles in the
-fitted bold and italic faces, a block caret at the typing
-position, timers, and the Blorb's sound through the speaker --
-and the window wears its own glulx badge. The CLI answers
-`--version` now, too. What remains of the richer glass --
-graphics windows, the mouse at a Glulx window, hyperlinks -- is
-the road to 1.5, Full Glulx. Version 2.0 is reserved for
-something newer still: a Lectrote-like interface on the GlkOte
-protocol.
+The third glass is `1.3`'s: `--graphics` opens a Glulx story in
+the pygame window, the same window every Z-Machine version plays
+in, one painted spine driving both Glk displays -- the window
+tree, buffers wrapped behind `[MORE]`, styles in the fitted
+faces, timers, and the Blorb's sound through the speaker.
+
+New in `1.4`, the senses: the window sees, draws, and points.
+Graphics windows open as true pixel canvases -- persistent,
+filled and erased in their own coordinates -- and the gblorb's
+PNG art draws onto them, scaled and clipped, transparency
+carried through. The mouse is claimed: a click lands in whichever
+armed grid or canvas it hit, in that window's own units, and
+hyperlinks are claimed beside it -- linked text wears the
+reader's blue, and a click on it delivers the link's value. The
+acceptance grammar spells both, `<click x y>` and `<link n>`
+carrying exactly what the game was told, recorded at the window
+and replayed anywhere. What remains -- JPEG art, partial
+transparency, and the last gestalt claims -- is the road to 1.5,
+Full Glulx, alongside the Treaty of Babel. Version 2.0 is
+reserved for something newer still: a Lectrote-like interface on
+the GlkOte protocol.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -187,7 +197,10 @@ and grids drawn as blocks -- and a piped session keeps it on its
 own, which is exactly how the glulxercise certification drives
 it. And `--graphics` opens the pygame window here too: the same
 tree in a real window, the fitted faces carrying the styles, the
-gblorb's sounds aboard, and a glulx badge on the frame.
+gblorb's sounds aboard, and a glulx badge on the frame -- plus
+everything only a window can offer: graphics canvases with the
+gblorb's PNG art drawn on, mouse clicks in each window's own
+units, and hyperlinks in the reader's blue, selected by click.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.

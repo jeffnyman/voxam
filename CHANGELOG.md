@@ -1,3 +1,12 @@
+## v1.4.0 (2026-08-23)
+
+### Feat
+
+- **glulx**: hyperlinks complete the senses -- linked runs wear blue at the window, a click selects them, and <link n> gives the grammar its last word (#231)
+- **glulx**: the window hears the mouse -- clicks post to armed grids and canvases in their own units, recorded as the game heard them and replayed the same (#230)
+- **glulx**: the gblorb's picts meet the glass -- PNG draws scaled and clipped on the canvas, JPEG refused whole, and a clear settles under the paint that follows (#229)
+- **glulx**: graphics windows open at the glass -- pixel metrics, persistent canvases, clipped rectangles, and the redraw owed for a moved box (#228)
+
 ## v1.3.0 (2026-08-23)
 
 ### Feat

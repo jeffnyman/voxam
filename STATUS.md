@@ -304,11 +304,13 @@ glass, where a real arrow press lands in the script as the same
 Z-Machine's key era, and a replayed token presses the Glk key it
 means. And it hears the mouse: a click at a mouse-bearing glass
 records as `<click x y>` with the coordinates the story was told,
-and a replayed click presses §10.3's input code with the script's
-own coordinates -- on either machine's grammar, though only the
-Z-Machine has a glass that clicks today. What the grammar cannot
-spell -- a function key, a terminator, a double click -- warns
-loudly and records nothing, never silently wrong.
+and a replayed click presses §10.3's input code -- or answers the
+Glk mouse event -- with the script's own values, on either
+machine's grammar and either machine's window. Hyperlink
+selections spell as `<link n>` the same way, carrying the link
+value the game itself heard. What the grammar cannot spell -- a
+function key, a terminator, a double click -- warns loudly and
+records nothing, never silently wrong.
 
 The third glass is open: `--graphics` plays a Glulx story in the
 pygame window, no terminal needed. The display logic the terminal
@@ -320,10 +322,31 @@ itself supplies only what a window can: the fitted bold and
 italic faces, reverse as an ink-and-paper swap, a block caret
 where a terminal would park its hardware cursor, a glulx badge on
 the frame, and a close button that ends the session the way an
-exhausted input stream does. The clicks the glass already hears
-are swallowed honestly for now -- the mouse is 1.4's claim to
-make -- and replays keep the stdio display, as the grammar
-requires.
+exhausted input stream does. Replays keep the stdio display, as
+the grammar requires.
+
+And the window has its senses. Graphics windows open as true
+pixel canvases: the tree is arranged over the glass's real
+pixels, a text window still answers its size in characters by
+way of the font-cell metrics, a canvas answers honestly in
+pixels, fills and erases clip to its own box, its pixels persist
+between repaints because they are the game's work -- and a moved
+canvas is cleared to background with the redraw event the spec
+demands posted to the game (Glk: Graphics Windows). The gblorb's
+PNG Picts draw onto the canvases scaled and clipped, full
+transparency carried through to the surface; a JPEG Pict is
+refused whole rather than half-drawn, and the transparency
+gestalt underclaims at zero because partial alpha is composed
+over black -- both honest refusals with their reasons written
+down. The mouse is claimed: a click lands in whichever armed
+grid or canvas it hit, delivered as the event glk_select expects
+in that window's own units, cells or pixels. And hyperlinks are
+claimed beside it: linked runs survive wrapping distinct, wear
+the reader's blue on the glass, and a click on one delivers its
+link value to a window that asked (Glk: Accepting Hyperlink
+Events). Both inputs speak the grammar -- `<click x y>` and
+`<link n>` -- so a session full of pointing records at the
+window and replays at the stdio display, byte for byte.
 
 ### The road to 1.5
 
@@ -340,13 +363,21 @@ not on a calendar:
   frontend speaks the Glk window tree -- windows, text, styles,
   sound, and timers in a real window, one painted spine shared
   with the terminal glass.
-- **1.4, the senses.** Graphics windows and image drawing from
-  the gblorb, mouse input, hyperlink selection -- bundled because
-  the pygame glass is where all three become honest claims.
-- **1.5, Full Glulx.** The declaration release, in the manner of
-  1.0: the parity sweep, the deep certifications the recording
-  campaign has earned, performance work if a heavyweight has
-  convicted it, and the ledger brought current.
+- **1.4, the senses.** Done in the making: graphics windows and
+  PNG image drawing from the gblorb, mouse input, hyperlink
+  selection -- bundled because the pygame glass is where all
+  three become honest claims -- and the grammar's `<click x y>`
+  and `<link n>` spelling every one of them.
+- **1.5, Full Glulx and the Treaty of Babel.** The declaration
+  release, in the manner of 1.0. First the last claims with
+  known shapes: JPEG art through the window's own decoder,
+  partial transparency carried honestly, character input in
+  graphics windows. Then the Treaty of Babel: IFIDs computed by
+  the treaty's per-format rules and the Blorb's iFiction record
+  read, so Voxam can name what it plays. Then the declaration
+  itself -- the parity sweep, the certifications, and a ledger
+  whose exclusion list is short and spec-sanctioned: MOD music
+  and margin images, refusals with their reasons written down.
 
 ### And then 2.0
 
