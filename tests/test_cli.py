@@ -1076,6 +1076,40 @@ def test_glulx_links_record_at_the_window_and_replay(
     assert_that(played).is_equal_to(0)
 
 
+# --babel speaks the treaty for both machines -- no Z-only
+# refusal here: a Z-code story answers its legacy identity, a
+# Glulx story its own, junk is honestly neither, a second report
+# is refused, and the session flags have nothing to do.
+def test_babel_reports_ifids(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = broken_story(tmp_path, bytes([0xBA]))
+
+    assert_that(main(["--babel", str(story)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("IFID: ZCODE-0-------")
+
+    assert_that(main(["--babel", str(glulx_story(tmp_path))])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("IFID: GLULX-")
+
+    junk = tmp_path / "junk.dat"
+    junk.write_bytes(b"MZ" + bytes(200))
+
+    assert_that(main(["--babel", str(junk)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("neither Z-code nor Glulx")
+
+    assert_that(main(["--babel", "--header", str(story)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("pick one")
+
+    assert_that(main(["--babel"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("needs a story file")
+
+    assert_that(main(["--babel", "--trace", "t.trace", str(story)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("only reads the story")
+
+    assert_that(main(["--babel", str(tmp_path / "missing.z5")])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("voxam:")
+
+
 # The static reports are Z-Machine instruments; a Glulx story gets
 # a plain refusal instead of a version-70 riddle.
 def test_the_static_reports_decline_glulx(
