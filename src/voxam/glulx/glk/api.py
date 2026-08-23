@@ -292,6 +292,14 @@ class Glk:
             # made true (Glk: Testing for Graphics Capabilities).
             return int(self.frontend.graphics)
 
+        if selector == GlkGestalt.GRAPHICS_CHAR_INPUT:
+            # Character input is window-blind at every display
+            # here -- the keyboard answers whichever window asked
+            # -- so a canvas takes keystrokes wherever a canvas
+            # can exist at all (Glk: Testing for Graphics
+            # Capabilities).
+            return int(self.frontend.graphics)
+
         if selector in (
             GlkGestalt.SOUND,
             GlkGestalt.SOUND2,
@@ -338,8 +346,7 @@ class Glk:
         ):
             return 1
 
-        # Everything else -- graphics char input -- and every
-        # selector from a Glk yet to be written: zero is the
+        # Every selector from a Glk yet to be written: zero is the
         # honest answer for the unsupported and the unknown alike.
         return 0
 

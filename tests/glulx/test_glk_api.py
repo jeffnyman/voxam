@@ -310,6 +310,7 @@ def test_gestalt_answers_for_the_display() -> None:
         (GlkGestalt.DATE_TIME, 0): 1,
         (GlkGestalt.RESOURCE_STREAM, 0): 1,
         (GlkGestalt.GRAPHICS_TRANSPARENCY, 0): 0,
+        (GlkGestalt.GRAPHICS_CHAR_INPUT, 0): 0,
         (99, 0): 0,
     }
 
@@ -335,6 +336,7 @@ def test_gestalt_answers_for_the_display() -> None:
     ).is_equal_to(0)
     assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS, 0)).is_equal_to(1)
     assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS_TRANSPARENCY, 0)).is_equal_to(1)
+    assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS_CHAR_INPUT, 0)).is_equal_to(1)
 
     # A clicking display still only carries a mouse in grids and
     # graphics windows.
@@ -518,6 +520,30 @@ def test_incoherent_splits_are_refused() -> None:
     assert_that(
         drawing.glk_window_open(base, ABOVE_FIXED, 8, WindowType.GRAPHICS, 0)
     ).is_not_none()
+
+
+# A canvas takes character input wherever a canvas can exist at
+# all: the request arms like any other window's, the keyboard
+# answers it, and the keystroke comes back on the canvas (Glk:
+# Character Input Events).
+def test_a_canvas_takes_character_input() -> None:
+    class DrawingKeyist(Keyist):
+        graphics = True
+
+    library, first = rooted(DrawingKeyist([ord("m")]))
+    canvas = library.glk_window_open(first, ABOVE_FIXED, 8, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    library.glk_request_char_event(canvas)
+
+    event = RefStruct(4)
+
+    library.glk_select(event)
+
+    assert_that(event.fields).is_equal_to([EventType.CHAR_INPUT, canvas, ord("m"), 0])
+    assert_that(canvas.char_request).is_false()
 
 
 # A rearrange that moves a real canvas clears it and owes the
