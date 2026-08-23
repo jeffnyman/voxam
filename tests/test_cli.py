@@ -6,6 +6,7 @@ import types
 import zlib
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
+from importlib import metadata
 from pathlib import Path
 from typing import cast
 
@@ -76,6 +77,18 @@ def test_main_prints_banner(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert_that(exit_code).is_equal_to(0)
     assert_that(capsys.readouterr().out).contains("Voxam")
+
+
+# The version action answers inside parse_args, before the banner:
+# one line, spelled from the installed distribution's metadata --
+# the same number pyproject.toml declares -- and a clean exit.
+def test_main_reports_the_version(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(["--version"])
+
+    assert_that(caught.value.code).is_equal_to(0)
+    expected = f"voxam {metadata.version('voxam')}\n"
+    assert_that(capsys.readouterr().out).is_equal_to(expected)
 
 
 # A stream without the encoding knob -- a bare StringIO -- is left
