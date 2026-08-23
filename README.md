@@ -74,7 +74,7 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.2`: the glass era for Glulx, and the harness complete.
+Version `1.3`: the third glass -- Glulx in the pygame window.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -94,18 +94,27 @@ it in continuous integration: seventy sections, zero failures,
 "All tests passed." spoken through the same stdio session a
 player can pipe.
 
-New in `1.2`, the glass and the grammar: a `.ulx` or `.gblorb`
-story plays on painted terminal glass -- the Glk window tree
-drawn whole, styles in terminal dress, timer events between
+The terminal glass and the grammar are `1.2`'s: a `.ulx` or
+`.gblorb` story plays on painted terminal glass -- the Glk window
+tree drawn whole, styles in terminal dress, timer events between
 keystrokes, and Glk sound through the same speaker the Z-Machine
-owns -- and the acceptance grammar can now spell every input any
-display can produce: raw keystrokes as the tokens Beyond Zork's
-menus always replayed through, and mouse clicks as `<click x y>`,
-recorded with their coordinates and replayed with the same. The
-rest of the richer glass -- graphics, the mouse at a Glulx
-window -- is the road to 1.5, Full Glulx. Version 2.0 is
-reserved for something newer still: a Lectrote-like interface on
-the GlkOte protocol.
+owns -- and the acceptance grammar spells every input any display
+can produce: raw keystrokes as the tokens Beyond Zork's menus
+always replayed through, and mouse clicks as `<click x y>`,
+recorded with their coordinates and replayed with the same.
+
+New in `1.3`, the third glass: `--graphics` opens a Glulx story
+in the pygame window, the same window every Z-Machine version
+plays in. One painted spine now drives both Glk displays -- the
+window tree, buffers wrapped behind `[MORE]`, styles in the
+fitted bold and italic faces, a block caret at the typing
+position, timers, and the Blorb's sound through the speaker --
+and the window wears its own glulx badge. The CLI answers
+`--version` now, too. What remains of the richer glass --
+graphics windows, the mouse at a Glulx window, hyperlinks -- is
+the road to 1.5, Full Glulx. Version 2.0 is reserved for
+something newer still: a Lectrote-like interface on the GlkOte
+protocol.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -176,7 +185,9 @@ voxam path/to/story.ulx
 `--plain` keeps the classic stream, buffer text flowing as prose
 and grids drawn as blocks -- and a piped session keeps it on its
 own, which is exactly how the glulxercise certification drives
-it. The pygame glass is a Z-Machine instrument still.
+it. And `--graphics` opens the pygame window here too: the same
+tree in a real window, the fitted faces carrying the styles, the
+gblorb's sounds aboard, and a glulx badge on the frame.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.
