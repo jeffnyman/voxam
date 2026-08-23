@@ -71,9 +71,11 @@ KEY_CODES: dict[str, int] = {
     },
 }
 
-# The character a click travels as in §10.3's eyes; the position
-# itself waits on the glass's click() until asked for.
-_CLICK = "\xfe"
+# The characters a click travels as in §10.3's eyes, single and
+# double alike -- Glk knows only clicks, so a fast pair at the
+# window is simply two mouse events (Glk: Mouse Input Events).
+# The position itself waits on the glass's click() until asked.
+_CLICKS = frozenset({"\xfe", "\xfd"})
 
 # A fresh canvas's background, until the game chooses another:
 # "The initial background color of each window is white" (Glk:
@@ -411,7 +413,7 @@ class GlassFrontend(PaintedFrontend):
         except EOFError:
             raise GlulxSessionEnd from None
 
-        if character == _CLICK:
+        if character in _CLICKS:
             self._clicked()
 
             return None

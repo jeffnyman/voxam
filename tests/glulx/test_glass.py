@@ -573,6 +573,29 @@ def test_a_click_posts_to_the_armed_canvas() -> None:
     assert_that(display.read_char(canvas)).is_equal_to(ord("x"))
 
 
+# A double click at the window is simply two clicks in Glk's
+# eyes: the second click's own character delivers another mouse
+# event, never a stray keystroke.
+def test_a_double_click_is_another_click() -> None:
+    stub = StubGlass(["\xfd"])
+    display = GlassFrontend(cast("Glass", stub))
+    library = Glk(display)
+    canvas = library.glk_window_open(None, 0, 0, WindowType.GRAPHICS, 0)
+
+    if canvas is None:
+        pytest.fail("the canvas did not open")
+
+    library.glk_request_mouse_event(canvas)
+    stub.click_position = (6, 3)
+
+    assert_that(display.read_char(canvas)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that(event.kind).is_equal_to(EventType.MOUSE_INPUT)
+    assert_that((event.val1, event.val2)).is_equal_to((5, 2))
+
+
 # A grid click speaks cells, not pixels: the position divides by
 # the font cell, so the game hears which character was clicked on
 # (Glk: Mouse Input Events).

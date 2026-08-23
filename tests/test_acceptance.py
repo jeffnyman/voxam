@@ -5,6 +5,7 @@ from assertpy import assert_that
 
 from voxam.acceptance import (
     CLICK,
+    DOUBLE_CLICK,
     LINK,
     AcceptanceScript,
     Recorder,
@@ -164,6 +165,58 @@ def test_recorded_clicks_round_trip(tmp_path: Path) -> None:
 
     assert_that(script.commands).is_equal_to((CLICK, "push button"))
     assert_that(script.clicks).is_equal_to(((12, 5),))
+
+
+# A <double-click x y> line presses §10.3.3's double code, its
+# coordinates spent off the same stream the single clicks use.
+def test_double_click_tokens_press_the_mouse(tmp_path: Path) -> None:
+    script = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=games/zork0.z6
+<click 12 5>
+<Double-Click 12 6>
+""",
+        )
+    )
+
+    assert_that(script.commands).is_equal_to((CLICK, DOUBLE_CLICK))
+    assert_that(script.clicks).is_equal_to(((12, 5), (12, 6)))
+
+
+# A garbled double click fails loudly like any typoed token, and
+# its coordinates obey the same word-sized ceiling.
+def test_bad_double_clicks_fail_loudly(tmp_path: Path) -> None:
+    with pytest.raises(AcceptanceError, match=r"a double click is"):
+        AcceptanceScript.parse(script_file(tmp_path, "! GAME=g.z6\n<double-click 5>\n"))
+
+    with pytest.raises(AcceptanceError, match=r"fit a word"):
+        AcceptanceScript.parse(
+            script_file(tmp_path, "! GAME=g.z6\n<double-click 5 70000>\n")
+        )
+
+
+# The replay transcript shows a double click as itself, and a
+# recorded one round-trips through the parser, coordinates and
+# all.
+def test_double_clicks_echo_and_round_trip(tmp_path: Path) -> None:
+    echoed: list[str] = []
+    source = replay([DOUBLE_CLICK], echoed.append)
+
+    assert_that(source()).is_equal_to(DOUBLE_CLICK)
+    assert_that(echoed).is_equal_to(["<double-click>\n"])
+
+    target = tmp_path / "session.accept"
+    recorder = Recorder(target, game=tmp_path / "zork0.z6", seed=9, warn=print)
+
+    recorder.double_click(12, 6)
+    recorder.close()
+
+    script = AcceptanceScript.parse(target)
+
+    assert_that(script.commands).is_equal_to((DOUBLE_CLICK,))
+    assert_that(script.clicks).is_equal_to(((12, 6),))
 
 
 # A <link n> line selects a hyperlink: the command is the link's

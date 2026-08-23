@@ -308,9 +308,11 @@ and a replayed click presses §10.3's input code -- or answers the
 Glk mouse event -- with the script's own values, on either
 machine's grammar and either machine's window. Hyperlink
 selections spell as `<link n>` the same way, carrying the link
-value the game itself heard. What the grammar cannot spell -- a
-function key, a terminator, a double click -- warns loudly and
-records nothing, never silently wrong.
+value the game itself heard. Double clicks spell too, as
+`<double-click x y>` -- the pygame glass hears the fast pair and
+presses §10.3.3's own code. What the grammar cannot spell -- a
+function key, a terminator -- warns loudly and records nothing,
+never silently wrong.
 
 The third glass is open: `--graphics` plays a Glulx story in the
 pygame window, no terminal needed. The display logic the terminal

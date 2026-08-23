@@ -1206,6 +1206,51 @@ def test_the_pygame_doorway_hears_clicks(
     assert_that(glass.click()).is_equal_to((11, 26))
 
 
+# Two clicks landing fast and close double: the first delivers as
+# a single, the second as §10.3.3's double-click code, and the
+# run resets so a third fast click begins a new single. A slow
+# second click, or one too far away, stays single.
+def test_fast_close_clicks_double(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    glass = open_pygame_glass()
+    clock = {"now": 0}
+    module.time.get_ticks = lambda: clock["now"]
+
+    def press(x: int, y: int) -> str | None:
+        scripted = iter(
+            [[types.SimpleNamespace(type=module.MOUSEBUTTONDOWN, button=1, pos=(x, y))]]
+        )
+        module.event.get = lambda: next(scripted, [])
+
+        return glass.key(None)
+
+    assert_that(press(10, 25)).is_equal_to("\xfe")
+
+    clock["now"] = 300
+
+    assert_that(press(12, 26)).is_equal_to("\xfd")
+    assert_that(glass.click()).is_equal_to((13, 27))
+
+    clock["now"] = 600
+
+    assert_that(press(12, 26)).is_equal_to("\xfe")
+
+    clock["now"] = 1200
+
+    assert_that(press(12, 26)).is_equal_to("\xfe")
+
+    clock["now"] = 1300
+
+    assert_that(press(30, 26)).is_equal_to("\xfe")
+
+    clock["now"] = 1400
+
+    assert_that(press(30, 27)).is_equal_to("\xfd")
+
+
 # Ctrl+V empties the clipboard through the key seam one character
 # at a time, so pasted text is indistinguishable from typing: the
 # Windows return pair and a lone carriage return each collapse to
