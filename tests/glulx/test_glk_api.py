@@ -318,6 +318,24 @@ def test_gestalt_answers_for_the_display() -> None:
             f"selector {selector}"
         ).is_equal_to(expected)
 
+    # A drawing display draws images only in graphics windows --
+    # the spec's own "both, neither, or only one" (Glk: Testing
+    # for Graphics Capabilities) -- and still claims no partial
+    # transparency, since the decoder keeps only full.
+    drawing = Glk(Artist())
+
+    assert_that(
+        drawing.glk_gestalt(GlkGestalt.DRAW_IMAGE, WindowType.GRAPHICS)
+    ).is_equal_to(1)
+    assert_that(
+        drawing.glk_gestalt(GlkGestalt.DRAW_IMAGE_SCALE, WindowType.GRAPHICS)
+    ).is_equal_to(1)
+    assert_that(
+        drawing.glk_gestalt(GlkGestalt.DRAW_IMAGE, WindowType.TEXT_BUFFER)
+    ).is_equal_to(0)
+    assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS, 0)).is_equal_to(1)
+    assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS_TRANSPARENCY, 0)).is_equal_to(0)
+
     # A clicking display still only carries a mouse in grids and
     # graphics windows.
     clicking = Glk(Clicker([]))

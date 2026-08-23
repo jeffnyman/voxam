@@ -273,12 +273,16 @@ class Glk:
 
             return CHAR_OUTPUT_EXACT_PRINT if printable else CHAR_OUTPUT_CANNOT_PRINT
 
-        if selector in (
-            GlkGestalt.GRAPHICS,
-            GlkGestalt.DRAW_IMAGE,
-            GlkGestalt.DRAW_IMAGE_SCALE,
-        ):
+        if selector == GlkGestalt.GRAPHICS:
             return int(self.frontend.graphics)
+
+        if selector in (GlkGestalt.DRAW_IMAGE, GlkGestalt.DRAW_IMAGE_SCALE):
+            # The argument is a window type, and images draw only
+            # in graphics windows here: "libraries may implement
+            # both, neither, or only one" (Glk: Testing for
+            # Graphics Capabilities). Text buffer images -- margin
+            # alignments, flow breaks -- remain unclaimed.
+            return int(self.frontend.graphics and value == WindowType.GRAPHICS)
 
         if selector in (
             GlkGestalt.SOUND,
@@ -326,10 +330,14 @@ class Glk:
         ):
             return 1
 
-        # Everything else -- graphics transparency, graphics char
-        # input -- and every selector from a Glk yet to be written:
-        # zero is the honest answer for the unsupported and the
-        # unknown alike.
+        # Everything else -- graphics char input, and notably
+        # graphics transparency: the PNG decoder keeps only full
+        # transparency, composing partial alpha over black, which
+        # is not "the appropriate degree of transparency" the
+        # selector promises (Glk: Testing for Graphics
+        # Capabilities), so the claim stays honestly zero -- and
+        # every selector from a Glk yet to be written: zero is the
+        # honest answer for the unsupported and the unknown alike.
         return 0
 
     # -- windows (Glk: Window Opening, Closing, and Constraints) -----------
