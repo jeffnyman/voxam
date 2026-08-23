@@ -1,15 +1,22 @@
 name: Release
 
 # A release is a pushed v* tag on main. The pipeline mirrors the
-# manual runbook: build and audit the artifacts, publish to TestPyPI,
-# smoke-test the published package in a clean environment, then wait
-# at the pypi environment gate for a human "Approve and deploy"
-# before publishing to PyPI and cutting the GitHub release.
+# manual runbook: build and audit the artifacts, smoke-test the
+# built wheel in a clean environment, then wait at the pypi
+# environment gate for a human "Approve and deploy" before
+# publishing to PyPI and cutting the GitHub release.
 #
-# Both publish jobs authenticate with PyPI trusted publishing (OIDC):
-# no tokens exist anywhere. Each service is configured with a trusted
-# publisher bound to this repository, this file's name, and its
-# environment name.
+# The publish job authenticates with PyPI trusted publishing
+# (OIDC): no tokens exist anywhere. The service is configured with
+# a trusted publisher bound to this repository, this file's name,
+# and its environment name.
+#
+# TestPyPI was once a stop on this chain and earned its removal:
+# its simple-index CDN serves a stale version list for minutes
+# after an upload, so a smoke install racing it failed release
+# after release while the uploaded files were live the whole time.
+# The wheel smoke below proves the same thing -- the shipped
+# artifact installs and runs clean -- with nothing to race.
 
 on:
   push:
@@ -95,38 +102,10 @@ jobs:
           name: dist
           path: dist/
 
-  publish-testpypi:
-    name: Publish to TestPyPI
+  smoke:
+    name: Smoke test the built wheel
     runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/voxam
-    permissions:
-      id-token: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist/
-
-      # skip-existing makes a rerun idempotent: when a release run
-      # fails downstream of a successful upload -- the smoke test
-      # outwaited by TestPyPI's index lag, say -- rerunning must not
-      # trip over the files already there. The PyPI publish below
-      # stays strict on purpose: a duplicate upload there means
-      # something is genuinely wrong.
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          skip-existing: true
-
-  smoke:
-    name: Smoke test from TestPyPI
-    runs-on: ubuntu-latest
-    needs: publish-testpypi
     steps:
       # The checkout supplies the story-file fixture the smoke run plays.
       - uses: actions/checkout@v7
@@ -135,22 +114,17 @@ jobs:
         with:
           python-version: "3.12"
 
-      # TestPyPI can take its time serving a fresh upload -- the
-      # 0.7.0 release outlasted a three-minute window -- so the
-      # retry allows about six. The install must come from TestPyPI
-      # alone: with no dependencies to resolve, no PyPI fallback
-      # index is needed.
-      - name: Install the released package
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          for attempt in $(seq 1 12); do
-            if pip install --index-url https://test.pypi.org/simple/ "voxam==${VERSION}"; then
-              exit 0
-            fi
-            echo "not yet available (attempt ${attempt}); waiting..."
-            sleep 30
-          done
-          exit 1
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # The exact bytes the pypi publish will ship, installed into
+      # a clean environment -- deterministic, so a failure here is
+      # always ours.
+      - name: Install the built wheel
+        run: pip install dist/voxam-*.whl
 
       - name: Play a story with the installed package
         run: |
