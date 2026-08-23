@@ -20,13 +20,13 @@ from voxam.glulx.glk.objects import (
     Window,
     WindowMethod,
 )
-from voxam.glulx.glk.terminal import (
+from voxam.glulx.glk.painted import (
     FOREVER,
-    TerminalFrontend,
     Timer,
     _grouped,
     _steps,
 )
+from voxam.glulx.glk.terminal import TerminalFrontend
 from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT, Terminal
 from voxam.speaker import Fill, Finished, Speaker, Stream
 
@@ -150,15 +150,16 @@ def test_the_size_is_the_terminals_measure() -> None:
     assert_that(framed(StubTerminal(), [], size=(10, 5)).size()).is_equal_to((10, 5))
 
 
-# Clearing paints every row blank and homes the cursor: the story
-# begins on a clean screen, whatever the shell left behind.
+# Clearing paints every row blank and parks the cursor out of the
+# way: the story begins on a clean screen, whatever the shell left
+# behind.
 def test_clearing_wipes_the_glass() -> None:
     out: list[str] = []
     display = framed(StubTerminal(), out, size=(4, 2))
 
     display.clear()
 
-    assert_that(out[-1]).is_equal_to("<@0,0>    <@0,1>    <@0,0>")
+    assert_that(out[-1]).is_equal_to("<@0,0>    <@0,1>    <@0,1>")
 
 
 # With no window tree there is nothing to paint, and nothing is.
@@ -422,7 +423,7 @@ def test_read_char_speaks_glk() -> None:
 # the next call (Glk: Timer Events).
 def test_a_timer_fires_between_keystrokes(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [0.0]
-    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
     terminal = TickingTerminal(
         [StubKey("g"), StubKey(""), StubKey("o"), StubKey("", "KEY_ENTER")], clock
     )
@@ -466,7 +467,7 @@ def test_the_file_prompt_asks_on_the_bottom_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = [0.0]
-    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
     terminal = TickingTerminal(
         [
             StubKey("g"),
@@ -585,7 +586,7 @@ def test_the_default_seam_is_stdout(capsys: pytest.CaptureFixture[str]) -> None:
 # round (Glk: Timer Events).
 def test_the_timer_comes_round_and_round(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [0.0]
-    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
     timer = Timer()
 
     assert_that(timer.timeout()).is_none()
@@ -645,7 +646,7 @@ def test_the_recording_seams_hear_input() -> None:
 # line was accepted and no keystroke reached the game.
 def test_the_seams_ignore_a_timer(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [0.0]
-    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
 
     keys: list[int] = []
     out: list[str] = []
@@ -893,7 +894,7 @@ def test_a_forgotten_ending_posts_nothing() -> None:
 # already waiting less keeps its own shorter watch.
 def test_a_playing_sound_chops_the_wait(monkeypatch: pytest.MonkeyPatch) -> None:
     clock = [0.0]
-    monkeypatch.setattr("voxam.glulx.glk.terminal.monotonic", lambda: clock[0])
+    monkeypatch.setattr("voxam.glulx.glk.painted.monotonic", lambda: clock[0])
 
     speaker, _ = sounded()
     terminal = StubTerminal([StubKey("x"), StubKey("y"), StubKey("z")])
