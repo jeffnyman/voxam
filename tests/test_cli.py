@@ -16,6 +16,7 @@ from assertpy import assert_that
 from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
 from voxam.cli import (
+    _entitle_terminal,
     _gallery,
     _glass_frontend,
     _graphics_frontend,
@@ -26,6 +27,7 @@ from voxam.cli import (
     _screen_frontend,
     _speaker,
     _terminal_frontend,
+    _titled,
     main,
 )
 from voxam.gallery import Gallery, Resolution
@@ -1076,6 +1078,49 @@ def test_glulx_links_record_at_the_window_and_replay(
     assert_that(played).is_equal_to(0)
 
 
+# An Infocom story plays under its own name: the header's IFID
+# finds the catalog, the caption reaches the terminal's title bar
+# when a terminal is listening -- and never a pipe, since a
+# transcript is not a title bar. The unknown stay untitled,
+# quietly, unreadable files included.
+def test_infocom_stories_play_under_their_names(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plain = broken_story(tmp_path, bytes([0xBA]))
+
+    assert_that(_titled(plain)).is_none()
+    assert_that(_titled(tmp_path / "missing.z3")).is_none()
+
+    data = bytearray(plain.read_bytes())
+    data[0x02:0x04] = (88).to_bytes(2, "big")
+    data[0x12:0x18] = b"840726"
+    plain.write_bytes(bytes(data))
+
+    assert_that(_titled(plain)).is_equal_to("Zork 1 — Voxam")
+
+    # A piped session runs titled but writes no escape.
+    played = main(["--plain", str(plain)])
+
+    assert_that(played).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("\x1b]0;")
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+    _entitle_terminal("Zork 1 — Voxam")
+
+    assert_that(capsys.readouterr().out).is_empty()
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    _entitle_terminal(None)
+
+    assert_that(capsys.readouterr().out).is_empty()
+
+    _entitle_terminal("Zork 1 — Voxam")
+
+    assert_that(capsys.readouterr().out).contains("\x1b]0;Zork 1 — Voxam\x07")
+
+
 # --babel speaks the treaty for both machines -- no Z-only
 # refusal here: a Z-code story answers its legacy identity, a
 # Glulx story its own, junk is honestly neither, a second report
@@ -1867,6 +1912,11 @@ class WindowStub:
 
         return None
 
+    def entitle(self, title: str) -> None:
+        """Discard: the CLI tests never read the title bar."""
+
+        del title
+
 
 # --graphics plays through the pygame window: with the doorway
 # monkeypatched to a stub glass, the whole session runs through
@@ -1984,8 +2034,9 @@ def test_the_glulx_window_takes_the_standard_shape(
     assert_that(captured["zoom"]).is_none()
 
     # The stub window, like any glass without pygame's decoders,
-    # honestly photographs nothing.
+    # honestly photographs nothing -- and wears any name quietly.
     assert_that(WindowStub("").photograph(b"\xff\xd8photo")).is_none()
+    WindowStub("").entitle("Trinity — Voxam")
 
 
 # The pygame window brings a speaker along when the Blorb's sounds

@@ -34,6 +34,7 @@ from voxam.glulx.glk.stdio import StdioFrontend
 from voxam.glulx.machine import Machine as GlulxMachine
 from voxam.glulx.story import MAGIC as GLULX_MAGIC
 from voxam.glulx.story import Story as GlulxStory
+from voxam.infocom import title as infocom_title
 from voxam.listing import Tracer
 from voxam.listing import report as listing_report
 from voxam.png import decode
@@ -362,6 +363,44 @@ def _story_bytes(story_path: Path) -> bytes | None:
         return blorb.glulx if blorb.glulx is not None else blorb.story
 
     return story_path.read_bytes()
+
+
+def _titled(story_path: Path) -> str | None:
+    """The caption a session deserves, when the game is known.
+
+    A story whose IFID sits in the Infocom catalog plays under
+    its own name -- the treaty's first interpreter guideline, "to
+    use basic bibliographic data ... to give windows sensible
+    titles" (Babel: Guidelines for interpreters and browsers).
+    Anything unknown, or unreadable at all, is quietly no
+    caption: a title bar is a courtesy, never a gate.
+    """
+
+    try:
+        data = _story_bytes(story_path)
+    except (OSError, VoxamError):
+        return None
+
+    named = infocom_title(ifid(data)) if data is not None else None
+
+    if named is None:
+        return None
+
+    return f"{named} — Voxam"
+
+
+def _entitle_terminal(caption: str | None) -> None:
+    """Name the terminal's own title bar, where one is listening.
+
+    OSC 0 is the xterm convention every modern terminal honors. A
+    piped session gets no escape -- a transcript is not a title
+    bar, and a recording must not carry one -- and no caption, an
+    unknown game, names nothing.
+    """
+
+    if caption is not None and sys.stdout.isatty():
+        sys.stdout.write(f"\x1b]0;{caption}\x07")
+        sys.stdout.flush()
 
 
 def _story_report(
@@ -774,6 +813,8 @@ def _graphics_frontend(
     blorb: Blorb | None,
     zoom: float | None = None,
     story_path: Path | None = None,
+    *,
+    title: str | None = None,
 ) -> "GraphicsFrontend | None":
     """A pygame window, when the graphics extra allows.
 
@@ -805,6 +846,7 @@ def _graphics_frontend(
             gallery=art,
             standard=standard,
             zoom=zoom,
+            title=title,
         )
     except ImportError:
         print(
@@ -1544,9 +1586,16 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     key_source: Callable[[float | None], str | None] | None = None
     timed_input_source: Callable[[float], str | None] | None = None
     painted: ScreenFrontend | GraphicsFrontend | None = None
+    # The catalog's courtesy: an Infocom story plays under its own
+    # name, in the terminal's title bar and the window's alike.
+    caption = _titled(story_path)
+
+    _entitle_terminal(caption)
 
     if frontend is None and graphics:
-        painted = _graphics_frontend(header.version, blorb, zoom, story_path)
+        painted = _graphics_frontend(
+            header.version, blorb, zoom, story_path, title=caption
+        )
 
     if frontend is None and painted is None and screen:
         painted = _screen_frontend(header.version, blorb)
