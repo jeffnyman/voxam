@@ -874,13 +874,12 @@ def _recorded_keys(
 ) -> Callable[[float | None], str | None]:
     """Tee pressed keys; an expired timeout is nothing to record.
 
-    A single click records as its token with the coordinates the
-    glass reports -- the same answer the machine is about to write
-    into the header extension (§10.3.2). A click the grammar
-    cannot spell -- a double, or a single with no position -- is
-    warned about loudly rather than handed to the key path, where
-    its character would pass for printable Latin-1 text and
-    record as a silently wrong command.
+    A click records as its token -- single or double -- with the
+    coordinates the glass reports, the same answer the machine is
+    about to write into the header extension (§10.3.2). A click
+    with no position is warned about loudly rather than handed to
+    the key path, where its character would pass for printable
+    Latin-1 text and record as a silently wrong command.
     """
 
     def _key(timeout: float | None) -> str | None:
@@ -890,15 +889,14 @@ def _recorded_keys(
             return None
 
         if key in (CLICK, DOUBLE_CLICK):
-            position = clicks() if key == CLICK and clicks is not None else None
+            position = clicks() if clicks is not None else None
 
-            if position is not None:
-                recorder.click(*position)
+            if position is None:
+                print("voxam: a click with no position; not recorded")
+            elif key == DOUBLE_CLICK:
+                recorder.double_click(*position)
             else:
-                print(
-                    "voxam: a click the grammar cannot spell "
-                    "(a double, or one with no position); not recorded"
-                )
+                recorder.click(*position)
         else:
             recorder.key(key)
 

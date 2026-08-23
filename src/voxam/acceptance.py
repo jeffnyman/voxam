@@ -19,6 +19,9 @@ The grammar, line by line:
                      per line
     <click x y>      a single mouse click at (x, y), in the units
                      the session's display reports (§10.3.2)
+    <double-click x y>
+                     a double click, §10.3.3's own input code,
+                     with its position spelled the same way
     <link n>         a hyperlink selection, by the link value the
                      session's display delivered (Glk: Accepting
                      Hyperlink Events)
@@ -72,11 +75,10 @@ KEY_TOKENS = {
 KEY_ECHOES = {character: token for token, character in KEY_TOKENS.items()}
 
 # A click travels the key seam as the character for its §10.3.3
-# input code, exactly as a mouse-bearing glass delivers it; the
-# coordinates travel beside the commands and are spent one pair
-# per click, in order. Only the single click has a spelling: no
-# display detects double clicks yet, so the grammar honestly
-# cannot hear one.
+# input code, exactly as a mouse-bearing glass delivers it --
+# 254 for a single, 253 for the second click of a fast pair --
+# and the coordinates travel beside the commands, spent one pair
+# per click in order, singles and doubles off the same stream.
 CLICK = "\xfe"
 DOUBLE_CLICK = "\xfd"
 
@@ -86,6 +88,7 @@ DOUBLE_CLICK = "\xfd"
 LINK = "\xfc"
 
 _CLICK_TOKEN = re.compile(r"<click (\d+) (\d+)>\Z")
+_DOUBLE_CLICK_TOKEN = re.compile(r"<double-click (\d+) (\d+)>\Z")
 _LINK_TOKEN = re.compile(r"<link (\d+)>\Z")
 
 # Header extension words hold the position (§10.3.2), so a
@@ -111,7 +114,8 @@ class AcceptanceScript:
         lines: Each command's line number in the script file, in the
             same order -- so a warning can point at the file.
         clicks: The click positions, in click order -- spent one
-            pair per delivered click.
+            pair per delivered click, singles and doubles off the
+            same stream.
         links: The selected link values, in selection order --
             spent one per delivered hyperlink event.
     """
@@ -170,12 +174,13 @@ class AcceptanceScript:
 
                     raise AcceptanceError(msg)
             else:
-                click = _click_token(line, number)
-                link = _link_token(line, number) if click is None else None
+                pointer = _pointer_token(line, number)
+                link = _link_token(line, number) if pointer is None else None
 
-                if click is not None:
-                    commands.append(CLICK)
-                    clicks.append(click)
+                if pointer is not None:
+                    marker, position = pointer
+                    commands.append(marker)
+                    clicks.append(position)
                 elif link is not None:
                     commands.append(LINK)
                     links.append(link)
@@ -244,6 +249,8 @@ def replay(
 
         if command == CLICK:
             shown = "<click>"
+        elif command == DOUBLE_CLICK:
+            shown = "<double-click>"
         elif command == LINK:
             shown = "<link>"
         else:
@@ -500,6 +507,11 @@ class Recorder:
 
         self._write(f"<click {x} {y}>")
 
+    def double_click(self, x: int, y: int) -> None:
+        """Record one double click at (x, y), in display units."""
+
+        self._write(f"<double-click {x} {y}>")
+
     def link(self, value: int) -> None:
         """Record one hyperlink selection, by its link value."""
 
@@ -652,6 +664,57 @@ def _click_token(line: str, number: int) -> tuple[int, int] | None:
     return (x, y)
 
 
+def _pointer_token(line: str, number: int) -> tuple[str, tuple[int, int]] | None:
+    """Read a click line of either kind: its marker and its (x, y).
+
+    Singles and doubles share one coordinate stream, so the parser
+    treats them as one shape wearing two markers.
+    """
+
+    click = _click_token(line, number)
+
+    if click is not None:
+        return (CLICK, click)
+
+    double = _double_click_token(line, number)
+
+    if double is not None:
+        return (DOUBLE_CLICK, double)
+
+    return None
+
+
+def _double_click_token(line: str, number: int) -> tuple[int, int] | None:
+    """Read a <double-click x y> line's coordinates.
+
+    The same rules as the single click, for the input code the
+    glass presses when two clicks land fast and close (§10.3.3).
+
+    Raises:
+        AcceptanceError: For a malformed double click, or a
+            coordinate no story could read back.
+    """
+
+    if not line.lower().startswith("<double"):
+        return None
+
+    matched = _DOUBLE_CLICK_TOKEN.fullmatch(line.lower())
+
+    if matched is None:
+        msg = f"line {number}: a double click is '<double-click x y>', not {line!r}"
+
+        raise AcceptanceError(msg)
+
+    x, y = int(matched.group(1)), int(matched.group(2))
+
+    if x > _COORDINATE_CEILING or y > _COORDINATE_CEILING:
+        msg = f"line {number}: a click coordinate must fit a word (§10.3.2)"
+
+        raise AcceptanceError(msg)
+
+    return (x, y)
+
+
 def _link_token(line: str, number: int) -> int | None:
     """Read a <link n> line's value.
 
@@ -712,7 +775,7 @@ def _key_token(line: str, number: int) -> str | None:
     known = ", ".join(sorted(KEY_TOKENS))
     msg = (
         f"line {number}: unknown key {line!r}; the keys are: "
-        f"{known}, <click x y>, and <link n>"
+        f"{known}, <click x y>, <double-click x y>, and <link n>"
     )
 
     raise AcceptanceError(msg)

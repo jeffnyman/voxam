@@ -1575,17 +1575,16 @@ def test_recorded_keys_tee_into_the_script(tmp_path: Path) -> None:
     assert_that(lines[-1]).is_equal_to(">")
 
 
-# A single click records as its token with the glass's own
-# coordinates; a double click still has no spelling and takes the
-# loud unrecorded path -- and without a clicks seam, so does a
-# single.
+# A click records as its token -- single or double -- with the
+# glass's own coordinates; a click with no position takes the
+# loud unrecorded path.
 def test_recorded_clicks_tee_into_the_script(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     target = tmp_path / "clicks.accept"
     recorder = Recorder(target, game=tmp_path / "story.z6", seed=7, warn=print)
     presses = iter(["\xfe", "\xfd", "\xfe"])
-    positions = iter([(12, 5), None])
+    positions = iter([(12, 5), (12, 6), None])
     source = _recorded_keys(
         recorder, lambda _timeout: next(presses), lambda: next(positions)
     )
@@ -1599,9 +1598,10 @@ def test_recorded_clicks_tee_into_the_script(
     written = target.read_text(encoding="utf-8")
 
     assert_that(written).contains("<click 12 5>")
+    assert_that(written).contains("<double-click 12 6>")
     assert_that(written).does_not_contain("\xfd")
     assert_that(written).does_not_contain("\xfe")
-    assert_that(capsys.readouterr().out).contains("cannot spell")
+    assert_that(capsys.readouterr().out).contains("no position")
 
 
 # A replayed <click x y> presses the mouse: the machine hears the

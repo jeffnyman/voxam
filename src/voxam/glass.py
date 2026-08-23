@@ -92,6 +92,13 @@ COLOUR_VALUES = {
 UNDER_CURSOR = -1
 FIRST_SAMPLED = 16
 
+# What makes two clicks one double: the second lands within this
+# many milliseconds and this many pixels of the first. The
+# Standard names the input code (§10.3.3) but not the timing, so
+# the timing is the desktop convention.
+DOUBLE_CLICK_MILLIS = 500
+DOUBLE_CLICK_REACH = 4
+
 
 class Glass(Protocol):
     """The sliver of a pygame window the frontend drives.
@@ -1298,6 +1305,9 @@ class _PygameGlass:
         # session, for comparing against what it SHOWS.
         self._snapshot = os.environ.get("VOXAM_SNAPSHOT")
         self._click: tuple[int, int] | None = None
+        # The last single click, as (ticks, x, y), for hearing the
+        # second that makes a double (§10.3.3).
+        self._last_click: tuple[int, int, int] | None = None
         self._pasted: list[str] = []
         self._tiles: dict[
             tuple[str, tuple[int, int, int], tuple[int, int, int]], Any
@@ -1459,13 +1469,26 @@ class _PygameGlass:
                     continue
 
                 if event.type == module.MOUSEBUTTONDOWN and event.button == 1:
-                    # A click is a keypress in §10.3's eyes: the
-                    # input code 254 travels as its character, and
-                    # the position waits for click() -- 1-based, as
-                    # the screen's pixels are counted (§8.8.1).
-                    self._click = (event.pos[0] + 1, event.pos[1] + 1)
+                    # A click is a keypress in §10.3's eyes: 254
+                    # travels as its character for a single, 253
+                    # for a second click landing fast and close
+                    # enough to double (§10.3.3), and the position
+                    # waits for click() -- 1-based, as the screen's
+                    # pixels are counted (§8.8.1). The first of a
+                    # pair always delivers as a single, the way
+                    # every desktop counts; a double resets the
+                    # run, so a third fast click begins anew.
+                    now = module.time.get_ticks()
+                    x, y = event.pos[0] + 1, event.pos[1] + 1
+                    doubled = self._last_click is not None and (
+                        now - self._last_click[0] <= DOUBLE_CLICK_MILLIS
+                        and abs(x - self._last_click[1]) <= DOUBLE_CLICK_REACH
+                        and abs(y - self._last_click[2]) <= DOUBLE_CLICK_REACH
+                    )
+                    self._click = (x, y)
+                    self._last_click = None if doubled else (now, x, y)
 
-                    return "\xfe"
+                    return "\xfd" if doubled else "\xfe"
 
                 if event.type == module.KEYDOWN:
                     # The paste chords a desktop expects: Ctrl+V --
