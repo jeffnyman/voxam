@@ -376,6 +376,93 @@ def test_the_census_counts_resources() -> None:
     assert_that(Blorb.parse(build_blorb([])).described()).is_equal_to("no resources")
 
 
+# A blorb's iFiction record answers --babel first: its IFID
+# outranks the packaged story's, its bibliography rides along,
+# and it round-trips off the IFmd chunk exactly as it arrived. A
+# record with no IFID lends only its title; one that will not
+# parse earns a loud note while the story answers instead.
+def test_the_ifiction_record_answers_first(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record = (
+        b'<ifindex xmlns="http://babel.ifarchive.org/protocol/iFiction/">'
+        b"<story><identification><ifid>1974A053-7DB0-4103-93A1-767C1382C0B7</ifid>"
+        b"</identification><bibliographic><title>Savoir-Faire</title>"
+        b"<author>Emily Short</author><headline>An Interactive Vivification"
+        b"</headline></bibliographic></story></ifindex>"
+    )
+    packaged = tmp_path / "game.zblorb"
+    packaged.write_bytes(
+        build_blorb(
+            [(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))],
+            extra=chunk(b"IFmd", record),
+        )
+    )
+
+    assert_that(Blorb.load(packaged).ifiction).is_equal_to(record)
+    assert_that(main(["--babel", str(packaged)])).is_equal_to(0)
+
+    out = capsys.readouterr().out
+
+    assert_that(out).contains("IFID: 1974A053-7DB0-4103-93A1-767C1382C0B7")
+    assert_that(out).contains("Title: Savoir-Faire")
+    assert_that(out).contains("Author: Emily Short")
+    assert_that(out).contains("Headline: An Interactive Vivification")
+
+    nameless = tmp_path / "nameless.zblorb"
+    nameless.write_bytes(
+        build_blorb(
+            [(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))],
+            extra=chunk(
+                b"IFmd",
+                b"<ifindex><story><bibliographic><title>Nameless"
+                b"</title></bibliographic></story></ifindex>",
+            ),
+        )
+    )
+
+    assert_that(main(["--babel", str(nameless)])).is_equal_to(0)
+
+    out = capsys.readouterr().out
+
+    assert_that(out).contains("IFID: ZCODE-")
+    assert_that(out).contains("Title: Nameless")
+
+    faceless = tmp_path / "faceless.zblorb"
+    faceless.write_bytes(
+        build_blorb(
+            [(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))],
+            extra=chunk(
+                b"IFmd",
+                b"<ifindex><story><identification><ifid>DUMMY-9</ifid>"
+                b"</identification></story></ifindex>",
+            ),
+        )
+    )
+
+    assert_that(main(["--babel", str(faceless)])).is_equal_to(0)
+
+    out = capsys.readouterr().out
+
+    assert_that(out).contains("IFID: DUMMY-9")
+    assert_that(out).does_not_contain("Title:")
+
+    broken = tmp_path / "broken.zblorb"
+    broken.write_bytes(
+        build_blorb(
+            [(b"Exec", 0, Chunk(b"ZCOD", story_bytes()))],
+            extra=chunk(b"IFmd", b"<not xml"),
+        )
+    )
+
+    assert_that(main(["--babel", str(broken)])).is_equal_to(0)
+
+    out = capsys.readouterr().out
+
+    assert_that(out).contains("the iFiction record cannot be read")
+    assert_that(out).contains("IFID: ZCODE-")
+
+
 # --babel unwraps a blorb to the story it packages -- the
 # treaty's rule until an iFiction record arrives to answer first
 # -- and a blorb with no story inside "is not itself a work of

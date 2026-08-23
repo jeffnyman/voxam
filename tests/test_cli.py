@@ -948,8 +948,9 @@ def test_glulx_clicks_record_at_the_window_and_replay(
         *,
         zoom: float | None = None,
         recorder: Recorder | None = None,
+        title: str | None = None,
     ) -> GlulxGlassFrontend:
-        del blorb, zoom
+        del blorb, zoom, title
 
         on_line = on_key = on_click = None
 
@@ -1043,8 +1044,9 @@ def test_glulx_links_record_at_the_window_and_replay(
         *,
         zoom: float | None = None,
         recorder: Recorder | None = None,
+        title: str | None = None,
     ) -> GlulxGlassFrontend:
-        del blorb, zoom
+        del blorb, zoom, title
 
         on_line = on_key = on_link = None
 
@@ -1099,6 +1101,22 @@ def test_infocom_stories_play_under_their_names(
     plain.write_bytes(bytes(data))
 
     assert_that(_titled(plain)).is_equal_to("Zork 1 — Voxam")
+
+    # An iFiction record outranks the catalog; one that cannot be
+    # read falls back to it, and to nothing where nothing is
+    # readable at all.
+    record = (
+        b"<ifindex><story><bibliographic><title>Cragne Manor"
+        b"</title></bibliographic></story></ifindex>"
+    )
+    shaped = Blorb((), None, None, frozenset(), ifiction=record)
+
+    assert_that(_titled(plain, shaped)).is_equal_to("Cragne Manor — Voxam")
+
+    garbled = Blorb((), None, None, frozenset(), ifiction=b"<not xml")
+
+    assert_that(_titled(plain, garbled)).is_equal_to("Zork 1 — Voxam")
+    assert_that(_titled(tmp_path / "gone.ulx", garbled)).is_none()
 
     # A piped session runs titled but writes no escape.
     played = main(["--plain", str(plain)])

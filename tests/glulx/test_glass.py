@@ -58,6 +58,7 @@ class StubGlass:
         self.fills: list[Filled] = []
         self.draws: list[tuple[object, int, int, tuple[int, int]]] = []
         self.presented = 0
+        self.entitled: list[str] = []
         # Where the last click landed, in 1-based window pixels.
         self.click_position: tuple[int, int] | None = None
 
@@ -109,6 +110,9 @@ class StubGlass:
 
     def click(self) -> tuple[int, int] | None:
         return self.click_position
+
+    def entitle(self, title: str) -> None:
+        self.entitled.append(title)
 
     def photograph(self, data: bytes) -> object:
         del data
@@ -200,6 +204,21 @@ def test_construction_opens_a_real_window_by_default(
     assert_that(captured["standard"]).is_equal_to((320, 200))
     assert_that(captured["version"]).is_equal_to("glulx")
     assert_that(captured["zoom"]).is_equal_to(0.5)
+
+
+# The window wears its record's name at open -- the iFiction
+# courtesy -- while an untitled session keeps the interpreter
+# caption untouched.
+def test_the_window_wears_the_records_name() -> None:
+    stub = StubGlass()
+    GlassFrontend(cast("Glass", stub), title="Cragne Manor — Voxam")
+
+    assert_that(stub.entitled).is_equal_to(["Cragne Manor — Voxam"])
+
+    bare = StubGlass()
+    GlassFrontend(cast("Glass", bare))
+
+    assert_that(bare.entitled).is_empty()
 
 
 # A buffer paints bottom-aligned onto 1-based cells: the text and

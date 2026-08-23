@@ -16,7 +16,7 @@ from voxam.acceptance import (
     RefusalWatch,
     replay,
 )
-from voxam.babel import ifid
+from voxam.babel import IFiction, ifiction, ifid
 from voxam.blorb import PNG_ID, Blorb
 from voxam.errors import (
     AIFFError,
@@ -310,12 +310,14 @@ def _only_reads(arguments: argparse.Namespace, flag: str) -> int | None:
 
 
 def _babel_report(arguments: argparse.Namespace) -> int:
-    """Print the story's IFID and finish.
+    """Print the story's identity and finish.
 
     Unlike the Z-Machine's own reports, the treaty speaks both
-    machines: a loose story answers from its bytes, a blorb from
-    the story it packages -- until an iFiction record arrives to
-    say otherwise (Babel: The IFID for a blorbed story file).
+    machines: a blorb's iFiction record answers first, then the
+    packaged or loose story's own bytes (Babel: The IFID for a
+    blorbed story file) -- and the record's bibliography rides
+    along when it has any. A metadata-only blorb still refuses: a
+    blorb with no story "is not itself a work of IF".
     """
 
     refused = _only_reads(arguments, "--babel")
@@ -325,6 +327,7 @@ def _babel_report(arguments: argparse.Namespace) -> int:
 
     try:
         data = _story_bytes(arguments.story)
+        record = _ifiction_record(arguments.story)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
 
@@ -338,7 +341,9 @@ def _babel_report(arguments: argparse.Namespace) -> int:
 
         return EXIT_UNUSABLE
 
-    identity = ifid(data)
+    identity = (
+        record.ifid if record is not None and record.ifid is not None else ifid(data)
+    )
 
     if identity is None:
         print(f"voxam: {arguments.story.name} is neither Z-code nor Glulx")
@@ -348,7 +353,50 @@ def _babel_report(arguments: argparse.Namespace) -> int:
     print(f"{arguments.story.name}\n")
     print(f"IFID: {identity}")
 
+    named = (
+        record.title
+        if record is not None and record.title is not None
+        else infocom_title(identity)
+    )
+
+    if named is not None:
+        print(f"Title: {named}")
+
+    if record is not None and record.author is not None:
+        print(f"Author: {record.author}")
+
+    if record is not None and record.headline is not None:
+        print(f"Headline: {record.headline}")
+
     return EXIT_OK
+
+
+def _ifiction_record(story_path: Path) -> "IFiction | None":
+    """A blorb path's parsed iFiction record, or None.
+
+    None covers every quiet case -- a loose story, a blorb with no
+    metadata chunk -- while a chunk that will not parse earns a
+    loud note before the story's own bytes answer instead.
+
+    Raises:
+        BlorbError: For an unusable resource file.
+        OSError: For files that cannot be read.
+    """
+
+    if story_path.suffix.lower() not in BLORB_SUFFIXES:
+        return None
+
+    packaged = Blorb.load(story_path)
+
+    if packaged.ifiction is None:
+        return None
+
+    record = ifiction(packaged.ifiction)
+
+    if record is None:
+        print("voxam: the iFiction record cannot be read; the story answers instead")
+
+    return record
 
 
 def _story_bytes(story_path: Path) -> bytes | None:
@@ -365,16 +413,23 @@ def _story_bytes(story_path: Path) -> bytes | None:
     return story_path.read_bytes()
 
 
-def _titled(story_path: Path) -> str | None:
+def _titled(story_path: Path, blorb: Blorb | None = None) -> str | None:
     """The caption a session deserves, when the game is known.
 
-    A story whose IFID sits in the Infocom catalog plays under
-    its own name -- the treaty's first interpreter guideline, "to
-    use basic bibliographic data ... to give windows sensible
-    titles" (Babel: Guidelines for interpreters and browsers).
-    Anything unknown, or unreadable at all, is quietly no
-    caption: a title bar is a courtesy, never a gate.
+    A story names itself two ways -- its Blorb's iFiction record
+    first, the Infocom catalog by IFID second -- and plays under
+    that name: the treaty's first interpreter guideline, "to use
+    basic bibliographic data ... to give windows sensible titles"
+    (Babel: Guidelines for interpreters and browsers). Anything
+    unknown, or unreadable at all, is quietly no caption: a title
+    bar is a courtesy, never a gate.
     """
+
+    if blorb is not None and blorb.ifiction is not None:
+        record = ifiction(blorb.ifiction)
+
+        if record is not None and record.title is not None:
+            return f"{record.title} — Voxam"
 
     try:
         data = _story_bytes(story_path)
@@ -1184,6 +1239,12 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     print(f"Running {story_path.name}: Glulx {story.version}, {verdict}\n")
 
     blorb = _glulx_resources(story_path, resources)
+    # The record's courtesy: a story whose gblorb names it plays
+    # under its own name, in the terminal's title bar and the
+    # window's alike.
+    caption = _titled(story_path, blorb)
+
+    _entitle_terminal(caption)
 
     # A replay arrives as an input source and keeps the stdio
     # display; a live session earns a glass, recorder and all --
@@ -1192,7 +1253,9 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
 
     if input_source is None:
         if graphics:
-            painted = _glass_frontend(blorb, zoom=zoom, recorder=recorder)
+            painted = _glass_frontend(
+                blorb, zoom=zoom, recorder=recorder, title=caption
+            )
 
         if painted is None and screen:
             painted = _terminal_frontend(blorb, recorder=recorder)
@@ -1258,6 +1321,7 @@ def _glass_frontend(
     *,
     zoom: float | None = None,
     recorder: Recorder | None = None,
+    title: str | None = None,
 ) -> "GlassFrontend | None":
     """A pygame-windowed Glk display, when the graphics extra allows.
 
@@ -1288,6 +1352,7 @@ def _glass_frontend(
             standard=standard,
             zoom=zoom,
             speaker=_speaker(blorb),
+            title=title,
             on_line=on_line,
             on_key=on_key,
             on_click=on_click,

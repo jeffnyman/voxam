@@ -125,6 +125,7 @@ class GlassFrontend(PaintedFrontend):
         standard: tuple[int, int] | None = None,
         zoom: float | None = None,
         speaker: Speaker | None = None,
+        title: str | None = None,
         on_line: "Callable[[str, int], None] | None" = None,
         on_key: "Callable[[int], None] | None" = None,
         on_click: "Callable[[int, int], None] | None" = None,
@@ -143,6 +144,9 @@ class GlassFrontend(PaintedFrontend):
                 None keeps the classic 80 by 24.
             speaker: The audio device; None claims no sound,
                 honestly.
+            title: What the window's title bar should say -- the
+                game's own name, when its record gives one; None
+                keeps the plain interpreter caption.
             on_line: The line seam a recording rides.
             on_key: The keystroke seam a recording rides.
             on_click: The click seam, hearing each delivered
@@ -155,6 +159,9 @@ class GlassFrontend(PaintedFrontend):
 
         if glass is None:
             glass = open_pygame_glass(standard, BADGE, zoom)
+
+        if title is not None:
+            glass.entitle(title)
 
         self._glass = glass
         # The font cell in real pixels: what lets a text window

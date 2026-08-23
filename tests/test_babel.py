@@ -1,6 +1,23 @@
+import pytest
 from assertpy import assert_that
 
-from voxam.babel import glulx_ifid, ifid, zcode_ifid
+from voxam.babel import glulx_ifid, ifiction, ifid, zcode_ifid
+
+IFICTION = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ifindex version="1.0" xmlns="http://babel.ifarchive.org/protocol/iFiction/">
+ <story>
+  <identification>
+   <ifid>1974A053-7DB0-4103-93A1-767C1382C0B7</ifid>
+   <ifid>ZCODE-8-040205-6630</ifid>
+   <format>zcode</format>
+  </identification>
+  <bibliographic>
+   <title>Savoir-Faire</title>
+   <author>Emily Short</author>
+   <headline>An Interactive Vivification</headline>
+  </bibliographic>
+ </story>
+</ifindex>"""
 
 
 def z_header(
@@ -108,6 +125,52 @@ def test_glulx_identities() -> None:
     assert_that(glulx_ifid(glulx_image(0x1234, extent=0x40000))).is_equal_to(
         "GLULX-00040000-00001234"
     )
+
+
+# An iFiction record answers its first IFID -- the treaty puts
+# the newest foremost when a work carries several -- and its
+# bibliography whole. Local names alone are matched, so a record
+# missing the treaty's namespace answers all the same.
+def test_ifiction_records_read_whole() -> None:
+    record = ifiction(IFICTION)
+
+    if record is None:
+        pytest.fail("the record did not parse")
+
+    assert_that(record.ifid).is_equal_to("1974A053-7DB0-4103-93A1-767C1382C0B7")
+    assert_that(record.title).is_equal_to("Savoir-Faire")
+    assert_that(record.author).is_equal_to("Emily Short")
+    assert_that(record.headline).is_equal_to("An Interactive Vivification")
+
+    bare = ifiction(
+        b"<ifindex><story><identification><ifid>DUMMY-1</ifid>"
+        b"</identification></story></ifindex>"
+    )
+
+    if bare is None:
+        pytest.fail("the bare record did not parse")
+
+    assert_that(bare.ifid).is_equal_to("DUMMY-1")
+    assert_that(bare.title).is_none()
+
+
+# What cannot be read answers None -- broken XML, an index with no
+# story record -- and absent fields stay None, whitespace-only
+# text included.
+def test_unreadable_records_answer_none() -> None:
+    assert_that(ifiction(b"<not xml")).is_none()
+    assert_that(ifiction(b"<ifindex></ifindex>")).is_none()
+
+    blank = ifiction(
+        b"<ifindex><story><bibliographic><title>  </title>"
+        b"</bibliographic></story></ifindex>"
+    )
+
+    if blank is None:
+        pytest.fail("the blank record did not parse")
+
+    assert_that(blank.title).is_none()
+    assert_that(blank.ifid).is_none()
 
 
 # The front door routes by what the bytes claim to be: the Glulx

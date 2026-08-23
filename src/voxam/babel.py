@@ -16,6 +16,8 @@ story file).
 """
 
 import re
+from dataclasses import dataclass
+from xml.etree import ElementTree
 
 from voxam.glulx.story import MAGIC as GLULX_MAGIC
 
@@ -138,6 +140,81 @@ def glulx_ifid(data: bytes) -> str:
     extent = int.from_bytes(data[_GLULX_EXTENT], "big")
 
     return f"GLULX-{extent:08X}-{checksum:08X}"
+
+
+@dataclass(frozen=True)
+class IFiction:
+    """The bibliographic heart of an iFiction record.
+
+    Attributes:
+        ifid: The record's primary IFID -- the first listed, which
+            the treaty puts foremost when a work carries several
+            (Babel: The iFiction format).
+        title: The work's title, or None unrecorded.
+        author: The author, or None unrecorded.
+        headline: The subtitle-like headline, or None unrecorded.
+    """
+
+    ifid: str | None = None
+    title: str | None = None
+    author: str | None = None
+    headline: str | None = None
+
+
+def ifiction(xml: bytes) -> IFiction | None:
+    """The first story record in iFiction XML; None for unreadable.
+
+    Elements are matched by local name alone: the treaty
+    namespaces <ifindex>, but records in the wild are not always
+    so careful, and bibliography is a courtesy that should survive
+    a missing xmlns. Records the treaty itself warns about -- the
+    pre-1.0 versions still circulating -- answer whatever of the
+    record they can (Babel: The iFiction format).
+    """
+
+    try:
+        root = ElementTree.fromstring(xml)  # noqa: S314 -- local file bytes, no network entities
+    except ElementTree.ParseError:
+        return None
+
+    story = _child(root, "story")
+
+    if story is None:
+        return None
+
+    identification = _child(story, "identification")
+    bibliographic = _child(story, "bibliographic")
+
+    return IFiction(
+        ifid=_field(identification, "ifid"),
+        title=_field(bibliographic, "title"),
+        author=_field(bibliographic, "author"),
+        headline=_field(bibliographic, "headline"),
+    )
+
+
+def _child(element: ElementTree.Element, name: str) -> ElementTree.Element | None:
+    """The first child whose local name matches, namespace-blind."""
+
+    for child in element:
+        if child.tag.rpartition("}")[2] == name:
+            return child
+
+    return None
+
+
+def _field(section: ElementTree.Element | None, name: str) -> str | None:
+    """A section's first named child's text, stripped, or None."""
+
+    if section is None:
+        return None
+
+    found = _child(section, name)
+
+    if found is None or found.text is None:
+        return None
+
+    return found.text.strip() or None
 
 
 def _branded(data: bytes) -> str | None:
