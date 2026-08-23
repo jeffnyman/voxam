@@ -6,7 +6,7 @@ from assertpy import assert_that
 from voxam.errors import GlulxSessionEnd
 from voxam.glass import INK_DEFAULT, PAPER_DEFAULT, Glass
 from voxam.glulx.glk.api import Glk
-from voxam.glulx.glk.glass import GlassFrontend
+from voxam.glulx.glk.glass import LINK_INK, GlassFrontend
 from voxam.glulx.glk.objects import (
     EventType,
     FileMode,
@@ -16,6 +16,7 @@ from voxam.glulx.glk.objects import (
     Style,
     TextBufferWindow,
     Window,
+    WindowMethod,
     WindowType,
 )
 from voxam.glulx.glk.resources import ImageInfo
@@ -638,6 +639,134 @@ def test_clicks_elsewhere_are_swallowed() -> None:
     haunt.glk_request_mouse_event(haunted)
 
     assert_that(forgetful.read_char(haunted)).is_equal_to(ord("x"))
+
+
+# A linked run wears the reader's blue and joins the frame's link
+# map: a click on it in a window with a hyperlink request delivers
+# the value, clears the request, and the link seam hears exactly
+# what the game heard. A spent request swallows the next click,
+# and an armed window the click falls outside of keeps waiting.
+def test_a_link_selects_by_click() -> None:
+    values: list[int] = []
+    stub = StubGlass(["\xfe", "\xfe", "x"])
+    display = GlassFrontend(cast("Glass", stub), on_link=values.append)
+    library = Glk(display)
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the buffer did not open")
+
+    library.glk_set_window(window)
+    library.glk_put_string("go ")
+    library.glk_set_hyperlink(9)
+    library.glk_put_string("north")
+    library.glk_set_hyperlink(0)
+    library.glk_request_hyperlink_event(window)
+    display.flush(library.root)
+
+    assert_that(stub.painted).contains(
+        (8, 4, "north", LINK_INK, PAPER_DEFAULT, False, False)
+    )
+
+    stub.click_position = (5, 8)
+
+    assert_that(display.read_char(window)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that(event.kind).is_equal_to(EventType.HYPERLINK)
+    assert_that(event.window).is_same_as(window)
+    assert_that(event.val1).is_equal_to(9)
+    assert_that(window.hyperlink_request).is_false()
+    assert_that(values).is_equal_to([9])
+
+    library.pending_events.clear()
+
+    assert_that(display.read_char(window)).is_equal_to(ord("x"))
+
+    # A split grid armed for links, clicked past its box: nothing
+    # delivers, and the keystroke behind the click goes through.
+    split = StubGlass(["\xfe", "x"])
+    beside = GlassFrontend(cast("Glass", split))
+    apart = Glk(beside)
+    root = apart.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+    banner = apart.glk_window_open(
+        root, WindowMethod.ABOVE | WindowMethod.FIXED, 1, WindowType.TEXT_GRID, 0
+    )
+
+    if banner is None:
+        pytest.fail("the grid did not open")
+
+    apart.glk_request_hyperlink_event(banner)
+    split.click_position = (5, 7)
+
+    assert_that(beside.read_char(banner)).is_equal_to(ord("x"))
+    assert_that(apart.pending_events).is_empty()
+
+
+# With a hyperlink and a mouse request both standing on a grid,
+# the position decides: a click on the linked run selects the
+# link, and a click on plain cells falls through to the mouse.
+def test_the_position_decides_between_link_and_mouse() -> None:
+    linked = WideGlass(["\xfe"])
+    display = GlassFrontend(cast("Glass", linked))
+    library = Glk(display)
+    grid = library.glk_window_open(None, 0, 0, WindowType.TEXT_GRID, 0)
+
+    if grid is None:
+        pytest.fail("the grid did not open")
+
+    library.glk_set_window(grid)
+    library.glk_set_hyperlink(4)
+    library.glk_put_string("menu")
+    library.glk_set_hyperlink(0)
+    library.glk_request_hyperlink_event(grid)
+    library.glk_request_mouse_event(grid)
+    display.flush(library.root)
+    linked.click_position = (10, 10)
+
+    assert_that(display.read_char(grid)).is_none()
+    assert_that(library.pending_events[0].kind).is_equal_to(EventType.HYPERLINK)
+    assert_that(library.pending_events[0].val1).is_equal_to(4)
+    assert_that(grid.mouse_request).is_true()
+
+    library.pending_events.clear()
+    library.glk_request_hyperlink_event(grid)
+    linked.keys = ["\xfe"]
+    linked.click_position = (91, 1)
+
+    assert_that(display.read_char(grid)).is_none()
+
+    event = library.pending_events[0]
+
+    assert_that(event.kind).is_equal_to(EventType.MOUSE_INPUT)
+    assert_that((event.val1, event.val2)).is_equal_to((10, 0))
+    assert_that(grid.hyperlink_request).is_true()
+
+
+# When only the link is wanted, the wait discards keystrokes and
+# the selection answers through the event queue, never the return
+# value.
+def test_read_hyperlink_waits_through_keystrokes() -> None:
+    stub = StubGlass(["k", "\xfe"])
+    display = GlassFrontend(cast("Glass", stub))
+    library = Glk(display)
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the buffer did not open")
+
+    library.glk_set_window(window)
+    library.glk_set_hyperlink(6)
+    library.glk_put_string("onward")
+    library.glk_set_hyperlink(0)
+    library.glk_request_hyperlink_event(window)
+    display.flush(library.root)
+    stub.click_position = (2, 8)
+
+    assert_that(display.read_hyperlink(window)).is_none()
+    assert_that(library.pending_events[0].kind).is_equal_to(EventType.HYPERLINK)
+    assert_that(library.pending_events[0].val1).is_equal_to(6)
 
 
 # When only the mouse is wanted, the wait discards keystrokes and

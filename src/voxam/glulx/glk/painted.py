@@ -201,7 +201,7 @@ class PaintedFrontend(Frontend):
         self._begin()
 
         for row in range(int(height / cell.height)):
-            self._place(0, int(row * cell.height), [(Style.NORMAL, " " * columns)])
+            self._place(0, int(row * cell.height), [((Style.NORMAL, 0), " " * columns)])
 
         self._finish(None)
 
@@ -246,7 +246,9 @@ class PaintedFrontend(Frontend):
 
         for index in range(int((bottom - top) / cell.height)):
             self._place(
-                left, int(top + index * cell.height), [(Style.NORMAL, " " * columns)]
+                left,
+                int(top + index * cell.height),
+                [((Style.NORMAL, 0), " " * columns)],
             )
 
         return None
@@ -275,7 +277,7 @@ class PaintedFrontend(Frontend):
             self._place(
                 left,
                 int(top + index * cell.height),
-                _grouped(cells, window.styles[index]),
+                _grouped(cells, window.styles[index], window.links[index]),
             )
 
         if self._typing is not window:
@@ -289,13 +291,19 @@ class PaintedFrontend(Frontend):
         text = self._typed[: max(0, window.width - column)]
         x = int(left + column * cell.width)
         y = int(top + row * cell.height)
-        self._place(x, y, [(Style.INPUT, text)])
+        self._place(x, y, [((Style.INPUT, 0), text)])
 
         return (int(x + len(text) * cell.width), y)
 
     def _paint_buffer(self, window: TextBufferWindow) -> tuple[int, int] | None:
         wrapper = self._wrapper(window)
-        wrapper.add((run.style, run.text) for run in window.take_content())
+        # The wrapper keys runs by style and link together, so a
+        # linked run survives wrapping distinct from its plain
+        # neighbours -- the "something richer" the wrapper's
+        # contract always allowed for (Glk: Hyperlinks).
+        wrapper.add(
+            ((run.style, run.hyperlink), run.text) for run in window.take_content()
+        )
 
         left, top, _, _ = window.bbox
         height = window.height
@@ -312,7 +320,7 @@ class PaintedFrontend(Frontend):
         if typing:
             # The line being typed belongs at the end of the text,
             # but is not part of it until the game accepts it.
-            visible = wrapper.preview([(Style.INPUT, self._typed)])[-height:]
+            visible = wrapper.preview([((Style.INPUT, 0), self._typed)])[-height:]
 
         # The newest line sits at the bottom of the box, so the
         # display scrolls the way a terminal does rather than
@@ -325,7 +333,7 @@ class PaintedFrontend(Frontend):
             line = visible[index - offset] if 0 <= index - offset < len(visible) else []
             pad = " " * max(0, window.width - len(plain(line)))
             self._place(
-                left, int(top + index * cell.height), [*line, (Style.NORMAL, pad)]
+                left, int(top + index * cell.height), [*line, ((Style.NORMAL, 0), pad)]
             )
 
         if more:
@@ -333,7 +341,7 @@ class PaintedFrontend(Frontend):
             self._place(
                 left,
                 bottom,
-                [(Style.ALERT, MORE_PROMPT), (Style.NORMAL, pad)],
+                [((Style.ALERT, 0), MORE_PROMPT), ((Style.NORMAL, 0), pad)],
             )
 
             return (int(left + len(MORE_PROMPT) * cell.width), bottom)
@@ -639,7 +647,7 @@ class PaintedFrontend(Frontend):
                 text = self._typed[: max(0, columns - len(prompt) - 1)]
                 line = (prompt + text).ljust(columns - 1)
                 self._begin()
-                self._place(0, bottom, [(Style.NORMAL, line)])
+                self._place(0, bottom, [((Style.NORMAL, 0), line)])
                 self._finish((int((len(prompt) + len(text)) * cell.width), bottom))
 
                 code = self._key()
@@ -716,9 +724,11 @@ class PaintedFrontend(Frontend):
     def _place(self, x: int, y: int, line: "Iterable[Segment]") -> None:
         """Put a styled run of cells at a display position.
 
-        The position is 0-based cells, x across and y down -- the
-        same units the window tree's bounding boxes are measured
-        in.
+        The position is 0-based display units, x across and y down
+        -- the same units the window tree's bounding boxes are
+        measured in. Each segment's key is a (style, link) pair:
+        the Glk style number and the hyperlink value the run was
+        written under, zero for none.
         """
 
     @abstractmethod
@@ -735,18 +745,25 @@ class PaintedFrontend(Frontend):
         """
 
 
-def _grouped(row: list[str], styles: list[int]) -> "list[Segment]":
-    """Collapse a grid row's per-cell styles into runs."""
+def _grouped(row: list[str], styles: list[int], links: list[int]) -> "list[Segment]":
+    """Collapse a grid row's per-cell dress into runs.
 
-    segments: list[tuple[int, str]] = []
+    The key carries the style and the link value together, so a
+    linked run stays distinct from its plain neighbours all the
+    way to the display (Glk: Hyperlinks).
+    """
+
+    segments: list[tuple[tuple[int, int], str]] = []
 
     for index, character in enumerate(row):
         style = styles[index] if index < len(styles) else Style.NORMAL
+        link = links[index] if index < len(links) else 0
+        key = (style, link)
 
-        if segments and segments[-1][0] == style:
-            segments[-1] = (style, segments[-1][1] + character)
+        if segments and segments[-1][0] == key:
+            segments[-1] = (key, segments[-1][1] + character)
         else:
-            segments.append((style, character))
+            segments.append((key, character))
 
     return list(segments)
 

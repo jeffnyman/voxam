@@ -52,6 +52,10 @@ TOKEN_KEYCODES = {
 # presses. The coordinates ride beside it on the click source.
 _CLICK = "\xfe"
 
+# The marker a replayed <link n> travels as; the value rides
+# beside it on the link source.
+_LINK = "\xfc"
+
 
 class StdioFrontend(Frontend):
     """A display over two text streams.
@@ -71,6 +75,7 @@ class StdioFrontend(Frontend):
         input_source: Callable[[], str] | None = None,
         witness: Callable[[str], None] | None = None,
         click_source: Callable[[], tuple[int, int] | None] | None = None,
+        link_source: Callable[[], int | None] | None = None,
     ) -> None:
         """Stand over streams, stdout and stdin by default.
 
@@ -79,10 +84,11 @@ class StdioFrontend(Frontend):
         EOFError meaning the script ran dry. A witness receives
         every run of buffer text as it renders, which is where the
         refusal watch listens. A click source carries a replayed
-        script's click positions, and its presence is what makes
-        the mouse claim true: a live stdio session has no pointer,
-        but a replay must answer the mouse events its recording's
-        game asked for.
+        script's click positions, and a link source its selected
+        link values; each claim is true exactly when its source is
+        aboard, because a live stdio session has no pointer but a
+        replay must answer the events its recording's game asked
+        for.
         """
 
         self.output = output if output is not None else sys.stdout
@@ -90,7 +96,9 @@ class StdioFrontend(Frontend):
         self._source = input_source
         self._witness = witness
         self._clicks = click_source
+        self._links = link_source
         self.mouse_input = click_source is not None
+        self.hyperlink_input = link_source is not None
         self._size = size
         # Grids are redrawn only when they change, by window
         # identity.
@@ -214,6 +222,35 @@ class StdioFrontend(Frontend):
             raise GlulxSessionEnd
 
         return position
+
+    def read_hyperlink(self, _window: Window) -> int | None:
+        """A scripted selection, spent as the script says link.
+
+        The same discipline as read_mouse: the next command must
+        be the grammar's link marker, and its value comes off the
+        link source -- the very value the recording's game was
+        told. Anything else is a divergence, and the session ends
+        loudly rather than replaying wrong.
+
+        Raises:
+            GlulxSessionEnd: When the script and the game disagree
+                about what comes next, or the links ran dry.
+        """
+
+        if self._links is None:
+            return None
+
+        line = self._readline()
+        value = self._links() if line[:1] == _LINK else None
+
+        if value is None:
+            self.output.write(
+                "\nvoxam: the game waits for a link the script does not spell\n"
+            )
+
+            raise GlulxSessionEnd
+
+        return value
 
     def prompt_file(self, _usage: int, fmode: int) -> str | None:
         """Ask for a filename in the stream; empty cancels."""
