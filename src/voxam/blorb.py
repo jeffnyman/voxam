@@ -87,6 +87,11 @@ BAKED_ENTRY_SIZE = 12
 FRONTISPIECE_ID = b"Fspc"
 IDENTITY_ID = b"IFhd"
 
+# The metadata chunk: an iFiction record in XML, the treaty's own
+# bibliography riding inside the resource file (Blorb: Metadata;
+# Babel: The iFiction format).
+IFICTION_ID = b"IFmd"
+
 # In Version 5 and later the sound_effect opcode says whether a
 # sound repeats; a Version 3 game cannot, so its Blorb may carry a
 # Loop chunk instead: eight-byte entries pairing a sound number
@@ -131,6 +136,8 @@ class Blorb:
         resolution: The Reso chunk's scaling instructions, or
             None without one -- every picture non-scalable
             (Blorb: The Resolution Chunk).
+        ifiction: The IFmd chunk's iFiction record, XML bytes as
+            they arrived, or None without one (Blorb: Metadata).
         adaptive: The pictures whose palettes adapt to the scene
             plotted before them; empty without an APal chunk
             (Blorb: The Adaptive Palette Chunk).
@@ -150,6 +157,7 @@ class Blorb:
         resolution: Resolution | None = None,
         adaptive: frozenset[int] = frozenset(),
         baked: dict[tuple[int, int], int] | None = None,
+        ifiction: bytes | None = None,
     ) -> None:
         """Hold a parsed index; parse() and load() build these."""
 
@@ -161,6 +169,7 @@ class Blorb:
         self.resolution = resolution
         self.adaptive = adaptive
         self.baked = baked or {}
+        self.ifiction = ifiction
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -223,6 +232,10 @@ class Blorb:
             resolution=_resolution(chunks),
             adaptive=_adaptive(chunks),
             baked=_baked(chunks),
+            ifiction=next(
+                (piece.payload for piece in chunks if piece.chunk_id == IFICTION_ID),
+                None,
+            ),
         )
 
     def resource(self, usage: bytes, number: int) -> Resource | None:
