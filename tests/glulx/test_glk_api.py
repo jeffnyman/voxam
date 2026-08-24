@@ -15,6 +15,8 @@ from voxam.glulx.glk.api import (
     GLK_VERSION,
     Glk,
     GlkGestalt,
+    Prompting,
+    Waiting,
 )
 from voxam.glulx.glk.dispatch import all_signatures
 from voxam.glulx.glk.frontend import Frontend
@@ -1345,6 +1347,75 @@ def test_clicks_and_links_deliver_from_outside() -> None:
         library.deliver_hyperlink(first, 7)
 
 
+# A suspending display is never asked for a file either: the call
+# itself stands down with its tail unparked until a glk opcode
+# parks it, and the host's answer runs what was parked. Answers
+# with nothing standing are refused.
+def test_a_file_prompt_suspends_the_call() -> None:
+    library, _ = rooted(Suspending())
+
+    answered = library.glk_fileref_create_by_prompt(
+        FileUsage.SAVED_GAME, FileMode.WRITE, 7
+    )
+
+    assert_that(answered).is_none()
+
+    waiting = library.waiting
+
+    if not isinstance(waiting, Prompting):
+        pytest.fail("the prompt suspended")
+
+    assert_that((waiting.usage, waiting.fmode, waiting.rock)).is_equal_to(
+        (FileUsage.SAVED_GAME, FileMode.WRITE, 7)
+    )
+
+    # Outside any glk call, no tail was parked: loudly so.
+    with pytest.raises(GlulxGlkError, match="no store owed"):
+        library.deliver_file("saga")
+
+    stored: list[int] = []
+    waiting.encode = lambda value: 0 if value is None else 99
+    waiting.store = stored.append
+
+    library.deliver_file("saga")
+
+    assert_that(stored).is_equal_to([99])
+    assert_that(library.waiting).is_none()
+
+    with pytest.raises(GlulxGlkError, match="no prompt suspended"):
+        library.deliver_file("saga")
+
+
+# A cancel stores the null reference; a file answered at a select,
+# or an event answered at a prompt, is a driver's bug and loud.
+def test_files_and_events_land_only_in_their_own_waits() -> None:
+    library, first = rooted(Suspending())
+
+    library.glk_fileref_create_by_prompt(FileUsage.DATA, FileMode.READ, 0)
+
+    waiting = library.waiting
+
+    if not isinstance(waiting, Prompting):
+        pytest.fail("the prompt suspended")
+
+    stored: list[int] = []
+    waiting.encode = lambda value: 0 if value is None else 1
+    waiting.store = stored.append
+
+    with pytest.raises(GlulxGlkError, match="no select suspended"):
+        library.deliver_event(Event(EventType.TIMER))
+
+    library.deliver_file(None)
+
+    assert_that(stored).is_equal_to([0])
+
+    library.glk_request_char_event(first)
+    library.glk_select(RefStruct(4))
+
+    with pytest.raises(GlulxGlkError, match="no prompt suspended"):
+        library.deliver_file("saga")
+
+
 # A timer fires while a line is pending: the request survives the
 # interruption and is answered on the next select.
 def test_a_timer_interrupts_a_line() -> None:
@@ -1418,7 +1489,7 @@ def test_a_suspending_select_records_the_wait() -> None:
 
     waiting = library.waiting
 
-    if waiting is None:
+    if not isinstance(waiting, Waiting):
         pytest.fail("the select suspended")
 
     assert_that(waiting.struct).is_same_as(event)

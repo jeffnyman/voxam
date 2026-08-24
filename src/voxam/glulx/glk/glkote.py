@@ -18,13 +18,17 @@ runs the machine until a select stands waiting, sends the update,
 and delivers whatever event the far side answers with -- JSON, one
 stanza to a line, each way (GlkOte: The Application's Life Story).
 
-Deliberately not carried yet, each a named road: the file prompt
-(prompt_file inherits the base's cancel, so specialinput never
-travels); the refresh event (this transport loses nothing); the
-player's partial input across a field's regeneration; the metrics'
-outspacing and inspacing (the window arrangement leaves no gaps
-for them); and flow breaks, which mean nothing until buffer
-windows claim images.
+The file prompt is carried: a game's ask for a file suspends the
+call itself, travels as the protocol's special input, and the
+player's answer -- a name, or the ever-legitimate cancel --
+completes the parked call (GlkOte: Special Input Requests).
+
+Deliberately not carried yet, each a named road: the refresh
+event (this transport loses nothing); the player's partial input
+across a field's regeneration; the metrics' outspacing and
+inspacing (the window arrangement leaves no gaps for them); and
+flow breaks, which mean nothing until buffer windows claim
+images.
 """
 
 import json
@@ -32,13 +36,15 @@ from typing import TextIO, cast
 
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import STYLES, Page, Stanza
-from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.api import Glk, Prompting
 from voxam.glulx.glk.frontend import Frontend
 from voxam.glulx.glk.objects import (
     CHARACTER_CELL,
     BlankWindow,
     Event,
     EventType,
+    FileMode,
+    FileUsage,
     GraphicsWindow,
     KeyCode,
     LineRequest,
@@ -111,6 +117,23 @@ KEY_CODES = {
 # The highest character a Latin-1 char request can carry (Glk:
 # Character Input).
 _LATIN_1_TOP = 0xFF
+
+# A file prompt's dress in the protocol's names: Glk's file modes
+# and usages, spelled the way specialinput spells them (GlkOte:
+# Special Input Requests). A mode outside the four is refused the
+# way the file streams refuse it.
+_FILE_MODES = {
+    FileMode.READ: "read",
+    FileMode.WRITE: "write",
+    FileMode.READ_WRITE: "readwrite",
+    FileMode.WRITE_APPEND: "writeappend",
+}
+_FILE_KINDS = {
+    FileUsage.DATA: "data",
+    FileUsage.SAVED_GAME: "save",
+    FileUsage.TRANSCRIPT: "transcript",
+    FileUsage.INPUT_RECORD: "command",
+}
 
 
 class Composer:
@@ -545,7 +568,31 @@ class GlkOteFrontend(Frontend):
 
             self._restarted = False
 
+        if isinstance(glk.waiting, Prompting):
+            self.page.prompt(
+                self._filemode(glk.waiting.fmode),
+                _FILE_KINDS[glk.waiting.usage & FileUsage.TYPE_MASK],
+            )
+
         return self.page.update(exit=exit)
+
+    def _filemode(self, fmode: int) -> str:
+        """A Glk file mode as the protocol's name for it.
+
+        Raises:
+            GlulxGlkError: For a mode that is not one of the four,
+                the rule the file streams enforce (Glk: File
+                Streams).
+        """
+
+        named = _FILE_MODES.get(fmode)
+
+        if named is None:
+            msg = f"a file cannot be prompted for in mode {fmode}"
+
+            raise GlulxGlkError(msg)
+
+        return named
 
     def accept(  # noqa: PLR0911 -- one return per event kind
         self, stanza: Stanza
@@ -602,7 +649,30 @@ class GlkOteFrontend(Frontend):
         if kind == "arrange":
             return self._rearranged(stanza)
 
+        if kind == "specialresponse":
+            self._answered(stanza)
+
         return None
+
+    def _answered(self, stanza: Stanza) -> None:
+        """Take a special response: the player's file name, or not.
+
+        Completing the parked call clears the wait, which is the
+        signal the serving loop reads -- there is no event to
+        deliver, the call itself was the destination. A response
+        to some other ask leaves the wait standing (GlkOte:
+        Special Input Requests).
+        """
+
+        if stanza.get("response") != "fileref_prompt":
+            return
+
+        value = stanza.get("value")
+
+        # A non-string value would be a browser dialog's fileref
+        # object, and no dialog was invited: it reads as a cancel,
+        # which is always legitimate.
+        self._library().deliver_file(value if isinstance(value, str) else None)
 
     def _rearranged(self, stanza: Stanza) -> Event:
         """Take an arrange event: new metrics, then the re-lay.
@@ -729,11 +799,17 @@ def serve(
                 event = frontend.accept(stanza)
 
                 if event is not None:
+                    glk.deliver_event(event)
+
+                    break
+
+                if glk.waiting is None:
+                    # The stanza itself completed the wait: a file
+                    # answer stores through the parked call, and
+                    # the machine can simply step on.
                     break
 
                 _write(writer, {"type": "pass"})
-
-            glk.deliver_event(event)
     except json.JSONDecodeError as error:
         _write(writer, {"type": "error", "message": f"voxam: not JSON: {error}"})
 

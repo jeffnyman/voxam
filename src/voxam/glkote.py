@@ -53,6 +53,11 @@ FLOWBREAK = object()
 # Array).
 _KINDS = frozenset({"buffer", "grid", "graphics"})
 
+# What a file prompt may ask, by the protocol's own names
+# (GlkOte: Special Input Requests).
+_FILE_MODES = frozenset({"read", "write", "readwrite", "writeappend"})
+_FILE_KINDS = frozenset({"data", "save", "transcript", "command"})
+
 # The drawing operations a graphics content entry may carry
 # (GlkOte: Graphics Window Updates).
 _SPECIALS = frozenset({"setcolor", "fill", "image"})
@@ -108,6 +113,7 @@ class Page:
         self._draws: dict[int, list[Stanza]] = {}
         self._requests: dict[int, Stanza] = {}
         self._timer_request: tuple[int, bool] | None = None
+        self._prompt: Stanza | None = None
 
     @property
     def gen(self) -> int:
@@ -552,6 +558,37 @@ class Page:
 
         self._requests[ident] = entry
 
+    def prompt(self, filemode: str, filetype: str) -> None:
+        """Ask the player for a file, through the display's own ask.
+
+        The update carries it as special input, and the display
+        disables the game until the answer comes back (GlkOte:
+        Special Input Requests).
+
+        Raises:
+            GlkOteError: For a mode or kind the protocol does not
+                name, or a second ask in one cycle.
+        """
+
+        if self._prompt is not None:
+            msg = "one file may be asked for per cycle"
+
+            raise GlkOteError(msg)
+
+        if filemode not in _FILE_MODES or filetype not in _FILE_KINDS:
+            msg = (
+                f"no file prompt asks {filemode!r} of a {filetype!r} "
+                "(GlkOte: Special Input Requests)"
+            )
+
+            raise GlkOteError(msg)
+
+        self._prompt = {
+            "type": "fileref_prompt",
+            "filemode": filemode,
+            "filetype": filetype,
+        }
+
     def timer(self, interval: int, *, restart: bool = False) -> None:
         """Note the timer cadence in milliseconds, zero for none.
 
@@ -588,6 +625,7 @@ class Page:
             or bool(content)
             or input_changed
             or timer_field is not _UNSET
+            or self._prompt is not None
             or exit
         )
 
@@ -611,6 +649,9 @@ class Page:
         if timer_field is not _UNSET:
             stanza["timer"] = timer_field
             self._timer_shown = timer_field if isinstance(timer_field, int) else 0
+
+        if self._prompt is not None:
+            stanza["specialinput"] = self._prompt
 
         if exit:
             stanza["exit"] = True
@@ -784,6 +825,7 @@ class Page:
         self._draws = {}
         self._requests = {}
         self._timer_request = None
+        self._prompt = None
 
 
 def _trimmed(spans: list[Stanza]) -> list[Stanza]:

@@ -157,6 +157,38 @@ class Waiting:
         self.writebacks: list[Callable[[], None]] = []
 
 
+class Prompting:
+    """A suspended file prompt: a Glk call standing mid-flight.
+
+    Unlike a select, whose opcode completes and defers only its
+    struct, fileref_create_by_prompt cannot complete at all -- its
+    result is the player's answer. So the wait parks the whole
+    tail of the call: the bridge leaves its result encoding here,
+    the machine leaves the opcode's store, and deliver_file runs
+    them once the name arrives (Glk: File References).
+
+    Attributes:
+        usage: What the file is for, suffix and all.
+        fmode: How the game means to open it.
+        rock: The rock the fileref will wear.
+        writebacks: The bridge's deferred writes, uniform with a
+            select's wait; this call has none to defer.
+        encode: The bridge's parked result encoding -- the minted
+            id the store needs.
+        store: The machine's parked opcode store.
+    """
+
+    def __init__(self, usage: int, fmode: int, rock: int) -> None:
+        """Open over the ask, the call's tail not yet parked."""
+
+        self.usage = usage
+        self.fmode = fmode
+        self.rock = rock
+        self.writebacks: list[Callable[[], None]] = []
+        self.encode: Callable[[FileRef | None], int] | None = None
+        self.store: Callable[[int], None] | None = None
+
+
 class Glk:
     """A Glk library instance.
 
@@ -181,6 +213,7 @@ class Glk:
         pending_events: Events a display has posted -- timers,
             sound notifications -- waiting for the next select.
         waiting: The suspended select an event has yet to answer,
+            or the suspended file prompt a name has yet to answer,
             for a display that suspends; None while the machine
             runs.
         on_dispose: Set by the bridge, so a closed object's id
@@ -208,7 +241,7 @@ class Glk:
         self.stylehints: dict[tuple[int, int, int], int] = {}
         self.timer_interval = 0
         self.pending_events: list[Event] = []
-        self.waiting: Waiting | None = None
+        self.waiting: Waiting | Prompting | None = None
         self.on_dispose: Callable[[GlkObject], None] | None = None
 
         self.frontend.attach(self)
@@ -806,9 +839,19 @@ class Glk:
     ) -> FileRef | None:
         """A reference to a file the player names.
 
-        A cancelled prompt yields the null reference (Glk: File
-        References).
+        A blocking display is asked on the spot; a suspending one
+        is never asked -- the call itself stands down mid-flight,
+        its tail parked on the wait, until the host answers
+        through deliver_file. A cancelled prompt yields the null
+        reference either way (Glk: File References).
         """
+
+        if self.frontend.suspends:
+            self.waiting = Prompting(usage, fmode, rock)
+
+            # A placeholder the bridge encodes but the machine
+            # never stores: the real result arrives with the name.
+            return None
 
         name = self.frontend.prompt_file(usage, fmode)
 
@@ -816,6 +859,44 @@ class Glk:
             return None
 
         return self._new_fileref(self._path_for(name, usage), usage, rock)
+
+    def deliver_file(self, name: str | None) -> None:
+        """Complete a suspended file prompt with the player's name.
+
+        The fileref is minted the way the blocking path mints it
+        -- nothing at all for a cancel, which is always legitimate
+        (Glk: File References) -- and then the call's parked tail
+        runs: the bridge's encoding, the machine's store.
+
+        Raises:
+            GlulxGlkError: When no file prompt stands suspended,
+                or the wait never came through a glk opcode and
+                has no tail to run.
+        """
+
+        waiting = self.waiting
+
+        if not isinstance(waiting, Prompting):
+            msg = "a file name arrived with no prompt suspended to receive it"
+
+            raise GlulxGlkError(msg)
+
+        if waiting.encode is None or waiting.store is None:
+            msg = "the file prompt stands outside any glk call, with no store owed"
+
+            raise GlulxGlkError(msg)
+
+        fileref = (
+            None
+            if not name
+            else self._new_fileref(
+                self._path_for(name, waiting.usage), waiting.usage, waiting.rock
+            )
+        )
+
+        waiting.store(waiting.encode(fileref))
+
+        self.waiting = None
 
     def glk_fileref_create_from_fileref(
         self, usage: int, fileref: FileRef | None, rock: int
@@ -1568,7 +1649,7 @@ class Glk:
 
         waiting = self.waiting
 
-        if waiting is None:
+        if not isinstance(waiting, Waiting):
             msg = "an event arrived with no select suspended to receive it"
 
             raise GlulxGlkError(msg)
