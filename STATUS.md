@@ -433,7 +433,7 @@ coherent, not on a calendar:
   IFIDs and iFiction and the Infocom catalog, and the
   declaration above with its two-entry exclusion ledger.
 
-## The GlkOte protocol: 1.6
+## The GlkOte protocol: 1.6 and 1.7
 
 The 2.0 era opened exactly where the display contract said it
 would: `glk_select` learned to suspend. A display that cannot
@@ -468,11 +468,24 @@ and a page reload starting the story over, because that is what a
 reload should mean. Adventure was the first game through the
 wire, and the first in the tab.
 
-What the faces do not yet carry is written down where it is
-refused: the file prompt (a game may ask for a save file; the ask
-cancels, legitimately but unhelpfully), the player's partial
-input across a field's regeneration, and the Z-Machine itself --
-"the GlkOte faces speak Glulx first."
+And 1.7 made the protocol whole. The file prompt asked for a
+second kind of standing down: a select suspends after its opcode
+completes, but `fileref_create_by_prompt` cannot complete at all
+-- its result is the player's answer -- so the call itself stands
+mid-flight, the bridge's encoding and the opcode's store parked
+on the wait, and the name that comes back as the protocol's
+special input runs them in order. Typing `save` in a browser tab
+writes a real Quetzal file beside the story; `restore` reads it
+back; the cancel is honored as the always-legitimate answer it
+is. And the player's half-typed command rides every event as the
+protocol's partial input -- a field that must be remade because
+the game printed mid-word is remade wearing exactly what was
+typed, while a field the display carries keeps its editing state
+untouched, so nothing churns and nothing is eaten.
+
+What the faces do not yet carry is one thing, written down where
+it is refused: the Z-Machine itself -- "the GlkOte faces speak
+Glulx first."
 
 ### The road to 2.0, underway
 
@@ -485,11 +498,11 @@ remains maps onto the interim releases:
   suspension seam, the machine-neutral update builder, the event
   half, and the two faces -- `--glkote` on the wire, `--web` in
   the browser.
-- **1.7, the protocol whole.** The file prompt over the
-  protocol's special input -- the era's second architectural
-  moment, a suspension mid-Glk-call rather than at select -- and
-  the player's partial input preserved when a timer interrupts
-  their typing.
+- **1.7, the protocol whole.** Done in the making: the file
+  prompt over the protocol's special input -- the era's second
+  architectural moment, a suspension mid-Glk-call rather than at
+  select -- and the player's partial input preserved when a timer
+  interrupts their typing.
 - **The Z-Machine joins.** Reading learns the same suspension
   contract the select learned, and the Z screen model -- upper
   window to grid, lower to buffer -- feeds the same Page. Bronze
