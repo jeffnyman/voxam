@@ -1,0 +1,12 @@
+{
+  "name": "voxam-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Voxam desktop shell: a Tauri webview wearing the GlkOte display over a spawned voxam --glkote pipe.",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

@@ -530,8 +530,18 @@ remains maps onto the interim releases:
   learned the suspension contract the select learned, and the Z
   screen model -- upper window to grid, lower to buffer -- feeds
   the same Page. Bronze in the browser, beside Adventure.
-- **The desktop shell.** The Lectrote analog: a webview wearing
-  the same GlkOte display, driving `--glkote` down a pipe -- a
-  `desktop/` sibling the wheel never packages, shipped as the
-  release's own artifacts.
+- **The desktop shell.** Done in the making: the Lectrote analog,
+  a Tauri webview wearing the same GlkOte display, driving a
+  spawned `voxam --glkote` down a pipe -- a `desktop/` sibling
+  the wheel never packages and the Python gate never sees. The
+  shell finds `voxam` on the PATH and says so plainly when it
+  cannot; a session's events wear a minted id so a restart's
+  fresh page ignores a dead session's last words; and the ends
+  are honest -- the pipe's EOF is the machine's goodbye, the
+  shell's own bar announces it (the vendored GlkOte ignores the
+  update's exit flag), and a pre-wire refusal travels verbatim
+  as the fault it is. Not yet aboard, each a named road:
+  pictures (the browser face's `/pict` road has no pipe
+  equivalent yet), the save-file dialog, the Babel title, and
+  the CI workflow that ships the per-platform artifacts.
 - **2.0, the declaration.**

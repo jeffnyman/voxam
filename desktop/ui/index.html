@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voxam</title>
+<link rel="stylesheet" href="glkote.css" type="text/css">
+<style type="text/css">
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #444;
+}
+#gameport {
+  position: absolute;
+  overflow: hidden;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 900px;
+  top: 0;
+  bottom: 0;
+  background: white;
+}
+/* The Z-Machine's reverse video (§8.7) travels as user1, and its
+   status grid wears the classic inverse bar. */
+.Style_user1 {
+  background: #333;
+  color: #fff;
+}
+.GridWindow {
+  background: #333;
+  color: #fff;
+}
+.GridWindow .Style_user1 {
+  background: #fff;
+  color: #333;
+}
+/* The landing overlay covers the gameport but never hides it:
+   GlkOte must measure real geometry the moment it initializes. */
+#landing {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #444;
+  color: #ddd;
+  font-family: Georgia, serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75em;
+  text-align: center;
+}
+#landing h1 {
+  font-size: 3em;
+  letter-spacing: 0.15em;
+  color: #0bf;
+  margin: 0;
+}
+#landing p {
+  margin: 0;
+}
+#landing button {
+  font-size: 1.1em;
+  padding: 0.5em 1.5em;
+  margin-top: 1em;
+  cursor: pointer;
+}
+#landing .note {
+  max-width: 34em;
+  margin-top: 1.5em;
+  color: #f9a;
+  white-space: pre-wrap;
+  font-family: monospace;
+  text-align: left;
+}
+#endedbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  display: none;
+  background: #222;
+  color: #eee;
+  font-family: Georgia, serif;
+  padding: 0.6em;
+  text-align: center;
+}
+#endedbar button {
+  margin-left: 1em;
+  cursor: pointer;
+}
+</style>
+<script src="jquery-1.12.4.min.js" type="text/javascript"></script>
+<script src="glkote.js" type="text/javascript"></script>
+<script src="shell.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="gameport">
+<div id="windowport">
+<noscript><p>You must have Javascript turned on to play.</p></noscript>
+</div>
+<div id="loadingpane">
+<img src="waiting.gif" alt="LOADING"><br>
+<em>Loading...</em>
+</div>
+<div id="errorpane" style="display:none;"><div id="errorcontent">...</div></div>
+</div>
+<div id="landing">
+<h1>V&Theta;X&Delta;M</h1>
+<p>An interpreter for Z-Machine and Glulx stories.</p>
+<button id="open">Open a Story&hellip;</button>
+<div class="note" id="note"></div>
+</div>
+<div id="endedbar">The story has ended.<button id="reopen">Open another&hellip;</button></div>
+</body>
+</html>
