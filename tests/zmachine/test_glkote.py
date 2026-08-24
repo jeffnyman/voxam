@@ -322,6 +322,47 @@ def test_the_grid_comes_and_goes_with_new_names(
     assert_that(frontend.accept({"type": "refresh", "gen": 3})).is_equal_to(PASS)
 
 
+# The grid's box carries the display's interior margins on top of
+# its rows (GlkOte: The Metrics Object) -- a box of bare rows clips
+# its bottom and floats the buffer up into the status line -- and
+# with no grid at all the buffer starts back at the very top.
+def test_the_grid_box_wears_the_margins(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, _ = opened(code_machine)
+
+    frontend.begin(
+        {
+            "type": "init",
+            "gen": 0,
+            "metrics": {
+                "width": 800,
+                "height": 480,
+                "gridcharwidth": 10,
+                "gridcharheight": 20,
+                "gridmarginx": 20,
+                "gridmarginy": 12,
+            },
+        }
+    )
+
+    frontend.split_window(2)
+
+    split = frontend.render()
+
+    assert_that(split["windows"][1]["top"]).is_equal_to(0)
+    assert_that(split["windows"][1]["height"]).is_equal_to(52)
+    assert_that(split["windows"][0]["top"]).is_equal_to(52)
+    assert_that(split["windows"][0]["height"]).is_equal_to(428)
+
+    frontend.split_window(0)
+
+    alone = frontend.render()
+
+    assert_that(alone["windows"][0]["top"]).is_equal_to(0)
+    assert_that(alone["windows"][0]["height"]).is_equal_to(480)
+
+
 def reading_image() -> bytes:
     """A Version 4 story that reads one line and quits, whole."""
 
