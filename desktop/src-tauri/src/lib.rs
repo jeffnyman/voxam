@@ -9,7 +9,7 @@
 //! and exits 0 on game over or EOF, 2 on a fault.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -48,11 +48,7 @@ struct Shell {
 #[tauri::command]
 async fn set_story(app: AppHandle, state: State<'_, Shell>, path: String) -> Result<(), String> {
     let chosen = PathBuf::from(&path);
-
-    let name = chosen
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "Voxam".to_string());
+    let name = titled(&chosen);
 
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&format!("{name} \u{2014} Voxam"));
@@ -61,6 +57,47 @@ async fn set_story(app: AppHandle, state: State<'_, Shell>, path: String) -> Res
     *state.story.lock().unwrap() = Some(chosen);
 
     Ok(())
+}
+
+/// The story's name under the Treaty of Babel, asked of voxam
+/// itself -- `--babel` reports a Title line for any story a record
+/// names -- with the filename's stem standing in for the nameless.
+fn titled(story: &Path) -> String {
+    let stem = story
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Voxam".to_string());
+
+    let mut command = Command::new("voxam");
+
+    command
+        .arg("--babel")
+        .arg(story)
+        .env("PYTHONUTF8", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        command.creation_flags(0x0800_0000);
+    }
+
+    let Ok(output) = command.output() else {
+        return stem;
+    };
+
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        if let Some(title) = line.strip_prefix("Title: ") {
+            if !title.trim().is_empty() {
+                return title.trim().to_string();
+            }
+        }
+    }
+
+    stem
 }
 
 /// The story the shell holds, surviving the page's reloads.

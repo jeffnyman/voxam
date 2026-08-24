@@ -540,8 +540,10 @@ remains maps onto the interim releases:
   are honest -- the pipe's EOF is the machine's goodbye, the
   shell's own bar announces it (the vendored GlkOte ignores the
   update's exit flag), and a pre-wire refusal travels verbatim
-  as the fault it is. Not yet aboard, each a named road:
+  as the fault it is. The title bar speaks Babel: the shell asks
+  `voxam --babel` for the story's name and the filename's stem
+  stands in for the nameless. Not yet aboard, each a named road:
   pictures (the browser face's `/pict` road has no pipe
-  equivalent yet), the save-file dialog, the Babel title, and
-  the CI workflow that ships the per-platform artifacts.
+  equivalent yet), the save-file dialog, and the CI workflow
+  that ships the per-platform artifacts.
 - **2.0, the declaration.**
