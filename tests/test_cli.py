@@ -546,7 +546,7 @@ def test_glkote_speaks_glulx_first(
     exit_code = main([str(story), "--glkote"])
 
     assert_that(exit_code).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("speaks Glulx first")
+    assert_that(capsys.readouterr().out).contains("speak Glulx first")
 
 
 # A served session leaves stdout to the stanzas alone: no banner,
@@ -574,6 +574,58 @@ def test_glkote_serves_the_streams_whole(
 
     assert_that(main([str(story), "--glkote"])).is_equal_to(2)
     assert_that(capsys.readouterr().out).is_empty()
+
+
+# The browser face keeps the same company rules as the stdio one,
+# the two faces cannot share a session, and --port belongs to
+# --web alone.
+def test_web_refuses_company(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = glulx_story(tmp_path)
+
+    both = main([str(story), "--web", "--glkote"])
+
+    assert_that(both).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("pick one")
+
+    joined = main([str(story), "--web", "--graphics"])
+
+    assert_that(joined).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("cannot join it")
+
+    portly = main([str(story), "--port", "9000"])
+
+    assert_that(portly).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("belongs to --web")
+
+    zcode = main([str(broken_story(tmp_path, bytes([0xBA]))), "--web"])
+
+    assert_that(zcode).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("speak Glulx first")
+
+
+# The web arm hands the session to the server and maps its
+# verdict; a port that will not bind is told plainly.
+def test_web_serves_through_the_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = glulx_story(tmp_path)
+
+    monkeypatch.setattr("voxam.cli.serve_web", lambda _face, port: port - port)
+
+    assert_that(main([str(story), "--web", "--port", "9001"])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Voxam Interpreter")
+
+    def unbound(_face: object, _port: int) -> int:
+        raise OSError("address in use")
+
+    monkeypatch.setattr("voxam.cli.serve_web", unbound)
+
+    assert_that(main([str(story), "--web"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("address in use")
 
 
 # A start function that prints "Hi", asks for a line, and answers
