@@ -43,6 +43,7 @@ from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
+from voxam.web import Face, Session, serve_web
 from voxam.zmachine.instruction import Instruction
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.memory import Memory
@@ -70,6 +71,9 @@ EXIT_FAILED_CHECKS = 1
 # --seed rolls its own dice once and writes them down. The ceiling
 # just keeps the number the size the corpus scripts use.
 RECORDED_SEED_CEILING = 100_000
+
+# Where the browser face listens unless --port says otherwise.
+WEB_PORT = 8080
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -174,6 +178,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="speak the GlkOte protocol as JSON lines on stdin and stdout",
     )
     parser.add_argument(
+        "--web",
+        action="store_true",
+        help="play in the browser: serve the GlkOte display over HTTP",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=WEB_PORT,
+        help=f"the port --web listens on (default {WEB_PORT})",
+    )
+    parser.add_argument(
         "--interpreter",
         help="claim a §11.1.3 platform, by name (amiga, ibm-pc, ...) or number",
     )
@@ -244,6 +259,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             screen=not arguments.plain,
             graphics=arguments.graphics,
             glkote=arguments.glkote,
+            web=arguments.web,
+            port=arguments.port,
             identity=identity,
             resources=arguments.resources,
             pixels=arguments.pixels,
@@ -595,13 +612,22 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
 
 
 def _glkote_refusal(arguments: argparse.Namespace) -> str | None:
-    """Why --glkote cannot proceed, or None when it can.
+    """Why --glkote or --web cannot proceed, or None when either can.
 
-    The protocol owns both streams whole: no other face, no
-    recording or replay instrument, can share them.
+    A GlkOte face owns the whole session: no other face, no
+    recording or replay instrument, can share it -- and the two
+    faces cannot share each other.
     """
 
-    if not arguments.glkote:
+    if arguments.glkote and arguments.web:
+        return "--glkote and --web are two faces of one protocol; pick one"
+
+    if arguments.port != WEB_PORT and not arguments.web:
+        return "--port belongs to --web"
+
+    face = "--glkote" if arguments.glkote else "--web"
+
+    if not (arguments.glkote or arguments.web):
         return None
 
     for named, held in (
@@ -615,7 +641,7 @@ def _glkote_refusal(arguments: argparse.Namespace) -> str | None:
         ("--trace", arguments.trace is not None),
     ):
         if held:
-            return f"--glkote speaks for the whole session; {named} cannot join it"
+            return f"{face} speaks for the whole session; {named} cannot join it"
 
     return None
 
@@ -1244,6 +1270,34 @@ def _serve_glkote(
     return EXIT_OK if served else EXIT_UNUSABLE
 
 
+def _serve_web(
+    story_path: Path,
+    story: GlulxStory,
+    *,
+    seed: int | None,
+    resources: Path | None,
+    port: int,
+) -> int:
+    """Serve one story to the browser, under its own name.
+
+    Unlike --glkote, stdout stays ours here: the banner has
+    already spoken, and the serving line says where to point the
+    browser.
+    """
+
+    blorb = _glulx_resources(story_path, resources)
+    session = Session(story, GlkResources(blorb), seed=seed)
+    caption = _titled(story_path, blorb)
+
+    try:
+        return serve_web(Face(session, caption), port)
+    except OSError as error:
+        # The port would not bind, most likely: say so plainly.
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+
 def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
     story_path: Path,
     story: GlulxStory,
@@ -1259,6 +1313,8 @@ def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
     screen: bool = False,
     graphics: bool = False,
     glkote: bool = False,
+    web: bool = False,
+    port: int = WEB_PORT,
     zoom: float | None = None,
 ) -> int:
     """Run a Glulx story over a display.
@@ -1295,6 +1351,9 @@ def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
         # No banner, no title escape: from here, stdout carries
         # stanzas and nothing else.
         return _serve_glkote(story_path, story, seed=seed, resources=resources)
+
+    if web:
+        return _serve_web(story_path, story, seed=seed, resources=resources, port=port)
 
     verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
 
@@ -1665,6 +1724,8 @@ def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
     screen: bool = False,
     graphics: bool = False,
     glkote: bool = False,
+    web: bool = False,
+    port: int = WEB_PORT,
     identity: Identity | None = None,
     resources: Path | None = None,
     pixels: bool = False,
@@ -1701,14 +1762,16 @@ def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
                 screen=screen,
                 graphics=graphics,
                 glkote=glkote,
+                web=web,
+                port=port,
                 zoom=zoom,
             )
 
-        if glkote:
+        if glkote or web:
             # The road is mapped -- the Z screen model onto the
             # same serializer -- but not yet travelled.
             print(
-                "voxam: the GlkOte face speaks Glulx first; the Z-Machine joins later"
+                "voxam: the GlkOte faces speak Glulx first; the Z-Machine joins later"
             )
 
             return EXIT_UNUSABLE

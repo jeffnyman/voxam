@@ -1,0 +1,343 @@
+"""The browser face: one session served over HTTP, turn by turn."""
+
+import json
+import threading
+import urllib.error
+import urllib.request
+from typing import Any
+
+import pytest
+from assertpy import assert_that
+
+from voxam.blorb import Blorb
+from voxam.glulx.glk.resources import Resources
+from voxam.glulx.story import Story
+from voxam.iff import chunk
+from voxam.web import Face, Session, serve_web, webbed
+
+RIDX_ENTRY = 12
+FORM_PRELUDE = 12
+
+# The suspension story from the machine tests: open a buffer, ask
+# for a keystroke, select, quit on the far side of the resume.
+AWAITS_KEY = (
+    bytes([0xC0, 0x00, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x03])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x81, 0x30, 0x11, 0x06, 0x23, 0x05, 0x01, 0x40])
+    + bytes([0x40, 0x86, 0x01, 0x40])
+    + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xD2, 0x01])
+    + bytes([0x40, 0x82, 0x01, 0xC0])
+    + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xC0, 0x01])
+    + bytes([0x81, 0x20])
+)
+
+INIT = {
+    "type": "init",
+    "gen": 0,
+    "support": ["timer", "graphicswin", "hyperlinks"],
+    "metrics": {"width": 80, "height": 24},
+}
+
+
+def glulx_image(code: bytes = AWAITS_KEY) -> bytes:
+    """A tiny valid Glulx image, checksummed."""
+
+    data = bytearray(0x200)
+    data[0:4] = b"Glul"
+    data[4:8] = (0x00030102).to_bytes(4, "big")
+    data[8:12] = (0x100).to_bytes(4, "big")
+    data[12:16] = (0x200).to_bytes(4, "big")
+    data[16:20] = (0x300).to_bytes(4, "big")
+    data[20:24] = (0x100).to_bytes(4, "big")
+    data[24:28] = (0x48).to_bytes(4, "big")
+    data[0x48 : 0x48 + len(code)] = code
+    checksum = sum(
+        int.from_bytes(data[at : at + 4], "big") for at in range(0, len(data), 4)
+    )
+    data[32:36] = (checksum % (1 << 32)).to_bytes(4, "big")
+
+    return bytes(data)
+
+
+def png(width: int, height: int) -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+    )
+
+
+def jpeg(width: int, height: int) -> bytes:
+    return (
+        b"\xff\xd8"
+        + b"\xff\xc0\x00\x08\x08"
+        + height.to_bytes(2, "big")
+        + width.to_bytes(2, "big")
+    )
+
+
+def pictured() -> Resources:
+    """Resources holding one PNG, one JPEG, and one placeholder."""
+
+    entries = (
+        (b"Pict", 1, b"PNG ", png(2, 2)),
+        (b"Pict", 2, b"JPEG", jpeg(4, 4)),
+        (b"Pict", 3, b"Rect", bytes(8)),
+    )
+    index = len(entries).to_bytes(4, "big")
+    body = b""
+    ridx = chunk(b"RIdx", index + b"\x00" * RIDX_ENTRY * len(entries))
+    offset = FORM_PRELUDE + len(ridx)
+
+    for usage, number, chunk_id, payload in entries:
+        index += usage + number.to_bytes(4, "big") + offset.to_bytes(4, "big")
+        framed = chunk(chunk_id, payload)
+        body += framed
+        offset += len(framed)
+
+    return Resources(
+        Blorb.parse(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + body))
+    )
+
+
+def faced(caption: str | None = "Sensory Jam — Voxam") -> Face:
+    """A Face over a fresh session of the keystroke story."""
+
+    return Face(Session(Story(glulx_image()), pictured(), seed=7), caption)
+
+
+def posted(face: Face, stanza: dict[str, Any] | str | bytes) -> dict[str, Any]:
+    """One POST /event through the Face, the answer parsed back."""
+
+    body = (
+        stanza
+        if isinstance(stanza, bytes)
+        else (stanza if isinstance(stanza, str) else json.dumps(stanza)).encode("utf-8")
+    )
+    status, kind, payload = face.respond("POST", "/event", body)
+
+    assert_that(status).is_equal_to(200)
+    assert_that(kind).is_equal_to("application/json")
+
+    answer: dict[str, Any] = json.loads(payload)
+
+    return answer
+
+
+# The page arrives wearing the story's own name -- and the plain
+# Voxam name when no record or catalog could offer one.
+def test_the_page_wears_the_story_name() -> None:
+    status, kind, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+
+    assert_that(status).is_equal_to(200)
+    assert_that(kind).is_equal_to("text/html; charset=utf-8")
+    assert_that(page).contains("<title>Sensory Jam — Voxam</title>")
+    assert_that(page).does_not_contain("VOXAM_TITLE")
+
+    _, _, unnamed = faced(caption=None).respond("GET", "/", b"")
+
+    assert_that(unnamed.decode("utf-8")).contains("<title>Voxam</title>")
+
+
+# The display's own files serve under their names and types; the
+# license rides in the package but is nobody's fetch, and unknown
+# roads answer 404.
+def test_the_assets_serve_with_their_types() -> None:
+    face = faced()
+
+    for name, kind in (
+        ("glkote.js", "text/javascript"),
+        ("glkote.css", "text/css"),
+        ("jquery-1.12.4.min.js", "text/javascript"),
+        ("waiting.gif", "image/gif"),
+    ):
+        status, served, payload = face.respond("GET", f"/{name}", b"")
+
+        assert_that(status).is_equal_to(200)
+        assert_that(served).is_equal_to(kind)
+        assert_that(payload).is_not_empty()
+
+    assert_that(face.respond("GET", "/LICENSE-glkote.txt", b"")[0]).is_equal_to(404)
+    assert_that(face.respond("GET", "/nothing", b"")[0]).is_equal_to(404)
+    assert_that(face.respond("PUT", "/", b"")[0]).is_equal_to(404)
+
+
+# Pictures serve by Blorb number with their own content types; a
+# placeholder rectangle, a missing number, and a road that names
+# no number at all are 404s.
+def test_pictures_serve_by_number() -> None:
+    face = faced()
+
+    status, kind, payload = face.respond("GET", "/pict/1", b"")
+
+    assert_that((status, kind)).is_equal_to((200, "image/png"))
+    assert_that(payload[:4]).is_equal_to(b"\x89PNG")
+
+    status, kind, _ = face.respond("GET", "/pict/2", b"")
+
+    assert_that((status, kind)).is_equal_to((200, "image/jpeg"))
+
+    assert_that(face.respond("GET", "/pict/3", b"")[0]).is_equal_to(404)
+    assert_that(face.respond("GET", "/pict/9", b"")[0]).is_equal_to(404)
+    assert_that(face.respond("GET", "/pict/abc", b"")[0]).is_equal_to(404)
+
+
+# A whole turn travels by POST: the init births the session and
+# answers the first update, the keystroke answers the exit.
+def test_a_turn_travels_by_post() -> None:
+    face = faced()
+
+    first = posted(face, INIT)
+
+    assert_that(first["type"]).is_equal_to("update")
+    assert_that(first["gen"]).is_equal_to(1)
+    assert_that(first["windows"]).is_length(1)
+    assert_that(first["input"]).is_equal_to([{"id": 1, "type": "char", "gen": 1}])
+
+    last = posted(face, {"type": "char", "gen": 1, "window": 1, "value": "A"})
+
+    assert_that(last).is_equal_to(
+        {"type": "update", "gen": 2, "input": [], "exit": True}
+    )
+
+
+# A stale event draws the pass, exactly as the stdio face answers.
+def test_a_stale_event_passes() -> None:
+    face = faced()
+
+    posted(face, INIT)
+
+    assert_that(
+        posted(face, {"type": "char", "gen": 0, "window": 1, "value": "A"})
+    ).is_equal_to({"type": "pass"})
+
+
+# A reload is a fresh init, and a fresh init starts the story
+# over: new machine, new windows, generation one again -- even
+# after the last one ended, and even after a fault.
+def test_a_reload_starts_the_story_over() -> None:
+    face = faced()
+
+    posted(face, INIT)
+    posted(face, {"type": "char", "gen": 1, "window": 1, "value": "A"})
+
+    reborn = posted(face, INIT)
+
+    assert_that(reborn["gen"]).is_equal_to(1)
+    assert_that(reborn["windows"]).is_length(1)
+
+
+# A fault answers the protocol's error stanza and keeps answering
+# it -- the session is dead until a reload -- and an event before
+# any init is told where conversations begin.
+def test_a_fault_holds_until_the_reload() -> None:
+    face = faced()
+
+    posted(face, INIT)
+
+    fault = posted(face, {"type": "line", "gen": 1, "window": 1, "value": "go"})
+
+    assert_that(fault["type"]).is_equal_to("error")
+    assert_that(fault["message"]).contains("not expecting")
+
+    again = posted(face, {"type": "char", "gen": 1, "window": 1, "value": "A"})
+
+    assert_that(again).is_equal_to(fault)
+    assert_that(posted(face, INIT)["gen"]).is_equal_to(1)
+
+    fresh = faced()
+
+    assert_that(posted(fresh, {"type": "char", "gen": 0})["message"]).contains(
+        "opens with an init"
+    )
+
+
+# What is not JSON, and JSON that is not a stanza, answer 200 with
+# the protocol's own error stanza: the display renders that far
+# better than a bare status would.
+def test_garbage_posts_answer_in_kind() -> None:
+    face = faced()
+
+    assert_that(posted(face, "{nope")["message"]).contains("not JSON")
+    assert_that(posted(face, "[1, 2]")["message"]).contains("a stanza is a JSON object")
+    assert_that(posted(face, b"\xff\xfe")["message"]).contains("not JSON")
+
+
+# The whole server, once, over a real socket: the page, a turn,
+# and a wrong road, through the stdlib handler shell.
+def test_the_server_answers_over_a_real_socket() -> None:
+    server = webbed(faced(), 0)
+    port = server.server_port
+    runner = threading.Thread(target=server.serve_forever)
+
+    runner.start()
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as answer:
+            assert_that(answer.status).is_equal_to(200)
+            assert_that(answer.read().decode("utf-8")).contains("Sensory Jam")
+
+        opened = urllib.request.Request(
+            f"http://127.0.0.1:{port}/event",
+            data=json.dumps(INIT).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+
+        with urllib.request.urlopen(opened) as answer:  # noqa: S310 -- localhost http
+            first = json.loads(answer.read())
+
+            assert_that(first["gen"]).is_equal_to(1)
+
+        with pytest.raises(urllib.error.HTTPError, match="404") as missing:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/nothing")
+
+        missing.value.close()
+    finally:
+        server.shutdown()
+        runner.join()
+        server.server_close()
+
+
+class Still:
+    """A server stand-in that never listens."""
+
+    server_port = 4321
+
+    def __init__(self, *, interrupted: bool) -> None:
+        self.interrupted = interrupted
+        self.closed = False
+
+    def serve_forever(self) -> None:
+        if self.interrupted:
+            raise KeyboardInterrupt
+
+    def server_close(self) -> None:
+        self.closed = True
+
+
+# Serving announces its address and ends cleanly either way: the
+# quiet return, or the player's own Ctrl+C.
+def test_serving_ends_cleanly(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    quiet = Still(interrupted=False)
+
+    monkeypatch.setattr("voxam.web.webbed", lambda _face, _port: quiet)
+
+    assert_that(serve_web(faced(), 0)).is_equal_to(0)
+    assert_that(quiet.closed).is_true()
+    assert_that(capsys.readouterr().out).contains("http://127.0.0.1:4321")
+
+    stopped = Still(interrupted=True)
+
+    monkeypatch.setattr("voxam.web.webbed", lambda _face, _port: stopped)
+
+    assert_that(serve_web(faced(), 0)).is_equal_to(0)
+    assert_that(stopped.closed).is_true()
