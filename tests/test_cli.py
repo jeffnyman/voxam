@@ -512,6 +512,70 @@ def test_glulx_declines_the_trace(
     assert_that(recorded).is_equal_to(2)
 
 
+# --glkote owns both streams whole: no other face or instrument
+# may join the session.
+def test_glkote_refuses_company(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = glulx_story(tmp_path)
+    aside = str(tmp_path / "aside")
+
+    for extra in (
+        ["--graphics"],
+        ["--plain"],
+        ["--record", aside],
+        ["--replay", aside],
+        ["--accept", aside],
+        ["--regtest", aside],
+        ["--resume", aside],
+        ["--trace", aside],
+    ):
+        exit_code = main([str(story), "--glkote", *extra])
+
+        assert_that(exit_code).is_equal_to(2)
+        assert_that(capsys.readouterr().out).contains("cannot join it")
+
+
+# The GlkOte face speaks Glulx first; a Z-Machine story is told
+# so, loudly, before any stream is promised.
+def test_glkote_speaks_glulx_first(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = broken_story(tmp_path, bytes([0xBA]))
+
+    exit_code = main([str(story), "--glkote"])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("speaks Glulx first")
+
+
+# A served session leaves stdout to the stanzas alone: no banner,
+# no verdict, no title escape -- and serve's own verdict maps to
+# the exit code, a failed pipe included.
+def test_glkote_serves_the_streams_whole(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = glulx_story(tmp_path)
+    monkeypatch.setattr("voxam.cli.serve", lambda *seats: bool(seats))
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).is_empty()
+
+    monkeypatch.setattr("voxam.cli.serve", lambda *seats: not bool(seats))
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+
+    def burst(*_seats: object) -> bool:
+        raise OSError
+
+    monkeypatch.setattr("voxam.cli.serve", burst)
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).is_empty()
+
+
 # A start function that prints "Hi", asks for a line, and answers
 # "Ok" -- the smallest story with a conversation to record.
 def glulx_asks() -> bytes:
