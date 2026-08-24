@@ -112,6 +112,7 @@ class GlkOteFrontend(PlainFrontend):
         self._style = 0
         self._size = (0, 0)
         self._cell = (1.0, 1.0)
+        self._margins = (0.0, 0.0)
         self._grid_ident: int | None = None
         self._next_ident = _BUFFER + 1
         self._last_read: object = None
@@ -156,6 +157,7 @@ class GlkOteFrontend(PlainFrontend):
 
         self._size = (int(metrics["width"]), int(metrics["height"]))
         self._cell = (width, height)
+        self._margins = (margin_x, margin_y)
         self.screen_columns = max(1, int((self._size[0] - margin_x) // width))
         self.screen_lines = max(1, int((self._size[1] - margin_y) // height))
 
@@ -251,7 +253,12 @@ class GlkOteFrontend(PlainFrontend):
         width, height = self._size
         _, cell_h = self._cell
         rows = self._grid_rows()
-        brow = int(rows * cell_h)
+
+        # A grid's box carries its rows plus the display's own
+        # interior margins (GlkOte: The Metrics Object); a box of
+        # bare rows clips its bottom and floats the buffer up
+        # into the status line.
+        brow = int(rows * cell_h + self._margins[1]) if rows else 0
 
         self.page.window(_BUFFER, "buffer", 0, (0, brow, width, height))
 
