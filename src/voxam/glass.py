@@ -250,6 +250,7 @@ class GraphicsFrontend:
     §16 font as the spec's own pixels.
     """
 
+    suspends = False
     has_status_line = True
     has_screen_splitting = True
     has_bold = True

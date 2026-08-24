@@ -34,6 +34,7 @@ class Recorder:
     stamp can be traced back to the frontend that made them.
     """
 
+    suspends = False
     has_status_line = True
     has_screen_splitting = False
     has_bold = True

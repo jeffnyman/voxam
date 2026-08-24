@@ -11,8 +11,10 @@ import operator
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NoReturn
 
 from voxam.errors import (
+    MachineSuspended,
     ZMachineArithmeticError,
     ZMachineInstructionError,
     ZMachineMemoryError,
@@ -401,6 +403,54 @@ def _remainder(left: int, right: int) -> int:
     return left - _quotient(left, right) * right
 
 
+class Reading:
+    """One suspended read: what the machine stands waiting for.
+
+    The Z twin of the Glk library's waits, with the file prompt's
+    shape rather than the select's: the pc has not moved past the
+    read, and its operands' side effects must never be repeated,
+    so the whole post-input tail parks here -- delivery runs the
+    tail and steps past the instruction, and nothing is ever
+    re-executed.
+
+    Attributes:
+        wants: What the read waits for -- "line" or "key".
+        time: The §15 interrupt cadence in tenths of a second,
+            zero for an untimed read.
+        routine: The packed interrupt routine, zero for none.
+        held: The preloaded text a counted buffer carried into a
+            line read (§15 read) -- the half-typed command a
+            display should show already standing.
+    """
+
+    def __init__(  # noqa: PLR0913 -- the read's whole parked tail
+        self,
+        wants: str,
+        time: int,
+        routine: int,
+        instruction: Instruction,
+        *,
+        held: str = "",
+        text_buffer: int = 0,
+        parse_buffer: int = 0,
+        counted: bool = False,
+        capacity: int = 0,
+        preloaded: int = 0,
+    ) -> None:
+        """Park one read, tail and all."""
+
+        self.wants = wants
+        self.time = time
+        self.routine = routine
+        self.instruction = instruction
+        self.held = held
+        self.text_buffer = text_buffer
+        self.parse_buffer = parse_buffer
+        self.counted = counted
+        self.capacity = capacity
+        self.preloaded = preloaded
+
+
 class Machine:
     """A running Z-Machine (§6.1).
 
@@ -513,6 +563,7 @@ class Machine:
         # truth however the stream is worked.
         self._recording_commands = False
         self._file_input = False
+        self._waiting: Reading | None = None
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
@@ -713,18 +764,144 @@ class Machine:
 
         return self._running
 
+    @property
+    def waiting(self) -> Reading | None:
+        """The suspended read a host must answer, or None."""
+
+        return self._waiting
+
     def run(self) -> None:
         """Execute instructions until the story quits.
 
+        For a frontend that suspends, the run also returns when a
+        read stands waiting: running stays True, the host answers
+        through deliver_line, deliver_key, or deliver_tick, and
+        calling run again continues past the read.
+
         Raises:
+            ZMachineInstructionError: On running while a read
+                stands suspended -- re-decoding the read would
+                repeat its operands' side effects.
             ZMachineUnimplementedError: On reaching an opcode Voxam
                 does not yet implement; the error names it and where.
             VoxamError: On any rule the story or the machine breaks.
         """
 
+        if self._waiting is not None:
+            msg = "run while a read stands suspended: the input is still owed"
+
+            raise ZMachineInstructionError(msg)
+
         while self._running:
             self.poll_sound()
-            self.step()
+
+            try:
+                self.step()
+            except MachineSuspended:
+                # The read parked its finish and the pc still names
+                # the read itself: the host delivers, the tail
+                # moves past it, and run continues from there.
+                return
+
+    def deliver_line(self, line: str) -> None:
+        """Complete a suspended line read with the player's text.
+
+        The transcript echo and the stream-4 record ride the same
+        tail the blocking path runs; the screen echo is the
+        display's own affair, at this seam as at every other.
+
+        Raises:
+            ZMachineInstructionError: When no line read stands
+                suspended to receive it.
+        """
+
+        waiting = self._required("line")
+
+        self._waiting = None
+        self._landed_line(
+            waiting.instruction,
+            waiting.text_buffer,
+            waiting.parse_buffer,
+            line,
+            counted=waiting.counted,
+            capacity=waiting.capacity,
+            preloaded=waiting.preloaded,
+            held=waiting.held,
+            played=False,
+        )
+
+    def deliver_key(self, key: str) -> bool:
+        """Complete a suspended keystroke read, if ZSCII can spell it.
+
+        A key ZSCII has no code for is a key the story cannot hear
+        (§3.8): the wait stands for the next one, exactly the
+        blocking loop's shrug, and False says so.
+
+        Raises:
+            ZMachineInstructionError: When no keystroke read
+                stands suspended to receive it.
+        """
+
+        waiting = self._required("key")
+
+        try:
+            code = char_to_zscii(key, self._extras())
+        except ZMachineTextError:
+            return False
+
+        self._waiting = None
+        self._landed_key(waiting.instruction, code, noted=True)
+
+        return True
+
+    def deliver_tick(self) -> None:
+        """Fire a timed read's §15 interrupt routine, mid-wait.
+
+        The nested step loop returns to the pc it left, so the
+        read still stands unless the routine asked otherwise: a
+        true return -- a quit along the way included -- erases the
+        input and ends the read the interrupt way.
+
+        Raises:
+            ZMachineInstructionError: When no timed read stands
+                suspended to hear a tick.
+        """
+
+        waiting = self._waiting
+
+        if waiting is None or not waiting.routine:
+            msg = "a tick arrived with no timed read suspended to hear it"
+
+            raise ZMachineInstructionError(msg)
+
+        if self._interrupt(waiting.routine):
+            self._waiting = None
+
+            if waiting.wants == "line":
+                self._abandoned_line(
+                    waiting.instruction,
+                    waiting.text_buffer,
+                    waiting.parse_buffer,
+                    counted=waiting.counted,
+                )
+            else:
+                self._abandoned_key(waiting.instruction)
+
+    def _required(self, wants: str) -> Reading:
+        """The suspended read a delivery names.
+
+        Raises:
+            ZMachineInstructionError: When no such read stands.
+        """
+
+        waiting = self._waiting
+
+        if waiting is None or waiting.wants != wants:
+            msg = f"a {wants} arrived with no {wants} read suspended to receive it"
+
+            raise ZMachineInstructionError(msg)
+
+        return waiting
 
     def step(self) -> None:
         """Fetch, decode, and execute a single instruction.
@@ -2111,39 +2288,76 @@ class Machine:
         # this prompt, so the patient interval applies here anew.
         self._typist_ready = None
 
+        if self._frontend.suspends:
+            self._stand_for_line(
+                instruction,
+                values,
+                text_buffer,
+                parse_buffer,
+                counted=counted,
+                capacity=capacity,
+            )
+
         terminated, ticked = self._line_outcome(values)
 
         if terminated:
-            # All input is erased and the read ends at once (§15
-            # read): a counted buffer reports zero letters typed, a
-            # terminated one an empty string, and the lexing the
-            # normal path would have done sees that emptiness.
-            if counted:
-                self._memory.write_byte(text_buffer + 1, 0)
-            else:
-                self._write_text(text_buffer + 1, "", terminate=True)
-
-            if parse_buffer or not counted:
-                self._parse(parse_buffer, "", first_letter=2 if counted else 1)
-
-            if instruction.opcode.stores:
-                self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
-
-            self._pc = instruction.next_address
+            self._abandoned_line(
+                instruction, text_buffer, parse_buffer, counted=counted
+            )
 
             return
 
-        if counted:
-            preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
-            held = "".join(
-                zscii_to_char(
-                    self._memory.read_byte(text_buffer + 2 + offset),
-                    self._extras(),
-                    self._memory.header.version,
-                )
-                for offset in range(preloaded)
+        preloaded, held = self._preloaded(text_buffer, capacity, counted=counted)
+        raw, played = (ticked, False) if ticked is not None else self._line_input()
+
+        self._landed_line(
+            instruction,
+            text_buffer,
+            parse_buffer,
+            raw,
+            counted=counted,
+            capacity=capacity,
+            preloaded=preloaded,
+            held=held,
+            played=played,
+        )
+
+    def _preloaded(
+        self, text_buffer: int, capacity: int, *, counted: bool
+    ) -> tuple[int, str]:
+        """The §15 preload already in a counted buffer, decoded."""
+
+        if not counted:
+            return 0, ""
+
+        preloaded = min(self._memory.read_byte(text_buffer + 1), capacity)
+        held = "".join(
+            zscii_to_char(
+                self._memory.read_byte(text_buffer + 2 + offset),
+                self._extras(),
+                self._memory.header.version,
             )
-            raw, played = (ticked, False) if ticked is not None else self._line_input()
+            for offset in range(preloaded)
+        )
+
+        return preloaded, held
+
+    def _landed_line(  # noqa: PLR0913 -- the read's whole tail, in one place
+        self,
+        instruction: Instruction,
+        text_buffer: int,
+        parse_buffer: int,
+        raw: str,
+        *,
+        counted: bool,
+        capacity: int,
+        preloaded: int,
+        held: str,
+        played: bool,
+    ) -> None:
+        """Finish a line read: the typed text lands everywhere it goes."""
+
+        if counted:
             typed = raw.lower()[: capacity - preloaded]
             line = held + typed
 
@@ -2154,7 +2368,6 @@ class Machine:
             # Byte 0 holds n where the buffer is a string array of
             # length n: the typed letters plus the zero terminator
             # fit inside it, so the capacity is n - 1 (§15 read).
-            raw, played = (ticked, False) if ticked is not None else self._line_input()
             line = raw.lower()[: capacity - 1]
 
             self._write_text(text_buffer + 1, line, terminate=True)
@@ -2168,6 +2381,82 @@ class Machine:
             self._store_result(instruction.store_variable, ZSCII_NEWLINE)
 
         self._pc = instruction.next_address
+
+    def _abandoned_line(
+        self,
+        instruction: Instruction,
+        text_buffer: int,
+        parse_buffer: int,
+        *,
+        counted: bool,
+    ) -> None:
+        """End a line read the interrupt way: erased and over.
+
+        All input is erased and the read ends at once (§15 read):
+        a counted buffer reports zero letters typed, a terminated
+        one an empty string, and the lexing the normal path would
+        have done sees that emptiness.
+        """
+
+        if counted:
+            self._memory.write_byte(text_buffer + 1, 0)
+        else:
+            self._write_text(text_buffer + 1, "", terminate=True)
+
+        if parse_buffer or not counted:
+            self._parse(parse_buffer, "", first_letter=2 if counted else 1)
+
+        if instruction.opcode.stores:
+            self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
+
+        self._pc = instruction.next_address
+
+    def _stand_for_line(  # noqa: PLR0913 -- the read's whole parked tail
+        self,
+        instruction: Instruction,
+        values: list[int],
+        text_buffer: int,
+        parse_buffer: int,
+        *,
+        counted: bool,
+        capacity: int,
+    ) -> NoReturn:
+        """Stand down at a line read, its finish parked for the host.
+
+        Raises:
+            MachineSuspended: Always -- that is the standing down.
+        """
+
+        preloaded, held = self._preloaded(text_buffer, capacity, counted=counted)
+        time, routine = self._read_cadence(values)
+
+        self._waiting = Reading(
+            "line",
+            time,
+            routine,
+            instruction,
+            held=held,
+            text_buffer=text_buffer,
+            parse_buffer=parse_buffer,
+            counted=counted,
+            capacity=capacity,
+            preloaded=preloaded,
+        )
+
+        raise MachineSuspended
+
+    def _read_cadence(self, values: list[int]) -> tuple[int, int]:
+        """A line read's §15 time and routine pair, or two zeros."""
+
+        if (
+            self._memory.header.version >= TIMED_READ_VERSION
+            and len(values) > TIMED_ROUTINE_INDEX
+            and values[TIMED_TIME_INDEX]
+            and values[TIMED_ROUTINE_INDEX]
+        ):
+            return values[TIMED_TIME_INDEX], values[TIMED_ROUTINE_INDEX]
+
+        return 0, 0
 
     def _line_input(self) -> tuple[str, bool]:
         """The next command line, and whether stream 1 supplied it.
@@ -3488,6 +3777,17 @@ class Machine:
             else 0
         )
 
+        if self._frontend.suspends:
+            paired = bool(time and routine)
+            self._waiting = Reading(
+                "key",
+                time if paired else 0,
+                routine if paired else 0,
+                instruction,
+            )
+
+            raise MachineSuspended
+
         if self._key_source is not None and not self._file_input and time and routine:
             # A raw keyboard runs the timed read on the wall clock:
             # the routine fires every time/10 seconds the player
@@ -3496,12 +3796,9 @@ class Machine:
             code = self._timed_keystroke(self._key_source, time, routine)
 
             if code is None:
-                code = INTERRUPT_TERMINATOR
+                self._abandoned_key(instruction)
             else:
-                self._noted_key(code)
-
-            self._store_result(instruction.store_variable, code)
-            self._pc = instruction.next_address
+                self._landed_key(instruction, code, noted=True)
 
             return
 
@@ -3510,20 +3807,30 @@ class Machine:
 
         if not ready and self._timed_out(values, time_index=1):
             self._typist_ready = instruction.address
-            self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
-            self._pc = instruction.next_address
+            self._abandoned_key(instruction)
 
             return
 
         fed = self._file_input
         code = self._keystroke()
 
-        if not fed:
-            # A played-back key is never re-recorded: stream 4
-            # copying the command file onto itself helps no one.
+        # A played-back key is never re-recorded: stream 4 copying
+        # the command file onto itself helps no one.
+        self._landed_key(instruction, code, noted=not fed)
+
+    def _landed_key(self, instruction: Instruction, code: int, *, noted: bool) -> None:
+        """Finish a keystroke read: note it, store it, step past."""
+
+        if noted:
             self._noted_key(code)
 
         self._store_result(instruction.store_variable, code)
+        self._pc = instruction.next_address
+
+    def _abandoned_key(self, instruction: Instruction) -> None:
+        """End a keystroke read the interrupt way: 0 stored."""
+
+        self._store_result(instruction.store_variable, INTERRUPT_TERMINATOR)
         self._pc = instruction.next_address
 
     def _timed_keystroke(

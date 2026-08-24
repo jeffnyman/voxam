@@ -12,6 +12,7 @@ from voxam.zmachine.story import Story
 class ScreenRecorder:
     """A frontend remembering every screen operation it is handed."""
 
+    suspends = False
     has_status_line = False
     has_screen_splitting = False
     has_bold = True

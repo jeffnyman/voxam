@@ -70,6 +70,12 @@ class Frontend(Protocol):
     truth about itself.
 
     Attributes:
+        suspends: Whether input arrives from outside rather than
+            from a read call. A blocking frontend is asked and
+            answers on the spot; a suspending one is never asked
+            -- a read stands down, the machine returns to its
+            host, and the host delivers the line or keystroke.
+            The same contract the Glk displays keep.
         has_status_line: Whether this frontend can show a §8.2
             status line.
         has_screen_splitting: Whether this frontend can split the
@@ -109,6 +115,7 @@ class Frontend(Protocol):
         font_height: The height of one character cell in units.
     """
 
+    suspends: bool
     has_status_line: bool
     has_screen_splitting: bool
     has_bold: bool
@@ -343,6 +350,7 @@ class PlainFrontend:
     about itself (§11.1).
     """
 
+    suspends = False
     has_status_line = False
     has_screen_splitting = False
     has_bold = False

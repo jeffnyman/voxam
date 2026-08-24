@@ -8,7 +8,7 @@ from voxam.errors import (
     ZMachineMemoryError,
 )
 from voxam.frontend import PlainFrontend
-from voxam.zmachine.machine import Machine
+from voxam.zmachine.machine import COUNTED_TEXT_VERSION, Machine
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
 from voxam.zmachine.zscii import encode_word
@@ -1300,3 +1300,227 @@ def test_read_char_with_no_operands_reads_the_keyboard(
     machine.run()
 
     assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("y"))
+
+
+class SuspendingFrontend(PlainFrontend):
+    """A display that cannot block: never asked, only delivered to."""
+
+    suspends = True
+
+    def __init__(self) -> None:
+        super().__init__(lambda _text: None)
+
+
+def unasked() -> str:
+    """An input source a suspending session must never consult."""
+
+    pytest.fail("a suspending frontend is never asked")
+
+
+def suspended(
+    code_machine: Callable[..., Machine],
+    program: bytes = SREAD,
+    version: int = 3,
+    routine: bytes | None = None,
+) -> Machine:
+    """A suspending session at its first read, buffers planted."""
+
+    machine = code_machine(
+        program, version=version, frontend=SuspendingFrontend(), input_source=unasked
+    )
+    counted = version >= COUNTED_TEXT_VERSION
+    plant_dictionary(machine.memory, (GO5, HI5) if counted else (GO, HI))
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+
+    if routine is not None:
+        plant_routine(machine.memory, routine)
+
+    return machine
+
+
+# A suspending frontend is never asked: the read stands down with
+# the buffers untouched and the pc still naming the read, and the
+# delivered line lands everywhere the blocking tail lands it --
+# buffers, lexing, terminator -- before run continues to quit.
+def test_a_read_suspends_and_the_line_lands(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = suspended(code_machine)
+
+    machine.run()
+
+    assert_that(machine.running).is_true()
+
+    waiting = machine.waiting
+
+    if waiting is None:
+        pytest.fail("the read suspended")
+
+    assert_that((waiting.wants, waiting.time, waiting.routine)).is_equal_to(
+        ("line", 0, 0)
+    )
+    assert_that(text_in_buffer(machine.memory)).is_empty()
+
+    machine.deliver_line("go HI")
+
+    assert_that(machine.waiting).is_none()
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go hi")
+    assert_that(parse_block(machine.memory, 0)).is_equal_to((GO_ADDRESS, 2, 1))
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+
+# The Version 5 counted read exposes its preload as held text --
+# the half-typed command a display should show standing -- and the
+# delivered text appends after it, the newline terminator stored.
+def test_a_counted_read_holds_its_preload(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = suspended(code_machine, program=AREAD, version=5)
+
+    machine.memory.write_byte(TEXT_BUFFER + 1, 2)
+    machine.memory.write_byte(TEXT_BUFFER + 2, ord("g"))
+    machine.memory.write_byte(TEXT_BUFFER + 3, ord("o"))
+
+    machine.run()
+
+    waiting = machine.waiting
+
+    if waiting is None:
+        pytest.fail("the read suspended")
+
+    assert_that(waiting.held).is_equal_to("go")
+
+    machine.deliver_line(" hi")
+
+    assert_that(counted_text(machine.memory)).is_equal_to("go hi")
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(13)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+
+# A keystroke read suspends the same way; a key ZSCII cannot
+# spell is refused with the wait standing -- the blocking loop's
+# shrug, suspended -- and the next key lands.
+def test_a_keystroke_suspends_and_lands(
+    code_machine: Callable[..., Machine],
+) -> None:
+    read_char = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+    machine = code_machine(read_char, version=5, frontend=SuspendingFrontend())
+
+    machine.run()
+
+    waiting = machine.waiting
+
+    if waiting is None:
+        pytest.fail("the read suspended")
+
+    assert_that(waiting.wants).is_equal_to("key")
+    assert_that(machine.deliver_key("λ")).is_false()
+    assert_that(machine.waiting).is_not_none()
+    assert_that(machine.deliver_key("g")).is_true()
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(ord("g"))
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+
+# A timed read exposes its §15 cadence, and each tick fires the
+# interrupt at the same pc: a false return leaves the read
+# standing with the routine's mark made, and the line still lands.
+def test_ticks_drive_a_timed_reads_interrupt(
+    code_machine: Callable[..., Machine],
+) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    machine = suspended(code_machine, program=timed, version=4, routine=MARK_THEN_FALSE)
+
+    machine.run()
+
+    waiting = machine.waiting
+
+    if waiting is None:
+        pytest.fail("the read suspended")
+
+    assert_that((waiting.time, waiting.routine)).is_equal_to((10, 0x1C))
+
+    machine.deliver_tick()
+
+    assert_that(machine.waiting).is_not_none()
+    assert_that(machine.memory.read_word(MARK_GLOBAL)).is_equal_to(MARK)
+
+    machine.deliver_line("go")
+
+    assert_that(text_in_buffer(machine.memory)).is_equal_to("go")
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+
+# A true return erases the input and ends the read the §15 way --
+# and a quit inside the interrupt stops the whole machine.
+def test_a_true_tick_ends_the_read(code_machine: Callable[..., Machine]) -> None:
+    timed = bytes([0xE4, 0x05, 0x01, 0x20, 0x01, 0x40, 0x0A, 0x1C, 0xBA])
+    machine = suspended(code_machine, program=timed, version=4, routine=MARK_THEN_TRUE)
+
+    machine.run()
+    machine.deliver_tick()
+
+    assert_that(machine.waiting).is_none()
+    assert_that(text_in_buffer(machine.memory)).is_empty()
+    assert_that(machine.memory.read_byte(PARSE_BUFFER + 1)).is_zero()
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+    quitting = suspended(
+        code_machine, program=timed, version=4, routine=QUIT_IN_INTERRUPT
+    )
+
+    quitting.run()
+    quitting.deliver_tick()
+
+    assert_that(quitting.running).is_false()
+    assert_that(quitting.waiting).is_none()
+
+    # A timed keystroke read ends the same way, its zero stored.
+    ticked = bytes([0xF6, 0x57, 0x01, 0x0A, 0x1C, 0x10, 0xBA])
+    keyed = suspended(code_machine, program=ticked, version=4, routine=MARK_THEN_TRUE)
+
+    keyed.run()
+    keyed.deliver_tick()
+
+    assert_that(keyed.waiting).is_none()
+    assert_that(keyed.memory.read_word(0x100)).is_zero()
+
+    keyed.run()
+
+    assert_that(keyed.running).is_false()
+
+
+# Deliveries against the wrong wait are loud, a tick needs a timed
+# read to hear it, and running past a suspension is refused --
+# re-decoding the read would repeat its operands' side effects.
+def test_misdeliveries_are_loud(code_machine: Callable[..., Machine]) -> None:
+    machine = suspended(code_machine)
+
+    with pytest.raises(ZMachineInstructionError, match="no line read suspended"):
+        machine.deliver_line("go")
+
+    machine.run()
+
+    with pytest.raises(ZMachineInstructionError, match="no key read suspended"):
+        machine.deliver_key("g")
+
+    with pytest.raises(ZMachineInstructionError, match="no timed read"):
+        machine.deliver_tick()
+
+    with pytest.raises(ZMachineInstructionError, match="still owed"):
+        machine.run()
