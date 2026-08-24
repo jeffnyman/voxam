@@ -23,8 +23,8 @@ from voxam.glulx.glk.objects import (
 from voxam.glulx.glk.painted import (
     FOREVER,
     Timer,
-    _grouped,
     _steps,
+    grouped,
 )
 from voxam.glulx.glk.terminal import TerminalFrontend
 from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT, Terminal
@@ -564,13 +564,13 @@ def test_style_measures_answer_in_cells() -> None:
 # and link together, a missing style or link reading as plain --
 # so a linked run stays distinct from its neighbours.
 def test_grouping_collapses_a_row_into_runs() -> None:
-    assert_that(_grouped(["a", "b"], [Style.ALERT], [0, 0])).is_equal_to(
+    assert_that(grouped(["a", "b"], [Style.ALERT], [0, 0])).is_equal_to(
         [((Style.ALERT, 0), "a"), ((Style.NORMAL, 0), "b")]
     )
-    assert_that(_grouped(["c", "d"], [Style.NORMAL, Style.NORMAL], [0, 0])).is_equal_to(
+    assert_that(grouped(["c", "d"], [Style.NORMAL, Style.NORMAL], [0, 0])).is_equal_to(
         [((Style.NORMAL, 0), "cd")]
     )
-    assert_that(_grouped(["e", "f"], [Style.NORMAL, Style.NORMAL], [7])).is_equal_to(
+    assert_that(grouped(["e", "f"], [Style.NORMAL, Style.NORMAL], [7])).is_equal_to(
         [((Style.NORMAL, 7), "e"), ((Style.NORMAL, 0), "f")]
     )
 
