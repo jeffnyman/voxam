@@ -277,7 +277,7 @@ class PaintedFrontend(Frontend):
             self._place(
                 left,
                 int(top + index * cell.height),
-                _grouped(cells, window.styles[index], window.links[index]),
+                grouped(cells, window.styles[index], window.links[index]),
             )
 
         if self._typing is not window:
@@ -745,12 +745,14 @@ class PaintedFrontend(Frontend):
         """
 
 
-def _grouped(row: list[str], styles: list[int], links: list[int]) -> "list[Segment]":
+def grouped(row: list[str], styles: list[int], links: list[int]) -> "list[Segment]":
     """Collapse a grid row's per-cell dress into runs.
 
     The key carries the style and the link value together, so a
     linked run stays distinct from its plain neighbours all the
-    way to the display (Glk: Hyperlinks).
+    way to the display (Glk: Hyperlinks). Public because the
+    GlkOte composer reads grid rows the same way a painted
+    display does.
     """
 
     segments: list[tuple[tuple[int, int], str]] = []

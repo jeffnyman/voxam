@@ -17,6 +17,10 @@ class BlorbError(VoxamError):
     """Raised when a Blorb resource file cannot be used."""
 
 
+class GlkOteError(VoxamError):
+    """Raised when the GlkOte update protocol is used against its rules."""
+
+
 class GlulxFrontierError(VoxamError):
     """Raised when execution reaches a Glulx era not yet carried."""
 
