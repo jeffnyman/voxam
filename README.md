@@ -142,7 +142,7 @@ machine learned to stand and wait: `glk_select` suspends instead
 of blocking, the host delivers the event, and execution steps on
 as though it never stopped. On that seam the protocol goes both
 ways: `--glkote` serves whole sessions as JSON lines on stdin and
-stdout -- the wire a desktop shell will drive -- and `--web` puts
+stdout -- the wire the desktop shell drives -- and `--web` puts
 the same conversation in a browser tab, the vendored GlkOte
 display served from inside the package, one POST per turn, the
 story's title on the tab, the gblorb's art at its own `/pict`
@@ -590,6 +590,32 @@ All commands below assume that environment.
 | Check formatting only | `uv run ruff format --check .` |
 | Type check | `uv run mypy` |
 | Build distributions | `uv build` |
+
+### The desktop shell
+
+The `desktop/` directory holds VΘXΔM's native shell: a
+[Tauri](https://tauri.app/) webview wearing the same GlkOte
+display the browser face wears, driving a spawned
+`voxam --glkote` down a pipe. It is not part of the Python
+package -- the wheel never carries it, and the Python toolchain
+never sees it. Building it needs Rust (with the platform's native
+toolchain) and Node:
+
+```bash
+cd desktop
+npm install          # fetches the Tauri CLI
+npx tauri dev        # run it; the first compile takes minutes
+npx tauri build      # produce the platform installer
+```
+
+The shell finds `voxam` on the PATH -- `uv tool install voxam` or
+`pipx install voxam` puts it there -- and says so plainly when it
+cannot. Open a story from the landing page or the File menu;
+File > Restart Story starts it over, exactly as a reload does in
+the browser face. What the shell does not carry yet, each a named
+road: pictures, the save-file dialog (a save prompt is answered
+with a cancel, as in the browser face today), and the Babel title
+on the title bar (the story's filename stands in).
 
 ### Project conventions
 
