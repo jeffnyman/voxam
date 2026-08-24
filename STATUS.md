@@ -433,7 +433,7 @@ coherent, not on a calendar:
   IFIDs and iFiction and the Infocom catalog, and the
   declaration above with its two-entry exclusion ledger.
 
-## The GlkOte protocol: 1.6 and 1.7
+## The GlkOte protocol: 1.6 through 1.8
 
 The 2.0 era opened exactly where the display contract said it
 would: `glk_select` learned to suspend. A display that cannot
@@ -483,9 +483,32 @@ the game printed mid-word is remade wearing exactly what was
 typed, while a field the display carries keeps its editing state
 untouched, so nothing churns and nothing is eaten.
 
-What the faces do not yet carry is one thing, written down where
-it is refused: the Z-Machine itself -- "the GlkOte faces speak
-Glulx first."
+And 1.8 kept the era's central promise: the Z-Machine joined.
+The reads learned the same standing-down the selects learned --
+with the file prompt's shape rather than the select's, because a
+Z handler owns its own program counter and its operands pop the
+stack, so the whole post-input tail parks on the wait: the
+delivered line lands in the buffers and the lexer exactly as the
+blocking tail lands it, a keystroke ZSCII cannot spell is refused
+with the wait standing, and a timer's tick fires the §15
+interrupt through the machine's own re-entrant loop -- the
+interrupt's prints rendered while the read stands, a true return
+erasing it the spec's way. Then the §8 screen model fed the same
+Page the Glk tree feeds: the upper window and the Version 1 to 3
+status line travel as the protocol's grid -- read out of the same
+ScreenModel the painted terminal trusts, its splitting and cursor
+rules and §8.2 formatting reused whole -- while the lower
+window's text streams as styled runs the display wraps for
+itself, the §8.7 dress mapped onto the protocol's names and
+reverse video worn as the page's own inverse. Zork I's status bar
+updates one changed row at a time; Bronze plays in a browser tab
+wearing its own title.
+
+What the faces do not yet carry, each a named road: the Version 6
+stage ("the stage stays at the painted glasses" -- the one
+refusal left), colours and the Z mouse and sound over the
+protocol, §13.7's terminating characters, the refresh event, and
+flow breaks. None blocks a game the corpus plays.
 
 ### The road to 2.0, underway
 
@@ -503,10 +526,12 @@ remains maps onto the interim releases:
   architectural moment, a suspension mid-Glk-call rather than at
   select -- and the player's partial input preserved when a timer
   interrupts their typing.
-- **The Z-Machine joins.** Reading learns the same suspension
-  contract the select learned, and the Z screen model -- upper
-  window to grid, lower to buffer -- feeds the same Page. Bronze
-  in the browser, beside Adventure.
+- **1.8, the Z-Machine joins.** Done in the making: reading
+  learned the suspension contract the select learned, and the Z
+  screen model -- upper window to grid, lower to buffer -- feeds
+  the same Page. Bronze in the browser, beside Adventure.
 - **The desktop shell.** The Lectrote analog: a webview wearing
-  the same GlkOte display, driving `--glkote` down a pipe.
+  the same GlkOte display, driving `--glkote` down a pipe -- a
+  `desktop/` sibling the wheel never packages, shipped as the
+  release's own artifacts.
 - **2.0, the declaration.**
