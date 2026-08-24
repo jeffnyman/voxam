@@ -43,7 +43,9 @@ from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
-from voxam.web import Face, Session, serve_web
+from voxam.web import Face, GlulxSession, ZSession, serve_web
+from voxam.zmachine.glkote import GlkOteFrontend as ZGlkOteFrontend
+from voxam.zmachine.glkote import serve as serve_z
 from voxam.zmachine.instruction import Instruction
 from voxam.zmachine.machine import Identity, Machine
 from voxam.zmachine.memory import Memory
@@ -74,6 +76,10 @@ RECORDED_SEED_CEILING = 100_000
 
 # Where the browser face listens unless --port says otherwise.
 WEB_PORT = 8080
+
+# The Version 6 stage: the one screen model the GlkOte faces
+# cannot speak yet.
+STAGE_VERSION = 6
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1286,7 +1292,42 @@ def _serve_web(
     """
 
     blorb = _glulx_resources(story_path, resources)
-    session = Session(story, GlkResources(blorb), seed=seed)
+    session = GlulxSession(story, GlkResources(blorb), seed=seed)
+    caption = _titled(story_path, blorb)
+
+    try:
+        return serve_web(Face(session, caption), port)
+    except OSError as error:
+        # The port would not bind, most likely: say so plainly.
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+
+def _serve_z_glkote(story: Story, *, seed: int | None) -> int:
+    """Speak the GlkOte protocol for one Z story, both streams whole."""
+
+    frontend = ZGlkOteFrontend(story.header.version)
+
+    try:
+        served = serve_z(story, frontend, sys.stdin, sys.stdout, seed=seed)
+    except OSError:
+        # The pipe itself failed: no stream is left to answer on.
+        return EXIT_UNUSABLE
+
+    return EXIT_OK if served else EXIT_UNUSABLE
+
+
+def _serve_z_web(
+    story_path: Path, story: Story, blorb: Blorb | None, *, seed: int | None, port: int
+) -> int:
+    """Serve one Z story to the browser, under its own name.
+
+    The catalog's courtesy holds here too: an Infocom story's tab
+    wears its title, and a zblorb's record names it first.
+    """
+
+    session = ZSession(story, GlkResources(blorb), seed=seed)
     caption = _titled(story_path, blorb)
 
     try:
@@ -1715,7 +1756,7 @@ def _tracing(
     return tracer.see, close
 
 
-def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
+def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session seam
     story_path: Path,
     seed: int | None,
     input_source: Callable[[], str] | None,
@@ -1767,15 +1808,6 @@ def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
                 zoom=zoom,
             )
 
-        if glkote or web:
-            # The road is mapped -- the Z screen model onto the
-            # same serializer -- but not yet travelled.
-            print(
-                "voxam: the GlkOte faces speak Glulx first; the Z-Machine joins later"
-            )
-
-            return EXIT_UNUSABLE
-
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)
     except (OSError, VoxamError) as error:
@@ -1784,6 +1816,20 @@ def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
         return EXIT_UNUSABLE
 
     header = story.header
+
+    if glkote or web:
+        if header.version == STAGE_VERSION:
+            # The eight-window stage asks for placed geometry the
+            # protocol's two-window picture cannot speak yet.
+            print("voxam: the Version 6 stage stays at the painted glasses")
+
+            return EXIT_UNUSABLE
+
+        if web:
+            return _serve_z_web(story_path, story, blorb, seed=seed, port=port)
+
+        return _serve_z_glkote(story, seed=seed)
+
     key_source: Callable[[float | None], str | None] | None = None
     timed_input_source: Callable[[float], str | None] | None = None
     painted: ScreenFrontend | GraphicsFrontend | None = None

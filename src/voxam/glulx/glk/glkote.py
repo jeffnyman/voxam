@@ -38,7 +38,15 @@ import json
 from typing import TextIO, cast
 
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
-from voxam.glkote import STYLES, Page, Stanza
+from voxam.glkote import (
+    STYLES,
+    Page,
+    Stanza,
+    measured,
+    partials,
+    read_stanza,
+    write_stanza,
+)
 from voxam.glulx.glk.api import Glk, Prompting
 from voxam.glulx.glk.frontend import Frontend
 from voxam.glulx.glk.objects import (
@@ -367,12 +375,12 @@ class GlkOteFrontend(Frontend):
             raise GlkOteError(msg)
 
         self._size = (int(metrics["width"]), int(metrics["height"]))
-        self._grid_cell = _measured(metrics, "grid")
-        self._buffer_cell = _measured(metrics, "buffer")
+        self._grid_cell = _cell(metrics, "grid")
+        self._buffer_cell = _cell(metrics, "buffer")
 
         # A canvas's unit is the pixel itself; only the margins
         # come from the metrics.
-        edged = _measured(metrics, "graphics")
+        edged = _cell(metrics, "graphics")
         self._graphics_cell = Metrics(1, 1, edged.margin_x, edged.margin_y)
 
     def size(self) -> tuple[int, int]:
@@ -626,7 +634,7 @@ class GlkOteFrontend(Frontend):
             # The player's half-typed lines ride every event that
             # can carry them, a stale one included -- the typing
             # is current even when the event is not.
-            self.page.typed(_typed(stanza.get("partial")))
+            self.page.typed(partials(stanza.get("partial")))
 
         if stanza.get("gen") != self.page.gen:
             return None
@@ -783,7 +791,7 @@ def serve(
     """
 
     try:
-        opening = _read(reader)
+        opening = read_stanza(reader)
 
         if opening is None or opening.get("type") != "init":
             msg = (
@@ -798,13 +806,13 @@ def serve(
         while True:
             machine.run()
 
-            _write(writer, frontend.render(exit=not machine.running))
+            write_stanza(writer, frontend.render(exit=not machine.running))
 
             if not machine.running:
                 return True
 
             while True:
-                stanza = _read(reader)
+                stanza = read_stanza(reader)
 
                 if stanza is None:
                     # The display hung up: the session ends the
@@ -824,70 +832,15 @@ def serve(
                     # the machine can simply step on.
                     break
 
-                _write(writer, {"type": "pass"})
+                write_stanza(writer, {"type": "pass"})
     except json.JSONDecodeError as error:
-        _write(writer, {"type": "error", "message": f"voxam: not JSON: {error}"})
+        write_stanza(writer, {"type": "error", "message": f"voxam: not JSON: {error}"})
 
         return False
     except VoxamError as error:
-        _write(writer, {"type": "error", "message": f"voxam: {error}"})
+        write_stanza(writer, {"type": "error", "message": f"voxam: {error}"})
 
         return False
-
-
-def _read(reader: TextIO) -> Stanza | None:
-    """The next stanza from the display, or None when it hung up.
-
-    Raises:
-        GlkOteError: For JSON that is not an object.
-        json.JSONDecodeError: For what is not JSON at all.
-    """
-
-    for line in reader:
-        if not line.strip():
-            continue
-
-        parsed = json.loads(line)
-
-        if not isinstance(parsed, dict):
-            msg = "a stanza is a JSON object"
-
-            raise GlkOteError(msg)
-
-        return cast("Stanza", parsed)
-
-    return None
-
-
-def _write(writer: TextIO, stanza: Stanza) -> None:
-    """One stanza out, compact, on its own line, flushed.
-
-    Flushed every time: an update parked in a pipe's buffer is a
-    display waiting forever.
-    """
-
-    writer.write(json.dumps(stanza, separators=(",", ":")) + "\n")
-    writer.flush()
-
-
-def _typed(partial: object) -> dict[int, str]:
-    """An event's partial-input object as ident-keyed text.
-
-    JSON spells the window ids as object keys -- strings -- and
-    anything not shaped like typing is quietly no typing at all
-    (GlkOte: Partial Input).
-    """
-
-    if not isinstance(partial, dict):
-        return {}
-
-    stashed: dict[int, str] = {}
-
-    for key, text in partial.items():
-        if isinstance(text, str) and str(key).isdigit():
-            stashed[int(key)] = text
-
-    return stashed
 
 
 def _css(color: int) -> str:
@@ -900,27 +853,10 @@ def _css(color: int) -> str:
     return f"#{color & 0xFFFFFF:06X}"
 
 
-def _measured(metrics: Stanza, prefix: str) -> Metrics:
-    """One window kind's cell, with the spec's fallback chain.
+def _cell(metrics: Stanza, prefix: str) -> Metrics:
+    """One window kind's cell, the shared measure worn as Metrics."""
 
-    A partial metrics object falls back from the qualified name to
-    the generic to the default, the rules RemGlk reads by (GlkOte:
-    The Metrics Object).
-    """
-
-    def field(name: str, *fallbacks: str, default: float) -> float:
-        for key in (prefix + name, *fallbacks):
-            if key in metrics:
-                return float(metrics[key])
-
-        return default
-
-    return Metrics(
-        field("charwidth", "charwidth", default=1),
-        field("charheight", "charheight", default=1),
-        field("marginx", "marginx", "margin", default=0),
-        field("marginy", "marginy", "margin", default=0),
-    )
+    return Metrics(*measured(metrics, prefix))
 
 
 def _visible(window: Window | None) -> "list[Window]":

@@ -27,6 +27,10 @@ from voxam.glulx.glk.glkote import GlkOteFrontend
 from voxam.glulx.glk.resources import Resources
 from voxam.glulx.machine import Machine
 from voxam.glulx.story import Story
+from voxam.zmachine.glkote import ADVANCE, STAND
+from voxam.zmachine.glkote import GlkOteFrontend as ZGlkOteFrontend
+from voxam.zmachine.machine import Machine as ZMachine
+from voxam.zmachine.story import Story as ZStory
 
 # What each shipped page file is, on the wire.
 CONTENT_TYPES = {
@@ -57,17 +61,11 @@ class Session:
     faulted, answering the same error until a reload starts over.
     """
 
-    def __init__(
-        self, story: Story, resources: Resources, *, seed: int | None = None
-    ) -> None:
-        """Hold the story, ready to be born at the first init."""
+    def __init__(self, resources: Resources, *, seed: int | None = None) -> None:
+        """Hold what every session shares; a subclass holds the story."""
 
-        self._story = story
         self._seed = seed
         self.resources = resources
-        self._frontend: GlkOteFrontend | None = None
-        self._glk: Glk | None = None
-        self._machine: Machine | None = None
         self._fault: Stanza | None = None
 
     def answer(self, stanza: Stanza) -> Stanza:
@@ -81,7 +79,12 @@ class Session:
 
         try:
             if stanza.get("type") == "init":
+                self._fault = None
+
                 return self._reborn(stanza)
+
+            if self._fault is not None:
+                return self._fault
 
             return self._delivered(stanza)
         except VoxamError as error:
@@ -92,7 +95,39 @@ class Session:
     def _reborn(self, stanza: Stanza) -> Stanza:
         """Start the story over, fresh objects from the kept story."""
 
-        self._fault = None
+        raise NotImplementedError  # pragma: no cover -- each machine's own
+
+    def _delivered(self, stanza: Stanza) -> Stanza:
+        """Deliver one event to the suspended machine and run on."""
+
+        raise NotImplementedError  # pragma: no cover -- each machine's own
+
+    @staticmethod
+    def _unopened() -> Stanza:
+        """The answer to an event before any init has spoken."""
+
+        return {
+            "type": "error",
+            "message": "voxam: the conversation opens with an init event",
+        }
+
+
+class GlulxSession(Session):
+    """A Glulx story behind the server, over the Glk library."""
+
+    def __init__(
+        self, story: Story, resources: Resources, *, seed: int | None = None
+    ) -> None:
+        """Hold the story, ready to be born at the first init."""
+
+        super().__init__(resources, seed=seed)
+
+        self._story = story
+        self._frontend: GlkOteFrontend | None = None
+        self._glk: Glk | None = None
+        self._machine: Machine | None = None
+
+    def _reborn(self, stanza: Stanza) -> Stanza:
         self._frontend = GlkOteFrontend()
         self._glk = Glk(self._frontend, resources=self.resources)
         self._machine = Machine(self._story, seed=self._seed, glk=self._glk)
@@ -102,18 +137,8 @@ class Session:
         return self._turned()
 
     def _delivered(self, stanza: Stanza) -> Stanza:
-        """Deliver one event to the suspended machine and run on."""
-
-        if self._fault is not None:
-            return self._fault
-
         if self._frontend is None or self._glk is None or self._machine is None:
-            # An event before any init: the page has not spoken
-            # yet, so there is nothing to deliver to.
-            return {
-                "type": "error",
-                "message": "voxam: the conversation opens with an init event",
-            }
+            return self._unopened()
 
         event = self._frontend.accept(stanza)
 
@@ -126,6 +151,57 @@ class Session:
             # The stanza itself completed the wait: a file answer
             # stores through the parked call.
             return self._turned()
+
+        return {"type": "pass"}
+
+    def _turned(self) -> Stanza:
+        """Run the machine to its next wait and render the update."""
+
+        if (
+            self._machine is None or self._frontend is None
+        ):  # pragma: no cover -- both callers just built or checked them
+            raise AssertionError
+
+        self._machine.run()
+
+        return self._frontend.render(exit=not self._machine.running)
+
+
+class ZSession(Session):
+    """A Z-Machine story behind the server, over the screen model."""
+
+    def __init__(
+        self, story: ZStory, resources: Resources, *, seed: int | None = None
+    ) -> None:
+        """Hold the story, ready to be born at the first init."""
+
+        super().__init__(resources, seed=seed)
+
+        self._story = story
+        self._frontend: ZGlkOteFrontend | None = None
+        self._machine: ZMachine | None = None
+
+    def _reborn(self, stanza: Stanza) -> Stanza:
+        self._frontend = ZGlkOteFrontend(self._story.header.version)
+
+        self._frontend.begin(stanza)
+
+        self._machine = ZMachine(self._story, self._frontend, seed=self._seed)
+        self._frontend.machine = self._machine
+
+        return self._turned()
+
+    def _delivered(self, stanza: Stanza) -> Stanza:
+        if self._frontend is None or self._machine is None:
+            return self._unopened()
+
+        verdict = self._frontend.accept(stanza)
+
+        if verdict == ADVANCE:
+            return self._turned()
+
+        if verdict == STAND:
+            return self._frontend.render()
 
         return {"type": "pass"}
 
