@@ -67,6 +67,19 @@ class IFFError(VoxamError):
     """Raised when bytes cannot be read as an IFF container."""
 
 
+class MachineSuspended(Exception):  # noqa: N818 -- not an error, so not named as one
+    """Raised when a machine stands waiting for an event.
+
+    Deliberately not a VoxamError: nothing has gone wrong. A
+    display that suspends is never asked for input on the spot, so
+    a select records what it waits for and this unwinds to whoever
+    runs the machine, which returns with the machine still
+    running; the host delivers the event and steps on. Named for
+    no one machine, because the contract is not Glulx's alone: any
+    machine that can wait suspends the same way.
+    """
+
+
 class PNGError(VoxamError):
     """Raised when bytes cannot be read as a PNG picture."""
 

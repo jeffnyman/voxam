@@ -11,11 +11,14 @@ from voxam.glulx import gestalt
 from voxam.glulx.bridge import STACK_REF, Bridge, MemArray, Registry
 from voxam.glulx.glk.api import GLK_VERSION, Glk
 from voxam.glulx.glk.dispatch import CLASS_STREAM, CLASS_WINDOW, U32, into
+from voxam.glulx.glk.frontend import Frontend
 from voxam.glulx.glk.objects import (
+    EventType,
     FileMode,
     FileUsage,
     SeekMode,
     TextBufferWindow,
+    Window,
     WindowType,
 )
 from voxam.glulx.machine import Machine
@@ -46,6 +49,24 @@ PLAY_MULTI = 0x00F7
 FILEREF_CREATE_BY_NAME = 0x0061
 TIME_TO_DATE_UTC = 0x0168
 DATE_TO_TIME_UTC = 0x016C
+
+
+class Suspending(Frontend):
+    """A display that cannot block: never asked, only delivered to."""
+
+    suspends = True
+
+    def size(self) -> tuple[int, int]:
+        return (80, 24)
+
+    def flush(self, root: Window | None) -> None:
+        pass
+
+    def read_line(self, _window: Window, _maxlen: int) -> tuple[str, int] | None:
+        pytest.fail("a suspending display is never asked for a line")
+
+    def read_char(self, _window: Window) -> int | None:
+        pytest.fail("a suspending display is never asked for a key")
 
 
 def bridged(
@@ -442,3 +463,34 @@ def test_an_unanswerable_session_ends_cleanly(
 
     with pytest.raises(GlulxSessionEnd):
         bridge.perform(SELECT, [SCRATCH])
+
+
+# A select over a suspending display completes its opcode -- zero
+# stored, stack whole -- but the struct's travel back into memory
+# is deferred: the sentinel survives until the host delivers the
+# event, and every call in between is refused, because a suspended
+# machine should be standing still.
+def test_a_suspended_select_defers_its_writeback(image: Callable[..., bytes]) -> None:
+    machine, bridge, library = bridged(image, Glk(Suspending()))
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the window opened")
+
+    library.glk_request_char_event(window)
+
+    for index in range(4):
+        machine.memory.write_word(SCRATCH + 4 * index, 0xDEADBEEF)
+
+    assert_that(bridge.perform(SELECT, [SCRATCH])).is_equal_to(0)
+    assert_that(machine.memory.read_word(SCRATCH)).is_equal_to(0xDEADBEEF)
+
+    with pytest.raises(GlulxGlkError, match="stands suspended"):
+        bridge.perform(GESTALT, [0, 0])
+
+    library.deliver_event(library.deliver_char(window, 0x41))
+
+    assert_that(machine.memory.read_word(SCRATCH)).is_equal_to(EventType.CHAR_INPUT)
+    assert_that(machine.memory.read_word(SCRATCH + 4)).is_equal_to(1)
+    assert_that(machine.memory.read_word(SCRATCH + 8)).is_equal_to(0x41)
+    assert_that(machine.memory.read_word(SCRATCH + 12)).is_equal_to(0)

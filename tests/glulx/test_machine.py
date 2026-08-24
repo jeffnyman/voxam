@@ -9,6 +9,9 @@ from voxam.errors import (
     GlulxInstructionError,
     GlulxMemoryError,
 )
+from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.frontend import Frontend
+from voxam.glulx.glk.objects import EventType, Window
 from voxam.glulx.machine import _DISPATCH, Machine
 from voxam.glulx.opcodes import Op
 from voxam.glulx.stack import DestType
@@ -17,6 +20,10 @@ from voxam.glulx.story import Story
 BOOT_PC = 0x4B
 PLANT = 0x180
 RESULT = 0x140
+
+# Where the suspension round trip's event struct lands, clear of
+# the other scratch addresses.
+SEAT = 0x1C0
 
 # A do-nothing start function: C0, no locals, quit.
 IDLE = bytes([0xC0, 0x00, 0x00, 0x81, 0x20])
@@ -40,6 +47,24 @@ def planted(machine: Machine, code: bytes) -> None:
 
 def result(machine: Machine) -> int:
     return machine.memory.read_word(RESULT)
+
+
+class Suspending(Frontend):
+    """A display that cannot block: never asked, only delivered to."""
+
+    suspends = True
+
+    def size(self) -> tuple[int, int]:
+        return (80, 24)
+
+    def flush(self, root: Window | None) -> None:
+        pass
+
+    def read_line(self, _window: Window, _maxlen: int) -> tuple[str, int] | None:
+        pytest.fail("a suspending display is never asked for a line")
+
+    def read_char(self, _window: Window) -> int | None:
+        pytest.fail("a suspending display is never asked for a key")
 
 
 # Boot calls the header's start function with no arguments: the
@@ -66,6 +91,61 @@ def test_a_story_runs_to_quit(image: Callable[..., bytes]) -> None:
     assert_that(machine.run()).is_equal_to(2)
     assert_that(result(machine)).is_equal_to(7)
     assert_that(machine.running).is_false()
+
+
+# The suspension round trip: the story opens a window, asks for a
+# keystroke, and selects; the suspending display answers nothing
+# on the spot, so run returns mid-story -- the machine still
+# running, the select's step counted, the struct's memory
+# untouched. The delivered event lands where the game will look,
+# and the next run continues from the instruction after the
+# select, all the way to quit.
+def test_a_suspended_machine_stands_and_steps_on(image: Callable[..., bytes]) -> None:
+    program = (
+        bytes([0xC0, 0x00, 0x00])
+        # glk window_open(split 0, method 0, size 0, buffer, rock
+        # 0), the five arguments pushed last-first, the window id
+        # stored into RESULT.
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x03])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x40, 0x81, 0x00])
+        + bytes([0x81, 0x30, 0x11, 0x06, 0x23, 0x05, 0x01, 0x40])
+        # glk request_char_event(the window), fetched from RESULT.
+        + bytes([0x40, 0x86, 0x01, 0x40])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xD2, 0x01])
+        # glk select(SEAT) -- the machine stands down here.
+        + bytes([0x40, 0x82, 0x01, 0xC0])
+        + bytes([0x81, 0x30, 0x12, 0x00, 0x00, 0xC0, 0x01])
+        # The resume's proof: 7 into RESULT + 4, then quit.
+        + bytes([0x40, 0x61, 0x07, 0x01, 0x44])
+        + bytes([0x81, 0x20])
+    )
+    library = Glk(Suspending())
+    machine = Machine(Story(image(code=program)), glk=library)
+
+    machine.memory.write_word(SEAT, 0xDEADBEEF)
+
+    assert_that(machine.run()).is_equal_to(10)
+    assert_that(machine.running).is_true()
+    assert_that(library.waiting).is_not_none()
+    assert_that(machine.memory.read_word(SEAT)).is_equal_to(0xDEADBEEF)
+
+    window = library.root
+
+    if window is None:
+        pytest.fail("the story opened its window")
+
+    library.deliver_event(library.deliver_char(window, 0x41))
+
+    assert_that(machine.memory.read_word(SEAT)).is_equal_to(EventType.CHAR_INPUT)
+    assert_that(machine.memory.read_word(SEAT + 8)).is_equal_to(0x41)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+    assert_that(machine.memory.read_word(RESULT + 4)).is_equal_to(7)
 
 
 # callfi carries one argument into a C1 function, whose return

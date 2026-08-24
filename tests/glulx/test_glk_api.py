@@ -96,6 +96,18 @@ class Quiet(Frontend):
         self.timers.append(millisecs)
 
 
+class Suspending(Quiet):
+    """A display that cannot block: never asked, only delivered to."""
+
+    suspends = True
+
+    def read_line(self, _window: Window, _maxlen: int) -> tuple[str, int] | None:
+        pytest.fail("a suspending display is never asked for a line")
+
+    def read_char(self, _window: Window) -> int | None:
+        pytest.fail("a suspending display is never asked for a key")
+
+
 class Typist(Quiet):
     """Delivers scripted lines; a None entry posts a timer instead."""
 
@@ -1362,6 +1374,140 @@ def test_a_hopeless_select_is_refused() -> None:
 
     with pytest.raises(GlulxGlkError, match="wait forever"):
         library.glk_select(RefStruct(4))
+
+
+# A suspending display is never asked for input. Its select
+# records the wait instead -- the struct stays whole and empty,
+# the seat the host's event will land in.
+def test_a_suspending_select_records_the_wait() -> None:
+    display = Suspending()
+    library, first = rooted(display)
+
+    library.glk_request_char_event(first)
+
+    event = RefStruct(4)
+
+    library.glk_select(event)
+
+    waiting = library.waiting
+
+    if waiting is None:
+        pytest.fail("the select suspended")
+
+    assert_that(waiting.struct).is_same_as(event)
+    assert_that(waiting.writebacks).is_empty()
+    assert_that(event.fields).is_equal_to([0, 0, 0, 0])
+    assert_that(display.flushes).is_greater_than(0)
+
+
+# Whatever a display posted is delivered at once: a queued event
+# needs no suspension, exactly as it needs no blocking.
+def test_a_suspending_select_serves_the_queue_first() -> None:
+    library, _ = rooted(Suspending())
+
+    library.post_event(Event(EventType.TIMER))
+
+    event = RefStruct(4)
+
+    library.glk_select(event)
+
+    assert_that(event.fields).is_equal_to([EventType.TIMER, None, 0, 0])
+    assert_that(library.waiting).is_none()
+
+
+# The hopeless-select guard holds while suspending too: requests
+# count only where the display claims the capability, and a
+# running timer is a legitimate wait -- the host raises timer
+# events itself, which no blocking display can promise when no
+# input is requested alongside.
+def test_a_hopeless_suspension_is_refused() -> None:
+    library, first = rooted(Suspending())
+
+    with pytest.raises(GlulxGlkError, match="wait forever"):
+        library.glk_select(RefStruct(4))
+
+    library.glk_request_mouse_event(first)
+    library.glk_request_hyperlink_event(first)
+
+    with pytest.raises(GlulxGlkError, match="wait forever"):
+        library.glk_select(RefStruct(4))
+
+    able = Suspending()
+    able.timer_input = True
+    able.mouse_input = True
+    able.hyperlink_input = True
+    timed, _ = rooted(able)
+
+    with pytest.raises(GlulxGlkError, match="wait forever"):
+        timed.glk_select(RefStruct(4))
+
+    timed.glk_request_timer_events(50)
+    timed.glk_select(RefStruct(4))
+
+    assert_that(timed.waiting).is_not_none()
+
+
+# A claimed capability's request carries the wait; the delivered
+# event lands in the struct even with nothing deferred to write.
+def test_claimed_requests_carry_the_wait() -> None:
+    able = Suspending()
+    able.mouse_input = True
+    library, first = rooted(able)
+
+    library.glk_request_mouse_event(first)
+
+    event = RefStruct(4)
+
+    library.glk_select(event)
+
+    assert_that(library.waiting).is_not_none()
+
+    library.deliver_event(Event(EventType.MOUSE_INPUT, first, 3, 4))
+
+    assert_that(event.fields).is_equal_to([EventType.MOUSE_INPUT, first, 3, 4])
+    assert_that(library.waiting).is_none()
+
+    linked = Suspending()
+    linked.hyperlink_input = True
+    pages, page = rooted(linked)
+
+    pages.glk_request_hyperlink_event(page)
+    pages.glk_select(RefStruct(4))
+
+    assert_that(pages.waiting).is_not_none()
+
+
+# The delivered event fills the struct and runs the deferred
+# writes; an event with no seat to land in is refused.
+def test_a_delivered_event_lands_in_its_seat() -> None:
+    library, first = rooted(Suspending())
+    held = [0] * 8
+
+    library.glk_request_line_event(first, held, 0)
+
+    event = RefStruct(4)
+
+    library.glk_select(event)
+
+    waiting = library.waiting
+
+    if waiting is None:
+        pytest.fail("the select suspended")
+
+    written: list[str] = []
+    waiting.writebacks = [lambda: written.append("wrote")]
+
+    answered = library.deliver_line(first, "go")
+
+    library.deliver_event(answered)
+
+    assert_that(event.fields).is_equal_to([EventType.LINE_INPUT, first, 2, 0])
+    assert_that(held[:2]).is_equal_to([ord("g"), ord("o")])
+    assert_that(written).is_equal_to(["wrote"])
+    assert_that(library.waiting).is_none()
+
+    with pytest.raises(GlulxGlkError, match="no select suspended"):
+        library.deliver_event(answered)
 
 
 # The poll reports queued display events, skips over anything that

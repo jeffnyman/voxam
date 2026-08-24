@@ -6,11 +6,14 @@ window tree, the live object lists, and the current output stream;
 nothing in it knows about Glulx -- ids, addresses, and the stack
 are the bridge's translation.
 
-Blocking, not callback-driven: glkote's glkapi.js cannot block, so
-its glk_select returns a sentinel and the interpreter resumes from
-a callback. A Python display can block, so glk_select here simply
-asks the display for input and returns when it has some -- the
-cheapglk and glkterm arrangement.
+Blocking by default, suspending on request: glkote's glkapi.js
+cannot block, so its glk_select returns a sentinel and the
+interpreter resumes from a callback. A display that can block is
+simply asked for input and glk_select returns when it has some --
+the cheapglk and glkterm arrangement. A display that cannot block
+raises its suspends flag, and glk_select records the wait instead:
+the machine returns to its host, and the host answers through
+deliver_event.
 """
 
 import datetime
@@ -135,6 +138,25 @@ _DEFAULT_SUFFIX = ".glkdata"
 _LATIN_1_LIMIT = 0x100
 
 
+class Waiting:
+    """A suspended select: the seat the awaited event will land in.
+
+    Attributes:
+        struct: The event struct the game handed to glk_select,
+            filled when the host delivers the event.
+        writebacks: The bridge's deferred writes. An empty struct
+            must not travel back into VM memory when the call
+            returns, so the bridge parks the writes here and
+            deliver_event runs them once the struct is filled.
+    """
+
+    def __init__(self, struct: RefStruct) -> None:
+        """Open over the struct, with nothing yet to write back."""
+
+        self.struct = struct
+        self.writebacks: list[Callable[[], None]] = []
+
+
 class Glk:
     """A Glk library instance.
 
@@ -158,6 +180,9 @@ class Glk:
             milliseconds, zero for none.
         pending_events: Events a display has posted -- timers,
             sound notifications -- waiting for the next select.
+        waiting: The suspended select an event has yet to answer,
+            for a display that suspends; None while the machine
+            runs.
         on_dispose: Set by the bridge, so a closed object's id
             stops resolving.
     """
@@ -183,6 +208,7 @@ class Glk:
         self.stylehints: dict[tuple[int, int, int], int] = {}
         self.timer_interval = 0
         self.pending_events: list[Event] = []
+        self.waiting: Waiting | None = None
         self.on_dispose: Callable[[GlkObject], None] | None = None
 
         self.frontend.attach(self)
@@ -1465,11 +1491,94 @@ class Glk:
     # -- events (Glk: Events) ----------------------------------------------
 
     def glk_select(self, event: RefStruct) -> None:
-        """Block until something happens, then report it."""
+        """Wait until something happens, then report it.
 
-        result = self._wait_for_event()
+        A blocking display is asked for input on the spot and the
+        struct fills before this returns. A suspending display is
+        never asked: whatever is already queued is delivered, and
+        otherwise the wait is recorded for the host, who answers
+        through deliver_event once the event arrives (Glk: Events).
 
-        event.set_all(*result.as_fields())
+        Raises:
+            GlulxGlkError: When no outstanding request could ever
+                be satisfied -- waiting longer would never end.
+        """
+
+        if not self.frontend.suspends:
+            result = self._wait_for_event()
+
+            event.set_all(*result.as_fields())
+
+            return
+
+        self.frontend.flush(self.root)
+
+        if self.pending_events:
+            event.set_all(*self.pending_events.pop(0).as_fields())
+
+            return
+
+        if not self._awaited():
+            msg = "glk_select with no input requested: the game would wait forever"
+
+            raise GlulxGlkError(msg)
+
+        self.waiting = Waiting(event)
+
+    def _awaited(self) -> bool:
+        """Whether any outstanding request can ever be answered.
+
+        A request counts only where the display claims the
+        matching capability, the same rule the blocking loop
+        enforces one refusal at a time. A running timer counts
+        too: a suspending display's host raises timer events
+        itself, which is more than a blocking display can promise
+        when no input is requested alongside.
+        """
+
+        if any(
+            held.line_request is not None or held.char_request for held in self.windows
+        ):
+            return True
+
+        if self.frontend.mouse_input and any(
+            held.mouse_request for held in self.windows
+        ):
+            return True
+
+        if self.frontend.hyperlink_input and any(
+            held.hyperlink_request for held in self.windows
+        ):
+            return True
+
+        return bool(self.frontend.timer_input and self.timer_interval)
+
+    def deliver_event(self, event: Event) -> None:
+        """Complete a suspended select with the event a host collected.
+
+        The struct fills and the bridge's deferred writes run, so
+        the answer lands in VM memory exactly where the game will
+        look when it steps on.
+
+        Raises:
+            GlulxGlkError: When nothing stands suspended. An event
+                with no seat to land in is a driver's bug, and
+                should be loud.
+        """
+
+        waiting = self.waiting
+
+        if waiting is None:
+            msg = "an event arrived with no select suspended to receive it"
+
+            raise GlulxGlkError(msg)
+
+        waiting.struct.set_all(*event.as_fields())
+
+        for writeback in waiting.writebacks:
+            writeback()
+
+        self.waiting = None
 
     def glk_select_poll(self, event: RefStruct) -> None:
         """Report a queued non-input event without waiting.
