@@ -80,8 +80,8 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.7`: The protocol whole -- saves and the player's
-typing survive the wire.
+Version `1.8`: The Z-Machine joins the protocol -- both machines
+in the browser.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -148,17 +148,26 @@ display served from inside the package, one POST per turn, the
 story's title on the tab, the gblorb's art at its own `/pict`
 road, and a page reload starting the story over.
 
-New in `1.7`, the protocol whole: the two gaps the faces refused
-loudly are now carried. A game's ask for a save file suspends the
-machine mid-Glk-call -- a second kind of standing down, the
-call's own result parked for the player's answer -- and travels
-as the protocol's special input, so typing `save` in a browser
-tab writes a real Quetzal file beside the story and `restore`
-reads it back. And the player's half-typed command rides every
-event, so a timer printing mid-word no longer eats it: the input
-field is remade wearing exactly what was typed. The faces still
-speak Glulx first; the road to `2.0` runs through the Z-Machine
-joining the same protocol, and a desktop shell.
+The protocol made whole is `1.7`'s: a game's ask for a save file
+suspends the machine mid-Glk-call -- a second kind of standing
+down, the call's own result parked for the player's answer -- and
+travels as the protocol's special input, so `save` in a browser
+tab writes a real Quetzal file beside the story; and the player's
+half-typed command rides every event, so a timer printing
+mid-word no longer eats it.
+
+New in `1.8`, the Z-Machine joins: the reads learned the same
+standing-down the selects learned -- the whole post-input tail
+parked, lines and keystrokes and even the §15 timer's interrupts
+delivered from outside -- and the §8 screen model feeds the same
+machine-neutral serializer the Glk tree feeds: the upper window
+and the status line travel as the protocol's grid, the lower
+window as its flowing buffer, the styles in protocol dress. So
+`--glkote` and `--web` now speak both machines: Zork I's inverse
+status bar updates one changed row at a time, Bronze plays in a
+browser tab wearing its own title, and the one refusal left is
+honest -- the Version 6 stage stays at the painted glasses. The
+road to `2.0` runs through the desktop shell.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -255,7 +264,9 @@ own prompt and writes the Quetzal file beside the story, where
 `--glkote` speaks the same protocol as JSON lines on stdin and
 stdout -- one update stanza out, one event stanza in -- which is
 the seam any GlkOte-speaking host drives down a pipe. Both faces
-speak Glulx first; the Z-Machine joins them on the road to 2.0.
+speak both machines: a `.z3` through `.z8` plays beside a `.ulx`
+or `.gblorb`, status line and split windows in the protocol's own
+grid -- only the Version 6 stage stays at the painted glasses.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.

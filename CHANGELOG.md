@@ -1,3 +1,10 @@
+## v1.8.0 (2026-08-24)
+
+### Feat
+
+- **zmachine**: the Z-Machine joins the protocol -- the screen model feeds the shared Page, and Bronze plays in the browser beside Adventure (#250)
+- **zmachine**: the reads learn to stand and wait -- the post-input tail parks whole, and the host delivers lines, keys, and ticks (#249)
+
 ## v1.7.0 (2026-08-24)
 
 ### Feat
