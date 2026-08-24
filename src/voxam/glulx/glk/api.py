@@ -1667,9 +1667,7 @@ class Glk:
                 position = self.frontend.read_mouse(window)
 
                 if position is not None:
-                    window.mouse_request = False
-
-                    return Event(EventType.MOUSE_INPUT, window, *position)
+                    return self.deliver_mouse(window, *position)
 
                 if self.frontend.mouse_input:
                     # It can click, so this was an interruption,
@@ -1686,9 +1684,7 @@ class Glk:
                 value = self.frontend.read_hyperlink(window)
 
                 if value:
-                    window.hyperlink_request = False
-
-                    return Event(EventType.HYPERLINK, window, value, 0)
+                    return self.deliver_hyperlink(window, value)
 
                 if self.frontend.hyperlink_input:
                     continue
@@ -1777,6 +1773,39 @@ class Glk:
         window.char_request = False
 
         return Event(EventType.CHAR_INPUT, window, value & _MASK, 0)
+
+    def deliver_mouse(self, window: Window, x: int, y: int) -> Event:
+        """Complete a window's mouse request with a clicked position.
+
+        Raises:
+            GlulxGlkError: When the window has no mouse request.
+        """
+
+        if not window.mouse_request:
+            msg = "mouse input delivered to a window not expecting it"
+
+            raise GlulxGlkError(msg)
+
+        window.mouse_request = False
+
+        return Event(EventType.MOUSE_INPUT, window, x & _MASK, y & _MASK)
+
+    def deliver_hyperlink(self, window: Window, value: int) -> Event:
+        """Complete a window's hyperlink request with a link value.
+
+        Raises:
+            GlulxGlkError: When the window has no hyperlink
+                request.
+        """
+
+        if not window.hyperlink_request:
+            msg = "hyperlink input delivered to a window not expecting it"
+
+            raise GlulxGlkError(msg)
+
+        window.hyperlink_request = False
+
+        return Event(EventType.HYPERLINK, window, value & _MASK, 0)
 
     def glk_request_line_event(
         self, window: Window | None, buf: Buffer | None, initlen: int

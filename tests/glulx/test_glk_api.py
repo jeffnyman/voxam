@@ -1318,6 +1318,33 @@ def test_a_keystroke_arrives() -> None:
         library.deliver_line(first, "stray")
 
 
+# A click and a link selection deliver from outside the ask too,
+# the way a protocol display delivers them -- values masked to 32
+# bits, requests consumed, and ones nobody asked for refused.
+def test_clicks_and_links_deliver_from_outside() -> None:
+    library, first = rooted()
+
+    library.glk_request_mouse_event(first)
+
+    clicked = library.deliver_mouse(first, 3, 0x1_0000_0004)
+
+    assert_that(clicked.as_fields()).is_equal_to((EventType.MOUSE_INPUT, first, 3, 4))
+    assert_that(first.mouse_request).is_false()
+
+    with pytest.raises(GlulxGlkError, match="not expecting"):
+        library.deliver_mouse(first, 1, 1)
+
+    library.glk_request_hyperlink_event(first)
+
+    linked = library.deliver_hyperlink(first, 0x1_0000_0007)
+
+    assert_that(linked.as_fields()).is_equal_to((EventType.HYPERLINK, first, 7, 0))
+    assert_that(first.hyperlink_request).is_false()
+
+    with pytest.raises(GlulxGlkError, match="not expecting"):
+        library.deliver_hyperlink(first, 7)
+
+
 # A timer fires while a line is pending: the request survives the
 # interruption and is answered on the next select.
 def test_a_timer_interrupts_a_line() -> None:

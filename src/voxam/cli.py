@@ -28,6 +28,7 @@ from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
 from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.glkote import GlkOteFrontend, serve
 from voxam.glulx.glk.objects import KeyCode
 from voxam.glulx.glk.resources import Resources as GlkResources
 from voxam.glulx.glk.stdio import StdioFrontend
@@ -168,6 +169,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="play in a pygame window (needs the graphics extra)",
     )
     parser.add_argument(
+        "--glkote",
+        action="store_true",
+        help="speak the GlkOte protocol as JSON lines on stdin and stdout",
+    )
+    parser.add_argument(
         "--interpreter",
         help="claim a §11.1.3 platform, by name (amiga, ibm-pc, ...) or number",
     )
@@ -195,7 +201,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
 
-    print("\nVoxam Interpreter for Z-Machine and Glulx Stories\n")
+    if not arguments.glkote:
+        # The greeting stays off the wire: a GlkOte session's
+        # stdout carries stanzas and nothing else.
+        print("\nVoxam Interpreter for Z-Machine and Glulx Stories\n")
 
     reported = _static_report(arguments)
 
@@ -234,6 +243,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             None,
             screen=not arguments.plain,
             graphics=arguments.graphics,
+            glkote=arguments.glkote,
             identity=identity,
             resources=arguments.resources,
             pixels=arguments.pixels,
@@ -575,17 +585,39 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
     if not 0 <= arguments.zoom <= 1:
         return "--zoom takes a fraction of the desktop, 0 to 1"
 
-    regtest = _regtest_refusal(arguments)
+    for gated in (_glkote_refusal, _regtest_refusal, _resume_refusal):
+        refused = gated(arguments)
 
-    if regtest is not None:
-        return regtest
-
-    resume = _resume_refusal(arguments)
-
-    if resume is not None:
-        return resume
+        if refused is not None:
+            return refused
 
     return _record_refusal(arguments.record, script, arguments.story)
+
+
+def _glkote_refusal(arguments: argparse.Namespace) -> str | None:
+    """Why --glkote cannot proceed, or None when it can.
+
+    The protocol owns both streams whole: no other face, no
+    recording or replay instrument, can share them.
+    """
+
+    if not arguments.glkote:
+        return None
+
+    for named, held in (
+        ("--graphics", arguments.graphics),
+        ("--plain", arguments.plain),
+        ("--record", arguments.record is not None),
+        ("--replay", arguments.replay is not None),
+        ("--accept", arguments.accept is not None),
+        ("--regtest", arguments.regtest is not None),
+        ("--resume", arguments.resume is not None),
+        ("--trace", arguments.trace is not None),
+    ):
+        if held:
+            return f"--glkote speaks for the whole session; {named} cannot join it"
+
+    return None
 
 
 def _resume_refusal(arguments: argparse.Namespace) -> str | None:
@@ -1188,7 +1220,31 @@ def _glulx_resources(story_path: Path, resources: Path | None) -> Blorb | None:
     return None
 
 
-def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
+def _serve_glkote(
+    story_path: Path, story: GlulxStory, *, seed: int | None, resources: Path | None
+) -> int:
+    """Speak the GlkOte protocol for one story, both streams whole.
+
+    The display at the far end sends init and events on stdin and
+    reads update stanzas on stdout, so nothing else may print
+    there -- no banner, no verdict, no title escape.
+    """
+
+    blorb = _glulx_resources(story_path, resources)
+    frontend = GlkOteFrontend()
+    library = Glk(frontend, resources=GlkResources(blorb))
+    machine = GlulxMachine(story, seed=seed, glk=library)
+
+    try:
+        served = serve(machine, library, frontend, sys.stdin, sys.stdout)
+    except OSError:
+        # The pipe itself failed: no stream is left to answer on.
+        return EXIT_UNUSABLE
+
+    return EXIT_OK if served else EXIT_UNUSABLE
+
+
+def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
     story_path: Path,
     story: GlulxStory,
     *,
@@ -1202,6 +1258,7 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
     link_source: Callable[[], int | None] | None = None,
     screen: bool = False,
     graphics: bool = False,
+    glkote: bool = False,
     zoom: float | None = None,
 ) -> int:
     """Run a Glulx story over a display.
@@ -1233,6 +1290,11 @@ def _run_glulx(  # noqa: PLR0913 -- one knob per session seam
         )
 
         return EXIT_UNUSABLE
+
+    if glkote:
+        # No banner, no title escape: from here, stdout carries
+        # stanzas and nothing else.
+        return _serve_glkote(story_path, story, seed=seed, resources=resources)
 
     verdict = "checksum verified" if story.verify() else "CHECKSUM MISMATCH"
 
@@ -1594,7 +1656,7 @@ def _tracing(
     return tracer.see, close
 
 
-def _play(  # noqa: PLR0913 -- one knob per session seam
+def _play(  # noqa: PLR0912, PLR0913, PLR0915 -- one knob per session seam
     story_path: Path,
     seed: int | None,
     input_source: Callable[[], str] | None,
@@ -1602,6 +1664,7 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
     *,
     screen: bool = False,
     graphics: bool = False,
+    glkote: bool = False,
     identity: Identity | None = None,
     resources: Path | None = None,
     pixels: bool = False,
@@ -1637,8 +1700,18 @@ def _play(  # noqa: PLR0913 -- one knob per session seam
                 input_source=input_source,
                 screen=screen,
                 graphics=graphics,
+                glkote=glkote,
                 zoom=zoom,
             )
+
+        if glkote:
+            # The road is mapped -- the Z screen model onto the
+            # same serializer -- but not yet travelled.
+            print(
+                "voxam: the GlkOte face speaks Glulx first; the Z-Machine joins later"
+            )
+
+            return EXIT_UNUSABLE
 
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)
