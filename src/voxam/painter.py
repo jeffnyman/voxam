@@ -274,6 +274,7 @@ class ScreenFrontend:
     splittable screen, and the §8.7.1 styles.
     """
 
+    suspends = False
     has_status_line = True
     has_screen_splitting = True
     has_bold = True
