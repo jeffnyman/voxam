@@ -213,8 +213,9 @@ class Bridge:
 
         Raises:
             GlulxGlkError: For a selector the dispatch table does
-                not carry, or an argument count that contradicts
-                its signature.
+                not carry, an argument count that contradicts its
+                signature, or any call while a select stands
+                suspended -- the machine should be standing still.
         """
 
         signature = dispatch.lookup(selector)
@@ -225,6 +226,8 @@ class Bridge:
             msg = f"the glk opcode asked for unknown function {selector:#06x}"
 
             raise GlulxGlkError(msg)
+
+        self._refuse_while_suspended(signature.glk_name)
 
         if len(args) != signature.word_count:
             msg = (
@@ -241,10 +244,33 @@ class Bridge:
         call_args, writebacks = self._unmarshal(signature, args)
         result = function(*call_args)
 
-        for writeback in writebacks:
-            writeback()
+        if self.library.waiting is not None:
+            # The call was a select that suspended: its struct is
+            # empty until the event arrives, so its travel back
+            # into memory waits with it, run by deliver_event.
+            self.library.waiting.writebacks = writebacks
+        else:
+            for writeback in writebacks:
+                writeback()
 
         return self._encode_result(signature.result, result)
+
+    def _refuse_while_suspended(self, glk_name: str) -> None:
+        """Refuse any call while a select stands suspended.
+
+        A suspended machine executes nothing until its event is
+        delivered; a call arriving anyway means a host ran on past
+        the suspension. Refused before any argument pops, so the
+        stack stays whole.
+
+        Raises:
+            GlulxGlkError: When the library stands suspended.
+        """
+
+        if self.library.waiting is not None:
+            msg = f"{glk_name} called while the machine stands suspended"
+
+            raise GlulxGlkError(msg)
 
     def _unmarshal(
         self, signature: Signature, args: list[int]

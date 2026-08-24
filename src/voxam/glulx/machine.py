@@ -21,6 +21,7 @@ from voxam.errors import (
     GlulxInstructionError,
     GlulxMemoryError,
     GlulxSessionEnd,
+    MachineSuspended,
 )
 from voxam.glulx import floats, funcs, gestalt, search, serial, strings
 from voxam.glulx.accel import Accelerator
@@ -237,6 +238,9 @@ class Machine:
         Raises:
             GlulxInstructionError: For an opcode number the spec
                 does not define.
+            MachineSuspended: When a select stands waiting for an
+                event only the host can deliver; the instruction
+                is already whole when this unwinds.
             VoxamError: On any rule the instruction breaks.
         """
 
@@ -287,6 +291,11 @@ class Machine:
     def run(self, limit: int | None = None) -> int:
         """Execute until the story quits; the step count comes back.
 
+        For a display that suspends, the run also returns when a
+        select stands waiting: running stays True, the host
+        delivers the event through the library, and calling run
+        again continues where the machine stood.
+
         The limit is a test and debugging guard, not a spec
         feature: a runaway loop in a broken story should fail
         rather than hang.
@@ -304,7 +313,12 @@ class Machine:
 
                 raise GlulxInstructionError(msg)
 
-            self.step()
+            try:
+                self.step()
+            except MachineSuspended:
+                # The suspending instruction completed, so it
+                # counts; the machine stands down where it is.
+                return steps + 1
 
             steps += 1
 
@@ -794,6 +808,11 @@ class Machine:
             GlulxGlkError: When no Glk library is installed. The
                 opcode always functions when one is -- Glk being
                 current is not required (Glulx: Output).
+            MachineSuspended: When the call was a select that a
+                suspending display answers later. The opcode is
+                already whole -- arguments popped, zero stored,
+                the pc beyond it -- so the machine stands down
+                mid-run and steps on when the event arrives.
         """
 
         if self.bridge is None:
@@ -804,6 +823,9 @@ class Machine:
         call_args = funcs.pop_arguments(self.stack, args[1], self.memory)
 
         self._store(args[2], self.bridge.perform(args[0], call_args))
+
+        if self.bridge.library.waiting is not None:
+            raise MachineSuspended
 
     def _op_gestalt(self, args: list[Any]) -> None:
         self._store(args[2], gestalt.answer(self, args[0], args[1]))

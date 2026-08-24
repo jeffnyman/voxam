@@ -3,10 +3,12 @@
 The contract is deliberately narrow. Windows keep their own
 contents, so a display renders the tree on flush and is asked for
 input synchronously -- enough for a terminal, and the arrangement
-cheapglk and glkterm use. A display that cannot block, one speaking
-the GlkOte protocol, would need glk_select to suspend rather than
-call read_line; that is a change to this contract and to the api,
-not to the VM, which is single-steppable for exactly that reason.
+cheapglk and glkterm use. A display that cannot block -- one
+speaking the GlkOte protocol -- raises the suspends flag instead,
+and glk_select stops asking: it records what it waits for and the
+machine returns to its host, which delivers the event through the
+library and steps on. The VM is single-steppable for exactly that
+reason.
 
 Every capability defaults to "cannot": a display claims what it
 can do by flipping a flag and overriding the methods behind it,
@@ -47,6 +49,12 @@ class Frontend(ABC):
         graphics: Whether images and rectangles can be drawn
             (Glk: Graphics).
         sound: Whether sound resources can be played (Glk: Sound).
+        suspends: Whether input arrives from outside rather than
+            from a read call. A blocking display is asked and
+            answers on the spot; a suspending display is never
+            asked -- glk_select records the wait, the machine
+            returns to its host, and the host delivers the event
+            through the library.
         echoes_input: Whether typed input is already visible
             without Glk reprinting it. A terminal echoes as the
             player types, so Glk echoing the line into the window
@@ -65,6 +73,7 @@ class Frontend(ABC):
     hyperlink_input: bool = False
     graphics: bool = False
     sound: bool = False
+    suspends: bool = False
     echoes_input: bool = False
     metrics: Metrics = CHARACTER_CELL
 
