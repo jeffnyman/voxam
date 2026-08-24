@@ -26,6 +26,10 @@ const NOT_FOUND: &str = "voxam is not on this machine's PATH.\n\n\
     installed moments ago, sign out and back in so the PATH\n\
     refreshes for desktop apps.";
 
+/// The screen's share the window opens at, as the pygame glass
+/// takes it: 0.85 of the desktop, centered.
+const SHARE: f64 = 0.85;
+
 /// One running story: the child and the stdin we kept out of it.
 ///
 /// The stdout and stderr pipes are taken by the pump threads at
@@ -289,6 +293,25 @@ pub fn run() {
                 }
                 _ => {}
             });
+
+            // The window opens as the pygame glass does: a share
+            // of the screen, centered -- placed while hidden, then
+            // shown, so it never flashes at the fallback size. The
+            // show is unconditional: a screen that cannot be asked
+            // still gets the config's own size.
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = window.primary_monitor() {
+                    let size = monitor.size();
+
+                    let _ = window.set_size(tauri::PhysicalSize::new(
+                        (f64::from(size.width) * SHARE) as u32,
+                        (f64::from(size.height) * SHARE) as u32,
+                    ));
+                    let _ = window.center();
+                }
+
+                let _ = window.show();
+            }
 
             Ok(())
         })
