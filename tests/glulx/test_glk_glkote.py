@@ -958,6 +958,44 @@ def test_a_file_answer_completes_the_wait() -> None:
     assert_that(stored).is_equal_to([5, 0])
 
 
+# The player's half-typed line rides every event -- stale ones
+# included, since the typing is current even when the event is
+# not -- and a field made anew wears it; a special response
+# leaves the picture alone, and what is not shaped like typing is
+# quietly no typing at all.
+def test_partial_input_survives_an_interruption() -> None:
+    library, frontend, window = sessioned()
+
+    library.glk_request_line_event(window, [0] * 8, 0)
+    frontend.render()
+
+    ticked = frontend.accept({"type": "timer", "gen": 1, "partial": {"1": "go nor"}})
+
+    if ticked is None:
+        pytest.fail("the tick landed")
+
+    saying(window, "The clock strikes.\n")
+
+    update = frontend.render()
+
+    assert_that(update["input"][0]["initial"]).is_equal_to("go nor")
+    assert_that(update["input"][0]["gen"]).is_equal_to(2)
+
+    assert_that(
+        frontend.accept({"type": "timer", "gen": 0, "partial": {"1": "go north"}})
+    ).is_none()
+
+    frontend.accept({"type": "specialresponse", "gen": 0, "response": "other"})
+    saying(window, "Again.\n")
+
+    assert_that(frontend.render()["input"][0]["initial"]).is_equal_to("go north")
+
+    frontend.accept({"type": "timer", "gen": 3, "partial": {"one": "x", "1": 9}})
+    saying(window, "Still.\n")
+
+    assert_that(frontend.render()["input"][0]).does_not_contain_key("initial")
+
+
 # A story that asks the player for a save file and quits.
 PROMPTS = (
     bytes([0xC0, 0x00, 0x00])

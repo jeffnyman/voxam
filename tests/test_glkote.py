@@ -626,6 +626,49 @@ def test_second_helpings_are_refused() -> None:
         asked.char_input(1)
 
 
+# What the player has typed rides a regenerated field as its
+# initial -- and only a regenerated one: a carried field keeps its
+# editing state at the display, a quiet cycle stays the pass, and
+# the roster's memory keeps the game's own dress so a steady
+# request never churns.
+def test_typing_survives_a_fields_regeneration() -> None:
+    page = buffered()
+
+    page.line_input(1, 80)
+    page.update()
+
+    page.typed({1: "go nor"})
+
+    page.window(1, "buffer", 0, BOX)
+    page.line_input(1, 80)
+
+    assert_that(page.update()).is_equal_to({"type": "pass"})
+
+    page.window(1, "buffer", 0, BOX)
+    page.line_input(1, 80)
+    page.buffer(1, [("normal", 0, "The clock strikes.\n")])
+
+    update = page.update()
+
+    assert_that(update["input"]).is_equal_to(
+        [{"id": 1, "type": "line", "maxlen": 80, "initial": "go nor", "gen": 2}]
+    )
+
+    page.window(1, "buffer", 0, BOX)
+    page.line_input(1, 80)
+
+    assert_that(page.update()).is_equal_to({"type": "pass"})
+
+    page.typed({})
+    page.window(1, "buffer", 0, BOX)
+    page.line_input(1, 80)
+    page.buffer(1, [("normal", 0, "Later.\n")])
+
+    assert_that(page.update()["input"]).is_equal_to(
+        [{"id": 1, "type": "line", "maxlen": 80, "gen": 3}]
+    )
+
+
 # A file ask rides the update as special input and forces one on
 # its own; a second ask in a cycle, and names the protocol lacks,
 # are loud.

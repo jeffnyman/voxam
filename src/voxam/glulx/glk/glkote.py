@@ -21,11 +21,14 @@ stanza to a line, each way (GlkOte: The Application's Life Story).
 The file prompt is carried: a game's ask for a file suspends the
 call itself, travels as the protocol's special input, and the
 player's answer -- a name, or the ever-legitimate cancel --
-completes the parked call (GlkOte: Special Input Requests).
+completes the parked call (GlkOte: Special Input Requests). So is
+the player's half-typed line: every event carries it, and a field
+that must be made anew takes it as its initial, so an
+interruption never eats a command in progress (GlkOte: Partial
+Input).
 
 Deliberately not carried yet, each a named road: the refresh
-event (this transport loses nothing); the player's partial input
-across a field's regeneration; the metrics' outspacing and
+event (this transport loses nothing); the metrics' outspacing and
 inspacing (the window arrangement leaves no gaps for them); and
 flow breaks, which mean nothing until buffer windows claim
 images.
@@ -117,6 +120,12 @@ KEY_CODES = {
 # The highest character a Latin-1 char request can carry (Glk:
 # Character Input).
 _LATIN_1_TOP = 0xFF
+
+# The events that never carry the player's partial input: the
+# init by definition, and the kinds the display suppresses it on
+# -- their absence of a partial means nothing (GlkOte: Partial
+# Input).
+_NO_PARTIAL = frozenset({"init", "specialresponse", "refresh", "debuginput"})
 
 # A file prompt's dress in the protocol's names: Glk's file modes
 # and usages, spelled the way specialinput spells them (GlkOte:
@@ -602,7 +611,7 @@ class GlkOteFrontend(Frontend):
         None means the stanza asks for nothing here: a stale
         generation the protocol says to ignore (GlkOte: The
         Generation Number), or a kind this face does not carry --
-        refresh, specialresponse, external, debuginput.
+        refresh, external, debuginput.
 
         Raises:
             GlkOteError: For a window this session never showed.
@@ -611,10 +620,16 @@ class GlkOteFrontend(Frontend):
                 generations shield every withdrawal.
         """
 
+        kind = stanza.get("type")
+
+        if kind not in _NO_PARTIAL:
+            # The player's half-typed lines ride every event that
+            # can carry them, a stale one included -- the typing
+            # is current even when the event is not.
+            self.page.typed(_typed(stanza.get("partial")))
+
         if stanza.get("gen") != self.page.gen:
             return None
-
-        kind = stanza.get("type")
 
         if kind == "line":
             terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
@@ -853,6 +868,26 @@ def _write(writer: TextIO, stanza: Stanza) -> None:
 
     writer.write(json.dumps(stanza, separators=(",", ":")) + "\n")
     writer.flush()
+
+
+def _typed(partial: object) -> dict[int, str]:
+    """An event's partial-input object as ident-keyed text.
+
+    JSON spells the window ids as object keys -- strings -- and
+    anything not shaped like typing is quietly no typing at all
+    (GlkOte: Partial Input).
+    """
+
+    if not isinstance(partial, dict):
+        return {}
+
+    stashed: dict[int, str] = {}
+
+    for key, text in partial.items():
+        if isinstance(text, str) and str(key).isdigit():
+            stashed[int(key)] = text
+
+    return stashed
 
 
 def _css(color: int) -> str:

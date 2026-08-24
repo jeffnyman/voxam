@@ -103,6 +103,7 @@ class Page:
         self._open: dict[int, bool] = {}
         self._flowing: dict[int, bool] = {}
         self._asked: dict[int, Stanza] = {}
+        self._typed: dict[int, str] = {}
         self._timer_shown = 0
         self._retired: set[int] = set()
 
@@ -599,6 +600,21 @@ class Page:
 
         self._timer_request = (interval, restart)
 
+    def typed(self, partials: dict[int, str]) -> None:
+        """Note what the player has typed so far, window by window.
+
+        Replaced whole each time: every event that can carry
+        partial input carries the complete current picture, and a
+        finished line's window is absent from its own event
+        (GlkOte: Partial Input). A field that must be recreated --
+        content reached its window, or its dress changed -- takes
+        the noted text as its initial, so an interruption never
+        eats a half-typed command; a carried field is left alone,
+        since the display preserves its editing state itself.
+        """
+
+        self._typed = dict(partials)
+
     # -- the update itself -------------------------------------------------
 
     def update(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
@@ -763,6 +779,7 @@ class Page:
 
         for ident, candidate in self._requests.items():
             entry = dict(candidate)
+            carried = False
 
             if "type" in entry:
                 held = self._asked.get(ident)
@@ -774,8 +791,21 @@ class Page:
                 )
                 entry["gen"] = held["gen"] if carried and held else gen
 
-            roster.append(entry)
+            # The memo keeps the game's own dress, so a steady
+            # request stays carried; only the spoken entry takes
+            # the player's half-typed text as its initial, and
+            # only when the field is being made anew (GlkOte:
+            # Partial Input).
             asked[ident] = entry
+            spoken = entry
+
+            if not carried and entry.get("type") == "line":
+                typed = self._typed.get(ident)
+
+                if typed:
+                    spoken = {**entry, "initial": typed}
+
+            roster.append(spoken)
 
         roster.sort(key=lambda entry: entry["id"])
 
@@ -814,6 +844,7 @@ class Page:
             self._open.pop(ident, None)
             self._flowing.pop(ident, None)
             self._asked.pop(ident, None)
+            self._typed.pop(ident, None)
             self._retired.add(ident)
 
     def _rested(self) -> None:
