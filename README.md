@@ -80,8 +80,8 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.6`: The GlkOte protocol, spoken -- on the wire and in
-the browser.
+Version `1.7`: The protocol whole -- saves and the player's
+typing survive the wire.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -135,23 +135,30 @@ under its own name in the title bar -- modern games through their
 records, Infocom's whole catalog through a table of its 246 known
 releases.
 
-New in `1.6`, the protocol: VΘXΔM speaks GlkOte -- the display
+The protocol is `1.6`'s: VΘXΔM speaks GlkOte -- the display
 protocol of Lectrote and the modern web interpreters -- from the
 machine's side, the role RemGlk plays for the C interpreters. The
 machine learned to stand and wait: `glk_select` suspends instead
 of blocking, the host delivers the event, and execution steps on
-as though it never stopped -- the one architectural change the
-display contract was designed to permit, now built and
-load-bearing. On that seam the protocol goes both ways.
-`--glkote` serves whole sessions as JSON lines on stdin and
-stdout, one update out and one event in -- the wire a desktop
-shell will drive. `--web` puts the same conversation in a browser
-tab: the vendored GlkOte display served from inside the package,
-one POST per turn, the story's title on the tab, the gblorb's art
-at its own `/pict` road, and a page reload starting the story
-over. The faces speak Glulx first; the road to `2.0` runs through
-file prompts, the player's partial input, the Z-Machine joining
-the same protocol, and a desktop shell.
+as though it never stopped. On that seam the protocol goes both
+ways: `--glkote` serves whole sessions as JSON lines on stdin and
+stdout -- the wire a desktop shell will drive -- and `--web` puts
+the same conversation in a browser tab, the vendored GlkOte
+display served from inside the package, one POST per turn, the
+story's title on the tab, the gblorb's art at its own `/pict`
+road, and a page reload starting the story over.
+
+New in `1.7`, the protocol whole: the two gaps the faces refused
+loudly are now carried. A game's ask for a save file suspends the
+machine mid-Glk-call -- a second kind of standing down, the
+call's own result parked for the player's answer -- and travels
+as the protocol's special input, so typing `save` in a browser
+tab writes a real Quetzal file beside the story and `restore`
+reads it back. And the player's half-typed command rides every
+event, so a timer printing mid-word no longer eats it: the input
+field is remade wearing exactly what was typed. The faces still
+speak Glulx first; the road to `2.0` runs through the Z-Machine
+joining the same protocol, and a desktop shell.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -241,7 +248,10 @@ voxam --web path/to/story.gblorb
 
 The story's title rides on the tab, its art is served straight
 from the gblorb, each turn is one HTTP exchange, and reloading
-the page starts the story over; `--port` moves it off 8080. And
+the page starts the story over; `--port` moves it off 8080.
+Typing `save` in the tab asks for a name through the display's
+own prompt and writes the Quetzal file beside the story, where
+`restore` -- and every other interpreter -- can find it. And
 `--glkote` speaks the same protocol as JSON lines on stdin and
 stdout -- one update stanza out, one event stanza in -- which is
 the seam any GlkOte-speaking host drives down a pipe. Both faces

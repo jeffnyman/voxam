@@ -1,3 +1,10 @@
+## v1.7.0 (2026-08-24)
+
+### Feat
+
+- **glkote**: the half-typed line survives -- every event carries the player's partial input, and a field made anew wears it as its initial (#247)
+- **glkote**: the machine stands down mid-call -- a file prompt parks the store it owes, and saves travel the protocol as special input (#246)
+
 ## v1.6.0 (2026-08-24)
 
 ### Feat
