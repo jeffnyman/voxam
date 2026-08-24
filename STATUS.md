@@ -433,14 +433,67 @@ coherent, not on a calendar:
   IFIDs and iFiction and the Infocom catalog, and the
   declaration above with its two-entry exclusion ledger.
 
-### And then 2.0
+## The GlkOte protocol: 1.6
 
-Version 2.0 is reserved for an evolution rather than a
-completion: a Lectrote-like interface speaking the GlkOte
-protocol, where the display no longer blocks for input but is
-handed events as they happen. That asks for the one architectural
-change the display contract was designed to permit -- glk_select
-suspending rather than calling read_line -- and the machine has
-been single-steppable since the frontier days for exactly that
-reason. The reference material is already vendored: GlkOte
-itself, and Quixe beside it.
+The 2.0 era opened exactly where the display contract said it
+would: `glk_select` learned to suspend. A display that cannot
+block raises one flag, and the select records what it waits for
+and returns the machine to its host -- the opcode already whole,
+the event delivered later through the library, execution stepping
+on as though it never stopped. The exception that carries the
+wait is named for no one machine, because the contract is not
+Glulx's alone.
+
+On that seam VΘXΔM speaks GlkOte -- the JSON display protocol of
+Lectrote and the modern web interpreters -- from the machine's
+side, the role RemGlk plays for the C interpreters. The speaking
+is machine-neutral by construction: a Page holds everything the
+protocol remembers -- generation numbers, the windows already
+shown, the grid rows already sent, the open paragraph, which
+input fields stand at which generation -- and sends only what
+changed, while a Glulx composer feeds it plain facts read from
+the same tree the painted displays walk. The Z-Machine will feed
+the same Page from its own screen model, and that is the point of
+every seam in it.
+
+Two faces wear the protocol. `--glkote` is the wire itself: JSON
+lines on stdin and stdout, one update out, one event in, every
+inbound stanza owed a response -- the transport a desktop shell
+drives down a pipe. `--web` is the browser: a standard-library
+HTTP server, the vendored GlkOte display shipped inside the wheel
+beside the window icons, one POST per turn -- the burst model the
+protocol's own documentation prescribes -- the story's Babel
+title on the tab, the gblorb's art served at `/pict` by number,
+and a page reload starting the story over, because that is what a
+reload should mean. Adventure was the first game through the
+wire, and the first in the tab.
+
+What the faces do not yet carry is written down where it is
+refused: the file prompt (a game may ask for a save file; the ask
+cancels, legitimately but unhelpfully), the player's partial
+input across a field's regeneration, and the Z-Machine itself --
+"the GlkOte faces speak Glulx first."
+
+### The road to 2.0, underway
+
+Version 2.0 is an evolution rather than a completion: the GlkOte
+interface whole -- both machines, browser and desktop. The
+architectural change it asked for is built and load-bearing; what
+remains maps onto the interim releases:
+
+- **1.6, the protocol spoken.** Done in the making: the
+  suspension seam, the machine-neutral update builder, the event
+  half, and the two faces -- `--glkote` on the wire, `--web` in
+  the browser.
+- **1.7, the protocol whole.** The file prompt over the
+  protocol's special input -- the era's second architectural
+  moment, a suspension mid-Glk-call rather than at select -- and
+  the player's partial input preserved when a timer interrupts
+  their typing.
+- **The Z-Machine joins.** Reading learns the same suspension
+  contract the select learned, and the Z screen model -- upper
+  window to grid, lower to buffer -- feeds the same Page. Bronze
+  in the browser, beside Adventure.
+- **The desktop shell.** The Lectrote analog: a webview wearing
+  the same GlkOte display, driving `--glkote` down a pipe.
+- **2.0, the declaration.**

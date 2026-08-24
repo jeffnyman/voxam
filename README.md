@@ -80,7 +80,8 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.5`: Full Glulx, and the Treaty of Babel.
+Version `1.6`: The GlkOte protocol, spoken -- on the wire and in
+the browser.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -122,26 +123,35 @@ the reader's blue and selected by click -- and the acceptance
 grammar spelling every one of those inputs, recorded at the
 window and replayed anywhere.
 
-New in `1.5`, the declaration: VΘXΔM claims Full Glulx, in the
-manner `1.0` claimed the Z-Machine. The machine is certified by
-glulxercise entire -- seventy sections, zero failures, held in
-continuous integration -- and the displays' claims are all true
-where made: JPEG art now draws through the window's own decoder,
-partial transparency travels whole to the blit, character input
-reaches graphics windows, and even the Z-Machine's double click
-found its code and its `<double-click x y>` spelling along the
-way. The exclusion ledger is two entries, both spec-sanctioned
-refusals with their reasons written down: MOD music, because no
-tracker decoder is aboard, and margin images in text buffers,
-which the Glk spec itself allows a library to decline. And the
-Treaty of Babel is aboard: `--babel` reports any story's IFID by
-the treaty's own per-format rules, a blorb's iFiction record
-answers first with its bibliography beside it, and every game
-that can be named plays under its own name in the title bar --
-modern games through their records, Infocom's whole catalog
-through a table of its 246 known releases. Version 2.0 is
-reserved for something newer still: a Lectrote-like interface on
-the GlkOte protocol.
+The treaty and the declaration are `1.5`'s: VΘXΔM claims Full
+Glulx, in the manner `1.0` claimed the Z-Machine -- glulxercise
+entire, the displays' claims all true where made, and an
+exclusion ledger of exactly two spec-sanctioned refusals with
+their reasons written down. And the Treaty of Babel is aboard:
+`--babel` reports any story's IFID by the treaty's own per-format
+rules, a blorb's iFiction record answers first with its
+bibliography beside it, and every game that can be named plays
+under its own name in the title bar -- modern games through their
+records, Infocom's whole catalog through a table of its 246 known
+releases.
+
+New in `1.6`, the protocol: VΘXΔM speaks GlkOte -- the display
+protocol of Lectrote and the modern web interpreters -- from the
+machine's side, the role RemGlk plays for the C interpreters. The
+machine learned to stand and wait: `glk_select` suspends instead
+of blocking, the host delivers the event, and execution steps on
+as though it never stopped -- the one architectural change the
+display contract was designed to permit, now built and
+load-bearing. On that seam the protocol goes both ways.
+`--glkote` serves whole sessions as JSON lines on stdin and
+stdout, one update out and one event in -- the wire a desktop
+shell will drive. `--web` puts the same conversation in a browser
+tab: the vendored GlkOte display served from inside the package,
+one POST per turn, the story's title on the tab, the gblorb's art
+at its own `/pict` road, and a page reload starting the story
+over. The faces speak Glulx first; the road to `2.0` runs through
+file prompts, the player's partial input, the Z-Machine joining
+the same protocol, and a desktop shell.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -218,6 +228,24 @@ gblorb's sounds aboard, and a glulx badge on the frame -- plus
 everything only a window can offer: graphics canvases with the
 gblorb's PNG art drawn on, mouse clicks in each window's own
 units, and hyperlinks in the reader's blue, selected by click.
+
+The newest face is the browser's. `--web` serves a Glulx story to
+a browser tab over the GlkOte protocol -- the display library of
+Lectrote and the modern web interpreters, shipped inside the
+package, nothing to install and no network beyond your own
+machine:
+
+```bash
+voxam --web path/to/story.gblorb
+```
+
+The story's title rides on the tab, its art is served straight
+from the gblorb, each turn is one HTTP exchange, and reloading
+the page starts the story over; `--port` moves it off 8080. And
+`--glkote` speaks the same protocol as JSON lines on stdin and
+stdout -- one update stanza out, one event stanza in -- which is
+the seam any GlkOte-speaking host drives down a pipe. Both faces
+speak Glulx first; the Z-Machine joins them on the road to 2.0.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.

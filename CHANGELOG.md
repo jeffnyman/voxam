@@ -1,3 +1,12 @@
+## v1.6.0 (2026-08-24)
+
+### Feat
+
+- **web**: the browser face -- GlkOte served from inside the wheel, one POST per turn, and a page reload starts the story over (#244)
+- **glkote**: the conversation goes both ways -- a suspending display accepts the display's events, and --glkote serves whole sessions as JSON lines (#243)
+- **glkote**: the update half of the treaty with the display -- a machine-neutral Page speaks GlkOte stanzas, and the Glulx composer feeds it the tree (#242)
+- **glulx**: glk_select learns to wait -- a suspending display is never asked, the machine stands down mid-run, and the host delivers the event (#241)
+
 ## v1.5.0 (2026-08-23)
 
 ### Feat
