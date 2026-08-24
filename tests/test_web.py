@@ -259,6 +259,44 @@ def test_a_fault_holds_until_the_reload() -> None:
     )
 
 
+# A story that asks the player for a save file and quits.
+PROMPTS = (
+    bytes([0xC0, 0x00, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x81, 0x30, 0x11, 0x06, 0x62, 0x03, 0x01, 0x40])
+    + bytes([0x81, 0x20])
+)
+
+
+# A game's ask for a file crosses the wire as special input, and
+# the posted answer resumes the turn -- no event delivered, the
+# call itself was the destination.
+def test_a_file_ask_crosses_the_wire() -> None:
+    face = Face(
+        Session(Story(glulx_image(PROMPTS)), pictured(), seed=7), "Saves — Voxam"
+    )
+
+    first = posted(face, INIT)
+
+    assert_that(first["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "write", "filetype": "save"}
+    )
+
+    done = posted(
+        face,
+        {
+            "type": "specialresponse",
+            "gen": 1,
+            "response": "fileref_prompt",
+            "value": "saga",
+        },
+    )
+
+    assert_that(done).is_equal_to({"type": "update", "gen": 2, "exit": True})
+
+
 # What is not JSON, and JSON that is not a stanza, answer 200 with
 # the protocol's own error stanza: the display renders that far
 # better than a bare status would.

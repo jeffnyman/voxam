@@ -148,6 +148,54 @@ def test_a_suspended_machine_stands_and_steps_on(image: Callable[..., bytes]) ->
     assert_that(machine.memory.read_word(RESULT + 4)).is_equal_to(7)
 
 
+# A story that asks the player for a save file and quits: the
+# call suspends mid-flight, its store still owed.
+PROMPTS = (
+    bytes([0xC0, 0x00, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x81, 0x30, 0x11, 0x06, 0x62, 0x03, 0x01, 0x40])
+    + bytes([0x81, 0x20])
+)
+
+
+# The mid-call round trip: the prompt suspends the call itself --
+# the sentinel untouched, the store parked -- and the delivered
+# name lands the minted fileref in it; a cancel lands the null
+# reference.
+def test_a_prompt_suspends_mid_call(image: Callable[..., bytes]) -> None:
+    library = Glk(Suspending())
+    machine = Machine(Story(image(code=PROMPTS)), glk=library)
+
+    machine.memory.write_word(RESULT, 0xDEADBEEF)
+    machine.run()
+
+    assert_that(machine.running).is_true()
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(0xDEADBEEF)
+
+    library.deliver_file("saga")
+
+    assert_that(machine.memory.read_word(RESULT)).is_equal_to(1)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+    cancelled = Glk(Suspending())
+    fresh = Machine(Story(image(code=PROMPTS)), glk=cancelled)
+
+    fresh.memory.write_word(RESULT, 0xDEADBEEF)
+    fresh.run()
+    cancelled.deliver_file(None)
+
+    assert_that(fresh.memory.read_word(RESULT)).is_equal_to(0)
+
+    fresh.run()
+
+    assert_that(fresh.running).is_false()
+
+
 # callfi carries one argument into a C1 function, whose return
 # value comes home through the call stub to the caller's target.
 def test_calls_return_through_their_stubs(image: Callable[..., bytes]) -> None:

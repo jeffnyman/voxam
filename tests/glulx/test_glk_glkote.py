@@ -10,12 +10,14 @@ from assertpy import assert_that
 
 from voxam.errors import GlkOteError, GlulxGlkError
 from voxam.glkote import Page
-from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.api import Glk, Prompting
 from voxam.glulx.glk.frontend import Frontend, NullFrontend
 from voxam.glulx.glk.glkote import Composer, GlkOteFrontend, serve
 from voxam.glulx.glk.objects import (
     CHARACTER_CELL,
     EventType,
+    FileMode,
+    FileUsage,
     GraphicsWindow,
     KeyCode,
     Metrics,
@@ -759,13 +761,13 @@ INIT_LINE = json.dumps(
 
 
 def served(
-    image: Callable[..., bytes], lines: list[str]
+    image: Callable[..., bytes], lines: list[str], code: bytes = AWAITS_KEY
 ) -> tuple[bool, list[dict[str, Any]], Machine]:
     """One whole conversation over string pipes."""
 
     frontend = GlkOteFrontend()
     library = Glk(frontend)
-    machine = Machine(Story(image(code=AWAITS_KEY)), glk=library)
+    machine = Machine(Story(image(code=code)), glk=library)
     writer = io.StringIO()
 
     clean = serve(
@@ -866,6 +868,136 @@ def test_a_stale_event_draws_a_pass(image: Callable[..., bytes]) -> None:
 
     assert_that(clean).is_true()
     assert_that(machine.running).is_false()
+    assert_that([held["type"] for held in stanzas]).is_equal_to(
+        ["update", "pass", "update"]
+    )
+
+
+# While a file prompt stands, render dresses it in the protocol's
+# names -- the usage's text-mode bit stripped -- and a mode beyond
+# the four is refused the way the file streams refuse it.
+def test_a_prompt_renders_as_special_input() -> None:
+    library, frontend, _ = sessioned()
+
+    frontend.render()
+    library.glk_fileref_create_by_prompt(FileUsage.SAVED_GAME, FileMode.WRITE, 0)
+
+    update = frontend.render()
+
+    assert_that(update["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "write", "filetype": "save"}
+    )
+
+    scripted, spoken, _ = sessioned()
+
+    spoken.render()
+    scripted.glk_fileref_create_by_prompt(
+        FileUsage.TRANSCRIPT | FileUsage.TEXT_MODE, FileMode.READ_WRITE, 0
+    )
+
+    assert_that(spoken.render()["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "readwrite", "filetype": "transcript"}
+    )
+
+    rogue, faced, _ = sessioned()
+
+    faced.render()
+    rogue.waiting = Prompting(FileUsage.DATA, 7, 0)
+
+    with pytest.raises(GlulxGlkError, match="cannot be prompted"):
+        faced.render()
+
+
+# The player's file answer completes the parked call and clears
+# the wait -- the signal the serving loops read; a stale one, an
+# answer to some other ask, and a dialog's object all leave the
+# game standing where it should stand.
+def test_a_file_answer_completes_the_wait() -> None:
+    library, frontend, _ = sessioned()
+
+    frontend.render()
+
+    prompting = Prompting(FileUsage.SAVED_GAME, FileMode.WRITE, 0)
+    stored: list[int] = []
+    prompting.encode = lambda value: 0 if value is None else 5
+    prompting.store = stored.append
+    library.waiting = prompting
+
+    stale = {"type": "specialresponse", "gen": 0, "response": "fileref_prompt"}
+
+    assert_that(frontend.accept(stale)).is_none()
+    assert_that(library.waiting).is_same_as(prompting)
+
+    foreign = {"type": "specialresponse", "gen": 1, "response": "other", "value": "x"}
+
+    assert_that(frontend.accept(foreign)).is_none()
+    assert_that(library.waiting).is_same_as(prompting)
+
+    named = {
+        "type": "specialresponse",
+        "gen": 1,
+        "response": "fileref_prompt",
+        "value": "saga",
+    }
+
+    assert_that(frontend.accept(named)).is_none()
+    assert_that(stored).is_equal_to([5])
+    assert_that(library.waiting).is_none()
+
+    # A dialog's fileref object was never invited: it cancels.
+    library.waiting = prompting
+    frontend.accept(
+        {
+            "type": "specialresponse",
+            "gen": 1,
+            "response": "fileref_prompt",
+            "value": {"dialog": True},
+        }
+    )
+
+    assert_that(stored).is_equal_to([5, 0])
+
+
+# A story that asks the player for a save file and quits.
+PROMPTS = (
+    bytes([0xC0, 0x00, 0x00])
+    + bytes([0x40, 0x81, 0x00])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x40, 0x81, 0x01])
+    + bytes([0x81, 0x30, 0x11, 0x06, 0x62, 0x03, 0x01, 0x40])
+    + bytes([0x81, 0x20])
+)
+
+
+# The file ask end to end: the update wears the special input, a
+# stale answer draws the pass, and the real one resumes the story
+# without any event delivered -- the call itself was the
+# destination.
+def test_a_file_ask_serves_end_to_end(image: Callable[..., bytes]) -> None:
+    clean, stanzas, machine = served(
+        image,
+        [
+            INIT_LINE,
+            json.dumps(
+                {"type": "specialresponse", "gen": 0, "response": "fileref_prompt"}
+            ),
+            json.dumps(
+                {
+                    "type": "specialresponse",
+                    "gen": 1,
+                    "response": "fileref_prompt",
+                    "value": "saga",
+                }
+            ),
+        ],
+        code=PROMPTS,
+    )
+
+    assert_that(clean).is_true()
+    assert_that(machine.running).is_false()
+    assert_that(stanzas[0]["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "write", "filetype": "save"}
+    )
     assert_that([held["type"] for held in stanzas]).is_equal_to(
         ["update", "pass", "update"]
     )

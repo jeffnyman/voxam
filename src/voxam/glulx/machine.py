@@ -26,7 +26,7 @@ from voxam.errors import (
 from voxam.glulx import floats, funcs, gestalt, search, serial, strings
 from voxam.glulx.accel import Accelerator
 from voxam.glulx.bridge import Bridge
-from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.api import Glk, Prompting
 from voxam.glulx.glk.dispatch import CLASS_STREAM
 from voxam.glulx.heap import Heap
 from voxam.glulx.iosys import IOMode, IOSystem
@@ -808,11 +808,11 @@ class Machine:
             GlulxGlkError: When no Glk library is installed. The
                 opcode always functions when one is -- Glk being
                 current is not required (Glulx: Output).
-            MachineSuspended: When the call was a select that a
-                suspending display answers later. The opcode is
-                already whole -- arguments popped, zero stored,
-                the pc beyond it -- so the machine stands down
-                mid-run and steps on when the event arrives.
+            MachineSuspended: When the call suspended. A select's
+                opcode is already whole -- arguments popped, zero
+                stored, the pc beyond it -- and only its event is
+                owed; a file prompt suspends the call itself, its
+                store parked on the wait for the answer to run.
         """
 
         if self.bridge is None:
@@ -822,9 +822,20 @@ class Machine:
 
         call_args = funcs.pop_arguments(self.stack, args[1], self.memory)
 
-        self._store(args[2], self.bridge.perform(args[0], call_args))
+        result = self.bridge.perform(args[0], call_args)
+        waiting = self.bridge.library.waiting
 
-        if self.bridge.library.waiting is not None:
+        if isinstance(waiting, Prompting):
+            # The call itself stands mid-flight: the store is owed
+            # to the player's answer, so it parks on the wait for
+            # deliver_file to run.
+            waiting.store = lambda value: self._store(args[2], value)
+
+            raise MachineSuspended
+
+        self._store(args[2], result)
+
+        if waiting is not None:
             raise MachineSuspended
 
     def _op_gestalt(self, args: list[Any]) -> None:

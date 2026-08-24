@@ -14,7 +14,7 @@ from typing import cast
 
 from voxam.errors import GlulxGlkError
 from voxam.glulx.glk import dispatch
-from voxam.glulx.glk.api import Glk
+from voxam.glulx.glk.api import Glk, Prompting
 from voxam.glulx.glk.dispatch import Item, Signature
 from voxam.glulx.glk.objects import GlkObject
 from voxam.glulx.glk.refs import Held, Ref, RefStruct
@@ -243,12 +243,19 @@ class Bridge:
 
         call_args, writebacks = self._unmarshal(signature, args)
         result = function(*call_args)
+        waiting = self.library.waiting
 
-        if self.library.waiting is not None:
-            # The call was a select that suspended: its struct is
-            # empty until the event arrives, so its travel back
-            # into memory waits with it, run by deliver_event.
-            self.library.waiting.writebacks = writebacks
+        if waiting is not None:
+            # The call suspended: whatever must travel back into
+            # memory waits with it. A select's struct fill runs at
+            # deliver_event; a file prompt parks the whole result
+            # encoding here, for deliver_file to run.
+            waiting.writebacks = writebacks
+
+            if isinstance(waiting, Prompting):
+                waiting.encode = lambda value: self._encode_result(
+                    signature.result, value
+                )
         else:
             for writeback in writebacks:
                 writeback()

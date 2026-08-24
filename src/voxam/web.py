@@ -117,12 +117,17 @@ class Session:
 
         event = self._frontend.accept(stanza)
 
-        if event is None:
-            return {"type": "pass"}
+        if event is not None:
+            self._glk.deliver_event(event)
 
-        self._glk.deliver_event(event)
+            return self._turned()
 
-        return self._turned()
+        if self._glk.waiting is None:
+            # The stanza itself completed the wait: a file answer
+            # stores through the parked call.
+            return self._turned()
+
+        return {"type": "pass"}
 
     def _turned(self) -> Stanza:
         """Run the machine to its next wait and render the update."""

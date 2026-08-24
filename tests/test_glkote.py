@@ -626,6 +626,39 @@ def test_second_helpings_are_refused() -> None:
         asked.char_input(1)
 
 
+# A file ask rides the update as special input and forces one on
+# its own; a second ask in a cycle, and names the protocol lacks,
+# are loud.
+def test_a_file_ask_rides_the_update() -> None:
+    page = buffered()
+
+    page.update()
+    page.window(1, "buffer", 0, BOX)
+    page.prompt("write", "save")
+
+    assert_that(page.update()).is_equal_to(
+        {
+            "type": "update",
+            "gen": 2,
+            "specialinput": {
+                "type": "fileref_prompt",
+                "filemode": "write",
+                "filetype": "save",
+            },
+        }
+    )
+
+    asked = buffered()
+
+    asked.prompt("read", "data")
+
+    with pytest.raises(GlkOteError, match="one file"):
+        asked.prompt("read", "data")
+
+    with pytest.raises(GlkOteError, match="no file prompt asks"):
+        buffered().prompt("scribble", "save")
+
+
 # An exit rides an update of its own making: the game is over,
 # and that is worth a generation even when nothing else moved.
 def test_exit_forces_a_real_update() -> None:
