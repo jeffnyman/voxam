@@ -1,0 +1,514 @@
+"""The Z-Machine spoken over the GlkOte protocol, both ways.
+
+The same Page the Glulx composer feeds, fed from the §8 screen
+model: the upper window and the Version 1 to 3 status line travel
+as the protocol's grid window, read out of the ScreenModel that
+already knows every splitting and cursor rule, while the lower
+window's text -- which GlkOte wraps and scrolls itself -- never
+enters the model at all and accumulates as styled runs instead.
+
+The reads ride the suspension seam: the machine stands down at a
+read, the update carries the ask -- the counted buffer's preload
+as the field's initial -- and the display's answer is delivered
+straight to the machine, echoed here first, since the machine
+never echoes and the display owes the typed line and its newline.
+
+Deliberately not carried, each refused honestly at the claims: the
+Version 6 stage (the painted glasses keep it), colours, the Z
+mouse, sound, and §13.7's terminating characters -- a line here
+ends at Return.
+"""
+
+import json
+from collections.abc import Sequence
+from typing import TextIO
+
+from voxam.errors import GlkOteError, VoxamError
+from voxam.frontend import PlainFrontend, Status
+from voxam.glkote import (
+    Page,
+    Stanza,
+    measured,
+    partials,
+    read_stanza,
+    write_stanza,
+)
+from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
+from voxam.zmachine.header import STATUS_FLAGS_VERSION
+from voxam.zmachine.machine import Machine
+from voxam.zmachine.story import Story
+
+# The verdicts accept hands the serving loops: run the machine on,
+# render the standing picture, or answer the pass stanza.
+ADVANCE = "advance"
+STAND = "stand"
+PASS = "pass"  # noqa: S105 -- a verdict, not a secret
+
+# The named keys of a char event, each as the §3.8 input character
+# ZSCII spells it; a name outside this table is a key the story
+# cannot hear.
+ZSCII_KEYS = {
+    "up": chr(129),
+    "down": chr(130),
+    "left": chr(131),
+    "right": chr(132),
+    "return": chr(13),
+    "delete": chr(8),
+    "escape": chr(27),
+    "func1": chr(133),
+    "func2": chr(134),
+    "func3": chr(135),
+    "func4": chr(136),
+    "func5": chr(137),
+    "func6": chr(138),
+    "func7": chr(139),
+    "func8": chr(140),
+    "func9": chr(141),
+    "func10": chr(142),
+    "func11": chr(143),
+    "func12": chr(144),
+}
+
+# One §15 tenth of a second, in the protocol's milliseconds.
+_TENTH_MS = 100
+
+# The events that never carry the player's partial input (GlkOte:
+# Partial Input).
+_NO_PARTIAL = frozenset({"init", "specialresponse", "refresh", "debuginput"})
+
+# The buffer window's protocol id; the grid's ids are minted
+# fresh at every reopening, since the protocol forbids reuse.
+_BUFFER = 1
+
+
+class GlkOteFrontend(PlainFrontend):
+    """The Z display at the far end of the protocol.
+
+    Suspends like its Glk twin: never asked for input, its picture
+    gathered whole at render. The upper half of the screen lives
+    in a ScreenModel; the lower half is a stream of styled runs.
+    """
+
+    suspends = True
+    has_status_line = True
+    has_screen_splitting = True
+    has_bold = True
+    has_italic = True
+    has_fixed_pitch = True
+
+    def __init__(self, version: int) -> None:
+        """Open unmeasured, before any init; the model comes sized."""
+
+        super().__init__(lambda _text: None)
+
+        self.version = version
+        self.page = Page()
+        self.machine: Machine | None = None
+        self._model = ScreenModel(
+            columns=self.screen_columns, lines=24, version=version
+        )
+        self._runs: list[tuple[str, int, str] | object] = []
+        self._cleared = False
+        self._style = 0
+        self._size = (0, 0)
+        self._cell = (1.0, 1.0)
+        self._grid_ident: int | None = None
+        self._next_ident = _BUFFER + 1
+        self._last_read: object = None
+
+    # -- the conversation's opening ----------------------------------------
+
+    def begin(self, stanza: Stanza) -> None:
+        """Open the session on the init event's word.
+
+        The screen's size in cells is settled here, before any
+        machine is booted over this display -- the header reads it
+        once at boot (§8.4).
+
+        Raises:
+            GlkOteError: When the metrics carry no size.
+        """
+
+        support = stanza.get("support", [])
+        self.has_timed_input = "timer" in support
+
+        self._measure(stanza)
+
+        self._model = ScreenModel(
+            columns=self.screen_columns, lines=self.screen_lines, version=self.version
+        )
+
+    def _measure(self, stanza: Stanza) -> None:
+        """Take the display's size and cells from its metrics.
+
+        Raises:
+            GlkOteError: When the metrics carry no size.
+        """
+
+        metrics = stanza.get("metrics", {})
+
+        if "width" not in metrics or "height" not in metrics:
+            msg = "the display's metrics carry no size (GlkOte: The Metrics Object)"
+
+            raise GlkOteError(msg)
+
+        width, height, margin_x, margin_y = measured(metrics, "grid")
+
+        self._size = (int(metrics["width"]), int(metrics["height"]))
+        self._cell = (width, height)
+        self.screen_columns = max(1, int((self._size[0] - margin_x) // width))
+        self.screen_lines = max(1, int((self._size[1] - margin_y) // height))
+
+    # -- the screen ops, §8 through the model ------------------------------
+
+    def write(self, text: str) -> None:
+        """Story text: the upper window's goes into the model.
+
+        The lower window's joins the stream of styled runs the
+        display wraps for itself.
+        """
+
+        if self._model.selected == UPPER:
+            self._model.write(text)
+        else:
+            self._runs.append((_named(self._style), 0, text))
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """§15 print_table: stamped in the upper, stacked below."""
+
+        if self._model.selected == UPPER:
+            self._model.write_rectangle(rows)
+        else:
+            for row in rows:
+                self._runs.append((_named(self._style), 0, row + "\n"))
+
+    def show_status(self, status: Status) -> None:
+        """The §8.2 status line, drawn onto the model's top row."""
+
+        self._model.show_status(status)
+
+    def set_style(self, style: int) -> None:
+        """§8.7.1 combining: zero clears, anything else joins."""
+
+        self._model.set_style(style)
+        self._style = 0 if style == 0 else self._style | style
+
+    def set_font(self, font: int) -> None:
+        """Fonts route to the model; the dress keys on styles."""
+
+        self._model.set_font(font)
+
+    def erase_window(self, window: int) -> None:
+        """An erasure of the lower half clears the buffer whole."""
+
+        self._model.erase_window(window)
+
+        if window != UPPER:
+            self._runs.clear()
+            self._cleared = True
+
+    def erase_line(self, pixels: int | None = None) -> None:  # noqa: ARG002 -- v6's unit never reaches this display
+        """To the end of the line -- meaningful in the grid alone."""
+
+        if self._model.selected == UPPER:
+            self._model.erase_line()
+
+    def set_buffering(self, buffered: bool) -> None:
+        """The display wraps for itself; the model need not."""
+
+    def split_window(self, lines: int) -> None:
+        """Resize the upper window (§8.7.2.1); the model rules."""
+
+        self._model.split_window(lines)
+
+    def set_window(self, window: int) -> None:
+        """Select the window taking the next printing (§8.7.2)."""
+
+        self._model.set_window(window)
+
+    def set_cursor(self, line: int, column: int) -> None:
+        """Place the upper window's cursor (§8.7.2.3)."""
+
+        self._model.set_cursor(line, column)
+
+    def cursor_position(self) -> tuple[int, int]:
+        """What get_cursor reads back: the model's own ledger."""
+
+        return self._model.get_cursor()
+
+    # -- the two halves of the conversation --------------------------------
+
+    def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
+        """Compose everything since the last update into a stanza.
+
+        The grid is the status chrome plus the split; one that
+        closes and reopens is a new window with a new id, the
+        protocol forbidding reuse (GlkOte: The Windows Update
+        Array).
+        """
+
+        machine = self._machine()
+        width, height = self._size
+        _, cell_h = self._cell
+        rows = self._grid_rows()
+        brow = int(rows * cell_h)
+
+        self.page.window(_BUFFER, "buffer", 0, (0, brow, width, height))
+
+        if rows:
+            if self._grid_ident is None:
+                self._grid_ident = self._next_ident
+                self._next_ident += 1
+
+            self.page.window(
+                self._grid_ident,
+                "grid",
+                0,
+                (0, 0, width, brow),
+                gridsize=(self.screen_columns, rows),
+            )
+            self.page.grid(self._grid_ident, self._faced(rows))
+        else:
+            self._grid_ident = None
+
+        if self._runs or self._cleared:
+            self.page.buffer(_BUFFER, self._runs, clear=self._cleared)
+
+            self._runs = []
+            self._cleared = False
+
+        waiting = machine.waiting
+
+        if waiting is not None:
+            if waiting.wants == "line":
+                self.page.line_input(_BUFFER, waiting.capacity, initial=waiting.held)
+            else:
+                self.page.char_input(_BUFFER)
+
+        if waiting is not None and waiting.time and waiting.routine:
+            # A fresh timed read restarts the display's clock even
+            # at the same cadence, as §15 restarts its own.
+            self.page.timer(
+                waiting.time * _TENTH_MS, restart=waiting is not self._last_read
+            )
+        else:
+            self.page.timer(0)
+
+        self._last_read = waiting
+
+        return self.page.update(exit=exit)
+
+    def _grid_rows(self) -> int:
+        """The grid's height: the §8.2 chrome plus the split."""
+
+        chrome = 1 if self.version <= STATUS_FLAGS_VERSION else 0
+
+        return chrome + self._model.split
+
+    def _faced(self, rows: int) -> list[list[tuple[str, int, str]]]:
+        """The grid's face, cells coalesced into named runs."""
+
+        face: list[list[tuple[str, int, str]]] = []
+
+        for row in range(1, rows + 1):
+            spans: list[tuple[str, int, str]] = []
+
+            for column in range(1, self.screen_columns + 1):
+                held = self._model.cell(row, column)
+                name = _named(held.style)
+
+                if spans and spans[-1][0] == name:
+                    spans[-1] = (name, 0, spans[-1][2] + held.character)
+                else:
+                    spans.append((name, 0, held.character))
+
+            face.append(spans)
+
+        return face
+
+    def accept(self, stanza: Stanza) -> str:
+        """Translate one inbound stanza into a serving verdict.
+
+        ADVANCE means the machine can run on; STAND means the wait
+        still stands but the picture may have changed -- a timer's
+        interrupt printed -- and PASS means the stanza asked for
+        nothing here.
+
+        Raises:
+            ZMachineInstructionError: For input no read stands to
+                receive -- unreachable from a conforming display,
+                whose generations shield every withdrawal.
+        """
+
+        kind = stanza.get("type")
+
+        if kind not in _NO_PARTIAL:
+            self.page.typed(partials(stanza.get("partial")))
+
+        if stanza.get("gen") != self.page.gen:
+            return PASS
+
+        if kind == "line":
+            line = str(stanza.get("value", ""))
+
+            # The machine never echoes: the display owes the typed
+            # line and its newline, in the input dress.
+            self._runs.append(("input", 0, line + "\n"))
+            self._machine().deliver_line(line)
+
+            return ADVANCE
+
+        if kind == "char":
+            return self._keyed(stanza)
+
+        if kind == "timer":
+            return self._ticked()
+
+        if kind == "arrange":
+            # The next reload boots a machine at the new measure;
+            # this session's header spoke its size once (§8.4).
+            self._measure(stanza)
+
+            return STAND
+
+        return PASS
+
+    def _keyed(self, stanza: Stanza) -> str:
+        """One keystroke to the machine, §3.8-spelled."""
+
+        value = stanza.get("value", "")
+
+        if isinstance(value, str) and len(value) == 1:
+            key = value
+        else:
+            named = ZSCII_KEYS.get(str(value))
+
+            if named is None:
+                return PASS
+
+            key = named
+
+        return ADVANCE if self._machine().deliver_key(key) else PASS
+
+    def _ticked(self) -> str:
+        """A timer event: the §15 interrupt fires, or nothing does."""
+
+        machine = self._machine()
+        waiting = machine.waiting
+
+        if waiting is None or not waiting.routine:
+            return PASS
+
+        machine.deliver_tick()
+
+        return ADVANCE if machine.waiting is None else STAND
+
+    def _machine(self) -> Machine:
+        """The machine this display fronts.
+
+        Raises:
+            GlkOteError: Before any machine is booted over it.
+        """
+
+        if self.machine is None:
+            msg = "the display fronts no machine yet"
+
+            raise GlkOteError(msg)
+
+        return self.machine
+
+
+def serve(
+    story: Story,
+    frontend: GlkOteFrontend,
+    reader: TextIO,
+    writer: TextIO,
+    *,
+    seed: int | None = None,
+) -> bool:
+    """Drive one Z session over the protocol, stanza by stanza.
+
+    The init comes first -- the machine boots only after it, since
+    the header reads the screen's size at boot -- and thereafter
+    the burst model: run to a suspension, the update out, the
+    answer delivered. True is a session that ended cleanly; a
+    broken conversation answers the protocol's own error stanza
+    and is False.
+    """
+
+    try:
+        opening = read_stanza(reader)
+
+        if opening is None or opening.get("type") != "init":
+            msg = (
+                "the conversation opens with an init event "
+                "(GlkOte: The Application's Life Story)"
+            )
+
+            raise GlkOteError(msg)
+
+        frontend.begin(opening)
+
+        machine = Machine(story, frontend, seed=seed)
+        frontend.machine = machine
+
+        while True:
+            machine.run()
+
+            write_stanza(writer, frontend.render(exit=not machine.running))
+
+            if not machine.running:
+                return True
+
+            while True:
+                stanza = read_stanza(reader)
+
+                if stanza is None:
+                    return True
+
+                verdict = frontend.accept(stanza)
+
+                if verdict == ADVANCE:
+                    break
+
+                if verdict == STAND:
+                    # The wait stands but the picture moved -- an
+                    # interrupt printed, a resize arrived.
+                    write_stanza(writer, frontend.render())
+
+                    continue
+
+                write_stanza(writer, {"type": "pass"})
+    except json.JSONDecodeError as error:
+        write_stanza(writer, {"type": "error", "message": f"voxam: not JSON: {error}"})
+
+        return False
+    except VoxamError as error:
+        write_stanza(writer, {"type": "error", "message": f"voxam: {error}"})
+
+        return False
+
+
+def _named(style: int) -> str:
+    """A §8.7 style bitmask as the protocol name it wears.
+
+    Priority-ordered: reverse video first (the page's own CSS
+    dresses user1 as inverse), then fixed pitch, then the weights.
+    """
+
+    if style & REVERSE:
+        return "user1"
+
+    if style & FIXED_PITCH:
+        return "preformatted"
+
+    if style & BOLD and style & ITALIC:
+        return "alert"
+
+    if style & BOLD:
+        return "subheader"
+
+    if style & ITALIC:
+        return "emphasized"
+
+    return "normal"

@@ -13,7 +13,8 @@ from voxam.blorb import Blorb
 from voxam.glulx.glk.resources import Resources
 from voxam.glulx.story import Story
 from voxam.iff import chunk
-from voxam.web import Face, Session, serve_web, webbed
+from voxam.web import Face, GlulxSession, ZSession, serve_web, webbed
+from voxam.zmachine.story import Story as ZStory
 
 RIDX_ENTRY = 12
 FORM_PRELUDE = 12
@@ -109,7 +110,7 @@ def pictured() -> Resources:
 def faced(caption: str | None = "Sensory Jam — Voxam") -> Face:
     """A Face over a fresh session of the keystroke story."""
 
-    return Face(Session(Story(glulx_image()), pictured(), seed=7), caption)
+    return Face(GlulxSession(Story(glulx_image()), pictured(), seed=7), caption)
 
 
 def posted(face: Face, stanza: dict[str, Any] | str | bytes) -> dict[str, Any]:
@@ -275,7 +276,7 @@ PROMPTS = (
 # call itself was the destination.
 def test_a_file_ask_crosses_the_wire() -> None:
     face = Face(
-        Session(Story(glulx_image(PROMPTS)), pictured(), seed=7), "Saves — Voxam"
+        GlulxSession(Story(glulx_image(PROMPTS)), pictured(), seed=7), "Saves — Voxam"
     )
 
     first = posted(face, INIT)
@@ -306,6 +307,61 @@ def test_garbage_posts_answer_in_kind() -> None:
     assert_that(posted(face, "{nope")["message"]).contains("not JSON")
     assert_that(posted(face, "[1, 2]")["message"]).contains("a stanza is a JSON object")
     assert_that(posted(face, b"\xff\xfe")["message"]).contains("not JSON")
+
+
+# A Z-Machine story serves through the same face: init births a
+# machine over the screen model, a posted line echoes and answers,
+# and a reload starts the story over.
+def test_a_z_story_serves_through_the_face() -> None:
+    data = bytearray(96)
+    data[0] = 4
+    data[0x04:0x06] = (0x0060).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x08:0x0A] = (0x005A).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0060).to_bytes(2, "big")
+    data[0x40:0x47] = bytes([0xE4, 0x0F, 0x00, 0x50, 0x00, 0x58, 0xBA])
+    data[0x50] = 6
+    data[0x58] = 1
+    data[0x5A] = 0
+    data[0x5B] = 7
+
+    face = Face(
+        ZSession(ZStory(bytes(data)), pictured(), seed=7), "Sensory Jam — Voxam"
+    )
+
+    first = posted(face, INIT)
+
+    assert_that(first["gen"]).is_equal_to(1)
+    assert_that(first["input"]).is_equal_to(
+        [{"id": 1, "type": "line", "maxlen": 6, "gen": 1}]
+    )
+
+    done = posted(face, {"type": "line", "gen": 1, "window": 1, "value": "look"})
+
+    assert_that(done["exit"]).is_true()
+    assert_that(done["content"][0]["text"][0]["content"][0]["style"]).is_equal_to(
+        "input"
+    )
+    assert_that(posted(face, INIT)["gen"]).is_equal_to(1)
+    assert_that(
+        posted(face, {"type": "line", "gen": 0, "window": 1, "value": "stale"})
+    ).is_equal_to({"type": "pass"})
+
+    # A standing verdict renders the picture as it stands: the
+    # arrange moved the boxes, and the update says so.
+    arranged = posted(
+        face, {"type": "arrange", "gen": 1, "metrics": {"width": 400, "height": 200}}
+    )
+
+    assert_that(arranged["type"]).is_equal_to("update")
+    assert_that(arranged["windows"][0]["width"]).is_equal_to(400)
+
+    # An event before any init is told where conversations begin.
+    unopened = Face(ZSession(ZStory(bytes(data)), pictured(), seed=7), None)
+
+    assert_that(
+        posted(unopened, {"type": "line", "gen": 0, "value": "x"})["message"]
+    ).contains("opens with an init")
 
 
 # The whole server, once, over a real socket: the page, a turn,

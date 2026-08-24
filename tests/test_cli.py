@@ -536,17 +536,52 @@ def test_glkote_refuses_company(
         assert_that(capsys.readouterr().out).contains("cannot join it")
 
 
-# The GlkOte face speaks Glulx first; a Z-Machine story is told
-# so, loudly, before any stream is promised.
-def test_glkote_speaks_glulx_first(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+# The Z-Machine speaks the protocol now: a Z story routes to its
+# own serve, the verdict mapping to the exit code -- while the
+# Version 6 stage stays at the painted glasses, loudly.
+def test_z_stories_speak_the_protocol(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     story = broken_story(tmp_path, bytes([0xBA]))
 
-    exit_code = main([str(story), "--glkote"])
+    monkeypatch.setattr("voxam.cli.serve_z", lambda *seats, **_knobs: bool(seats))
 
-    assert_that(exit_code).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("speak Glulx first")
+    assert_that(main([str(story), "--glkote"])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).is_empty()
+
+    monkeypatch.setattr("voxam.cli.serve_z", lambda *seats, **_knobs: not bool(seats))
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+
+    def burst(*_seats: object, **_knobs: object) -> bool:
+        raise OSError
+
+    monkeypatch.setattr("voxam.cli.serve_z", burst)
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+
+    monkeypatch.setattr("voxam.cli.serve_web", lambda _face, port: port - port)
+
+    assert_that(main([str(story), "--web"])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("Voxam Interpreter")
+
+    staged = broken_story(tmp_path, bytes([0xBA]), version=6)
+
+    assert_that(main([str(staged), "--web"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("stage stays at the painted")
+
+    def unbound(_face: object, _port: int) -> int:
+        raise OSError("address in use")
+
+    monkeypatch.setattr("voxam.cli.serve_web", unbound)
+
+    # The staged story overwrote the tmp file: mint a fresh one.
+    fresh = broken_story(tmp_path, bytes([0xBA]))
+
+    assert_that(main([str(fresh), "--web"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("address in use")
 
 
 # A served session leaves stdout to the stanzas alone: no banner,
@@ -598,11 +633,6 @@ def test_web_refuses_company(
 
     assert_that(portly).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("belongs to --web")
-
-    zcode = main([str(broken_story(tmp_path, bytes([0xBA]))), "--web"])
-
-    assert_that(zcode).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("speak Glulx first")
 
 
 # The web arm hands the session to the server and maps its

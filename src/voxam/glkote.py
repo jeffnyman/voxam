@@ -17,7 +17,8 @@ it through its composer; the Z-Machine will feed it the same way
 from its own screen model.
 """
 
-from typing import Any
+import json
+from typing import Any, TextIO, cast
 
 from voxam.errors import GlkOteError
 
@@ -890,3 +891,82 @@ def _bared(entry: Stanza) -> Stanza:
     """An input entry with its generation set aside, for comparing."""
 
     return {key: value for key, value in entry.items() if key != "gen"}
+
+
+def measured(metrics: Stanza, prefix: str) -> tuple[float, float, float, float]:
+    """One window kind's cell measures, with the spec's fallback chain.
+
+    (width, height, margin x, margin y): a partial metrics object
+    falls back from the qualified name to the generic to the
+    default, the rules RemGlk reads by (GlkOte: The Metrics
+    Object). Shared because both machines measure the same way.
+    """
+
+    def field(name: str, *fallbacks: str, default: float) -> float:
+        for key in (prefix + name, *fallbacks):
+            if key in metrics:
+                return float(metrics[key])
+
+        return default
+
+    return (
+        field("charwidth", "charwidth", default=1),
+        field("charheight", "charheight", default=1),
+        field("marginx", "marginx", "margin", default=0),
+        field("marginy", "marginy", "margin", default=0),
+    )
+
+
+def partials(partial: object) -> dict[int, str]:
+    """An event's partial-input object as ident-keyed text.
+
+    JSON spells the window ids as object keys -- strings -- and
+    anything not shaped like typing is quietly no typing at all
+    (GlkOte: Partial Input).
+    """
+
+    if not isinstance(partial, dict):
+        return {}
+
+    stashed: dict[int, str] = {}
+
+    for key, text in partial.items():
+        if isinstance(text, str) and str(key).isdigit():
+            stashed[int(key)] = text
+
+    return stashed
+
+
+def read_stanza(reader: TextIO) -> Stanza | None:
+    """The next stanza from the display, or None when it hung up.
+
+    Raises:
+        GlkOteError: For JSON that is not an object.
+        json.JSONDecodeError: For what is not JSON at all.
+    """
+
+    for line in reader:
+        if not line.strip():
+            continue
+
+        parsed = json.loads(line)
+
+        if not isinstance(parsed, dict):
+            msg = "a stanza is a JSON object"
+
+            raise GlkOteError(msg)
+
+        return cast("Stanza", parsed)
+
+    return None
+
+
+def write_stanza(writer: TextIO, stanza: Stanza) -> None:
+    """One stanza out, compact, on its own line, flushed.
+
+    Flushed every time: an update parked in a pipe's buffer is a
+    display waiting forever.
+    """
+
+    writer.write(json.dumps(stanza, separators=(",", ":")) + "\n")
+    writer.flush()
