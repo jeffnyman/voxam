@@ -612,10 +612,11 @@ The shell finds `voxam` on the PATH -- `uv tool install voxam` or
 `pipx install voxam` puts it there -- and says so plainly when it
 cannot. Open a story from the landing page or the File menu;
 File > Restart Story starts it over, exactly as a reload does in
-the browser face. What the shell does not carry yet, each a named
-road: pictures, the save-file dialog (a save prompt is answered
-with a cancel, as in the browser face today), and the Babel title
-on the title bar (the story's filename stands in).
+the browser face, and every story that can be named plays under
+its Babel title on the title bar. What the shell does not carry
+yet, each a named road: pictures, and the save-file dialog (a
+save prompt is answered with a cancel, as in the browser face
+today).
 
 ### Project conventions
 
