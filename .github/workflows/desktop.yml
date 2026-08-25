@@ -29,9 +29,7 @@ jobs:
           - name: linux
             os: ubuntu-latest
             bundles: deb,appimage
-            built: |
-              desktop/src-tauri/target/release/bundle/deb/*.deb
-              desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            built: desktop/gathered/*
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -66,6 +64,16 @@ jobs:
       - name: Build the installers
         working-directory: desktop
         run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.flags }}
+
+      # Two bundle kinds arrive in two directories; the artifact
+      # carries them flat, the same shape every platform's wears.
+      - name: Gather the Linux bundles flat
+        if: matrix.name == 'linux'
+        working-directory: desktop
+        run: |
+          mkdir gathered
+          cp src-tauri/target/release/bundle/deb/*.deb gathered/
+          cp src-tauri/target/release/bundle/appimage/*.AppImage gathered/
 
       - name: Keep the installers
         uses: actions/upload-artifact@v7
