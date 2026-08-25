@@ -35,6 +35,14 @@ STATUS_CHROME_LINES = 2
 NORMAL_FONT = 1
 PICTURE_FONT = 2
 GRAPHICS_FONT = 3
+
+# The arc_image contract's fixed facts, shared by every face that
+# hangs the band: the two modes by their text-row names, the
+# reference width the masters are painted at, and the pixel rows
+# each mode row stands for (arc_image: the contract, part A).
+ARC_MODES = frozenset({9, 12})
+ARC_REFERENCE_WIDTH = 320
+ARC_PIXEL_ROWS = 8
 COURIER_FONT = 4
 CURRENT_FONT = 0
 

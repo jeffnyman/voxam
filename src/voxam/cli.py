@@ -964,6 +964,7 @@ def _graphics_frontend(
             speaker=_speaker(blorb),
             gallery=art,
             standard=standard,
+            arc=GlkResources(blorb) if blorb is not None else None,
             zoom=zoom,
             title=title,
         )

@@ -30,7 +30,13 @@ from collections.abc import Sequence
 from typing import TextIO
 
 from voxam.errors import GlkOteError, VoxamError
-from voxam.frontend import PlainFrontend, Status
+from voxam.frontend import (
+    ARC_MODES,
+    ARC_PIXEL_ROWS,
+    ARC_REFERENCE_WIDTH,
+    PlainFrontend,
+    Status,
+)
 from voxam.glkote import (
     Page,
     Stanza,
@@ -79,13 +85,6 @@ ZSCII_KEYS = {
 # One §15 tenth of a second, in the protocol's milliseconds.
 _TENTH_MS = 100
 
-# The band's two shapes, named for where they come from: 9 text
-# rows in the Arthur style, 12 in the DAAD adventures' -- each
-# mode times 8 pixel rows tall at the 320-pixel reference width,
-# and the aspect the display preserves (arc_image: the contract).
-_BAND_MODES = frozenset({9, 12})
-_BAND_REFERENCE_WIDTH = 320
-_BAND_PIXEL_ROWS = 8
 
 # The events that never carry the player's partial input (GlkOte:
 # Partial Input).
@@ -259,7 +258,7 @@ class GlkOteFrontend(PlainFrontend):
         what stands below the band, or grow back at a clear.
         """
 
-        if mode not in _BAND_MODES:
+        if mode not in ARC_MODES:
             return
 
         if image == 0:
@@ -291,7 +290,7 @@ class GlkOteFrontend(PlainFrontend):
         width, _ = self._size
         _, mode = self._band
 
-        return round(width * mode * _BAND_PIXEL_ROWS / _BAND_REFERENCE_WIDTH)
+        return round(width * mode * ARC_PIXEL_ROWS / ARC_REFERENCE_WIDTH)
 
     def _rebased(self) -> None:
         """Tell the header how many rows stand below the band.
