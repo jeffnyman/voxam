@@ -1,0 +1,128 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/violet-r3-s081101.zblorb
+
+>
+i
+write
+sit
+write
+x computer
+open word processor
+x tattoo
+write
+write
+look
+x desk
+open drawer
+x notebook
+get key
+x cabinet
+open cabinet
+x bottle
+get bottle
+drink liquid
+write
+unplug cable
+write
+unplug cable
+get balloon
+put cable in cabinet
+lock cabinet
+write
+x stool
+get on stool
+put key on top of bookcase
+get off stool
+break stool
+write
+x balloon
+pull tab
+x message
+x device
+charge platypod
+wait
+wait
+wait
+wear platypod
+scrunch brow
+jiggle head clockwise
+write
+x wastebasket
+x gum
+get gum
+chew gum
+remove platypod
+put gum in ears
+wear platypod
+scrunch brow
+jiggle head clockwise
+write
+x beauty
+x frame
+break frame
+>
+>
+get clamp
+put clamp on nose
+write
+raise left eyebrow
+raise left eyebrow
+write
+x window
+x blind
+pull cord
+get on desk
+x blind
+fix whatever
+pull cord
+get off desk
+x cabinet
+x trophy
+get trophy
+unfold trophy
+>
+>
+x sign
+cover window with sign
+write
+x bookcase
+x book
+get book
+x lighter
+get lighter
+burn book
+burn book
+write
+x cactus
+x pipe
+x sprinkler
+x pen
+x mess
+tidy mess
+x square
+remove chip from pouch
+put tater tot in pouch
+shoot pen
+x globe
+get globe
+shake globe
+x globe
+throw globe at pen
+throw globe at pen
+get figurine
+put figurine in pouch
+shoot pen
+get pen
+write
+write
+remove clothes
+write
+>
+pee in wastebasket
+write
+>
+>
+>
+>
+>
+quit
