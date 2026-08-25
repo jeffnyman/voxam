@@ -30,6 +30,20 @@ def test_scan_table_both_stores_and_branches() -> None:
     assert_that(opcode.branches).is_true()
 
 
+# Standard 1.1 reserves EXT 128-255 for private use and asks that
+# unknown ones be ignored (§14.2): the lookup answers a rider-less
+# no-op for the whole range. Below 128 is the Standard's own table,
+# where an unknown number stays the loud error it always was.
+def test_private_ext_opcodes_pass_unclaimed() -> None:
+    for number in (0x80, 0xC3, 0xFF):
+        opcode = lookup(OpcodeKind.EXT, number, 5)
+
+        assert_that(opcode).is_equal_to(Opcode("ext_private"))
+
+    with pytest.raises(ZMachineInstructionError, match="not an opcode"):
+        lookup(OpcodeKind.EXT, 0x7F, 5)
+
+
 def test_only_the_print_opcodes_carry_text() -> None:
     assert_that(lookup(OpcodeKind.ZERO_OP, 0x2, 3).has_text).is_true()
     assert_that(lookup(OpcodeKind.ZERO_OP, 0x3, 3).has_text).is_true()
