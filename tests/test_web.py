@@ -190,6 +190,34 @@ def test_pictures_serve_by_number() -> None:
     assert_that(face.respond("GET", "/pict/abc", b"")[0]).is_equal_to(404)
 
 
+# The tab wears the machine's own mark -- the same window icons
+# the pygame title bars wear: a Glulx face answers the glulx
+# icon, a Z face its version's own, and the page asks by link.
+def test_the_tab_wears_the_machine_icon() -> None:
+    status, kind, payload = faced().respond("GET", "/favicon.ico", b"")
+
+    assert_that((status, kind)).is_equal_to((200, "image/x-icon"))
+    assert_that(payload[:4]).is_equal_to(b"\x00\x00\x01\x00")
+
+    data = bytearray(96)
+    data[0] = 4
+    data[0x04:0x06] = (0x0060).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x08:0x0A] = (0x005A).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x0060).to_bytes(2, "big")
+
+    zed = Face(ZSession(ZStory(bytes(data)), pictured(), seed=7), None)
+
+    assert_that(zed.session.icon).is_equal_to("z4.ico")
+    assert_that(zed.respond("GET", "/favicon.ico", b"")[2][:4]).is_equal_to(
+        b"\x00\x00\x01\x00"
+    )
+
+    _, _, page = faced().respond("GET", "/", b"")
+
+    assert_that(page.decode("utf-8")).contains('rel="icon"')
+
+
 # A whole turn travels by POST: the init births the session and
 # answers the first update, the keystroke answers the exit.
 def test_a_turn_travels_by_post() -> None:
