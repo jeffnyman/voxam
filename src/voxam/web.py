@@ -189,7 +189,7 @@ class ZSession(Session):
         self._machine: ZMachine | None = None
 
     def _reborn(self, stanza: Stanza) -> Stanza:
-        self._frontend = ZGlkOteFrontend(self._story.header.version)
+        self._frontend = ZGlkOteFrontend(self._story.header.version, self.resources)
 
         self._frontend.begin(stanza)
 

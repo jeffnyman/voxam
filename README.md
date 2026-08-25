@@ -150,6 +150,17 @@ the gblorb's art inlined in the updates themselves as `data:`
 urls -- any GlkOte display draws it with no Blorb of its own --
 and a page reload starting the story over.
 
+And the protocol faces speak
+[arc_image](https://github.com/8bitgames/arcturus), the picture
+band of Stefan Vogt's Arcturus games: a conformant z5 or z8 whose
+sidecar Blorb carries art plays with the band hung above the whole
+screen, the picture following the story scene by scene -- in the
+browser and the desktop shell alike, while every other face plays
+the same story honestly as text, exactly as the format promises.
+The private-use opcode range it rides in now skips unclaimed
+everywhere (§14.2), so any interpreter extension passes through
+VΘXΔM quietly.
+
 The protocol made whole is `1.7`'s: a game's ask for a save file
 suspends the machine mid-Glk-call -- a second kind of standing
 down, the call's own result parked for the player's answer -- and

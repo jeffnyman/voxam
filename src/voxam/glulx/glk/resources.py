@@ -14,9 +14,10 @@ dimensions and then discover it has no graphics (Glk: Testing for
 Graphics Capabilities).
 """
 
+import base64
 from dataclasses import dataclass
 
-from voxam.blorb import USAGE_DATA, USAGE_PICTURE, USAGE_SOUND, Blorb
+from voxam.blorb import PNG_ID, USAGE_DATA, USAGE_PICTURE, USAGE_SOUND, Blorb
 from voxam.iff import Chunk, chunk
 
 FORM = b"FORM"
@@ -60,6 +61,20 @@ class ImageInfo:
     data: bytes
     width: int
     height: int
+
+
+def pictured(image: ImageInfo) -> str:
+    """The picture whole, as a data: url the display draws directly.
+
+    The bytes are the Blorb's own -- PNG or JPEG by chunk kind
+    (Blorb: Picture Resource Chunks) -- so no host road and no
+    Blorb interface is owed on the far side.
+    """
+
+    kind = "image/png" if image.kind == PNG_ID else "image/jpeg"
+    held = base64.b64encode(image.data).decode("ascii")
+
+    return f"data:{kind};base64,{held}"
 
 
 def image_size(data: bytes) -> tuple[int, int] | None:
@@ -169,6 +184,19 @@ class Resources:
         self._images[number] = info
 
         return info
+
+    def pictured(self, number: int) -> str | None:
+        """A picture whole, as a data: url a display draws directly.
+
+        The bytes are the Blorb's own -- PNG or JPEG by chunk kind
+        (Blorb: Picture Resource Chunks) -- so no host road and no
+        Blorb interface is owed on the far side. None for a number
+        no picture answers.
+        """
+
+        image = self.image(number)
+
+        return None if image is None else pictured(image)
 
     def sound(self, number: int) -> bytes | None:
         """Return a sound resource's bytes, or None if absent.

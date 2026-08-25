@@ -565,13 +565,24 @@ remains maps onto the interim releases:
   thousand writes snaps into place instead of smearing; and the
   browser tab wears the machine's own icon beside the story's
   Babel title.
+- **The band hangs.** VΘXΔM speaks arc_image, the picture band of
+  the Arcturus games (contract version 1.6, windowed profile): a
+  conformant z5 or z8 with a sidecar of art plays illustrated --
+  EXT:0x80 reaches a claiming display, Flags 1's picture bit
+  answers honestly in Versions 5, 7, and 8, and the protocol
+  faces hang the band as a graphics window above the whole
+  screen, the picture inlined, the grid and buffer re-based
+  below, the header's rows following. The pygame glass's band is
+  the road still open; every unclaiming face plays the same
+  story as text, and the whole private EXT range now skips
+  unclaimed (§14.2), as Standard 1.1 asks.
 - **2.0, the declaration.** The road still holds, each its own
-  branch: whatever the all-frontends playthroughs surface, the Z
-  save wait (the Z machine saves without suspending, so its
-  protocol saves answer an honest failure until it learns the
-  standing-down its reads learned), and -- its own later road --
-  signed installers (macOS Gatekeeper and SmartScreen warn on
-  the unsigned ones). Pictures already ride the pipe: every
+  branch: the glass's arc_image band, whatever the all-frontends
+  playthroughs surface, the Z save wait (the Z machine saves
+  without suspending, so its protocol saves answer an honest
+  failure until it learns the standing-down its reads learned),
+  and -- its own later road -- signed installers (macOS
+  Gatekeeper and SmartScreen warn on the unsigned ones). Pictures already ride the pipe: every
   image op carries its picture whole as a `data:` url, so the
   shell and the browser draw the gblorb's art from the update
   alone. And the shell answers the file prompt with a real
