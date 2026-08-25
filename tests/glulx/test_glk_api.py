@@ -24,6 +24,7 @@ from voxam.glulx.glk.objects import (
     Event,
     EventType,
     FileMode,
+    FileRef,
     FileUsage,
     KeyCode,
     PairWindow,
@@ -1414,6 +1415,48 @@ def test_files_and_events_land_only_in_their_own_waits() -> None:
 
     with pytest.raises(GlulxGlkError, match="no prompt suspended"):
         library.deliver_file("saga")
+
+
+# The prompt's name is the player's own, never the game-name
+# jail: an absolute path is honored whole, a relative one lands
+# in the save dir, a bare one gains its usage's suffix as a
+# courtesy, and an explicit suffix is kept exactly as chosen.
+def test_a_prompted_name_is_the_players_own(tmp_path: Path) -> None:
+    library, _ = rooted(Suspending())
+    library.save_dir = tmp_path
+
+    minted: list[FileRef] = []
+
+    def kept(value: FileRef | None) -> int:
+        if value is None:
+            pytest.fail("the prompt was answered, not cancelled")
+
+        minted.append(value)
+
+        return 0
+
+    def prompted(name: str) -> None:
+        library.glk_fileref_create_by_prompt(FileUsage.SAVED_GAME, FileMode.WRITE, 0)
+
+        waiting = library.waiting
+
+        if not isinstance(waiting, Prompting):
+            pytest.fail("the prompt suspended")
+
+        waiting.encode = kept
+        waiting.store = lambda _value: None
+
+        library.deliver_file(name)
+
+    chosen = tmp_path / "kept" / "expedition"
+
+    prompted(str(chosen))
+    prompted("beside")
+    prompted("named.sav")
+
+    assert_that(minted[0].filename).is_equal_to(str(chosen) + ".glksave")
+    assert_that(minted[1].filename).is_equal_to(str(tmp_path / "beside.glksave"))
+    assert_that(minted[2].filename).is_equal_to(str(tmp_path / "named.sav"))
 
 
 # A timer fires while a line is pending: the request survives the

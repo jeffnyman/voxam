@@ -641,9 +641,14 @@ page -- the story's type and size, the ink it is set in (paper,
 sepia, or dark), and the measure of its column -- applied live,
 remembered across sessions. The gblorb's art draws in the shell
 exactly as in the browser, the pictures riding the updates
-themselves. What the shell does not carry yet, one named road:
-the save-file dialog (a save prompt is answered with a cancel,
-as in the browser face today).
+themselves. And a Glulx story's `save` opens a real save dialog
+-- the desktop's own power, since the picker and the interpreter
+share a filesystem -- the chosen path answering the protocol's
+file prompt, so saves and restores work exactly as at the
+painted glasses. (A Z-Machine story's save over the protocol
+still answers honestly that it cannot: the Z machine saves
+without suspending, and teaching it to wait is its own named
+road.)
 
 ### Project conventions
 

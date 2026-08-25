@@ -863,10 +863,15 @@ class Glk:
     def deliver_file(self, name: str | None) -> None:
         """Complete a suspended file prompt with the player's name.
 
-        The fileref is minted the way the blocking path mints it
-        -- nothing at all for a cancel, which is always legitimate
-        (Glk: File References) -- and then the call's parked tail
-        runs: the bridge's encoding, the machine's store.
+        The prompt's name is the player's own, not the game's: the
+        sanitizing jail guards names arriving from bytecode, but a
+        name a person chose -- a native picker's whole path, or a
+        word typed at the wire -- is honored as given (Glk: File
+        References; cheapglk draws the same line). A relative name
+        lands in the save dir, a bare one gains its usage's suffix
+        as a courtesy, and a cancel is nothing at all, which is
+        always legitimate. Then the call's parked tail runs: the
+        bridge's encoding, the machine's store.
 
         Raises:
             GlulxGlkError: When no file prompt stands suspended,
@@ -886,13 +891,20 @@ class Glk:
 
             raise GlulxGlkError(msg)
 
-        fileref = (
-            None
-            if not name
-            else self._new_fileref(
-                self._path_for(name, waiting.usage), waiting.usage, waiting.rock
-            )
-        )
+        if not name:
+            fileref = None
+        else:
+            chosen = Path(name)
+
+            if not chosen.is_absolute():
+                chosen = self.save_dir / chosen
+
+            if not chosen.suffix:
+                chosen = chosen.with_suffix(
+                    _SUFFIXES.get(waiting.usage & FileUsage.TYPE_MASK, _DEFAULT_SUFFIX)
+                )
+
+            fileref = self._new_fileref(chosen, waiting.usage, waiting.rock)
 
         waiting.store(waiting.encode(fileref))
 
