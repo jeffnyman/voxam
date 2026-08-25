@@ -1,0 +1,17 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/rabenstein-r1-s260825.z5
+
+north
+north
+north
+south
+south
+take lantern
+light lantern
+north
+north
+sleep
+sleep
+sleep
+south
+quit
