@@ -764,6 +764,95 @@ cure when a vendor pointer moved -- with `--remote` it would
 instead drag those checkouts past their recorded pointers and
 leave the submodule looking dirty.
 
+#### Building the Reference Tools
+
+Entharion includes several buildable C references, each a nested
+submodule:
+
+- `frotz` — the reference Z-Machine interpreter; its "dumb" build
+  (`dfrotz`) runs in a plain terminal with no display dependencies.
+- `glulxe` (with `cheapglk`) — the reference Glulx interpreter,
+  spoken through the minimal Glk library beside it: plain stdio,
+  dfrotz's twin for the other machine.
+- `ztools` — inspection utilities such as `infodump` (header, objects,
+  dictionary) and `txd` (disassembler).
+- `reform6` — an Inform 6 based compiler for producing story files.
+
+Building them is optional. They are useful for comparing VΘXΔM's
+behavior against known-good implementations. All three need only a C
+compiler, `make`, and a Unix-like environment.
+
+**Prerequisites**
+
+**Windows.** The tools assume a Unix environment, so use WSL. From an
+elevated PowerShell (rebooting if prompted, then creating a Unix user
+when the Ubuntu shell first opens):
+
+```powershell
+wsl --install
+```
+
+Then, inside the Ubuntu shell, install the toolchain:
+
+```sh
+sudo apt update
+sudo apt install build-essential groff
+```
+
+(`groff` is only needed to format the ztools man pages.)
+
+Your Windows drives are visible in WSL under `/mnt`, so a checkout at
+`F:\Projects\voxam` is reachable at `/mnt/f/Projects/voxam`.
+
+**macOS.** Install the command line developer tools:
+
+```sh
+xcode-select --install
+```
+
+**Linux.** Install a compiler toolchain, e.g. on Debian/Ubuntu:
+
+```sh
+sudo apt update
+sudo apt install build-essential groff
+```
+
+**Compiling.**
+
+From the repository root (in WSL, macOS Terminal, or a Linux shell):
+
+```sh
+make -C entharion/vendor/ztools
+make -C entharion/vendor/reform6
+make -C entharion/vendor/frotz dumb
+make -C entharion/vendor/cheapglk
+make -C entharion/vendor/glulxe
+```
+
+(`cheapglk` must build before `glulxe`: its build generates the
+`Make.cheapglk` snippet glulxe's Makefile includes, from the
+side-by-side layout its defaults already expect.)
+
+The binaries land in each tool's own directory, and each of those
+repositories already ignores its build artifacts, so nothing shows up
+as untracked in Git.
+
+**Running.**
+
+From a Unix shell:
+
+```sh
+./entharion/vendor/frotz/dfrotz entharion/zcode-infocom/ballyhoo-r97-s851218.z3
+./entharion/vendor/ztools/infodump -i entharion/zcode-infocom/amfv-r77-s850814.z4
+./entharion/vendor/glulxe/glulxe entharion/glulx-code/advent-r5-s961209.ulx
+```
+
+On Windows the binaries are Linux executables, but they can be invoked
+directly from PowerShell by prefixing `wsl`:
+
+```powershell
+wsl ./entharion/vendor/frotz/dfrotz entharion/zcode-infocom/ballyhoo-r97-s851218.z3
+```
 ---
 
 ## 🪄 The Name
