@@ -34,11 +34,9 @@ flow breaks, which mean nothing until buffer windows claim
 images.
 """
 
-import base64
 import json
 from typing import TextIO, cast
 
-from voxam.blorb import PNG_ID
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import (
     STYLES,
@@ -69,7 +67,7 @@ from voxam.glulx.glk.objects import (
     to_char,
 )
 from voxam.glulx.glk.painted import grouped
-from voxam.glulx.glk.resources import ImageInfo
+from voxam.glulx.glk.resources import ImageInfo, pictured
 from voxam.glulx.glk.wrap import Segment
 from voxam.glulx.machine import Machine
 
@@ -543,7 +541,7 @@ class GlkOteFrontend(Frontend):
             {
                 "special": "image",
                 "image": image.number,
-                "url": _pictured(image),
+                "url": pictured(image),
                 "x": val1,
                 "y": val2,
                 "width": width,
@@ -857,20 +855,6 @@ def _css(color: int) -> str:
     """
 
     return f"#{color & 0xFFFFFF:06X}"
-
-
-def _pictured(image: ImageInfo) -> str:
-    """The picture whole, as a data: url the display draws directly.
-
-    The bytes are the Blorb's own -- PNG or JPEG by chunk kind
-    (Blorb: Picture Resource Chunks) -- so no host road and no
-    Blorb interface is owed on the far side.
-    """
-
-    kind = "image/png" if image.kind == PNG_ID else "image/jpeg"
-    held = base64.b64encode(image.data).decode("ascii")
-
-    return f"data:{kind};base64,{held}"
 
 
 def _cell(metrics: Stanza, prefix: str) -> Metrics:

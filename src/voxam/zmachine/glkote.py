@@ -13,6 +13,12 @@ as the field's initial -- and the display's answer is delivered
 straight to the machine, echoed here first, since the machine
 never echoes and the display owes the typed line and its newline.
 
+The arc_image band hangs here too: a story whose sidecar carries
+pictures plays them in a graphics window above the whole screen --
+the picture inlined as a data: url, the grid and buffer re-based
+below, the header's rows updated as the contract asks (arc_image:
+the contract, part A).
+
 Deliberately not carried, each refused honestly at the claims: the
 Version 6 stage (the painted glasses keep it), colours, the Z
 mouse, sound, and §13.7's terminating characters -- a line here
@@ -33,6 +39,7 @@ from voxam.glkote import (
     read_stanza,
     write_stanza,
 )
+from voxam.glulx.glk.resources import Resources
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
 from voxam.zmachine.machine import Machine
@@ -72,6 +79,14 @@ ZSCII_KEYS = {
 # One §15 tenth of a second, in the protocol's milliseconds.
 _TENTH_MS = 100
 
+# The band's two shapes, named for where they come from: 9 text
+# rows in the Arthur style, 12 in the DAAD adventures' -- each
+# mode times 8 pixel rows tall at the 320-pixel reference width,
+# and the aspect the display preserves (arc_image: the contract).
+_BAND_MODES = frozenset({9, 12})
+_BAND_REFERENCE_WIDTH = 320
+_BAND_PIXEL_ROWS = 8
+
 # The events that never carry the player's partial input (GlkOte:
 # Partial Input).
 _NO_PARTIAL = frozenset({"init", "specialresponse", "refresh", "debuginput"})
@@ -96,7 +111,7 @@ class GlkOteFrontend(PlainFrontend):
     has_italic = True
     has_fixed_pitch = True
 
-    def __init__(self, version: int) -> None:
+    def __init__(self, version: int, resources: Resources | None = None) -> None:
         """Open unmeasured, before any init; the model comes sized."""
 
         super().__init__(lambda _text: None)
@@ -104,6 +119,7 @@ class GlkOteFrontend(PlainFrontend):
         self.version = version
         self.page = Page()
         self.machine: Machine | None = None
+        self._resources = resources
         self._model = ScreenModel(
             columns=self.screen_columns, lines=24, version=version
         )
@@ -116,6 +132,12 @@ class GlkOteFrontend(PlainFrontend):
         self._grid_ident: int | None = None
         self._next_ident = _BUFFER + 1
         self._last_read: object = None
+        # The arc_image band: the hanging (picture, mode), the
+        # canvas id it wears -- minted fresh at every reopening --
+        # and whether its drawing still owes the display.
+        self._band: tuple[int, int] | None = None
+        self._band_ident: int | None = None
+        self._band_dirty = False
 
     # -- the conversation's opening ----------------------------------------
 
@@ -132,6 +154,15 @@ class GlkOteFrontend(PlainFrontend):
 
         support = stanza.get("support", [])
         self.has_timed_input = "timer" in support
+
+        # The band's claim is honest twice over: pictures must
+        # actually hang behind the story, and the display must
+        # speak graphics windows (arc_image: the contract).
+        self.has_arc_images = (
+            self._resources is not None
+            and self._resources.blorb is not None
+            and "graphicswin" in support
+        )
 
         self._measure(stanza)
 
@@ -218,6 +249,72 @@ class GlkOteFrontend(PlainFrontend):
     def set_buffering(self, buffered: bool) -> None:
         """The display wraps for itself; the model need not."""
 
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Hang, replace, or clear the arc_image band.
+
+        Id 0 takes the band down; an id no picture answers, or a
+        mode outside the two named, is ignored where it lands --
+        presentation, never state (arc_image: the contract). A
+        change re-bases the screen: the header's rows shrink to
+        what stands below the band, or grow back at a clear.
+        """
+
+        if mode not in _BAND_MODES:
+            return
+
+        if image == 0:
+            hung = None
+        elif self._resources is None or self._resources.image(image) is None:
+            return
+        else:
+            hung = (image, mode)
+
+        if hung == self._band:
+            return
+
+        self._band = hung
+        self._band_dirty = True
+
+        self._rebased()
+
+    def _band_height(self) -> int:
+        """The band's height in display pixels, aspect held true.
+
+        The art is mode x 8 rows tall at the 320-pixel reference
+        width; the display's band keeps that shape at its own
+        width (arc_image: the contract).
+        """
+
+        if self._band is None:
+            return 0
+
+        width, _ = self._size
+        _, mode = self._band
+
+        return round(width * mode * _BAND_PIXEL_ROWS / _BAND_REFERENCE_WIDTH)
+
+    def _rebased(self) -> None:
+        """Tell the header how many rows stand below the band.
+
+        The first draw re-bases the screen and a clear gives the
+        rows back; the header's height field follows, exactly as
+        for any screen change (arc_image: the contract).
+        """
+
+        if self.machine is None:
+            return
+
+        _, height = self._size
+        _, cell_h = self._cell
+
+        below = int((height - self._band_height() - self._margins[1]) // cell_h)
+
+        # One byte of header, and 255 already means "infinite"
+        # there (§8.4): the claim stays inside both bounds.
+        self.machine.memory.header.declare_screen_size(
+            lines=max(1, min(below, 255)), columns=self.screen_columns
+        )
+
     def split_window(self, lines: int) -> None:
         """Resize the upper window (§8.7.2.1); the model rules."""
 
@@ -254,11 +351,15 @@ class GlkOteFrontend(PlainFrontend):
         _, cell_h = self._cell
         rows = self._grid_rows()
 
+        # The band hangs above everything: grid and buffer alike
+        # re-base below it (arc_image: the contract, part A).
+        band_h = self._banded(width)
+
         # A grid's box carries its rows plus the display's own
         # interior margins (GlkOte: The Metrics Object); a box of
         # bare rows clips its bottom and floats the buffer up
         # into the status line.
-        brow = int(rows * cell_h + self._margins[1]) if rows else 0
+        brow = band_h + (int(rows * cell_h + self._margins[1]) if rows else 0)
 
         self.page.window(_BUFFER, "buffer", 0, (0, brow, width, height))
 
@@ -271,7 +372,7 @@ class GlkOteFrontend(PlainFrontend):
                 self._grid_ident,
                 "grid",
                 0,
-                (0, 0, width, brow),
+                (0, band_h, width, brow),
                 gridsize=(self.screen_columns, rows),
             )
             self.page.grid(self._grid_ident, self._faced(rows))
@@ -304,6 +405,60 @@ class GlkOteFrontend(PlainFrontend):
         self._last_read = waiting
 
         return self.page.update(exit=exit)
+
+    def _banded(self, width: int) -> int:
+        """Declare the band's canvas and feed any owed drawing.
+
+        Returns:
+            The band's height in display pixels; zero without one.
+        """
+
+        if self._band is None:
+            self._band_ident = None
+
+            return 0
+
+        band_h = self._band_height()
+
+        if self._band_ident is None:
+            self._band_ident = self._next_ident
+            self._next_ident += 1
+
+        self.page.window(
+            self._band_ident,
+            "graphics",
+            0,
+            (0, 0, width, band_h),
+            graphsize=(width, band_h),
+        )
+
+        if self._band_dirty:
+            self._band_dirty = False
+
+            picture, _ = self._band
+            url = (
+                self._resources.pictured(picture)
+                if self._resources is not None
+                else None
+            )
+
+            self.page.draw(
+                self._band_ident,
+                [
+                    {"special": "fill"},
+                    {
+                        "special": "image",
+                        "image": picture,
+                        "url": url,
+                        "x": 0,
+                        "y": 0,
+                        "width": width,
+                        "height": band_h,
+                    },
+                ],
+            )
+
+        return band_h
 
     def _grid_rows(self) -> int:
         """The grid's height: the §8.2 chrome plus the split."""
@@ -371,14 +526,37 @@ class GlkOteFrontend(PlainFrontend):
         if kind == "timer":
             return self._ticked()
 
-        if kind == "arrange":
-            # The next reload boots a machine at the new measure;
-            # this session's header spoke its size once (§8.4).
-            self._measure(stanza)
+        if kind in ("arrange", "redraw"):
+            return self._reshaped(kind, stanza)
+
+        return PASS
+
+    def _reshaped(self, kind: str, stanza: Stanza) -> str:
+        """An arrange or redraw: the picture re-shapes or re-paints.
+
+        An arrange re-measures -- the next reload boots a machine
+        at the new size (§8.4), while a hanging band re-shapes now
+        and its rows-below claim follows. A redraw re-feeds the
+        band whole (GlkOte: Redraw Events); without one there is
+        nothing here to redraw.
+        """
+
+        if kind == "redraw":
+            if self._band is None:
+                return PASS
+
+            self._band_dirty = True
 
             return STAND
 
-        return PASS
+        self._measure(stanza)
+
+        if self._band is not None:
+            self._band_dirty = True
+
+            self._rebased()
+
+        return STAND
 
     def _keyed(self, stanza: Stanza) -> str:
         """One keystroke to the machine, §3.8-spelled."""

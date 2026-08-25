@@ -8,10 +8,14 @@ from typing import Any
 import pytest
 from assertpy import assert_that
 
+from voxam.blorb import Blorb
 from voxam.errors import GlkOteError
 from voxam.frontend import Status
+from voxam.glulx.glk.resources import Resources
+from voxam.iff import chunk
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, ROMAN
 from voxam.zmachine.glkote import ADVANCE, PASS, STAND, GlkOteFrontend, _named, serve
+from voxam.zmachine.header import SCREEN_LINES
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
 
@@ -46,15 +50,42 @@ MARK_THEN_FALSE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB1])
 MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 
 
+def banded_resources() -> Resources:
+    """Resources holding one 320x96 PNG as picture 8."""
+
+    art = (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + (320).to_bytes(4, "big")
+        + (96).to_bytes(4, "big")
+    )
+    ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
+    offset = 12 + len(ridx)
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Pict"
+        + (8).to_bytes(4, "big")
+        + offset.to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(
+            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + chunk(b"PNG ", art))
+        )
+    )
+
+
 def opened(
     code_machine: Callable[..., Machine],
     program: bytes = AREAD,
     version: int = 5,
     routine: bytes | None = None,
+    resources: Resources | None = None,
 ) -> tuple[GlkOteFrontend, Machine]:
     """A measured frontend fronting a machine at its first read."""
 
-    frontend = GlkOteFrontend(version)
+    frontend = GlkOteFrontend(version, resources)
 
     frontend.begin(INIT)
 
@@ -361,6 +392,158 @@ def test_the_grid_box_wears_the_margins(
 
     assert_that(alone["windows"][0]["top"]).is_equal_to(0)
     assert_that(alone["windows"][0]["height"]).is_equal_to(480)
+
+
+# The arc_image band hangs above the whole screen: a graphics
+# window at the top, the picture inlined as a data: url shaped to
+# the display's width, the buffer re-based below, and the header's
+# rows shrunk to what remains. Ignorable calls are ignored -- an
+# unanswered id, a mode outside the two named -- a clear gives the
+# rows back and retires the canvas, a reopened band wears a fresh
+# id, a redraw refeeds the drawing, and an arrange re-shapes it.
+# The claim itself is honest twice over: no art or no graphicswin,
+# no claim.
+def test_the_band_hangs_above_the_screen(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine, resources=banded_resources())
+
+    frontend.begin(
+        {
+            "type": "init",
+            "gen": 0,
+            "support": ["timer", "graphicswin"],
+            "metrics": {
+                "width": 800,
+                "height": 480,
+                "gridcharwidth": 10,
+                "gridcharheight": 20,
+            },
+        }
+    )
+
+    assert_that(frontend.has_arc_images).is_true()
+
+    frontend.draw_arc_image(9, 12)  # no such picture: ignored
+    frontend.draw_arc_image(8, 7)  # no such mode: ignored
+
+    assert_that(frontend._band).is_none()
+
+    frontend.draw_arc_image(8, 12)
+
+    # 800 wide at 96/320 aspect is a 240-pixel band; twelve rows
+    # of twenty pixels remain below, and the header says so.
+    assert_that(machine.memory.read_byte(SCREEN_LINES)).is_equal_to(12)
+
+    update = frontend.render()
+    band = update["windows"][0]
+
+    assert_that((band["type"], band["top"], band["height"])).is_equal_to(
+        ("graphics", 0, 240)
+    )
+    assert_that(update["windows"][1]["top"]).is_equal_to(240)
+
+    drawn = next(held for held in update["content"] if "draw" in held)["draw"]
+
+    assert_that(drawn[0]).is_equal_to({"special": "fill"})
+    assert_that(drawn[1]["url"]).starts_with("data:image/png;base64,")
+    assert_that((drawn[1]["width"], drawn[1]["height"])).is_equal_to((800, 240))
+
+    # A redraw refeeds the drawing whole.
+    assert_that(
+        frontend.accept({"type": "redraw", "gen": frontend.page.gen})
+    ).is_equal_to(STAND)
+    assert_that(
+        next(held for held in frontend.render()["content"] if "draw" in held)["draw"]
+    ).is_length(2)
+
+    # An arrange re-shapes the band to the new width.
+    frontend.accept(
+        {
+            "type": "arrange",
+            "gen": frontend.page.gen,
+            "metrics": {
+                "width": 400,
+                "height": 480,
+                "gridcharwidth": 10,
+                "gridcharheight": 20,
+            },
+        }
+    )
+
+    arranged = frontend.render()
+
+    assert_that(arranged["windows"][0]["height"]).is_equal_to(120)
+
+    # A clear takes the canvas down and gives the rows back; the
+    # band reopened wears a fresh id.
+    first_ident = arranged["windows"][0]["id"]
+
+    frontend.draw_arc_image(0, 12)
+
+    assert_that(machine.memory.read_byte(SCREEN_LINES)).is_equal_to(24)
+    assert_that([held["type"] for held in frontend.render()["windows"]]).is_equal_to(
+        ["buffer"]
+    )
+
+    frontend.draw_arc_image(8, 12)
+
+    assert_that(frontend.render()["windows"][0]["id"]).is_greater_than(first_ident)
+
+    # Re-drawing the hanging picture owes nothing new: the update
+    # that follows is the pass stanza, the canvas untouched.
+    frontend.render()
+    frontend.draw_arc_image(8, 12)
+
+    assert_that(frontend.render()).is_equal_to({"type": "pass"})
+
+    # A redraw with no band has nothing here to repaint.
+    frontend.draw_arc_image(0, 12)
+    frontend.render()
+
+    assert_that(
+        frontend.accept({"type": "redraw", "gen": frontend.page.gen})
+    ).is_equal_to(PASS)
+
+    # A band drawn before any machine boots simply hangs: the
+    # header's rows are told when there is a header to tell.
+    early = GlkOteFrontend(5, banded_resources())
+
+    early.begin(
+        {
+            "type": "init",
+            "gen": 0,
+            "support": ["graphicswin"],
+            "metrics": {
+                "width": 800,
+                "height": 480,
+                "gridcharwidth": 10,
+                "gridcharheight": 20,
+            },
+        }
+    )
+    early.draw_arc_image(8, 9)
+
+    assert_that(early._band).is_equal_to((8, 9))
+
+    # The claim is honest: art without graphicswin, or a display
+    # without art, never claims.
+    artless = GlkOteFrontend(5)
+
+    artless.begin(
+        {
+            "type": "init",
+            "gen": 0,
+            "support": ["graphicswin"],
+            "metrics": {"width": 80, "height": 24},
+        }
+    )
+
+    assert_that(artless.has_arc_images).is_false()
+
+    canvasless, _ = opened(code_machine, resources=banded_resources())
+
+    assert_that(canvasless.has_arc_images).is_false()
 
 
 def reading_image() -> bytes:

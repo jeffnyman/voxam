@@ -1304,10 +1304,10 @@ def _serve_web(
         return EXIT_UNUSABLE
 
 
-def _serve_z_glkote(story: Story, *, seed: int | None) -> int:
+def _serve_z_glkote(story: Story, blorb: Blorb | None, *, seed: int | None) -> int:
     """Speak the GlkOte protocol for one Z story, both streams whole."""
 
-    frontend = ZGlkOteFrontend(story.header.version)
+    frontend = ZGlkOteFrontend(story.header.version, GlkResources(blorb))
 
     try:
         served = serve_z(story, frontend, sys.stdin, sys.stdout, seed=seed)
@@ -1828,7 +1828,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
         if web:
             return _serve_z_web(story_path, story, blorb, seed=seed, port=port)
 
-        return _serve_z_glkote(story, seed=seed)
+        return _serve_z_glkote(story, blorb, seed=seed)
 
     key_source: Callable[[float | None], str | None] | None = None
     timed_input_source: Callable[[float], str | None] | None = None
