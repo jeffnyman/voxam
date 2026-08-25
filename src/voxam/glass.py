@@ -72,6 +72,12 @@ Appearance = tuple[
 # scaled from the spec's own true-colour equivalents.
 INK_DEFAULT = (255, 255, 255)
 PAPER_DEFAULT = (0, 0, 0)
+
+# The present's own cadence: a burst of writes -- Zugzwang redrawing
+# its chessboard is nearly a thousand, each once buying its own flip
+# -- shares one flip per frame instead. Whatever is left owing
+# settles the moment the glass next stands and waits.
+PRESENT_CADENCE = 1 / 60
 COLOUR_VALUES = {
     2: (0, 0, 0),
     3: (204, 0, 0),
@@ -355,6 +361,10 @@ class GraphicsFrontend:
         # ever sampled off the glass by colour -1.
         self._colours: dict[int, tuple[int, int, int]] = dict(COLOUR_VALUES)
         self._sampled: dict[tuple[int, int, int], int] = {}
+        # The presentation ledger: when the glass last flipped, and
+        # whether painted rows still await a flip of their own.
+        self._presented = 0.0
+        self._owing = False
 
         if self._stage is not None:
             self._stage.more = self._pause
@@ -765,6 +775,8 @@ class GraphicsFrontend:
     def wait_for_sound(self) -> None:
         """Let the playing sound finish a cycle (§9 remarks)."""
 
+        self._present_owed()
+
         if self._speaker is not None:
             self._speaker.wait()
 
@@ -785,6 +797,9 @@ class GraphicsFrontend:
 
         try:
             while True:
+                if timeout is not None:
+                    self._present_owed()
+
                 key = (
                     self._waited_key() if timeout is None else self._glass.key(timeout)
                 )
@@ -870,6 +885,9 @@ class GraphicsFrontend:
             wait = (
                 min(remaining, IDLE_HEARTBEAT) if self.idle is not None else remaining
             )
+
+            self._present_owed()
+
             key = self._glass.key(wait)
 
             if key is None and self.idle is not None:
@@ -923,7 +941,7 @@ class GraphicsFrontend:
                 self.screen_columns * self.font_width,
                 PAPER_DEFAULT,
             )
-            self._glass.present()
+            self._present_now()
 
             return
 
@@ -932,7 +950,7 @@ class GraphicsFrontend:
         for row in range(1, self._model.lines + 1):
             self._paint_row(row)
 
-        self._glass.present()
+        self._present_now()
 
     def show_frontispiece(self, picture: Picture, *, pixels: bool = False) -> None:
         """Show a cover picture until a key is pressed, then clear.
@@ -952,6 +970,8 @@ class GraphicsFrontend:
     def _waited_key(self) -> str | None:
         """One read of an infinite wait, attentive while it lasts."""
 
+        self._present_owed()
+
         if self.idle is None:
             return self._glass.key(None)
 
@@ -961,6 +981,41 @@ class GraphicsFrontend:
             self.idle()
 
         return key
+
+    def _present(self) -> None:
+        """Present, but no faster than the frame's own cadence.
+
+        Every write repaints, and a game drawing its screen a cell
+        at a time would buy a full flip per write -- Zugzwang's
+        chessboard is nearly a thousand, seconds of pure flipping
+        on a vsynced window. Painted rows always reach the
+        backbuffer; the flip itself is shared, and whatever is
+        left owing settles at the next wait (_present_owed).
+        """
+
+        now = monotonic()
+
+        if now - self._presented >= PRESENT_CADENCE:
+            self._present_now()
+        else:
+            self._owing = True
+
+    def _present_now(self) -> None:
+        """Present unconditionally, settling the ledger."""
+
+        self._glass.present()
+        self._presented = monotonic()
+        self._owing = False
+
+    def _present_owed(self) -> None:
+        """Settle any owed present before the glass stands to wait.
+
+        The moment before any blocking wait is an honesty boundary:
+        nothing painted may stay unseen while the window listens.
+        """
+
+        if self._owing:
+            self._present_now()
 
     def _repaint(self) -> None:
         """Carry the model's changes to the glass, then present.
@@ -974,7 +1029,7 @@ class GraphicsFrontend:
 
         if self._stage is not None:
             if self._settle(self._stage):
-                self._glass.present()
+                self._present()
 
             return
 
@@ -984,7 +1039,7 @@ class GraphicsFrontend:
             self._paint_row(row)
 
         if rows:
-            self._glass.present()
+            self._present()
 
         if self._typing:
             # A repainted row overwrote any caret it held; forget
@@ -1026,7 +1081,7 @@ class GraphicsFrontend:
             self.font_width,
             ink,
         )
-        self._glass.present()
+        self._present_now()
         self._shadow.setdefault(row, [None] * model.columns)[column - 1] = None
         self._caret = (row, column)
 
@@ -1039,7 +1094,7 @@ class GraphicsFrontend:
         row, _column = self._caret
         self._caret = None
         self._paint_row(row)
-        self._glass.present()
+        self._present_now()
 
     def _pause_cells(self) -> None:
         """Hold a screenful behind [MORE] until any key arrives.
@@ -1073,7 +1128,7 @@ class GraphicsFrontend:
             italic=False,
             graphics=False,
         )
-        self._glass.present()
+        self._present_now()
 
         shadow = self._shadow.setdefault(row, [None] * model.columns)
 
@@ -1086,7 +1141,7 @@ class GraphicsFrontend:
             pass
 
         self._paint_row(row)
-        self._glass.present()
+        self._present_now()
 
     def _settle(self, stage: StageModel) -> bool:
         """Carry the stage's pending paints onto the glass.

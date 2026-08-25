@@ -660,19 +660,26 @@ def test_read_line_edits_through_the_model() -> None:
 
 # The glass twin of the painter's timed read: pause on the
 # deadline with the line composed, resume to completion, and
-# abandonment erases the half-typed line from the window.
+# abandonment erases the half-typed line from the window. The
+# scripted clock advances only while a key is waited for -- where
+# real time actually passes -- so the frontend may consult it as
+# often as its own bookkeeping likes.
 def test_timed_reads_pause_resume_and_abandon(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = {"now": 0.0}
 
-    def stepping() -> float:
+    monkeypatch.setattr("voxam.glass.monotonic", lambda: clock["now"])
+
+    frontend, glass = windowed(keys=["g", "o"])
+    scripted = glass.key
+
+    def waited(timeout: float | None) -> str | None:
         clock["now"] += 0.4
 
-        return clock["now"]
+        return scripted(timeout)
 
-    monkeypatch.setattr("voxam.glass.monotonic", stepping)
-    frontend, glass = windowed(keys=["g", "o"])
+    monkeypatch.setattr(glass, "key", waited)
 
     line = frontend.read_line_until(1.0)
 
@@ -793,6 +800,45 @@ def test_undamaged_repaints_present_nothing() -> None:
     frontend.write("")
 
     assert_that(glass.presents).is_equal_to(shown)
+
+
+# A burst of writes within one frame shares a single flip --
+# Zugzwang's chessboard is nearly a thousand writes a turn -- with
+# the cadence buying the next flip once real time has passed, and
+# whatever is left owing settled the moment the glass stands to
+# wait, so nothing painted is ever unseen while the window listens.
+def test_presents_share_the_frames_cadence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = {"now": 100.0}
+
+    monkeypatch.setattr("voxam.glass.monotonic", lambda: clock["now"])
+
+    frontend, glass = windowed()
+
+    frontend.write("a")
+
+    first = glass.presents
+
+    frontend.write("b")
+    frontend.write("c")
+
+    assert_that(glass.presents).is_equal_to(first)
+
+    clock["now"] += 1.0
+
+    frontend.write("d")
+
+    assert_that(glass.presents).is_equal_to(first + 1)
+
+    frontend.write("e")
+    frontend.wait_for_sound()
+
+    assert_that(glass.presents).is_equal_to(first + 2)
+
+    frontend.wait_for_sound()
+
+    assert_that(glass.presents).is_equal_to(first + 2)
 
 
 # A timed key answers None on expiry, the machine's wall-clock
