@@ -566,8 +566,11 @@ remains maps onto the interim releases:
   browser tab wears the machine's own icon beside the story's
   Babel title.
 - **2.0, the declaration.** The road still holds, each its own
-  branch: pictures over the pipe (`data:` URLs would serve the
-  shell and the browser alike), the save-file dialog the desktop
-  uniquely can answer, whatever the all-frontends playthroughs
-  surface, and -- its own later road -- signed installers (macOS
-  Gatekeeper and SmartScreen warn on the unsigned ones).
+  branch: the save-file dialog the desktop uniquely can answer,
+  whatever the all-frontends playthroughs surface, and -- its own
+  later road -- signed installers (macOS Gatekeeper and
+  SmartScreen warn on the unsigned ones). Pictures already ride
+  the pipe: every image op carries its picture whole as a `data:`
+  url, so the shell and the browser draw the gblorb's art from
+  the update alone, no Blorb interface and no picture road owed
+  on the far side.

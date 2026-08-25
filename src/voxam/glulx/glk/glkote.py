@@ -34,9 +34,11 @@ flow breaks, which mean nothing until buffer windows claim
 images.
 """
 
+import base64
 import json
 from typing import TextIO, cast
 
+from voxam.blorb import PNG_ID
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import (
     STYLES,
@@ -525,9 +527,12 @@ class GlkOteFrontend(Frontend):
     ) -> bool:
         """Draw a picture on a canvas; only canvases draw here.
 
-        The operation names the Pict by number and no url: the
-        host resolves numbers from the Blorb it was handed, the
-        way GiLoad does (GlkOte: Image Entries in Line Data).
+        The operation names the Pict by number and carries the
+        picture whole as a data: url beside it (GlkOte: Graphics
+        Window Updates): a host with a Blorb of its own may keep
+        resolving numbers the way GiLoad does, and a host with
+        none -- the desktop shell's webview -- draws from the
+        update alone.
         """
 
         if not isinstance(window, GraphicsWindow):
@@ -538,6 +543,7 @@ class GlkOteFrontend(Frontend):
             {
                 "special": "image",
                 "image": image.number,
+                "url": _pictured(image),
                 "x": val1,
                 "y": val2,
                 "width": width,
@@ -851,6 +857,20 @@ def _css(color: int) -> str:
     """
 
     return f"#{color & 0xFFFFFF:06X}"
+
+
+def _pictured(image: ImageInfo) -> str:
+    """The picture whole, as a data: url the display draws directly.
+
+    The bytes are the Blorb's own -- PNG or JPEG by chunk kind
+    (Blorb: Picture Resource Chunks) -- so no host road and no
+    Blorb interface is owed on the far side.
+    """
+
+    kind = "image/png" if image.kind == PNG_ID else "image/jpeg"
+    held = base64.b64encode(image.data).decode("ascii")
+
+    return f"data:{kind};base64,{held}"
 
 
 def _cell(metrics: Stanza, prefix: str) -> Metrics:

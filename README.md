@@ -146,8 +146,9 @@ stdout -- the wire the desktop shell drives -- and `--web` puts
 the same conversation in a browser tab, the vendored GlkOte
 display served from inside the package, one POST per turn, the
 story's title on the tab and the machine's own icon beside it,
-the gblorb's art at its own `/pict` road, and a page reload
-starting the story over.
+the gblorb's art inlined in the updates themselves as `data:`
+urls -- any GlkOte display draws it with no Blorb of its own --
+and a page reload starting the story over.
 
 The protocol made whole is `1.7`'s: a game's ask for a save file
 suspends the machine mid-Glk-call -- a second kind of standing
@@ -638,10 +639,11 @@ the spot, since the identity belongs to the booting machine --
 and a Glulx story simply ignores it. The Display menu dresses the
 page -- the story's type and size, the ink it is set in (paper,
 sepia, or dark), and the measure of its column -- applied live,
-remembered across sessions. What the shell does not carry
-yet, each a named road: pictures, and the save-file dialog (a
-save prompt is answered with a cancel, as in the browser face
-today).
+remembered across sessions. The gblorb's art draws in the shell
+exactly as in the browser, the pictures riding the updates
+themselves. What the shell does not carry yet, one named road:
+the save-file dialog (a save prompt is answered with a cancel,
+as in the browser face today).
 
 ### Project conventions
 

@@ -47,14 +47,11 @@ var FILTERS = [
 var Game = {
   /* Every GlkOte event becomes one line down the pipe. Rejections
      are swallowed: glkote.js hardcodes timer support, and a timer
-     or arrange can still fire after the child has ended. */
+     or arrange can still fire after the child has ended. Pictures
+     arrive inline as data: urls in the updates themselves, so the
+     shell owes no Blorb interface and no picture road. */
   accept: function(event) {
     invoke("send_stanza", { line: JSON.stringify(event) }).catch(function() {});
-  },
-  Blorb: {
-    /* No pictures on the desktop yet -- a named road. Graphics
-       windows still paint their color fills. */
-    get_image_url: function(number) { return null; }
   }
 };
 window.Game = Game;
