@@ -613,7 +613,11 @@ The shell finds `voxam` on the PATH -- `uv tool install voxam` or
 cannot. Open a story from the landing page or the File menu;
 File > Restart Story starts it over, exactly as a reload does in
 the browser face, and every story that can be named plays under
-its Babel title on the title bar. What the shell does not carry
+its Babel title on the title bar. The Story menu claims a §11.1.3
+platform (the `--interpreter` flag's own roster) and sets the
+legendary Tandy bit; a changed claim restarts the open story on
+the spot, since the identity belongs to the booting machine --
+and a Glulx story simply ignores it. What the shell does not carry
 yet, each a named road: pictures, and the save-file dialog (a
 save prompt is answered with a cancel, as in the browser face
 today).

@@ -15,8 +15,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use serde_json::{json, Value};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Wry};
 
 /// The friendly failure when voxam is not on PATH: the shell
 /// finds voxam, it does not bundle it (yet -- a named road).
@@ -29,6 +29,49 @@ const NOT_FOUND: &str = "voxam is not on this machine's PATH.\n\n\
 /// The screen's share the window opens at, as the pygame glass
 /// takes it: 0.85 of the desktop, centered.
 const SHARE: f64 = 0.85;
+
+/// The §11.1.3 platforms the Story menu offers, shown by the
+/// names Infocom used and passed by the names voxam's
+/// `--interpreter` takes. Glulx stories ignore the claim, so the
+/// spawn passes it unconditionally.
+const PLATFORMS: [(&str, &str); 11] = [
+    ("DECSystem-20", "dec-20"),
+    ("Apple IIe", "apple-iie"),
+    ("Macintosh", "macintosh"),
+    ("Amiga", "amiga"),
+    ("Atari ST", "atari-st"),
+    ("IBM PC", "ibm-pc"),
+    ("Commodore 128", "commodore-128"),
+    ("Commodore 64", "commodore-64"),
+    ("Apple IIc", "apple-iic"),
+    ("Apple IIgs", "apple-iigs"),
+    ("Tandy Color", "tandy-color"),
+];
+
+/// The identity the next machine boots with (§11.1.3-4): the
+/// claimed platform and the legendary Tandy bit. IBM PC to begin,
+/// since that is the number voxam claims on its own.
+#[derive(Clone)]
+struct Claim {
+    interpreter: String,
+    tandy: bool,
+}
+
+impl Default for Claim {
+    fn default() -> Self {
+        Self {
+            interpreter: "ibm-pc".to_string(),
+            tandy: false,
+        }
+    }
+}
+
+/// The Story menu's own check items, kept so a choice can dress
+/// the whole radio row and the toggle from the state's word.
+struct Chrome {
+    interpreters: Vec<(String, CheckMenuItem<Wry>)>,
+    tandy: CheckMenuItem<Wry>,
+}
 
 /// One running story: the child and the stdin we kept out of it.
 ///
@@ -45,6 +88,7 @@ struct Session {
 struct Shell {
     session: Mutex<Option<Session>>,
     story: Mutex<Option<PathBuf>>,
+    claim: Mutex<Claim>,
     minted: AtomicU64,
 }
 
@@ -150,6 +194,16 @@ async fn start_session(app: AppHandle, state: State<'_, Shell>) -> Result<u64, S
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    // The Story menu's claim joins the boot (§11.1.3-4); a Glulx
+    // story ignores it, so no story needs sniffing here.
+    let claim = state.claim.lock().unwrap().clone();
+
+    command.arg("--interpreter").arg(claim.interpreter);
+
+    if claim.tandy {
+        command.arg("--tandy");
+    }
 
     // The parent being a windowed app does not stop a console
     // child from flashing its own console; CREATE_NO_WINDOW does.
@@ -278,17 +332,81 @@ pub fn run() {
                 MenuItem::with_id(handle, "restart", "Restart Story", true, None::<&str>)?;
             let quit = PredefinedMenuItem::quit(handle, Some("Exit"))?;
             let file = Submenu::with_items(handle, "File", true, &[&open, &restart, &quit])?;
-            let menu = Menu::with_items(handle, &[&file])?;
+
+            // The Story menu: the §11.1.3 platform claim as a
+            // radio row -- IBM PC checked first, the number voxam
+            // claims on its own -- and the Tandy bit as a toggle.
+            let claimed = app.state::<Shell>().claim.lock().unwrap().clone();
+            let mut interpreters = Vec::new();
+
+            for (shown, named) in PLATFORMS {
+                interpreters.push((
+                    named.to_string(),
+                    CheckMenuItem::with_id(
+                        handle,
+                        format!("claim:{named}"),
+                        shown,
+                        true,
+                        named == claimed.interpreter,
+                        None::<&str>,
+                    )?,
+                ));
+            }
+
+            let row: Vec<&dyn IsMenuItem<Wry>> = interpreters
+                .iter()
+                .map(|(_, item)| item as &dyn IsMenuItem<Wry>)
+                .collect();
+            let platforms = Submenu::with_items(handle, "Interpreter", true, &row)?;
+            let tandy = CheckMenuItem::with_id(
+                handle,
+                "tandy",
+                "Tandy Header Bit",
+                true,
+                false,
+                None::<&str>,
+            )?;
+            let story = Submenu::with_items(handle, "Story", true, &[&platforms, &tandy])?;
+            let menu = Menu::with_items(handle, &[&file, &story])?;
 
             app.set_menu(menu)?;
+            app.manage(Chrome {
+                interpreters,
+                tandy,
+            });
 
             // The menu only signals; the page owns the flow, since
-            // choosing and restarting both end in its reload.
+            // choosing and restarting both end in its reload. A
+            // changed claim restarts the open story on the spot:
+            // the identity is the booting machine's (§11.1.3), so
+            // the checkmark never outruns the header.
             app.on_menu_event(|app, event| match event.id().as_ref() {
                 "open" => {
                     let _ = app.emit("menu-open", ());
                 }
                 "restart" => {
+                    let _ = app.emit("menu-restart", ());
+                }
+                "tandy" => {
+                    let shell = app.state::<Shell>();
+                    let mut claim = shell.claim.lock().unwrap();
+
+                    claim.tandy = !claim.tandy;
+
+                    let _ = app.state::<Chrome>().tandy.set_checked(claim.tandy);
+                    drop(claim);
+
+                    let _ = app.emit("menu-restart", ());
+                }
+                chose if chose.starts_with("claim:") => {
+                    let wanted = chose["claim:".len()..].to_string();
+
+                    app.state::<Shell>().claim.lock().unwrap().interpreter = wanted.clone();
+
+                    for (value, item) in &app.state::<Chrome>().interpreters {
+                        let _ = item.set_checked(*value == wanted);
+                    }
+
                     let _ = app.emit("menu-restart", ());
                 }
                 _ => {}
