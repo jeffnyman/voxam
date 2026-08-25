@@ -549,9 +549,13 @@ remains maps onto the interim releases:
   applied live -- a poked resize re-measures the metrics and the
   machines take the new arrangement as they take any other -- and
   kept in the app's own config dir, so the checkmarks and the
-  dress agree at every startup.
+  dress agree at every startup. The installers ride every release:
+  a shared workflow builds Windows, macOS, and Linux bundles on
+  each version tag -- dispatchable by hand for a dry run -- and
+  the release attaches them beside the wheel, both streams wearing
+  the one version `cz bump` stamps everywhere.
   Not yet aboard, each a named road:
   pictures (the browser face's `/pict` road has no pipe
-  equivalent yet), the save-file dialog, and the CI workflow
-  that ships the per-platform artifacts.
+  equivalent yet), the save-file dialog, and signed installers
+  (macOS Gatekeeper and SmartScreen warn on the unsigned ones).
 - **2.0, the declaration.**

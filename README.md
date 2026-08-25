@@ -598,8 +598,11 @@ The `desktop/` directory holds VΘXΔM's native shell: a
 display the browser face wears, driving a spawned
 `voxam --glkote` down a pipe. It is not part of the Python
 package -- the wheel never carries it, and the Python toolchain
-never sees it. Building it needs Rust (with the platform's native
-toolchain) and Node:
+never sees it -- but it wears the same version: every release tag
+builds its installers (Windows, macOS, Linux; unsigned) and
+attaches them to the GitHub release beside the wheel. Building it
+locally needs Rust (with the platform's native toolchain) and
+Node:
 
 ```bash
 cd desktop

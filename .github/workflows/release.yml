@@ -150,10 +150,18 @@ jobs:
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  # The desktop shell's installers, built by the shared workflow;
+  # its artifacts land in this run for the release to attach. The
+  # two artifact streams share the tag and the version -- one
+  # release tells one story.
+  desktop:
+    name: Desktop installers
+    uses: ./.github/workflows/desktop.yml
+
   github-release:
     name: Cut the GitHub release
     runs-on: ubuntu-latest
-    needs: publish-pypi
+    needs: [publish-pypi, desktop]
     permissions:
       contents: write
     steps:
@@ -164,6 +172,13 @@ jobs:
         with:
           name: dist
           path: dist/
+
+      - name: Download the installers
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-*
+          path: installers/
+          merge-multiple: true
 
       # The release notes are this version's section of the
       # commitizen-maintained changelog.
@@ -187,5 +202,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "$GITHUB_REF_NAME" dist/* installers/* \
             --title "$GITHUB_REF_NAME" --notes-file notes.md
