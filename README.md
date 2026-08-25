@@ -629,7 +629,9 @@ npx tauri build      # produce the platform installer
 
 The shell finds `voxam` on the PATH -- `uv tool install voxam` or
 `pipx install voxam` puts it there -- and says so plainly when it
-cannot. Open a story from the landing page or the File menu;
+cannot. Open a story from the landing page or the File menu --
+the picker starts at the stories' own home, a pinned folder or
+the last story's, so a save elsewhere never drags it away;
 File > Restart Story starts it over, exactly as a reload does in
 the browser face, and every story that can be named plays under
 its Babel title on the title bar. The Story menu claims a §11.1.3

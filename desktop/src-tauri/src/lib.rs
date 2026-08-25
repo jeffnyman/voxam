@@ -145,6 +145,45 @@ impl Display {
     }
 }
 
+/// Where the open-story dialog starts: a folder the player pinned
+/// by hand, or -- with nothing pinned -- wherever the last story
+/// was opened from, so a save to some other corner of the disk
+/// never drags the story picker after it. Persisted as home.json
+/// beside the display settings.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+struct Home {
+    pinned: Option<PathBuf>,
+    followed: Option<PathBuf>,
+}
+
+fn home_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("home.json"))
+}
+
+fn load_home(app: &AppHandle) -> Home {
+    home_path(app)
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|held| serde_json::from_str(&held).ok())
+        .unwrap_or_default()
+}
+
+fn save_home(app: &AppHandle, home: &Home) {
+    let Some(path) = home_path(app) else {
+        return;
+    };
+
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+
+    if let Ok(held) = serde_json::to_string_pretty(home) {
+        let _ = std::fs::write(path, held);
+    }
+}
+
 fn display_path(app: &AppHandle) -> Option<PathBuf> {
     app.path()
         .app_config_dir()
@@ -181,6 +220,7 @@ struct Chrome {
     interpreters: Vec<(String, CheckMenuItem<Wry>)>,
     tandy: CheckMenuItem<Wry>,
     displays: Vec<(String, CheckMenuItem<Wry>)>,
+    following: CheckMenuItem<Wry>,
 }
 
 /// One running story: the child and the stdin we kept out of it.
@@ -200,10 +240,13 @@ struct Shell {
     story: Mutex<Option<PathBuf>>,
     claim: Mutex<Claim>,
     display: Mutex<Display>,
+    home: Mutex<Home>,
     minted: AtomicU64,
 }
 
 /// Remember the chosen story and wear its name on the title bar.
+/// The story's own folder becomes the followed home, so the next
+/// open starts among stories no matter where a save wandered.
 #[tauri::command]
 async fn set_story(app: AppHandle, state: State<'_, Shell>, path: String) -> Result<(), String> {
     let chosen = PathBuf::from(&path);
@@ -213,7 +256,50 @@ async fn set_story(app: AppHandle, state: State<'_, Shell>, path: String) -> Res
         let _ = window.set_title(&format!("{name} \u{2014} Voxam"));
     }
 
+    if let Some(parent) = chosen.parent() {
+        let mut home = state.home.lock().unwrap();
+
+        home.followed = Some(parent.to_path_buf());
+
+        save_home(&app, &home);
+    }
+
     *state.story.lock().unwrap() = Some(chosen);
+
+    Ok(())
+}
+
+/// Where the story picker opens: the pinned folder if one was
+/// chosen, else wherever the last story came from.
+#[tauri::command]
+async fn story_home(state: State<'_, Shell>) -> Result<Option<String>, String> {
+    let home = state.home.lock().unwrap();
+
+    Ok(home
+        .pinned
+        .as_ref()
+        .or(home.followed.as_ref())
+        .map(|path| path.to_string_lossy().into_owned()))
+}
+
+/// Pin the stories folder, or unpin it to follow the last story
+/// again; the menu's checkmark tells whichever is true.
+#[tauri::command]
+async fn set_home(
+    app: AppHandle,
+    state: State<'_, Shell>,
+    path: Option<String>,
+) -> Result<(), String> {
+    let mut home = state.home.lock().unwrap();
+
+    home.pinned = path.map(PathBuf::from);
+
+    save_home(&app, &home);
+
+    let _ = app
+        .state::<Chrome>()
+        .following
+        .set_checked(home.pinned.is_none());
 
     Ok(())
 }
@@ -447,8 +533,29 @@ pub fn run() {
             )?;
             let restart =
                 MenuItem::with_id(handle, "restart", "Restart Story", true, None::<&str>)?;
+
+            // Where the story picker opens: pin a folder, or
+            // follow the last story -- the persisted home read
+            // first, so the checkmark tells the truth at startup.
+            let settled = load_home(handle);
+
+            *app.state::<Shell>().home.lock().unwrap() = settled.clone();
+
+            let pin =
+                MenuItem::with_id(handle, "home", "Choose Folder\u{2026}", true, None::<&str>)?;
+            let following = CheckMenuItem::with_id(
+                handle,
+                "follow",
+                "Follow the Last Story",
+                true,
+                settled.pinned.is_none(),
+                None::<&str>,
+            )?;
+            let homes = Submenu::with_items(handle, "Stories Home", true, &[&pin, &following])?;
+
             let quit = PredefinedMenuItem::quit(handle, Some("Exit"))?;
-            let file = Submenu::with_items(handle, "File", true, &[&open, &restart, &quit])?;
+            let file =
+                Submenu::with_items(handle, "File", true, &[&open, &restart, &homes, &quit])?;
 
             // The Story menu: the §11.1.3 platform claim as a
             // radio row -- IBM PC checked first, the number voxam
@@ -532,6 +639,7 @@ pub fn run() {
                 interpreters,
                 tandy,
                 displays,
+                following,
             });
 
             // The menu only signals; the page owns the flow, since
@@ -545,6 +653,14 @@ pub fn run() {
                 }
                 "restart" => {
                     let _ = app.emit("menu-restart", ());
+                }
+                "home" => {
+                    let _ = app.emit("menu-home", ());
+                }
+                "follow" => {
+                    // The page owns no flow here: unpin directly,
+                    // and set_home rights the checkmark.
+                    let _ = app.emit("menu-follow", ());
                 }
                 "tandy" => {
                     let shell = app.state::<Shell>();
@@ -627,7 +743,9 @@ pub fn run() {
             current_story,
             start_session,
             send_stanza,
-            display_settings
+            display_settings,
+            story_home,
+            set_home
         ])
         .build(tauri::generate_context!())
         .expect("the shell could not be built")

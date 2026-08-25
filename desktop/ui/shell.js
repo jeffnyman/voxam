@@ -92,8 +92,17 @@ var Game = {
 };
 window.Game = Game;
 
+/* The picker starts at the stories' own home -- a pinned folder,
+   or the last story's -- so a save to some other corner of the
+   disk never drags the story picker after it. */
 function chooseStory() {
-  dialog.open({ filters: FILTERS }).then(function(path) {
+  invoke("story_home").then(function(home) {
+    var asked = { filters: FILTERS };
+
+    if (home) asked.defaultPath = home;
+
+    return dialog.open(asked);
+  }).then(function(path) {
     if (!path) return;
 
     invoke("set_story", { path: path }).then(function() {
@@ -156,6 +165,14 @@ window.addEventListener("DOMContentLoaded", function() {
   listen("menu-open", chooseStory);
   listen("menu-restart", function() {
     if (opened) location.reload();
+  });
+  listen("menu-home", function() {
+    dialog.open({ directory: true }).then(function(path) {
+      if (path) invoke("set_home", { path: path });
+    });
+  });
+  listen("menu-follow", function() {
+    invoke("set_home", { path: null });
   });
   listen("display", function(event) {
     dressed(event.payload);
