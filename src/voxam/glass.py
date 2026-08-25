@@ -29,11 +29,19 @@ from time import monotonic
 from typing import Any, Protocol, cast
 
 from voxam.editor import EXPIRED, LineEditor, read_line_edited
+from voxam.errors import PNGError
 from voxam.font3 import FONT_3_BITMAPS, PIXELS, ROWS
-from voxam.frontend import GRAPHICS_FONT, Status
+from voxam.frontend import (
+    ARC_MODES,
+    ARC_PIXEL_ROWS,
+    ARC_REFERENCE_WIDTH,
+    GRAPHICS_FONT,
+    Status,
+)
 from voxam.gallery import Gallery
+from voxam.glulx.glk.resources import Resources as ArcResources
 from voxam.painter import IDLE_HEARTBEAT, MORE_PROMPT
-from voxam.png import OPAQUE, Picture
+from voxam.png import OPAQUE, Picture, decode
 from voxam.screen import (
     BOLD,
     ERASE_KEEP_SPLIT,
@@ -247,6 +255,171 @@ class Glass(Protocol):
         """
 
 
+def _band_mode(arc: ArcResources) -> int | None:
+    """The band mode the sidecar's art was painted for, or None.
+
+    The masters keep their mode's aspect -- 40:9 for mode 9, 10:3
+    for mode 12, at any resolution (arc_image: the contract) -- so
+    the first picture that answers names the mode by shape alone,
+    before any machine has run an instruction.
+    """
+
+    for number in range(_BAND_PROBE):
+        image = arc.image(number)
+
+        if image is None or not image.width:
+            continue
+
+        mode = round(image.height * ARC_REFERENCE_WIDTH / image.width / ARC_PIXEL_ROWS)
+
+        if mode in ARC_MODES:
+            return mode
+
+    return None
+
+
+# How far the mode probe reads into the sidecar's numbering; the
+# demos number their scenes well inside it.
+_BAND_PROBE = 64
+
+
+class _BandedGlass:
+    """A glass with the arc_image band's rows reserved at the top.
+
+    The contract's fixed-band profile, chosen for this machine:
+    the band stands from boot, and every cell and pixel the
+    frontend paints lands below it -- this wrapper adds the offset
+    once, so the frontend works in the shrunk screen obliviously.
+    Clicks answer in the shrunk space too; one landing in the band
+    lands nowhere.
+    """
+
+    def __init__(self, inner: Glass, rows: int) -> None:
+        self._inner = inner
+        self._rows = rows
+        self.pixels = rows * inner.cell_height
+        self.columns = inner.columns
+        self.lines = inner.lines - rows
+        self.cell_width = inner.cell_width
+        self.cell_height = inner.cell_height
+
+    def paint(  # noqa: PLR0913 -- a run carries its whole dress
+        self,
+        row: int,
+        column: int,
+        text: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
+        self._inner.paint(
+            row + self._rows,
+            column,
+            text,
+            ink,
+            paper,
+            bold=bold,
+            italic=italic,
+            graphics=graphics,
+        )
+
+    def text(  # noqa: PLR0913 -- a run carries its whole dress
+        self,
+        line: int,
+        column: int,
+        characters: str,
+        ink: tuple[int, int, int],
+        paper: tuple[int, int, int],
+        *,
+        bold: bool,
+        italic: bool,
+        graphics: bool,
+    ) -> None:
+        self._inner.text(
+            line + self.pixels,
+            column,
+            characters,
+            ink,
+            paper,
+            bold=bold,
+            italic=italic,
+            graphics=graphics,
+        )
+
+    def fill(
+        self,
+        line: int,
+        column: int,
+        height: int,
+        width: int,
+        colour: tuple[int, int, int],
+    ) -> None:
+        self._inner.fill(line + self.pixels, column, height, width, colour)
+
+    def shift(self, line: int, column: int, height: int, width: int, rise: int) -> None:
+        self._inner.shift(line + self.pixels, column, height, width, rise)
+
+    def sample(self, line: int, column: int) -> tuple[int, int, int]:
+        return self._inner.sample(line + self.pixels, column)
+
+    def present(self) -> None:
+        self._inner.present()
+
+    def entitle(self, title: str) -> None:
+        self._inner.entitle(title)
+
+    def key(self, timeout: float | None) -> str | None:
+        return self._inner.key(timeout)
+
+    def click(self) -> tuple[int, int] | None:
+        clicked = self._inner.click()
+
+        if clicked is None:
+            return None
+
+        x, y = clicked
+
+        # A click in the band lands nowhere: the screen the story
+        # hears begins below it.
+        if y <= self.pixels:
+            return None
+
+        return x, y - self.pixels
+
+    def picture(self, rows: Sequence[Sequence[tuple[int, int, int]]]) -> None:
+        # The frontispiece is a doorway courtesy over the whole
+        # window, band region included; play repaints everything.
+        self._inner.picture(rows)
+
+    def photograph(
+        self, data: bytes
+    ) -> Sequence[Sequence[tuple[int, int, int]]] | None:
+        return self._inner.photograph(data)
+
+    def draw(
+        self,
+        rows: Sequence[Sequence[tuple[int, ...]]],
+        line: int,
+        column: int,
+        size: tuple[int, int],
+    ) -> None:
+        self._inner.draw(rows, line + self.pixels, column, size)
+
+    def strike(self) -> None:
+        """Paint the band's reserved region empty."""
+
+        self._inner.fill(1, 1, self.pixels, self.columns * self.cell_width, (0, 0, 0))
+
+    def hang(self, rows: Sequence[Sequence[tuple[int, ...]]], height: int) -> None:
+        """The band's picture, full width at the very top."""
+
+        self.strike()
+        self._inner.draw(rows, 1, 1, (self.columns * self.cell_width, height))
+
+
 class GraphicsFrontend:
     """A frontend that keeps a screen model and blits it to a window.
 
@@ -277,6 +450,7 @@ class GraphicsFrontend:
         gallery: Gallery | None = None,
         standard: tuple[int, int] | None = None,
         *,
+        arc: ArcResources | None = None,
         zoom: float | None = None,
         title: str | None = None,
     ) -> None:
@@ -300,6 +474,9 @@ class GraphicsFrontend:
                 Arthur aligns its rails under its banner's ends,
                 which only nest inside the side regions when the
                 screen keeps the standard proportions.
+            arc: The sidecar's resources for the arc_image band;
+                None, or a sidecar with no art in a band mode's
+                aspect, reserves nothing and claims nothing.
             zoom: The fraction of the desktop the window should
                 fill, satisfied by growing the grid -- more rows
                 and columns of the same type; None keeps the
@@ -315,14 +492,39 @@ class GraphicsFrontend:
         if title is not None:
             glass.entitle(title)
 
+        # The arc_image band, fixed at boot -- the contract's
+        # fixed-band profile, the interpreter author's choice made
+        # for this machine: the sidecar's art betrays its mode by
+        # aspect, whole rows are reserved above the screen, and
+        # the model, the header, and every paint below are born
+        # already re-based (arc_image: the contract, part A).
+        self._arc = arc
+        self._hung: tuple[int, int] | None = None
+        self._banded: _BandedGlass | None = None
+
+        if arc is not None and arc.blorb is not None and version != STAGE_VERSION:
+            mode = _band_mode(arc)
+
+            if mode is not None:
+                pixels = round(
+                    glass.columns
+                    * glass.cell_width
+                    * mode
+                    * ARC_PIXEL_ROWS
+                    / ARC_REFERENCE_WIDTH
+                )
+                rows = -(-pixels // glass.cell_height)
+
+                if rows < glass.lines:
+                    self._banded = _BandedGlass(glass, rows)
+                    glass = self._banded
+
         self._glass = glass
         self._speaker = speaker
         self._gallery = gallery if gallery is not None else Gallery({}, 0)
         self.has_sounds = speaker is not None
         self.has_pictures = gallery is not None
-        # The band waits its turn: the glass will hang arc images
-        # on its own branch, and until then the bit stays honest.
-        self.has_arc_images = False
+        self.has_arc_images = self._banded is not None
         self.idle: Callable[[], None] | None = None
         self.screen_columns = glass.columns
         self.screen_lines = glass.lines
@@ -672,7 +874,76 @@ class GraphicsFrontend:
         return self._gallery.count, self._gallery.release
 
     def draw_arc_image(self, image: int, mode: int) -> None:
-        """Hang nothing yet: the glass's band is its own branch."""
+        """Hang, replace, or clear the fixed band's picture.
+
+        Id 0 paints the band empty -- the fixed-band profile's
+        clear, the region standing reserved either way -- and an
+        id no picture answers, a mode outside the two named, or
+        art nothing aboard can decode is ignored where it lands:
+        presentation, never state (arc_image: the contract).
+        """
+
+        if self._banded is None or mode not in ARC_MODES:
+            return
+
+        if image == 0:
+            if self._hung is not None:
+                self._hung = None
+
+                self._banded.strike()
+                self._present()
+
+            return
+
+        if self._hung == (image, mode):
+            return
+
+        rows = self._arc_rows(image)
+
+        if rows is None:
+            return
+
+        self._hung = (image, mode)
+
+        self._banded.hang(rows, self._arc_height(mode))
+        self._present()
+
+    def _arc_rows(self, image: int) -> Sequence[Sequence[tuple[int, ...]]] | None:
+        """One band picture's pixels, or None for the undrawable.
+
+        PNG decodes here; a JPEG asks the window's own decoders;
+        nothing is refused loudly.
+        """
+
+        info = self._arc.image(image) if self._arc is not None else None
+
+        if info is None:
+            return None
+
+        if info.data.startswith(b"\x89PNG"):
+            try:
+                return decode(info.data).rows
+            except PNGError:
+                return None
+
+        return self._glass.photograph(info.data)
+
+    def _arc_height(self, mode: int) -> int:
+        """The art's on-screen height, the mode's aspect held true.
+
+        Scaled at the window's width; the reserved rows letterbox
+        any remainder.
+        """
+
+        if self._banded is None:  # pragma: no cover -- callers checked
+            raise AssertionError
+
+        width = self._banded.columns * self._banded.cell_width
+
+        return min(
+            round(width * mode * ARC_PIXEL_ROWS / ARC_REFERENCE_WIDTH),
+            self._banded.pixels,
+        )
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Blit a picture at a screen pixel position (§15 draw_picture).
@@ -952,6 +1223,19 @@ class GraphicsFrontend:
             return
 
         self._shadow.clear()
+
+        # The band's region is no cell's to repaint: struck empty
+        # here, and the hanging picture -- if one already hangs --
+        # painted back over it.
+        if self._banded is not None:
+            self._banded.strike()
+
+            if self._hung is not None:
+                hung, mode = self._hung
+                rows = self._arc_rows(hung)
+
+                if rows is not None:
+                    self._banded.hang(rows, self._arc_height(mode))
 
         for row in range(1, self._model.lines + 1):
             self._paint_row(row)

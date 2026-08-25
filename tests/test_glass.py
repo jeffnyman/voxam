@@ -1,5 +1,6 @@
 import sys
 import types
+import zlib
 from collections.abc import Callable, Sequence
 from fractions import Fraction
 from typing import cast
@@ -8,15 +9,19 @@ import pytest
 from assertpy import assert_that
 
 from voxam.aiff import Sound
+from voxam.blorb import Blorb
 from voxam.frontend import GRAPHICS_FONT, Status
 from voxam.gallery import Gallery, Placard, Resolution, Scaling
 from voxam.glass import (
     GraphicsFrontend,
+    _BandedGlass,
     _fitted_faces,
     _key_characters,
     layered,
     open_pygame_glass,
 )
+from voxam.glulx.glk.resources import Resources
+from voxam.iff import chunk
 from voxam.painter import IDLE_HEARTBEAT
 from voxam.png import Picture
 from voxam.screen import BOLD, REVERSE, UPPER, ScreenModel
@@ -164,6 +169,207 @@ def windowed(
 
 def runs_containing(glass: StubGlass, text: str) -> list[tuple[object, ...]]:
     return [entry for entry in glass.painted if text in str(entry[2])]
+
+
+def real_png(width: int, height: int) -> bytes:
+    """A genuine decodable truecolour PNG, one flat colour."""
+
+    def framed(tag: bytes, payload: bytes) -> bytes:
+        return (
+            len(payload).to_bytes(4, "big")
+            + tag
+            + payload
+            + zlib.crc32(tag + payload).to_bytes(4, "big")
+        )
+
+    header = (
+        width.to_bytes(4, "big") + height.to_bytes(4, "big") + bytes([8, 2, 0, 0, 0])
+    )
+    raw = b"".join(b"\x00" + b"\x10\x20\x30" * width for _ in range(height))
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + framed(b"IHDR", header)
+        + framed(b"IDAT", zlib.compress(raw))
+        + framed(b"IEND", b"")
+    )
+
+
+def arc_resources(art: bytes | None = None, kind: bytes = b"PNG ") -> Resources:
+    """Band resources: one picture 8, a mode-9 PNG unless told else."""
+
+    if art is None:
+        art = real_png(40, 9)
+
+    ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
+    offset = 12 + len(ridx)
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Pict"
+        + (8).to_bytes(4, "big")
+        + offset.to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + chunk(kind, art)))
+    )
+
+
+# The glass takes the contract's fixed-band profile: the sidecar's
+# art names its mode by aspect at boot, whole rows stand reserved
+# above the screen -- the model, the header claim, and every paint
+# below born re-based -- and the picture hangs, dedups, and clears
+# to an empty band that never comes down. A clear() repaints the
+# hanging art; a click in the band lands nowhere; art nothing can
+# decode is ignored; and a glass with no sidecar, or art in no
+# known mode, keeps the whole screen unclaimed.
+def test_the_fixed_band_stands_from_boot() -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(5, glass=glass, arc=arc_resources())
+
+    assert_that(frontend.has_arc_images).is_true()
+    assert_that(frontend.screen_lines).is_equal_to(4)
+
+    # A clear before anything hung reserves its silence.
+    frontend.draw_arc_image(0, 9)
+
+    assert_that(glass.filled).is_empty()
+
+    frontend.write("hello")
+
+    assert_that(runs_containing(glass, "hello")[0][0]).is_equal_to(5)
+
+    frontend.draw_arc_image(8, 9)
+
+    assert_that(glass.filled[-1][:4]).is_equal_to((1, 1, 72, 270))
+    assert_that(glass.drawn[-1][1:]).is_equal_to((1, 1, (270, 61)))
+
+    before = len(glass.drawn)
+
+    frontend.draw_arc_image(8, 9)  # the same picture: nothing owed
+    frontend.draw_arc_image(9, 9)  # no such picture: ignored
+    frontend.draw_arc_image(8, 7)  # no such mode: ignored
+
+    assert_that(glass.drawn).is_length(before)
+
+    # A clear() strikes the band and paints the picture back.
+    frontend.clear()
+
+    assert_that(glass.drawn).is_length(before + 1)
+
+    # Id 0 empties the band; the region stands reserved either way.
+    frontend.draw_arc_image(0, 9)
+
+    assert_that(glass.filled[-1][:4]).is_equal_to((1, 1, 72, 270))
+    assert_that(frontend.screen_lines).is_equal_to(4)
+
+    # A click in the band lands nowhere; below it, re-based cells.
+    glass.clicked = (10, 40)
+
+    assert_that(frontend.click_position()).is_none()
+
+    glass.clicked = (10, 90)
+
+    assert_that(frontend.click_position()).is_equal_to((2, 1))
+
+    # No sidecar: the whole screen, no claim.
+    bare, _ = windowed()
+
+    assert_that(bare.has_arc_images).is_false()
+    assert_that(bare.screen_lines).is_equal_to(8)
+
+    # Art in no known mode reserves nothing.
+    odd = GraphicsFrontend(5, glass=StubGlass(), arc=arc_resources(real_png(40, 20)))
+
+    assert_that(odd.has_arc_images).is_false()
+
+    # Art whose body will not decode is ignored at the draw; a
+    # photographic picture asks the window, and this stub carries
+    # no decoders -- both refusals silent, the band left standing.
+    broken = StubGlass()
+    torn = GraphicsFrontend(5, glass=broken, arc=arc_resources(real_png(40, 9)[:50]))
+
+    torn.draw_arc_image(8, 9)
+
+    assert_that(broken.drawn).is_empty()
+
+    photographic = StubGlass()
+    jpeg = (
+        b"\xff\xd8\xff\xc0\x00\x08\x08"
+        + (9).to_bytes(2, "big")
+        + (40).to_bytes(2, "big")
+    )
+    unphotographed = GraphicsFrontend(
+        5, glass=photographic, arc=arc_resources(jpeg, kind=b"JPEG")
+    )
+
+    unphotographed.draw_arc_image(8, 9)
+
+    assert_that(photographic.drawn).is_empty()
+
+    # A clear() with the band standing empty strikes and moves on;
+    # one whose hung art has stopped decoding strikes and stands.
+    torn.clear()
+
+    assert_that(broken.drawn).is_empty()
+
+    torn._hung = (8, 9)
+
+    torn.clear()
+
+    assert_that(broken.drawn).is_empty()
+
+    # A band taller than the window itself reserves nothing.
+    class Short(StubGlass):
+        lines = 3
+
+    cramped = GraphicsFrontend(5, glass=Short(), arc=arc_resources())
+
+    assert_that(cramped.has_arc_images).is_false()
+
+
+# The banded wrapper offsets the whole Glass surface -- the pixel
+# roads the two-window screen never walks included, since the
+# protocol demands them all -- and passes the rest through whole.
+def test_the_banded_glass_offsets_the_whole_surface() -> None:
+    inner = StubGlass()
+    wrapper = _BandedGlass(inner, 4)
+
+    wrapper.text(1, 1, "x", WHITE, BLACK, bold=False, italic=False, graphics=False)
+
+    assert_that(inner.typed[-1][0]).is_equal_to(73)
+
+    wrapper.fill(1, 1, 5, 5, BLACK)
+
+    assert_that(inner.filled[-1][0]).is_equal_to(73)
+
+    wrapper.shift(1, 1, 5, 5, 2)
+
+    assert_that(inner.shifted[-1][0]).is_equal_to(73)
+
+    wrapper.draw([[(1, 2, 3)]], 1, 1, (2, 2))
+
+    assert_that(inner.drawn[-1][1]).is_equal_to(73)
+
+    wrapper.sample(1, 1)
+
+    assert_that(inner.samples[-1]).is_equal_to((73, 1))
+
+    wrapper.present()
+
+    assert_that(inner.presents).is_equal_to(1)
+
+    wrapper.entitle("banded")
+
+    assert_that(inner.entitled).is_equal_to(["banded"])
+
+    assert_that(wrapper.key(None)).is_none()
+    assert_that(wrapper.photograph(b"x")).is_none()
+    assert_that(wrapper.click()).is_none()
+
+    wrapper.picture([[(1, 2, 3)]])
+
+    assert_that(inner.pictures).is_length(1)
 
 
 # The frontend's font metrics are the glass's cell in real pixels
