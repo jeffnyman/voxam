@@ -227,4 +227,10 @@ name = "cz_conventional_commits"
 version_provider = "pep621"
 tag_format = "v$version"
 
+# The desktop shell wears the same version: the bump stamps the Tauri config
+# beside [project], so the tag, the wheel, and the installers all tell one
+# story. (The shell's Cargo and npm manifests keep private scaffold versions;
+# the bundler reads only this file's.)
+version_files = ['desktop/src-tauri/tauri.conf.json:"version"']
+
 update_changelog_on_bump = true

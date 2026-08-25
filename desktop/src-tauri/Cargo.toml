@@ -1,5 +1,7 @@
 [package]
 name = "voxam-desktop"
+# Scaffold version: the bundler reads tauri.conf.json's, which
+# `cz bump` keeps in step with the repo's own.
 version = "0.1.0"
 description = "The Voxam desktop shell"
 edition = "2021"
