@@ -42,8 +42,10 @@ html, body {
 <script type="text/javascript">
 /* The Game interface object GlkOte drives: every event becomes
    one POST, and the response body is the update -- the burst
-   model, one exchange per turn. Pict numbers resolve to the
-   server's own /pict road, so image operations need no urls. */
+   model, one exchange per turn. Pictures arrive inline as data:
+   urls in the update itself, so no Blorb interface is owed; the
+   server's /pict road still answers by number for anyone who
+   asks. */
 var Game = {
   accept: function(event) {
     fetch("/event", {
@@ -57,9 +59,6 @@ var Game = {
     }).catch(function(fault) {
       GlkOte.error("The session was lost: " + fault);
     });
-  },
-  Blorb: {
-    get_image_url: function(number) { return "/pict/" + number; }
   }
 };
 </script>

@@ -1,5 +1,6 @@
 """The GlkOte face of Glk: composed updates, delivered events."""
 
+import base64
 import io
 import json
 from collections.abc import Callable
@@ -510,21 +511,37 @@ def test_a_cleared_canvas_still_fills() -> None:
     )
 
 
-# A picture draws on a canvas by its Pict number -- the host
-# resolves numbers from the Blorb -- and nowhere else.
+# A picture draws on a canvas by its Pict number with the picture
+# itself inlined beside it as a data: url -- PNG and JPEG each
+# under its own kind, the bytes riding whole -- and nowhere else.
 def test_images_draw_on_canvases_alone() -> None:
     _, frontend, canvas = canvased()
-    picture = ImageInfo(5, b"PNG ", b"", 2, 2)
+    picture = ImageInfo(5, b"PNG ", b"\x89PNG\r\n", 2, 2)
 
     assert_that(frontend.draw_image(canvas, picture, 3, 4, 10, 20)).is_true()
     assert_that(frontend.draw_image(TextBufferWindow(), picture, 0, 0, 1, 1)).is_false()
 
     update = frontend.render()
     entry = next(held for held in update["content"] if "draw" in held)
+    drawn = entry["draw"][-1]
 
-    assert_that(entry["draw"][-1]).is_equal_to(
-        {"special": "image", "image": 5, "x": 3, "y": 4, "width": 10, "height": 20}
+    assert_that(drawn["image"]).is_equal_to(5)
+    assert_that((drawn["x"], drawn["y"])).is_equal_to((3, 4))
+    assert_that((drawn["width"], drawn["height"])).is_equal_to((10, 20))
+    assert_that(drawn["url"]).starts_with("data:image/png;base64,")
+    assert_that(base64.b64decode(drawn["url"].split(",", 1)[1])).is_equal_to(
+        b"\x89PNG\r\n"
     )
+
+    photograph = ImageInfo(6, b"JPEG", b"\xff\xd8\xff", 2, 2)
+
+    assert_that(frontend.draw_image(canvas, photograph, 0, 0, 2, 2)).is_true()
+
+    jpeg = next(held for held in frontend.render()["content"] if "draw" in held)[
+        "draw"
+    ][-1]
+
+    assert_that(jpeg["url"]).starts_with("data:image/jpeg;base64,")
 
 
 # Draws for a window that closed before the update vanish rather
