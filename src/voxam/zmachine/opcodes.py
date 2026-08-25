@@ -48,6 +48,14 @@ class Opcode:
     has_text: bool = False
 
 
+# Standard 1.1 reserves EXT opcodes 128-255 for private use (§14.2):
+# unknown ones decode as this rider-less no-op instead of raising, so
+# an extension a game carries for some other interpreter passes
+# through quietly. Below 128 is the Standard's own table, where an
+# unknown number stays the loud error it always was.
+PRIVATE_EXT_FLOOR = 0x80
+_PRIVATE_EXT = Opcode("ext_private")
+
 # A table entry: the first and last version defining the opcode, and
 # the opcode itself. A number maps to a tuple of entries because some
 # opcodes fork across versions (save, pop/catch, not/call_1n, pull).
@@ -265,6 +273,14 @@ def lookup(kind: OpcodeKind, number: int, version: int) -> Opcode:
     for first, last, opcode in _TABLES[kind].get(number, ()):
         if first <= version <= last:
             return opcode
+
+    if kind is OpcodeKind.EXT and number >= PRIVATE_EXT_FLOOR:
+        # Standard 1.1 reserves EXT 128-255 for private use and asks
+        # that an interpreter ignore the ones it does not know
+        # (§14.2). The operand-types byte spells the operands, so
+        # the instruction skips whole; by the same convention no
+        # store or branch rider is assumed to follow.
+        return _PRIVATE_EXT
 
     msg = f"{kind.value}:{number} is not an opcode in version {version} (§14)"
 

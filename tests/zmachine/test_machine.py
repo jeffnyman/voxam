@@ -45,6 +45,31 @@ def test_quit_halts_the_machine(code_machine: Callable[..., Machine]) -> None:
     assert_that(machine.running).is_false()
 
 
+# A private-use EXT opcode passes through unclaimed (§14.2): the
+# operands are consumed by their own types byte -- two small
+# constants for the first, none for the second -- and play steps
+# on to the store beyond, proving the walk stayed aligned. The
+# Standard's own table stays loud below 128.
+def test_private_ext_opcodes_step_over(code_machine: Callable[..., Machine]) -> None:
+    program = (
+        bytes([0xBE, 0x80, 0x5F, 0x05, 0x09])  # EXT:128 (5, 9), draw_image-shaped
+        + bytes([0xBE, 0xFF, 0xFF])  # EXT:255, no operands at all
+        + bytes([0x0D, RESULT_VARIABLE, 0x2A])  # store g0 42
+        + bytes([0xBA])  # quit
+    )
+    machine = code_machine(layout(program), version=5)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
+
+    unknown = code_machine(layout(bytes([0xBE, 0x7F, 0xFF, 0xBA])), version=5)
+
+    with pytest.raises(ZMachineInstructionError, match="not an opcode"):
+        unknown.run()
+
+
 # The whole call contract of §6.4: enter the routine, run it, return
 # its value into the caller's chosen variable, resume after the call.
 def test_a_call_delivers_the_routines_result(

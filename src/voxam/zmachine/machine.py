@@ -4223,6 +4223,17 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_ext_private(self, instruction: Instruction) -> None:
+        """Pass over a private-use EXT opcode unclaimed (§14.2).
+
+        Standard 1.1 reserves EXT 128-255 for extensions and asks
+        that unknown ones be ignored: the operands were decoded by
+        their own types byte, and play steps on as though the
+        instruction were never there.
+        """
+
+        self._pc = instruction.next_address
+
     def _op_print_char(self, instruction: Instruction) -> None:
         """Print the character a ZSCII code means (§3.8)."""
 
@@ -4382,6 +4393,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "move_window": Machine._op_move_window,
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
+    "ext_private": Machine._op_ext_private,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,
     "print_form": Machine._op_print_form,
