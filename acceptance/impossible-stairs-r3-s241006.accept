@@ -1,0 +1,101 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/impossible-stairs-r3-s241006.z8
+
+look
+take airplane
+i
+x list
+x me
+x house
+e
+
+x center
+x carpeting
+x calendar
+n
+s
+
+x easel
+x pedestal
+x towel
+x board
+x grandfather
+x grandmother
+x mom
+take card
+read it
+x Dad
+talk to Dad
+1
+1
+2
+3
+n
+e
+
+x Joe
+talk to Joe
+1
+1
+2
+2
+2
+3
+x tarps
+x counter
+x gap
+x dish
+take dish
+x oven
+e
+
+x tree
+x treehouse
+x houses
+w
+s
+
+x shelves
+x walnuts
+x beans
+take walnuts
+n
+w
+d
+
+x calendar
+x rug
+x paneling
+x boombox
+open it
+x battery
+x Grandma
+talk to Grandma
+1
+1
+1
+2
+3
+4
+
+x TV
+x recliner
+x Sprite
+n
+
+x whiteboard
+x equations
+x Ada
+x sweater
+talk to Ada
+1
+1
+1
+1
+2
+2
+2
+s
+s
+quit
+y
