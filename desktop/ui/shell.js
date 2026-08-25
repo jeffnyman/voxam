@@ -44,6 +44,15 @@ var FILTERS = [
   { name: "All files", extensions: ["*"] }
 ];
 
+/* The file prompt's shapes, one per protocol filetype; All files
+   rides behind each, since a player's old save may wear any name. */
+var PROMPTED = {
+  save: { name: "Saved games", extensions: ["glksave", "sav"] },
+  transcript: { name: "Transcripts", extensions: ["txt", "log"] },
+  command: { name: "Command records", extensions: ["txt", "rec"] },
+  data: { name: "Data files", extensions: ["glkdata", "dat"] }
+};
+
 var Game = {
   /* Every GlkOte event becomes one line down the pipe. Rejections
      are swallowed: glkote.js hardcodes timer support, and a timer
@@ -52,6 +61,33 @@ var Game = {
      shell owes no Blorb interface and no picture road. */
   accept: function(event) {
     invoke("send_stanza", { line: JSON.stringify(event) }).catch(function() {});
+  },
+  Dialog: {
+    /* glkote.js asks whether the Dialog needs initing; a native
+       picker has nothing to init. */
+    inited: function() { return true; },
+
+    /* The protocol's file prompt answered with a real picker over
+       the very filesystem the interpreter writes: the chosen path
+       travels back verbatim as the specialresponse value -- the
+       machine side takes a plain string, and anything else reads
+       as the cancel it is. This is the desktop's own power; the
+       browser face cannot reach the player's disk. */
+    open: function(tosave, usage, gameid, callback) {
+      var shaped = PROMPTED[usage];
+      var filters = shaped
+        ? [shaped, { name: "All files", extensions: ["*"] }]
+        : [{ name: "All files", extensions: ["*"] }];
+      var asked = tosave
+        ? dialog.save({ filters: filters })
+        : dialog.open({ filters: filters });
+
+      asked.then(function(path) {
+        callback(path || null);
+      }).catch(function() {
+        callback(null);
+      });
+    }
   }
 };
 window.Game = Game;
