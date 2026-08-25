@@ -198,9 +198,12 @@ jobs:
           pathlib.Path("notes.md").write_text(notes, encoding="utf-8")
           NOTES
 
+      # Files only, whatever shape any artifact arrives in: the
+      # v1.9.0 release fell at this step when a glob handed gh a
+      # directory instead of an installer.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* installers/* \
+          gh release create "$GITHUB_REF_NAME" dist/* $(find installers -type f) \
             --title "$GITHUB_REF_NAME" --notes-file notes.md
