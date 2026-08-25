@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from assertpy import assert_that
@@ -8,7 +9,7 @@ from voxam.errors import (
     ZMachineMemoryError,
 )
 from voxam.frontend import PlainFrontend
-from voxam.zmachine.machine import COUNTED_TEXT_VERSION, Machine
+from voxam.zmachine.machine import COUNTED_TEXT_VERSION, Filing, Machine, Reading
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
 from voxam.zmachine.zscii import encode_word
@@ -1354,7 +1355,7 @@ def test_a_read_suspends_and_the_line_lands(
 
     waiting = machine.waiting
 
-    if waiting is None:
+    if not isinstance(waiting, Reading):
         pytest.fail("the read suspended")
 
     assert_that((waiting.wants, waiting.time, waiting.routine)).is_equal_to(
@@ -1389,7 +1390,7 @@ def test_a_counted_read_holds_its_preload(
 
     waiting = machine.waiting
 
-    if waiting is None:
+    if not isinstance(waiting, Reading):
         pytest.fail("the read suspended")
 
     assert_that(waiting.held).is_equal_to("go")
@@ -1417,7 +1418,7 @@ def test_a_keystroke_suspends_and_lands(
 
     waiting = machine.waiting
 
-    if waiting is None:
+    if not isinstance(waiting, Reading):
         pytest.fail("the read suspended")
 
     assert_that(waiting.wants).is_equal_to("key")
@@ -1444,7 +1445,7 @@ def test_ticks_drive_a_timed_reads_interrupt(
 
     waiting = machine.waiting
 
-    if waiting is None:
+    if not isinstance(waiting, Reading):
         pytest.fail("the read suspended")
 
     assert_that((waiting.time, waiting.routine)).is_equal_to((10, 0x1C))
@@ -1524,3 +1525,112 @@ def test_misdeliveries_are_loud(code_machine: Callable[..., Machine]) -> None:
 
     with pytest.raises(ZMachineInstructionError, match="still owed"):
         machine.run()
+
+
+# The third wait: a save on a suspending display parks its finish
+# and asks for a file. The delivered path keeps a real Quetzal --
+# a bare name gaining .sav as a courtesy -- and the Section 15
+# rider answers success; a cancel answers the failure the game
+# already speaks. A restore stands down the same way: the
+# delivered file resumes at its save's own rider with 2, garbage
+# and cancels answer 0, Version 3 rides its branch instead, and
+# deliveries against the wrong wait stay loud in both directions.
+def test_saves_stand_down_for_their_files(
+    code_machine: Callable[..., Machine], tmp_path: Path
+) -> None:
+    def standing(program: bytes, version: int = 5) -> Machine:
+        machine = code_machine(
+            program,
+            version=version,
+            frontend=SuspendingFrontend(),
+            input_source=unasked,
+        )
+
+        machine.run()
+
+        return machine
+
+    # One story carrying both asks: save into g0, restore into g1,
+    # quit -- the identities match because the story is itself.
+    both = bytes([0xBE, 0x00, 0xFF, 0x10, 0xBE, 0x01, 0xFF, 0x11, 0xBA])
+
+    saver = standing(both)
+    waiting = saver.waiting
+
+    if not isinstance(waiting, Filing):
+        pytest.fail("the save suspended")
+
+    assert_that(waiting.purpose).is_equal_to("save")
+    assert_that((waiting.data or b"")[:4]).is_equal_to(b"FORM")
+
+    with pytest.raises(ZMachineInstructionError, match="no line read suspended"):
+        saver.deliver_line("go")
+
+    saver.deliver_file(str(tmp_path / "expedition"))
+
+    kept = tmp_path / "expedition.sav"
+
+    assert_that(kept.exists()).is_true()
+    assert_that(saver.memory.read_word(RESULT)).is_equal_to(1)
+
+    saver.run()
+
+    held = saver.waiting
+
+    if not isinstance(held, Filing):
+        pytest.fail("the restore suspended")
+
+    assert_that(held.purpose).is_equal_to("restore")
+
+    # The restored state resumes at the save's own rider with 2 --
+    # and play walks forward into the restore again, whose cancel
+    # answers the failure the game already speaks.
+    saver.deliver_file(str(kept))
+    saver.run()
+
+    assert_that(saver.memory.read_word(RESULT)).is_equal_to(2)
+
+    saver.deliver_file(None)
+    saver.run()
+
+    assert_that(saver.memory.read_word(RESULT + 2)).is_zero()
+    assert_that(saver.running).is_false()
+
+    with pytest.raises(ZMachineInstructionError, match="no save or restore"):
+        saver.deliver_file("late")
+
+    # A cancelled save, then garbage answering the restore: both
+    # walk on through the same honest failures.
+    refused = standing(both)
+
+    refused.deliver_file(None)
+
+    assert_that(refused.memory.read_word(RESULT)).is_zero()
+
+    refused.run()
+
+    noise = tmp_path / "noise.sav"
+
+    noise.write_bytes(b"not a quetzal at all")
+    refused.deliver_file(str(noise))
+
+    assert_that(refused.memory.read_word(RESULT + 2)).is_zero()
+
+    refused.run()
+
+    assert_that(refused.running).is_false()
+
+    olden = standing(bytes([0xB5, 0xC2, 0xBA]), version=3)
+
+    olden.deliver_file(str(tmp_path / "olden"))
+    olden.run()
+
+    assert_that((tmp_path / "olden.sav").exists()).is_true()
+    assert_that(olden.running).is_false()
+
+    bygone = standing(bytes([0xB5, 0xC2, 0xBA]), version=3)
+
+    bygone.deliver_file(None)
+    bygone.run()
+
+    assert_that(bygone.running).is_false()

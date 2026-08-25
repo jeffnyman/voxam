@@ -12,6 +12,9 @@ read, the update carries the ask -- the counted buffer's preload
 as the field's initial -- and the display's answer is delivered
 straight to the machine, echoed here first, since the machine
 never echoes and the display owes the typed line and its newline.
+The saves stand down the same way: a §15 save or restore asks for
+its file through the protocol's special input, and the answered
+path -- or the cancel -- runs the parked rider.
 
 The arc_image band hangs here too: a story whose sidecar carries
 pictures plays them in a graphics window above the whole screen --
@@ -48,7 +51,7 @@ from voxam.glkote import (
 from voxam.glulx.glk.resources import Resources
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
-from voxam.zmachine.machine import Machine
+from voxam.zmachine.machine import Filing, Machine, Reading
 from voxam.zmachine.story import Story
 
 # The verdicts accept hands the serving loops: run the machine on,
@@ -386,13 +389,19 @@ class GlkOteFrontend(PlainFrontend):
 
         waiting = machine.waiting
 
-        if waiting is not None:
+        if isinstance(waiting, Filing):
+            # A save or restore asks for its file through the
+            # protocol's special input; the display disables the
+            # game until the answer comes back (GlkOte: Special
+            # Input Requests).
+            self.page.prompt("write" if waiting.purpose == "save" else "read", "save")
+        elif isinstance(waiting, Reading):
             if waiting.wants == "line":
                 self.page.line_input(_BUFFER, waiting.capacity, initial=waiting.held)
             else:
                 self.page.char_input(_BUFFER)
 
-        if waiting is not None and waiting.time and waiting.routine:
+        if isinstance(waiting, Reading) and waiting.time and waiting.routine:
             # A fresh timed read restarts the display's clock even
             # at the same cadence, as §15 restarts its own.
             self.page.timer(
@@ -487,7 +496,7 @@ class GlkOteFrontend(PlainFrontend):
 
         return face
 
-    def accept(self, stanza: Stanza) -> str:
+    def accept(self, stanza: Stanza) -> str:  # noqa: PLR0911 -- one verdict per event kind
         """Translate one inbound stanza into a serving verdict.
 
         ADVANCE means the machine can run on; STAND means the wait
@@ -525,10 +534,31 @@ class GlkOteFrontend(PlainFrontend):
         if kind == "timer":
             return self._ticked()
 
+        if kind == "specialresponse":
+            return self._answered(stanza)
+
         if kind in ("arrange", "redraw"):
             return self._reshaped(kind, stanza)
 
         return PASS
+
+    def _answered(self, stanza: Stanza) -> str:
+        """The player's file name, or not, to the suspended ask.
+
+        A response to some other ask asks nothing here (GlkOte:
+        Special Input Requests); a non-string value is a browser
+        dialog's fileref object, and no dialog was invited: it
+        reads as the cancel it is, which is always legitimate.
+        """
+
+        if stanza.get("response") != "fileref_prompt":
+            return PASS
+
+        value = stanza.get("value")
+
+        self._machine().deliver_file(value if isinstance(value, str) else None)
+
+        return ADVANCE
 
     def _reshaped(self, kind: str, stanza: Stanza) -> str:
         """An arrange or redraw: the picture re-shapes or re-paints.

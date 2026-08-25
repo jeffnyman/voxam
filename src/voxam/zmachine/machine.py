@@ -11,6 +11,7 @@ import operator
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import NoReturn
 
 from voxam.errors import (
@@ -35,7 +36,7 @@ from voxam.frontend import (
     PlainFrontend,
     Status,
 )
-from voxam.saves import SaveSlot
+from voxam.saves import FileSaveSlot, SaveSlot
 from voxam.scribe import Scribe
 from voxam.zmachine.dictionary import Dictionary, tokenize
 from voxam.zmachine.frames import CallStack
@@ -455,6 +456,44 @@ class Reading:
         self.preloaded = preloaded
 
 
+class Filing:
+    """One suspended file ask: a save or restore awaiting its path.
+
+    The third Z wait, shaped like the reads: the pc has not moved
+    past the opcode and its §15 rider is still owed, so the finish
+    parks here -- the host's answer writes or reads the file and
+    runs the rider, while a cancel answers the opcode's own
+    failure, which every game already speaks.
+
+    Attributes:
+        wants: Always "file" -- the discriminator the waits share,
+            so a delivery to the wrong wait is refused by name.
+        routine: Always zero: no §15 interrupt ticks a file ask.
+        purpose: Which opcode stands suspended, "save" or
+            "restore".
+        instruction: The suspended opcode, rider and all.
+        data: The Quetzal bytes a save carries ready to keep;
+            None on a restore, whose bytes are still to be found.
+    """
+
+    wants = "file"
+    routine = 0
+
+    def __init__(
+        self, purpose: str, instruction: Instruction, data: bytes | None
+    ) -> None:
+        """Park one file ask, its finish and all."""
+
+        self.purpose = purpose
+        self.instruction = instruction
+        self.data = data
+
+
+# The courtesy suffix a bare save name gains, the convention the
+# desktop's own picker offers.
+SAVE_SUFFIX = ".sav"
+
+
 class Machine:
     """A running Z-Machine (§6.1).
 
@@ -567,7 +606,7 @@ class Machine:
         # truth however the stream is worked.
         self._recording_commands = False
         self._file_input = False
-        self._waiting: Reading | None = None
+        self._waiting: Reading | Filing | None = None
         self._identity = identity if identity is not None else DEFAULT_IDENTITY
         self._words: Dictionary | None = None
         self._running = True
@@ -775,8 +814,8 @@ class Machine:
         return self._running
 
     @property
-    def waiting(self) -> Reading | None:
-        """The suspended read a host must answer, or None."""
+    def waiting(self) -> "Reading | Filing | None":
+        """The suspended read or file ask a host must answer."""
 
         return self._waiting
 
@@ -864,6 +903,55 @@ class Machine:
 
         return True
 
+    def deliver_file(self, name: str | None) -> None:
+        """Complete a suspended save or restore with the player's path.
+
+        The prompt's name is the player's own: an absolute path is
+        honored whole, a relative one lands where the session runs,
+        and a bare one gains the .sav suffix as a courtesy. A
+        cancel -- None -- answers the opcode's own §15 failure,
+        which every game already speaks; a restore that succeeds
+        does not continue here at all, resuming at its save's
+        rider (§15 save, Quetzal §5.8).
+
+        Raises:
+            ZMachineInstructionError: When no save or restore
+                stands suspended to receive it.
+        """
+
+        waiting = self._waiting
+
+        if not isinstance(waiting, Filing):
+            msg = "a file arrived with no save or restore suspended to receive it"
+
+            raise ZMachineInstructionError(msg)
+
+        self._waiting = None
+
+        path = None
+
+        if name:
+            path = Path(name)
+
+            if not path.suffix:
+                path = path.with_suffix(SAVE_SUFFIX)
+
+        if waiting.purpose == "save":
+            success = (
+                path is not None
+                and waiting.data is not None
+                and FileSaveSlot(path).write(waiting.data)
+            )
+
+            self._save_rider(waiting.instruction, success=success)
+
+            return
+
+        self._restored(
+            waiting.instruction,
+            FileSaveSlot(path).read() if path is not None else None,
+        )
+
     def deliver_tick(self) -> None:
         """Fire a timed read's §15 interrupt routine, mid-wait.
 
@@ -879,7 +967,7 @@ class Machine:
 
         waiting = self._waiting
 
-        if waiting is None or not waiting.routine:
+        if not isinstance(waiting, Reading) or not waiting.routine:
             msg = "a tick arrived with no timed read suspended to hear it"
 
             raise ZMachineInstructionError(msg)
@@ -906,7 +994,7 @@ class Machine:
 
         waiting = self._waiting
 
-        if waiting is None or waiting.wants != wants:
+        if not isinstance(waiting, Reading) or waiting.wants != wants:
             msg = f"a {wants} arrived with no {wants} read suspended to receive it"
 
             raise ZMachineInstructionError(msg)
@@ -1482,7 +1570,25 @@ class Machine:
             frames=self._calls.snapshot(),
         )
         data = write_quetzal(snapshot, self._story)
+
+        if self._frontend.suspends:
+            # A display that cannot block asks through its own file
+            # prompt: the finish parks, and the host's answer lands
+            # through deliver_file -- the same standing-down the
+            # reads learned (§15 save).
+            self._waiting = Filing("save", instruction, data)
+
+            raise MachineSuspended
+
         success = self._saves is not None and self._saves.write(data)
+
+        self._save_rider(instruction, success=success)
+
+    def _save_rider(self, instruction: Instruction, *, success: bool) -> None:
+        """Answer a save the §15 way.
+
+        A branch through Version 3, a stored result from Version 4.
+        """
 
         if self._memory.header.version <= BRANCHING_SAVE_FINAL_VERSION:
             self._branch(instruction, success)
@@ -1507,8 +1613,27 @@ class Machine:
 
             return
 
+        if self._frontend.suspends:
+            # The restore stands down for its file the way the save
+            # does; the bytes are still to be found (§15 restore).
+            self._waiting = Filing("restore", instruction, None)
+
+            raise MachineSuspended
+
+        self._restored(
+            instruction, self._saves.read() if self._saves is not None else None
+        )
+
+    def _restored(self, instruction: Instruction, data: bytes | None) -> None:
+        """Finish a restore from whatever bytes were found (§6.1.2).
+
+        Success resumes at the save's own rider; every failure --
+        no bytes, bytes that are not a save, a save from another
+        game -- answers as §15 says, no branch through Version 3
+        and a stored 0 from Version 4.
+        """
+
         snapshot = None
-        data = self._saves.read() if self._saves is not None else None
 
         if data is not None:
             try:
