@@ -544,7 +544,12 @@ remains maps onto the interim releases:
   `voxam --babel` for the story's name and the filename's stem
   stands in for the nameless. The Story menu claims the machine's
   identity -- a §11.1.3 platform and the Tandy bit, restarting
-  the open story so the checkmark never outruns the header.
+  the open story so the checkmark never outruns the header. The
+  Display menu dresses the page in type, size, ink, and measure,
+  applied live -- a poked resize re-measures the metrics and the
+  machines take the new arrangement as they take any other -- and
+  kept in the app's own config dir, so the checkmarks and the
+  dress agree at every startup.
   Not yet aboard, each a named road:
   pictures (the browser face's `/pict` road has no pipe
   equivalent yet), the save-file dialog, and the CI workflow

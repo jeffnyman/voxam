@@ -617,7 +617,10 @@ its Babel title on the title bar. The Story menu claims a §11.1.3
 platform (the `--interpreter` flag's own roster) and sets the
 legendary Tandy bit; a changed claim restarts the open story on
 the spot, since the identity belongs to the booting machine --
-and a Glulx story simply ignores it. What the shell does not carry
+and a Glulx story simply ignores it. The Display menu dresses the
+page -- the story's type and size, the ink it is set in (paper,
+sepia, or dark), and the measure of its column -- applied live,
+remembered across sessions. What the shell does not carry
 yet, each a named road: pictures, and the save-file dialog (a
 save prompt is answered with a cancel, as in the browser face
 today).

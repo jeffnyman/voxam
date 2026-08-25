@@ -5,10 +5,17 @@
 <title>Voxam</title>
 <link rel="stylesheet" href="glkote.css" type="text/css">
 <style type="text/css">
+/* The Display menu's knobs, worn as variables the dresser sets:
+   the story's type and size, and the measure of its column. */
+:root {
+  --story-face: Palatino, Georgia, "Times New Roman", Times, serif;
+  --story-size: 15px;
+  --grid-size: 14px;
+  --measure: 900px;
+}
 html, body {
   margin: 0;
   height: 100%;
-  background: #444;
 }
 #gameport {
   position: absolute;
@@ -16,24 +23,80 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 900px;
+  max-width: var(--measure);
   top: 0;
   bottom: 0;
+}
+.BufferWindow, .BufferWindow .Input {
+  font-family: var(--story-face);
+  font-size: var(--story-size);
+}
+.GridWindow, .GridWindow .Input {
+  font-size: var(--grid-size);
+}
+.Input {
+  color: inherit;
+  background: transparent;
+}
+/* The inks, each a whole dress: page, story, and the grid with
+   its inverse -- the Z-Machine's reverse video (§8.7) travels as
+   user1, wearing the classic bar in every ink. */
+body.theme-paper {
+  background: #444;
+}
+body.theme-paper #gameport {
   background: white;
+  color: black;
 }
-/* The Z-Machine's reverse video (§8.7) travels as user1, and its
-   status grid wears the classic inverse bar. */
-.Style_user1 {
+body.theme-paper .Style_user1 {
   background: #333;
   color: #fff;
 }
-.GridWindow {
+body.theme-paper .GridWindow {
   background: #333;
   color: #fff;
 }
-.GridWindow .Style_user1 {
+body.theme-paper .GridWindow .Style_user1 {
   background: #fff;
   color: #333;
+}
+body.theme-sepia {
+  background: #2f2921;
+}
+body.theme-sepia #gameport {
+  background: #f4ecd8;
+  color: #43382a;
+}
+body.theme-sepia .Style_user1 {
+  background: #43382a;
+  color: #f4ecd8;
+}
+body.theme-sepia .GridWindow {
+  background: #43382a;
+  color: #f4ecd8;
+}
+body.theme-sepia .GridWindow .Style_user1 {
+  background: #f4ecd8;
+  color: #43382a;
+}
+body.theme-dark {
+  background: #111;
+}
+body.theme-dark #gameport {
+  background: #1c1c1c;
+  color: #d6d6d6;
+}
+body.theme-dark .Style_user1 {
+  background: #d6d6d6;
+  color: #1c1c1c;
+}
+body.theme-dark .GridWindow {
+  background: #000;
+  color: #d6d6d6;
+}
+body.theme-dark .GridWindow .Style_user1 {
+  background: #d6d6d6;
+  color: #000;
 }
 /* The landing overlay covers the gameport but never hides it:
    GlkOte must measure real geometry the moment it initializes. */
@@ -96,7 +159,7 @@ html, body {
 <script src="glkote.js" type="text/javascript"></script>
 <script src="shell.js" type="text/javascript"></script>
 </head>
-<body>
+<body class="theme-paper">
 <div id="gameport">
 <div id="windowport">
 <noscript><p>You must have Javascript turned on to play.</p></noscript>

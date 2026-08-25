@@ -21,6 +21,20 @@ var pending = [];
 var faulted = false;
 var opened = false;
 
+/* The Display menu's words, spelled as CSS: the faces are stacks,
+   the measures are column widths. */
+var FACES = {
+  serif: 'Palatino, Georgia, "Times New Roman", Times, serif',
+  sans: '"Segoe UI", Helvetica, Arial, sans-serif',
+  mono: 'Consolas, "Courier New", monospace'
+};
+var MEASURES = {
+  narrow: "700px",
+  standard: "900px",
+  wide: "1200px",
+  full: "100%"
+};
+
 /* The picker's story shapes; All files rides behind them so a
    renamed story is never unreachable. */
 var FILTERS = [
@@ -53,6 +67,22 @@ function chooseStory() {
       location.reload();
     });
   });
+}
+
+/* Dress the page in the settings' word, then poke a resize so
+   GlkOte re-measures its metrics -- the machines take the new
+   arrangement live, no restart owed. Pre-init the poke is a
+   harmless no-op; the dress still paints the landing. */
+function dressed(display) {
+  var root = document.documentElement.style;
+
+  root.setProperty("--story-face", FACES[display.face] || FACES.serif);
+  root.setProperty("--story-size", display.size + "px");
+  root.setProperty("--grid-size", (display.size - 1) + "px");
+  root.setProperty("--measure", MEASURES[display.measure] || MEASURES.standard);
+  document.body.className = "theme-" + display.theme;
+
+  window.dispatchEvent(new Event("resize"));
 }
 
 function stranded(message) {
@@ -94,8 +124,17 @@ window.addEventListener("DOMContentLoaded", function() {
   listen("menu-restart", function() {
     if (opened) location.reload();
   });
+  listen("display", function(event) {
+    dressed(event.payload);
+  });
 
-  invoke("current_story").then(function(story) {
+  /* The dress arrives before the story: GlkOte's init measures
+     the page, so the page must already wear its type and ink. */
+  invoke("display_settings").then(function(display) {
+    dressed(display);
+
+    return invoke("current_story");
+  }).then(function(story) {
     if (!story) return;
 
     opened = true;
