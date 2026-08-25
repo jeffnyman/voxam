@@ -658,10 +658,11 @@ themselves. And a Glulx story's `save` opens a real save dialog
 -- the desktop's own power, since the picker and the interpreter
 share a filesystem -- the chosen path answering the protocol's
 file prompt, so saves and restores work exactly as at the
-painted glasses. (A Z-Machine story's save over the protocol
-still answers honestly that it cannot: the Z machine saves
-without suspending, and teaching it to wait is its own named
-road.)
+painted glasses. And the Z-Machine saves there too: §15's save
+and restore learned the same standing-down the reads learned,
+asking for their files through the protocol's special input, so
+a Zork saved in the shell is a real Quetzal on disk, restored
+through the same picker.
 
 ### Project conventions
 

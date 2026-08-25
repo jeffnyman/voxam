@@ -580,13 +580,18 @@ remains maps onto the interim releases:
   Every unclaiming face plays the same story as text, and the
   whole private EXT range now skips unclaimed (§14.2), as
   Standard 1.1 asks.
+- **The saves stand down.** The Z machine's third wait: §15's
+  save and restore suspend for their files the way the reads
+  suspend for their lines, the ask travelling as the protocol's
+  special input and the player's path -- or cancel -- running
+  the parked rider. A restore that succeeds resumes at its
+  save's own rider with 2, exactly as at the blocking glasses,
+  so a Zork saved in the browser or the shell is a real Quetzal
+  on disk. Both machines now save on every face that can ask.
 - **2.0, the declaration.** The road still holds, each its own
-  branch: whatever the all-frontends playthroughs surface, the
-  arc games' recordings, the Z save wait (the Z machine saves
-  without suspending, so its protocol saves answer an honest
-  failure until it learns the standing-down its reads learned),
-  and -- its own later road -- signed installers (macOS
-  Gatekeeper and SmartScreen warn on the unsigned ones). Pictures already ride the pipe: every
+  branch: whatever the all-frontends playthroughs surface, and
+  -- its own later road -- signed installers (macOS Gatekeeper
+  and SmartScreen warn on the unsigned ones). Pictures already ride the pipe: every
   image op carries its picture whole as a `data:` url, so the
   shell and the browser draw the gblorb's art from the update
   alone. And the shell answers the file prompt with a real

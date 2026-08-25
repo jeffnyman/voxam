@@ -3,6 +3,7 @@
 import io
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -544,6 +545,72 @@ def test_the_band_hangs_above_the_screen(
     canvasless, _ = opened(code_machine, resources=banded_resources())
 
     assert_that(canvasless.has_arc_images).is_false()
+
+
+# A save asks through the protocol's special input: the update
+# carries the fileref prompt in the write mode, the answered path
+# advances the machine and keeps a real file, a restore asks in
+# the read mode, a response to some other ask asks nothing here,
+# and a dialog's non-string ref reads as the cancel it is.
+def test_saves_ask_through_special_input(
+    code_machine: Callable[..., Machine], tmp_path: Path
+) -> None:
+    program = bytes([0xBE, 0x00, 0xFF, 0x10, 0xBE, 0x01, 0xFF, 0x11, 0xBA])
+    frontend, machine = opened(code_machine, program=program)
+
+    machine.run()
+
+    update = frontend.render()
+
+    assert_that(update["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "write", "filetype": "save"}
+    )
+
+    assert_that(
+        frontend.accept(
+            {
+                "type": "specialresponse",
+                "gen": frontend.page.gen,
+                "response": "unknown_prompt",
+                "value": "x",
+            }
+        )
+    ).is_equal_to(PASS)
+
+    kept = str(tmp_path / "expedition.sav")
+
+    assert_that(
+        frontend.accept(
+            {
+                "type": "specialresponse",
+                "gen": frontend.page.gen,
+                "response": "fileref_prompt",
+                "value": kept,
+            }
+        )
+    ).is_equal_to(ADVANCE)
+
+    machine.run()
+
+    asked = frontend.render()
+
+    assert_that(asked["specialinput"]["filemode"]).is_equal_to("read")
+
+    # A fileref object from some browser dialog is a cancel.
+    assert_that(
+        frontend.accept(
+            {
+                "type": "specialresponse",
+                "gen": frontend.page.gen,
+                "response": "fileref_prompt",
+                "value": {"filename": kept},
+            }
+        )
+    ).is_equal_to(ADVANCE)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
 
 
 def reading_image() -> bytes:
