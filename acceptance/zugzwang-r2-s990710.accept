@@ -1,0 +1,17 @@
+! SEED=1
+! GAME=../entharion/zcode-inform/zugzwang-r2-s990710.z5
+
+examine board
+n
+no
+wait
+ne
+undo
+n
+wait
+n
+wait
+n
+wait
+n
+quit
