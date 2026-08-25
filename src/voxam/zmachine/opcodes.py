@@ -235,6 +235,14 @@ _EXT: dict[int, tuple[_Entry, ...]] = {
     0x13: (_op("get_wind_prop", first=6, stores=True),),
     0x14: (_op("scroll_window", first=6),),
     0x15: (_op("pop_stack", first=6),),
+    # The arc_image band's one opcode, in the private range the
+    # Standard reserves (§14.2): defined for Versions 5, 7, and 8
+    # as the contract defines it (arc_image: the contract, part A).
+    # In Version 6 the number stays private and skips.
+    0x80: (
+        _op("draw_image", first=5, last=5),
+        _op("draw_image", first=7, last=8),
+    ),
     0x16: (_op("read_mouse", first=6),),
     0x17: (_op("mouse_window", first=6),),
     0x18: (_op("push_stack", first=6, branches=True),),

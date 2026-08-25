@@ -320,6 +320,9 @@ class GraphicsFrontend:
         self._gallery = gallery if gallery is not None else Gallery({}, 0)
         self.has_sounds = speaker is not None
         self.has_pictures = gallery is not None
+        # The band waits its turn: the glass will hang arc images
+        # on its own branch, and until then the bit stays honest.
+        self.has_arc_images = False
         self.idle: Callable[[], None] | None = None
         self.screen_columns = glass.columns
         self.screen_lines = glass.lines
@@ -667,6 +670,9 @@ class GraphicsFrontend:
         """How many pictures hang, and the art's release (§15)."""
 
         return self._gallery.count, self._gallery.release
+
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Hang nothing yet: the glass's band is its own branch."""
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Blit a picture at a screen pixel position (§15 draw_picture).

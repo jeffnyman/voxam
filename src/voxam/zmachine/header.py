@@ -54,6 +54,12 @@ GRAPHICS_BIT = 0x08
 MOUSE_BIT = 0x20
 MENUS_BIT = 0x01
 
+# The arc_image contract reads the same picture bit in Versions 5,
+# 7, and 8: a band-drawing interpreter claims it there too, and a
+# game that finds it clear never reaches for the draw opcode
+# (arc_image: the contract, part A).
+ARC_PICTURES_VERSION = 5
+
 # Version 6 grows Flags 1 further: bit 1 declares that picture
 # displaying is available and bit 5 that sound effects are -- the
 # general availability of the opcodes behind them, per the §11.1.4
@@ -601,15 +607,17 @@ class Header:
         Bit 1 of Version 6's Flags 1 declares the general
         availability of the picture opcodes -- a capability the
         interpreter states outright, where Flags 2 bit 3 is the
-        game's request.
+        game's request. The arc_image contract reads the same bit
+        in Versions 5, 7, and 8: there it answers for the band and
+        its one draw opcode (arc_image: the contract, part A).
 
         Raises:
-            ZMachineHeaderError: Before Version 6, where the bit
+            ZMachineHeaderError: Before Version 5, where the bit
                 belongs to the status-line type; or over the
                 pristine story bytes.
         """
 
-        if self.version < PICTURE_FLAGS_VERSION:
+        if self.version < ARC_PICTURES_VERSION:
             msg = f"version {self.version} has no pictures bit to write (§11.1.4)"
 
             raise ZMachineHeaderError(msg)

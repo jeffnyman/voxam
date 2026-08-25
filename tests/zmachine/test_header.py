@@ -482,14 +482,23 @@ def test_version_6_capability_bits_write_both_ways() -> None:
     assert_that(header.data[1] & 0x22).is_zero()
 
 
+# The pictures bit reaches down to Version 5 now -- the arc_image
+# contract claims it in 5, 7, and 8 -- while sound presence stays
+# Version 6's own, and Version 4 has neither.
 def test_version_6_capability_bits_begin_at_version_6() -> None:
     header = Header(bytearray(synthetic_header(version=5)))
 
-    with pytest.raises(ZMachineHeaderError, match="no pictures bit"):
-        header.declare_pictures(available=True)
+    header.declare_pictures(available=True)
+
+    assert_that(header.data[1] & 0x02).is_equal_to(0x02)
 
     with pytest.raises(ZMachineHeaderError, match="no sound presence bit"):
         header.declare_sound_presence(available=True)
+
+    early = Header(bytearray(synthetic_header(version=4)))
+
+    with pytest.raises(ZMachineHeaderError, match="no pictures bit"):
+        early.declare_pictures(available=True)
 
 
 # The mouse and menu requests are Flags 2 bits the interpreter

@@ -95,6 +95,11 @@ class Frontend(Protocol):
         has_pictures: Whether pictures can actually be drawn
             (§11.1.4) -- true only where a gallery of art hangs
             behind a glass with pixels.
+        has_arc_images: Whether the arc_image picture band can be
+            hung above the screen (arc_image: the contract) --
+            true only where the band's pictures can be found and
+            shown. Claimed as Flags 1's picture bit in Versions
+            5, 7, and 8.
         has_stage: Whether a Version 6 session plays on a §8.8
             stage of eight placeable windows. When true, the
             machine forwards window geometry and cursor moves;
@@ -126,6 +131,7 @@ class Frontend(Protocol):
     has_character_graphics: bool
     has_colours: bool
     has_pictures: bool
+    has_arc_images: bool
     has_mouse: bool
     has_stage: bool
     screen_lines: int
@@ -302,6 +308,17 @@ class Frontend(Protocol):
         Only frontends that claimed pictures hear the call.
         """
 
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Hang, replace, or clear the arc_image band.
+
+        EXT:0x80's two operands, passed whole: the picture id --
+        zero takes the band down -- and the mode naming the band's
+        height, 9 or 12 text rows (arc_image: the contract). Only
+        frontends that claimed arc images hear the call; an id the
+        band cannot find is ignored where it lands, since a picture
+        is presentation, never game state.
+        """
+
     def bleep(self, number: int) -> None:
         """Sound a bleep: 1 is high, 2 is low (§9)."""
 
@@ -376,6 +393,10 @@ class PlainFrontend:
     # says so, and picture_data answers with the census of an
     # interpreter that has none (§11.1.4, §15).
     has_pictures = False
+    # No band hangs over a stream either; the bit stays clear and
+    # an arc_image game plays honestly as text (arc_image: the
+    # contract).
+    has_arc_images = False
     # No mouse can click a stream, and the request bit clears to
     # say so (§10.3.1.1).
     has_mouse = False
@@ -576,6 +597,13 @@ class PlainFrontend:
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
+
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Hang nothing: this frontend claimed no arc images.
+
+        The machine never sends the band here -- has_arc_images is
+        False -- and a stray call changes nothing.
+        """
 
     def place_window(
         self, window: int, line: int, column: int, height: int, width: int
