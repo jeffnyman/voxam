@@ -542,7 +542,10 @@ remains maps onto the interim releases:
   update's exit flag), and a pre-wire refusal travels verbatim
   as the fault it is. The title bar speaks Babel: the shell asks
   `voxam --babel` for the story's name and the filename's stem
-  stands in for the nameless. Not yet aboard, each a named road:
+  stands in for the nameless. The Story menu claims the machine's
+  identity -- a §11.1.3 platform and the Tandy bit, restarting
+  the open story so the checkmark never outruns the header.
+  Not yet aboard, each a named road:
   pictures (the browser face's `/pict` road has no pipe
   equivalent yet), the save-file dialog, and the CI workflow
   that ships the per-platform artifacts.
