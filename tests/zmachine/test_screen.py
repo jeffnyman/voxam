@@ -27,6 +27,7 @@ class ScreenRecorder:
     font_width = 1
     font_height = 1
     has_pictures = False
+    has_arc_images = False
     has_mouse = False
     has_stage = False
 
@@ -113,6 +114,9 @@ class ScreenRecorder:
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the screen tests never draw."""
+
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Discard: the screen tests hang no band."""
 
     def place_window(
         self, window: int, line: int, column: int, height: int, width: int

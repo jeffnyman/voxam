@@ -70,6 +70,46 @@ def test_private_ext_opcodes_step_over(code_machine: Callable[..., Machine]) -> 
         unknown.run()
 
 
+# The arc_image band's opcode reaches its frontend: EXT:0x80's two
+# operands pass whole to a display that claimed the band -- and the
+# claim stamps Flags 1's picture bit. An unclaiming display is
+# never asked and its bit stays clear; a call short of its two
+# operands is ignored, presentation never being state.
+def test_draw_image_reaches_the_banded_frontend(
+    code_machine: Callable[..., Machine],
+) -> None:
+    class Banded(PlainFrontend):
+        has_arc_images = True
+
+        def __init__(self) -> None:
+            super().__init__(lambda _text: None)
+
+            self.hung: list[tuple[int, int]] = []
+
+        def draw_arc_image(self, image: int, mode: int) -> None:
+            self.hung.append((image, mode))
+
+    program = (
+        bytes([0xBE, 0x80, 0x5F, 0x08, 0x09])  # draw_image 8, mode 9
+        + bytes([0xBE, 0x80, 0x5F, 0x00, 0x09])  # draw_image 0: clear
+        + bytes([0xBE, 0x80, 0x7F, 0x05])  # one operand short: ignored
+        + bytes([0xBA])  # quit
+    )
+    frontend = Banded()
+    machine = code_machine(layout(program), version=5, frontend=frontend)
+
+    machine.run()
+
+    assert_that(frontend.hung).is_equal_to([(8, 9), (0, 9)])
+    assert_that(machine.memory.read_byte(1) & 0x02).is_equal_to(0x02)
+
+    plain = code_machine(layout(program), version=5)
+
+    plain.run()
+
+    assert_that(plain.memory.read_byte(1) & 0x02).is_zero()
+
+
 # The whole call contract of §6.4: enter the routine, run it, return
 # its value into the caller's chosen variable, resume after the call.
 def test_a_call_delivers_the_routines_result(

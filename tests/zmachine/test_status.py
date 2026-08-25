@@ -45,6 +45,7 @@ class Recorder:
     has_character_graphics = False
     has_colours = False
     has_pictures = False
+    has_arc_images = False
     has_mouse = False
     has_stage = False
     screen_lines = 24
@@ -69,6 +70,9 @@ class Recorder:
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Discard: the status tests never draw."""
+
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Discard: the status tests hang no band."""
 
     def place_window(
         self, window: int, line: int, column: int, height: int, width: int

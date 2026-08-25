@@ -33,12 +33,21 @@ def test_scan_table_both_stores_and_branches() -> None:
 # Standard 1.1 reserves EXT 128-255 for private use and asks that
 # unknown ones be ignored (§14.2): the lookup answers a rider-less
 # no-op for the whole range. Below 128 is the Standard's own table,
-# where an unknown number stays the loud error it always was.
+# where an unknown number stays the loud error it always was --
+# and 0x80 itself is the arc_image draw in Versions 5, 7, and 8,
+# while Version 6 keeps the number private.
 def test_private_ext_opcodes_pass_unclaimed() -> None:
-    for number in (0x80, 0xC3, 0xFF):
+    for number in (0x81, 0xC3, 0xFF):
         opcode = lookup(OpcodeKind.EXT, number, 5)
 
         assert_that(opcode).is_equal_to(Opcode("ext_private"))
+
+    for version in (5, 7, 8):
+        assert_that(lookup(OpcodeKind.EXT, 0x80, version).name).is_equal_to(
+            "draw_image"
+        )
+
+    assert_that(lookup(OpcodeKind.EXT, 0x80, 6)).is_equal_to(Opcode("ext_private"))
 
     with pytest.raises(ZMachineInstructionError, match="not an opcode"):
         lookup(OpcodeKind.EXT, 0x7F, 5)

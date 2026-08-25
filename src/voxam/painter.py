@@ -296,6 +296,9 @@ class ScreenFrontend:
     # No in-play pictures: the sixel cover is a doorway courtesy,
     # and the header's cleared bit keeps the claim honest (§11.1.4).
     has_pictures = False
+    # No arc_image band either: the cleared bit keeps those games
+    # honestly in text at the terminal (arc_image: the contract).
+    has_arc_images = False
     # Terminal mouse reporting is a protocol of its own; until the
     # painter learns it, the request bit clears honestly
     # (§10.3.1.1).
@@ -473,6 +476,9 @@ class ScreenFrontend:
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """Erase nothing: this frontend claimed no pictures (§11.1.4)."""
+
+    def draw_arc_image(self, image: int, mode: int) -> None:
+        """Hang nothing: this frontend claimed no arc images."""
 
     def place_window(
         self, window: int, line: int, column: int, height: int, width: int

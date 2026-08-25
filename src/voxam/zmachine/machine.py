@@ -180,6 +180,10 @@ DEFAULT_BACKGROUND_COLOUR = 2
 # under 3 bytes or a parse buffer under 6 almost certainly means a
 # previous array overran them.
 COUNTED_TEXT_VERSION = 5
+
+# The arc_image draw carries its picture id and band mode, both
+# owed before any band hangs (arc_image: the contract, part A).
+ARC_OPERANDS = 2
 MINIMUM_TEXT_CAPACITY = {False: 2, True: 1}
 MINIMUM_PARSE_WORDS = 1
 
@@ -701,6 +705,12 @@ class Machine:
                     header.declare_character_graphics(
                         available=self._frontend.has_character_graphics
                     )
+                    # The arc_image band's capability: Flags 1's
+                    # picture bit, claimed in Versions 5, 7, and 8
+                    # by a display that can hang the band -- and
+                    # re-stamped here after restart and restore,
+                    # as the contract asks (arc_image: part A).
+                    header.declare_pictures(available=self._frontend.has_arc_images)
 
     def snapshot(self) -> Snapshot:
         """Capture the entire state of play (§6.1, §6.1.1).
@@ -4234,6 +4244,26 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_draw_image(self, instruction: Instruction) -> None:
+        """Hang, replace, or clear the arc_image band (EXT:0x80).
+
+        Two operands, no store, no branch: the picture id -- zero
+        clears the band -- and the mode naming its height in text
+        rows (arc_image: the contract, part A). A game only draws
+        after finding Flags 1's picture bit set, so a frontend that
+        never claimed the band is never asked -- and if a stray
+        call arrives anyway, it passes as quietly as any private
+        opcode, because a picture is presentation, never state.
+        """
+
+        if self._frontend.has_arc_images and len(instruction.operands) >= ARC_OPERANDS:
+            self._frontend.draw_arc_image(
+                self._value(instruction.operands[0]),
+                self._value(instruction.operands[1]),
+            )
+
+        self._pc = instruction.next_address
+
     def _op_print_char(self, instruction: Instruction) -> None:
         """Print the character a ZSCII code means (§3.8)."""
 
@@ -4394,6 +4424,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
     "ext_private": Machine._op_ext_private,
+    "draw_image": Machine._op_draw_image,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,
     "print_form": Machine._op_print_form,
