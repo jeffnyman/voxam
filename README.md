@@ -145,8 +145,9 @@ ways: `--glkote` serves whole sessions as JSON lines on stdin and
 stdout -- the wire the desktop shell drives -- and `--web` puts
 the same conversation in a browser tab, the vendored GlkOte
 display served from inside the package, one POST per turn, the
-story's title on the tab, the gblorb's art at its own `/pict`
-road, and a page reload starting the story over.
+story's title on the tab and the machine's own icon beside it,
+the gblorb's art at its own `/pict` road, and a page reload
+starting the story over.
 
 The protocol made whole is `1.7`'s: a game's ask for a save file
 suspends the machine mid-Glk-call -- a second kind of standing

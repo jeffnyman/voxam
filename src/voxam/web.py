@@ -61,6 +61,10 @@ class Session:
     faulted, answering the same error until a reload starts over.
     """
 
+    # The mark the browser tab wears: each machine's own window
+    # icon, exactly as the pygame title bars wear them.
+    icon: str
+
     def __init__(self, resources: Resources, *, seed: int | None = None) -> None:
         """Hold what every session shares; a subclass holds the story."""
 
@@ -114,6 +118,8 @@ class Session:
 
 class GlulxSession(Session):
     """A Glulx story behind the server, over the Glk library."""
+
+    icon = "glulx.ico"
 
     def __init__(
         self, story: Story, resources: Resources, *, seed: int | None = None
@@ -177,6 +183,7 @@ class ZSession(Session):
 
         super().__init__(resources, seed=seed)
 
+        self.icon = f"z{story.header.version}.ico"
         self._story = story
         self._frontend: ZGlkOteFrontend | None = None
         self._machine: ZMachine | None = None
@@ -240,6 +247,9 @@ class Face:
         if method == "GET":
             if path == "/":
                 return self._index()
+
+            if path == "/favicon.ico":
+                return (_HTTP_OK, "image/x-icon", _icon(self.session.icon))
 
             name = path.lstrip("/")
 
@@ -365,3 +375,9 @@ def _page(name: str) -> bytes:
     """One shipped page file, read from inside the package."""
 
     return (importlib_resources.files("voxam") / "pages" / name).read_bytes()
+
+
+def _icon(name: str) -> bytes:
+    """One shipped window icon, the same file the title bars wear."""
+
+    return (importlib_resources.files("voxam") / "icons" / name).read_bytes()
