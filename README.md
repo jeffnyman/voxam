@@ -80,8 +80,8 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## Status
 
-Version `1.8`: The Z-Machine joins the protocol -- both machines
-in the browser.
+Version `1.9`: The desktop shell arrives -- installers on the
+release, and the displays polished.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -167,8 +167,22 @@ window as its flowing buffer, the styles in protocol dress. So
 `--glkote` and `--web` now speak both machines: Zork I's inverse
 status bar updates one changed row at a time, Bronze plays in a
 browser tab wearing its own title, and the one refusal left is
-honest -- the Version 6 stage stays at the painted glasses. The
-road to `2.0` runs through the desktop shell.
+honest -- the Version 6 stage stays at the painted glasses.
+
+New in `1.9`, the desktop shell arrives: a
+[Tauri](https://tauri.app/) webview wearing the same GlkOte
+display, driving `voxam --glkote` down a pipe -- native menus for
+opening and restarting, the Story menu claiming a §11.1.3
+platform and the Tandy bit, the Display menu dressing the page in
+type, size, ink, and measure, and every story that can be named
+wearing its Babel title on the bar. Its installers ride the
+GitHub release beside the wheel, three platforms, one version
+stamped everywhere. And the displays kept their honesty: the
+protocol grid wears its margins so status rows draw whole, the
+pygame glass presents on the frame's own cadence -- Zugzwang's
+chessboard, near a thousand writes a turn, snaps into place --
+and the browser tab wears the machine's own icon. The road to
+`2.0` runs through pictures and saves in the shell.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).

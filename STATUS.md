@@ -51,8 +51,13 @@ Even *Journey* -- Infocom's menu-driven finale, a game with no
 command line at all -- replays through its opening chapter as pure
 keystrokes: letters press the commands they begin with, `<space>`
 walks the highlight between the party column and the character
-grid, and the arrows settle which Examine is whose.
-Forty recordings verify those sessions end-to-end with the
+grid, and the arrows settle which Examine is whose. Two small
+witnesses joined late: Magnus Olsson's *Zugzwang* -- the endgame
+whose chessboard status line, nearly a thousand writes a turn,
+taught the pygame glass to share its flips -- and Jeremy Freese's
+*Violet*, whose one-room writing day plays in the browser under
+its own cover-art tab.
+Forty-two recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -433,7 +438,7 @@ coherent, not on a calendar:
   IFIDs and iFiction and the Infocom catalog, and the
   declaration above with its two-entry exclusion ledger.
 
-## The GlkOte protocol: 1.6 through 1.8
+## The GlkOte protocol: 1.6 through 1.9
 
 The 2.0 era opened exactly where the display contract said it
 would: `glk_select` learned to suspend. A display that cannot
@@ -530,7 +535,7 @@ remains maps onto the interim releases:
   learned the suspension contract the select learned, and the Z
   screen model -- upper window to grid, lower to buffer -- feeds
   the same Page. Bronze in the browser, beside Adventure.
-- **The desktop shell.** Done in the making: the Lectrote analog,
+- **1.9, the shell arrives.** Done in the making: the Lectrote analog,
   a Tauri webview wearing the same GlkOte display, driving a
   spawned `voxam --glkote` down a pipe -- a `desktop/` sibling
   the wheel never packages and the Python gate never sees. The
@@ -553,9 +558,16 @@ remains maps onto the interim releases:
   a shared workflow builds Windows, macOS, and Linux bundles on
   each version tag -- dispatchable by hand for a dry run -- and
   the release attaches them beside the wheel, both streams wearing
-  the one version `cz bump` stamps everywhere.
-  Not yet aboard, each a named road:
-  pictures (the browser face's `/pict` road has no pipe
-  equivalent yet), the save-file dialog, and signed installers
-  (macOS Gatekeeper and SmartScreen warn on the unsigned ones).
-- **2.0, the declaration.**
+  the one version `cz bump` stamps everywhere. And `1.9` carried
+  the era's polish besides: the protocol grid wears its interior
+  margins, so status rows draw whole in every face; the pygame
+  glass presents on the frame's own cadence, so a chessboard of a
+  thousand writes snaps into place instead of smearing; and the
+  browser tab wears the machine's own icon beside the story's
+  Babel title.
+- **2.0, the declaration.** The road still holds, each its own
+  branch: pictures over the pipe (`data:` URLs would serve the
+  shell and the browser alike), the save-file dialog the desktop
+  uniquely can answer, whatever the all-frontends playthroughs
+  surface, and -- its own later road -- signed installers (macOS
+  Gatekeeper and SmartScreen warn on the unsigned ones).

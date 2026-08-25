@@ -1,3 +1,19 @@
+## v1.9.0 (2026-08-25)
+
+### Feat
+
+- **web**: the tab wears the machine's mark -- each session's favicon is the icon its title bar already wears (#261)
+- **desktop**: the Display menu dresses the page -- type, size, ink, and measure applied live, and remembered at every startup (#257)
+- **desktop**: the Story menu claims the identity -- a §11.1.3 platform and the Tandy bit, restarting so the checkmark never outruns the header (#256)
+- **desktop**: the window takes its place -- a 0.85 share of the screen, centered, shown only once placed (#255)
+- **desktop**: the title bar speaks Babel -- the shell asks voxam for the story's name, and the stem stands in for the nameless (#254)
+- **desktop**: the shell stands at the door -- a Tauri webview wears the GlkOte display, and voxam speaks up the pipe from the PATH (#252)
+
+### Fix
+
+- **glass**: the flips share the frame's cadence -- a thousand-write chessboard buys one present, and the owed flip settles before every wait (#258)
+- **zmachine**: the grid box wears the margins -- the status rows draw whole, and the buffer no longer floats into the bar (#253)
+
 ## v1.8.0 (2026-08-24)
 
 ### Feat
