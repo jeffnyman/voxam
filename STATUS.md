@@ -111,7 +111,7 @@ At a real terminal, VΘXΔM paints the screen: the blessed frontend
 renders the §8 screen model live -- a reverse-video status line
 that holds the top of the screen, split windows, character-input
 menus like Zork's InvisiClues browsed by single keypresses, bold,
-italic, and the §8.3.1 colours, forwarded to games that ask for
+italic, and the §8.3.1 colors, forwarded to games that ask for
 them with the header declaring the offer honestly. Font 3 -- §16's
 character graphics -- paints as Unicode: box-drawing and blocks
 for *Beyond Zork*'s on-screen map, its stat gauges as
@@ -158,7 +158,7 @@ graphics file, though that game hard-codes the DOS screen it was
 written for and lays itself out oddly on any other.
 A cover picture -- *Beyond
 Zork* ships one -- is shown before play at a painted terminal,
-scaled into half-block cells on any colour terminal or drawn at
+scaled into half-block cells on any color terminal or drawn at
 real resolution with `--pixels`, decoded by a pure-stdlib PNG
 reader. The pixels path asks the terminal first: one that
 declares sixel graphics also reports its cell size, so the art
@@ -176,13 +176,13 @@ And at a pygame window -- the `graphics` extra, opened with
 screen is real there: eight placeable windows on one pixel grid,
 text at true pixel positions, margins that wrap prose around scene
 art, and a [MORE] that pauses a screenful in the window's own
-colours and cleans up after itself. Blorb pictures draw at the
+colors and cleans up after itself. Blorb pictures draw at the
 sizes the Reso chunk scales them to, transparency lets the chrome
-layer over the scenes, and the adaptive palettes recolour that
+layer over the scenes, and the adaptive palettes recolor that
 chrome as scenes change -- both the Standard's live APal dance and
 Bocfel's pre-baked BPal replacements, which is how *Zork Zero*'s
-plaques keep their gold. Even §8.3.1's strangest colour is
-honoured: colour -1 samples the pixel under the cursor, which is
+plaques keep their gold. Even §8.3.1's strangest color is
+honoured: color -1 samples the pixel under the cursor, which is
 how *Zork Zero* prints readable text over its parchment under the
 Amiga identity. The window takes its share of the desktop --
 `--zoom`, 85% by default -- by growing the grid rather than the
@@ -654,7 +654,7 @@ way, and the road mapped onto the interim releases:
   prompt with a real picker over the very filesystem the
   interpreter writes; the terminators and the mouse make Beyond
   Zork a browser game. What stays behind stays named: the
-  Version 6 stage at the painted glasses, colours and sound over
+  Version 6 stage at the painted glasses, colors and sound over
   the protocol, the refresh event, the blocking editor's own
   claim on the arrow keys -- and signed installers, which are a
   certificate and an enrollment rather than a branch (macOS
@@ -662,10 +662,12 @@ way, and the road mapped onto the interim releases:
   it blocks a game the corpus plays, and forty-four recordings
   hold the whole claim to replay.
 
-### Beyond the declaration
+### Beyond the declaration: 2.1
 
 The residue ledger is a menu, not a debt; what gets taken from it
-is recorded here.
+is recorded here. The first helping shipped as `2.1` -- the whole
+roster below, leaving the Version 6 stage as the one named road
+anywhere in this document.
 
 - **The channels ring on the wire.** Sound joins the dialect:
   GlkOte never grew a sound vocabulary, but both ends of this
@@ -698,7 +700,7 @@ is recorded here.
   actually aboard -- and §9's pacing courtesy stays at the
   blocking glasses, where a synchronous answer exists; the wire's
   newest-wins is what that courtesy was approximating anyway.
-- **The colours ride the wire.** §8.3 joins the dialect under
+- **The colors ride the wire.** §8.3 joins the dialect under
   its own word: text spans carry per-run ink -- fg and bg as CSS,
   drawn from the same palette the pygame glass mixes, promoted to
   a shared home so every face shows the same red -- and the
@@ -707,9 +709,9 @@ is recorded here.
   letters. The grid's cells dress their spans through the same
   §8 model the painted terminal trusts, reverse video swaps ink
   and paper as every painted face swaps it, and the default
-  colour deliberately emits nothing: code 1 is each display's own
+  color deliberately emits nothing: code 1 is each display's own
   theme, which is what §8.3's "default" has always meant. A
-  display that never said the word leaves the header's colour
+  display that never said the word leaves the header's color
   offer honestly unclaimed, and every recorded session replays
   untouched on the blocking seam it always used.
 - **The refresh answers whole.** A display that lost its picture
@@ -724,7 +726,7 @@ is recorded here.
   display is out of sync by definition; on Glulx the game also
   hears the spec's own redraw, because canvas pixels are the
   game's to repaint. The quote box stands beside it, from the
-  colour era's own bug hunt: the Z grid holds the turn's tallest
+  color era's own bug hunt: the Z grid holds the turn's tallest
   split until the next input arrives -- the courtesy garglk and
   Parchment extend the same box -- so Photopia asks "Will you
   read me a story?" in the browser the way it always asked at

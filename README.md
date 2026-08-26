@@ -110,10 +110,12 @@ in [Playing stories](#playing-stories).
 
 ## Status
 
-Version `2.0`: the declaration. Both machines on every face --
-terminal, window, browser, desktop, and the wire between -- the
-protocol era complete, and every claim enforced rather than
-promised.
+Version `2.1`: the wire sings. The declaration's residue ledger,
+worked through -- sound, colors, and the refresh event join the
+protocol dialect on both machines, the quote box stands, a
+resource file reads apart with `--decompose`, and the iFiction
+card greets the player at the door -- with the Version 6 stage
+now the one named road left anywhere.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -237,10 +239,27 @@ their pictures on the protocol faces, margins and flow breaks
 whole, under the display's own graphics grant -- *Sensory Jam*'s
 ornate drop cap renders in the shell, apology withdrawn -- and
 the Blorb's cover stands at the top of the story's text, so
-*Violet*'s writing-day art opens the session it belongs to. What
-remains is named honestly in the ledger -- the Version 6 stage,
-colours and sound over the protocol, signed installers -- and
-none of it blocks a game the corpus plays.
+*Violet*'s writing-day art opens the session it belongs to.
+
+And `2.1` sings what `2.0` declared. Sound joins the wire in
+VΘXΔM's own dialect -- AIFF re-wrapped as WAVE and played by the
+page's own Web Audio, Glk channels with real fades, §9's
+end-of-sound routines fired by the display's finish reports --
+so *Sensory Jam*'s gong rings in a browser and *The Lurking
+Horror*'s dream chant swells through its crescendo there, on the
+Loop chunk's own say-so. The §8.3 colors ride as per-span ink
+with the window's own paper, one palette shared with the pygame
+glass, which is *Photopia* with its scenes bled to the edge; the
+quote box stands at the turn's high water, so its question gets
+asked; a display that lost its picture may ask for everything
+back with the refresh event, and gets it. Beside the wire,
+`--decompose` reads any resource file apart -- every chunk told
+in Voxam's own measurements, every resource freed as the file
+its bytes already are -- and the iFiction card greets the player
+the way WinFrotz's little window does, in the browser, the
+shell, and at the painted terminal's banner. What remains is one
+named road: the Version 6 stage stays at the painted glasses,
+and it blocks no game the corpus plays.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -502,7 +521,7 @@ own source rather than folklore:
   whose matching art this Blorb does not carry.
 - ***Zork Zero*: either, with character.** The default plays the
   classic look; `--interpreter amiga` engages §8.3's shared
-  colour pair and the under-cursor colour sampling for the
+  color pair and the under-cursor color sampling for the
   grey-parchment look the Amiga release was famous for. Both
   render correctly -- the Amiga is arguably the prettier way in.
 - ***Beyond Zork*: any -- the flag is a personality dial.** The
