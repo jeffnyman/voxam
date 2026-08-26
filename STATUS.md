@@ -56,8 +56,13 @@ witnesses joined late: Magnus Olsson's *Zugzwang* -- the endgame
 whose chessboard status line, nearly a thousand writes a turn,
 taught the pygame glass to share its flips -- and Jeremy Freese's
 *Violet*, whose one-room writing day plays in the browser under
-its own cover-art tab.
-Forty-two recordings verify those sessions end-to-end with the
+its own cover-art tab. And the newest formats have their
+witnesses too: Stefan Vogt's *Rabenstein* plays to its ending
+illustrated, the arc_image band following the story scene by
+scene, and Mathbrush's *The Impossible Stairs* -- compiled from
+Dialog -- replays through its menu-driven dialogue, proving the
+toolchain a new generation of story files is written in.
+Forty-four recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -69,7 +74,7 @@ Full Z-Machine Support -- since `1.0`, no longer a goal but a
 claim. Every opcode §14 defines has a handler, all eight story
 file versions play, and everything below is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, forty recorded playthroughs swept
+100% branch coverage, forty-four recorded playthroughs swept
 end-to-end, and the community's own checkers held to their exact
 tallies. The short list that remains is under **Not yet**.
 
@@ -411,7 +416,8 @@ spec-sanctioned refusals with their reasons written down:
 Everything else in the Glk 0.7.6 and Glulx 3.1.3 specifications
 that a blocking display can express is expressed, and enforced
 the way every Voxam claim is enforced: 100% branch coverage,
-forty recordings swept end-to-end, the checkers held to their
+forty-four recordings swept end-to-end, the checkers held to
+their
 tallies.
 
 ### The road to 1.5, travelled
@@ -441,7 +447,7 @@ coherent, not on a calendar:
   IFIDs and iFiction and the Infocom catalog, and the
   declaration above with its two-entry exclusion ledger.
 
-## The GlkOte protocol: 1.6 through 1.9
+## The GlkOte protocol: 1.6 through 2.0
 
 The 2.0 era opened exactly where the display contract said it
 would: `glk_select` learned to suspend. A display that cannot
@@ -517,12 +523,12 @@ stage ("the stage stays at the painted glasses" -- the one
 refusal left), colours and sound over the protocol, and the
 refresh event. None blocks a game the corpus plays.
 
-### The road to 2.0, underway
+### The road to 2.0, travelled
 
 Version 2.0 is an evolution rather than a completion: the GlkOte
 interface whole -- both machines, browser and desktop. The
-architectural change it asked for is built and load-bearing; what
-remains maps onto the interim releases:
+architectural change it asked for proved load-bearing the whole
+way, and the road mapped onto the interim releases:
 
 - **1.6, the protocol spoken.** Done in the making: the
   suspension seam, the machine-neutral update builder, the event
@@ -640,14 +646,19 @@ remains maps onto the interim releases:
   opens the session it belongs to. Art is a courtesy, never a
   gate -- no cover, no grant, or an unmeasurable picture simply
   plays on.
-- **2.0, the declaration.** The road still holds, each its own
-  branch: whatever the all-frontends playthroughs surface, and
-  -- its own later road -- signed installers (macOS Gatekeeper
-  and SmartScreen warn on the unsigned ones). Pictures already ride the pipe: every
-  image op carries its picture whole as a `data:` url, so the
-  shell and the browser draw the gblorb's art from the update
-  alone. And the shell answers the file prompt with a real
-  picker: a Glulx `save` opens the desktop's own save dialog
-  over the very filesystem the interpreter writes, the chosen
-  path travelling back as the specialresponse the parked call
-  completes with.
+- **2.0, the declaration.** The era is whole: both machines on
+  every face, and every wait the machines know -- the selects,
+  the reads, the file prompts, the saves -- standing down for the
+  displays that cannot block. Pictures ride the pipe as `data:`
+  urls, in canvases, in the prose, above the screen as the band,
+  and at the door as the cover; the shell answers every file
+  prompt with a real picker over the very filesystem the
+  interpreter writes; the terminators and the mouse make Beyond
+  Zork a browser game. What stays behind stays named: the
+  Version 6 stage at the painted glasses, colours and sound over
+  the protocol, the refresh event, the blocking editor's own
+  claim on the arrow keys -- and signed installers, which are a
+  certificate and an enrollment rather than a branch (macOS
+  Gatekeeper and SmartScreen warn on the unsigned ones). None of
+  it blocks a game the corpus plays, and forty-four recordings
+  hold the whole claim to replay.

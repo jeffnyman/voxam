@@ -951,7 +951,7 @@ wheels = [
 
 [[package]]
 name = "voxam"
-version = "1.9.0"
+version = "2.0.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
