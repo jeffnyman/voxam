@@ -9,7 +9,13 @@ from voxam.errors import (
     ZMachineMemoryError,
 )
 from voxam.frontend import PlainFrontend
-from voxam.zmachine.machine import COUNTED_TEXT_VERSION, Filing, Machine, Reading
+from voxam.zmachine.machine import (
+    COUNTED_TEXT_VERSION,
+    FUNCTION_KEY_CODES,
+    Filing,
+    Machine,
+    Reading,
+)
 from voxam.zmachine.memory import Memory
 from voxam.zmachine.story import Story
 from voxam.zmachine.zscii import encode_word
@@ -1403,6 +1409,109 @@ def test_a_counted_read_holds_its_preload(
     machine.run()
 
     assert_that(machine.running).is_false()
+
+
+TERMINATOR_TABLE = 0x1A0
+
+
+def plant_terminators(machine: Machine, *codes: int) -> None:
+    """Point the header at a zero-terminated table of codes (§10.5.2.1)."""
+
+    machine.memory.write_word(0x2E, TERMINATOR_TABLE)
+
+    for offset, code in enumerate((*codes, 0)):
+        machine.memory.write_byte(TERMINATOR_TABLE + offset, code)
+
+
+# A Version 5 read stands with its §10.5.2.1 terminating table in
+# hand: the function key codes are offered, an entry outside them
+# is not permitted and asks for nothing, and the key that ends the
+# line lands with the text lexed and its own code stored where a
+# plain return would store 13.
+def test_a_terminator_ends_a_suspended_read(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = suspended(code_machine, program=AREAD, version=5)
+    plant_terminators(machine, 133, 65, 129)
+
+    machine.run()
+
+    waiting = machine.waiting
+
+    if not isinstance(waiting, Reading):
+        pytest.fail("the read suspended")
+
+    assert_that(waiting.terminators).is_equal_to(frozenset({129, 133}))
+
+    machine.deliver_line("go", 133)
+
+    assert_that(counted_text(machine.memory)).is_equal_to("go")
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(133)
+
+    machine.run()
+
+    assert_that(machine.running).is_false()
+
+
+# The wildcard 255 names every function key code as terminating:
+# the cursor and keypad keys together with the three click codes
+# (§10.5.2.1).
+def test_the_wildcard_names_every_function_key(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = suspended(code_machine, program=AREAD, version=5)
+    plant_terminators(machine, 255)
+
+    machine.run()
+
+    waiting = machine.waiting
+
+    if not isinstance(waiting, Reading):
+        pytest.fail("the read suspended")
+
+    assert_that(waiting.terminators).is_equal_to(FUNCTION_KEY_CODES)
+
+
+# A terminator the read's table never named is refused loudly with
+# the wait still standing -- unreachable from a conforming display,
+# whose request only offered the table's own keys -- and before
+# Version 5 no table is read at all, so every read ends in a plain
+# new-line (§10.5.2.1).
+def test_an_unnamed_terminator_is_refused(
+    code_machine: Callable[..., Machine],
+) -> None:
+    machine = suspended(code_machine, program=AREAD, version=5)
+    plant_terminators(machine, 133)
+
+    machine.run()
+
+    with pytest.raises(ZMachineInstructionError, match="does not name"):
+        machine.deliver_line("go", 140)
+
+    assert_that(machine.waiting).is_not_none()
+
+    early = suspended(code_machine)
+    plant_terminators(early, 133)
+
+    early.run()
+
+    waiting = early.waiting
+
+    if not isinstance(waiting, Reading):
+        pytest.fail("the read suspended")
+
+    assert_that(waiting.terminators).is_empty()
+
+
+# A table address that is no table -- pointing past every readable
+# byte, with no zero to stop the walk -- is loud through the
+# memory's own §1.1.2 bounds.
+def test_a_runaway_table_is_loud(code_machine: Callable[..., Machine]) -> None:
+    machine = suspended(code_machine, program=AREAD, version=5)
+    machine.memory.write_word(0x2E, 0xFF00)
+
+    with pytest.raises(ZMachineMemoryError):
+        machine.run()
 
 
 # A keystroke read suspends the same way; a key ZSCII cannot
