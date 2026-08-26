@@ -336,12 +336,17 @@ class Glk:
             return int(self.frontend.graphics)
 
         if selector in (GlkGestalt.DRAW_IMAGE, GlkGestalt.DRAW_IMAGE_SCALE):
-            # The argument is a window type, and images draw only
-            # in graphics windows here: "libraries may implement
-            # both, neither, or only one" (Glk: Testing for
-            # Graphics Capabilities). Text buffer images -- margin
-            # alignments, flow breaks -- remain unclaimed.
-            return int(self.frontend.graphics and value == WindowType.GRAPHICS)
+            # The argument is a window type: "libraries may
+            # implement both, neither, or only one" (Glk: Testing
+            # for Graphics Capabilities). Canvases answer for the
+            # drawing displays; text buffers answer only where the
+            # display lays text around pictures -- the protocol
+            # face -- while the glasses keep the ledger's
+            # spec-blessed refusal.
+            return int(
+                (self.frontend.graphics and value == WindowType.GRAPHICS)
+                or (self.frontend.buffer_images and value == WindowType.TEXT_BUFFER)
+            )
 
         if selector == GlkGestalt.GRAPHICS_TRANSPARENCY:
             # Alpha travels the whole way at a drawing display:

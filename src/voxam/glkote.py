@@ -231,7 +231,10 @@ class Page:
         it (GlkOte: Buffer Window Updates). A clear closes the
         open paragraph and rides the entry; a FLOWBREAK in the
         stream closes it too, and the paragraph after it is moved
-        below the margin images.
+        below the margin images. A dict in the stream is a
+        ready-made special span -- a picture set into the flow --
+        joining the open paragraph as it stands (GlkOte: The Line
+        Data Array).
 
         Raises:
             GlkOteError: For a second helping in one cycle, or an
@@ -275,12 +278,24 @@ class Page:
 
         for run in runs:
             if run is FLOWBREAK:
-                segments.append([])
+                # A break right after a newline flags the fresh
+                # paragraph rather than minting a blank one.
+                if segments[-1]:
+                    segments.append([])
+
                 breaks.add(len(segments) - 1)
 
                 continue
 
-            style, link, text = run  # type: ignore[misc]
+            if isinstance(run, dict):
+                # A ready-made special span joins the paragraph
+                # where it stands, copied so the caller's dict
+                # stays its own.
+                segments[-1].append(dict(run))
+
+                continue
+
+            style, link, text = cast("tuple[str, int, str]", run)
             pieces = text.split("\n")
 
             self._spanned(segments[-1], style, link, pieces[0])
@@ -311,9 +326,11 @@ class Page:
         if not text:
             return
 
+        # A special span has no style name, so text after a placed
+        # picture starts its own span rather than coalescing.
         if (
             spans
-            and spans[-1]["style"] == style
+            and spans[-1].get("style") == style
             and spans[-1].get("hyperlink", 0) == link
         ):
             spans[-1]["text"] += text

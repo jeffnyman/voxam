@@ -195,6 +195,12 @@ class Sounder(Quiet):
         self.calls.append(("volume", volume, duration))
 
 
+class Weaver(Quiet):
+    """A display that lays text around pictures, canvases or not."""
+
+    buffer_images = True
+
+
 class Artist(Quiet):
     """A display that draws, recording every graphics call."""
 
@@ -352,6 +358,17 @@ def test_gestalt_answers_for_the_display() -> None:
     assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS, 0)).is_equal_to(1)
     assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS_TRANSPARENCY, 0)).is_equal_to(1)
     assert_that(drawing.glk_gestalt(GlkGestalt.GRAPHICS_CHAR_INPUT, 0)).is_equal_to(1)
+
+    # A display that lays text around pictures claims the text
+    # buffer type instead, each type answering for its own claim.
+    weaving = Glk(Weaver())
+
+    assert_that(
+        weaving.glk_gestalt(GlkGestalt.DRAW_IMAGE, WindowType.TEXT_BUFFER)
+    ).is_equal_to(1)
+    assert_that(
+        weaving.glk_gestalt(GlkGestalt.DRAW_IMAGE, WindowType.GRAPHICS)
+    ).is_equal_to(0)
 
     # A clicking display still only carries a mouse in grids and
     # graphics windows.

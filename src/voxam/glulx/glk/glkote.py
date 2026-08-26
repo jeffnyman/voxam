@@ -28,10 +28,11 @@ interruption never eats a command in progress (GlkOte: Partial
 Input).
 
 Deliberately not carried yet, each a named road: the refresh
-event (this transport loses nothing); the metrics' outspacing and
-inspacing (the window arrangement leaves no gaps for them); and
-flow breaks, which mean nothing until buffer windows claim
-images.
+event (this transport loses nothing), and the metrics' outspacing
+and inspacing (the window arrangement leaves no gaps for them).
+Buffer windows claim their images here: the display lays text
+around pictures, so the placed pictures and flow breaks travel
+in the line data (Glk: Graphics in Text Buffer Windows).
 """
 
 import json
@@ -39,6 +40,7 @@ from typing import TextIO, cast
 
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import (
+    FLOWBREAK,
     STYLES,
     Page,
     Stanza,
@@ -56,11 +58,14 @@ from voxam.glulx.glk.objects import (
     EventType,
     FileMode,
     FileUsage,
+    FlowBreak,
     GraphicsWindow,
     KeyCode,
     LineRequest,
     Metrics,
     PairWindow,
+    Placed,
+    Run,
     TextBufferWindow,
     TextGridWindow,
     Window,
@@ -94,6 +99,18 @@ TERMINATOR_NAMES = {
 # wears; an unnamed ending is an ordinary Return (GlkOte: Input:
 # Accepting User Events).
 TERMINATOR_CODES = {name: code for code, name in TERMINATOR_NAMES.items()}
+
+# The §imagealign values as the protocol's alignment names; a
+# value the library does not recognize draws inlineup, as the spec
+# instructs (Glk: Graphics in Text Buffer Windows; GlkOte: The
+# Line Data Array).
+ALIGNMENT_NAMES = {
+    1: "inlineup",
+    2: "inlinedown",
+    3: "inlinecenter",
+    4: "marginleft",
+    5: "marginright",
+}
 
 # The named keys of a char event, each to its Glk keycode; a name
 # from some newer display reads as unknown (GlkOte: Input:
@@ -246,20 +263,16 @@ class Composer:
         )
 
     def _buffer(self, page: Page, ident: int, window: TextBufferWindow) -> None:
-        """Declare a buffer and drain its new text into the Page."""
+        """Declare a buffer and drain its new flow into the Page."""
 
         page.window(ident, "buffer", window.rock, window.bbox)
 
         clear = window.pending_clear
         window.pending_clear = False
-        runs = window.take_content()
+        flow = window.take_content()
 
-        if runs or clear:
-            page.buffer(
-                ident,
-                [(_styled(run.style), run.hyperlink, run.text) for run in runs],
-                clear=clear,
-            )
+        if flow or clear:
+            page.buffer(ident, [_flowed(piece) for piece in flow], clear=clear)
 
     def _graphics(self, page: Page, ident: int, window: Window) -> None:
         """Declare a graphics window by its drawable size.
@@ -342,9 +355,10 @@ class GlkOteFrontend(Frontend):
         """Open the session on the init event's word.
 
         The support list grants the capabilities: graphicswin for
-        canvases -- bare graphics means buffer-window images,
-        which stay unclaimed -- timer for timers, hyperlinks for
-        links (GlkOte: Input: Accepting User Events).
+        canvases, bare graphics for pictures set into a buffer's
+        text flow -- a display that grants it really does lay text
+        around them -- timer for timers, hyperlinks for links
+        (GlkOte: Input: Accepting User Events).
 
         Raises:
             GlkOteError: When the metrics carry no size.
@@ -353,6 +367,7 @@ class GlkOteFrontend(Frontend):
         support = stanza.get("support", [])
         self.timer_input = "timer" in support
         self.graphics = "graphicswin" in support
+        self.buffer_images = "graphics" in support
         self.hyperlink_input = "hyperlinks" in support
 
         self._measure(stanza)
@@ -523,15 +538,38 @@ class GlkOteFrontend(Frontend):
         width: int,
         height: int,
     ) -> bool:
-        """Draw a picture on a canvas; only canvases draw here.
+        """Draw a picture on a canvas or into a buffer's flow.
 
         The operation names the Pict by number and carries the
         picture whole as a data: url beside it (GlkOte: Graphics
         Window Updates): a host with a Blorb of its own may keep
         resolving numbers the way GiLoad does, and a host with
         none -- the desktop shell's webview -- draws from the
-        update alone.
+        update alone. A buffer takes the picture into its flow
+        instead: val1 is the §imagealign value and val2 means
+        nothing there, and the link value it is drawn under rides
+        along, so a clickable picture stays clickable (Glk:
+        Graphics in Text Buffer Windows).
         """
+
+        if isinstance(window, TextBufferWindow):
+            # Only under the display's own grant: the refusal
+            # here matches the gestalt's answer exactly.
+            if not self.buffer_images:
+                return False
+
+            window.put_placed(
+                Placed(
+                    image.number,
+                    pictured(image),
+                    width,
+                    height,
+                    val1,
+                    window.stream.hyperlink,
+                )
+            )
+
+            return True
 
         if not isinstance(window, GraphicsWindow):
             return False
@@ -550,6 +588,18 @@ class GlkOteFrontend(Frontend):
         )
 
         return True
+
+    def flow_break(self, window: Window) -> None:
+        """Set a flow break into a buffer's flow.
+
+        Text past the break starts below any margin images
+        standing at the point of the break; any other window
+        shrugs it off, as the spec allows (Glk: Graphics in Text
+        Buffer Windows).
+        """
+
+        if isinstance(window, TextBufferWindow):
+            window.put_break()
 
     # -- the two halves of the conversation --------------------------------
 
@@ -896,6 +946,36 @@ def _styled(style: int) -> str:
     """
 
     return STYLES[style] if 0 <= style < len(STYLES) else "normal"
+
+
+def _flowed(piece: "Run | Placed | FlowBreak") -> "tuple[str, int, str] | object":
+    """One drained flow element in the Page's own vocabulary.
+
+    Text runs keep their tuple shape; a placed picture becomes the
+    ready-made special span the line data carries, its link value
+    riding only when real; a flow break is the Page's own sentinel
+    (GlkOte: The Line Data Array).
+    """
+
+    if isinstance(piece, Run):
+        return (_styled(piece.style), piece.hyperlink, piece.text)
+
+    if isinstance(piece, Placed):
+        span: Stanza = {
+            "special": "image",
+            "image": piece.image,
+            "url": piece.url,
+            "width": piece.width,
+            "height": piece.height,
+            "alignment": ALIGNMENT_NAMES.get(piece.alignment, "inlineup"),
+        }
+
+        if piece.hyperlink:
+            span["hyperlink"] = piece.hyperlink
+
+        return span
+
+    return FLOWBREAK
 
 
 def _caret(window: Window) -> "tuple[int, int] | None":

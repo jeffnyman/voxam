@@ -48,6 +48,12 @@ class Frontend(ABC):
             Hyperlinks selector.
         graphics: Whether images and rectangles can be drawn
             (Glk: Graphics).
+        buffer_images: Whether pictures can be set into a text
+            buffer's flow -- inline alignments, the margins, and
+            flow breaks together (Glk: Graphics in Text Buffer
+            Windows). True only where the display actually lays
+            text around them; the glasses keep their spec-blessed
+            refusal.
         sound: Whether sound resources can be played (Glk: Sound).
         suspends: Whether input arrives from outside rather than
             from a read call. A blocking display is asked and
@@ -72,6 +78,7 @@ class Frontend(ABC):
     mouse_input: bool = False
     hyperlink_input: bool = False
     graphics: bool = False
+    buffer_images: bool = False
     sound: bool = False
     suspends: bool = False
     echoes_input: bool = False

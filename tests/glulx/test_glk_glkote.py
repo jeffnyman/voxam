@@ -366,7 +366,7 @@ def canvased() -> tuple[Glk, GlkOteFrontend, Window]:
 
 
 # The init event grants the capabilities: graphicswin for
-# canvases -- bare graphics means buffer images, unclaimed --
+# canvases, bare graphics for pictures in a buffer's text flow,
 # timer for timers, hyperlinks for links; clicks need no grant.
 def test_the_init_grants_the_capabilities() -> None:
     frontend = opened()
@@ -375,11 +375,13 @@ def test_the_init_grants_the_capabilities() -> None:
     assert_that(frontend.mouse_input).is_true()
     assert_that(frontend.timer_input).is_true()
     assert_that(frontend.graphics).is_true()
+    assert_that(frontend.buffer_images).is_false()
     assert_that(frontend.hyperlink_input).is_true()
 
     bare = opened(support=["graphics"])
 
     assert_that(bare.graphics).is_false()
+    assert_that(bare.buffer_images).is_true()
     assert_that(bare.timer_input).is_false()
     assert_that(bare.hyperlink_input).is_false()
     assert_that(bare.mouse_input).is_true()
@@ -513,13 +515,15 @@ def test_a_cleared_canvas_still_fills() -> None:
 
 # A picture draws on a canvas by its Pict number with the picture
 # itself inlined beside it as a data: url -- PNG and JPEG each
-# under its own kind, the bytes riding whole -- and nowhere else.
+# under its own kind, the bytes riding whole. A buffer refuses
+# without the display's bare-graphics grant, and a grid always.
 def test_images_draw_on_canvases_alone() -> None:
     _, frontend, canvas = canvased()
     picture = ImageInfo(5, b"PNG ", b"\x89PNG\r\n", 2, 2)
 
     assert_that(frontend.draw_image(canvas, picture, 3, 4, 10, 20)).is_true()
     assert_that(frontend.draw_image(TextBufferWindow(), picture, 0, 0, 1, 1)).is_false()
+    assert_that(frontend.draw_image(TextGridWindow(), picture, 0, 0, 1, 1)).is_false()
 
     update = frontend.render()
     entry = next(held for held in update["content"] if "draw" in held)
@@ -542,6 +546,88 @@ def test_images_draw_on_canvases_alone() -> None:
     ][-1]
 
     assert_that(jpeg["url"]).starts_with("data:image/jpeg;base64,")
+
+
+def flowing() -> tuple[Glk, GlkOteFrontend, Window]:
+    """A session whose display grants bare graphics: buffer images."""
+
+    frontend = opened(support=["timer", "graphics", "graphicswin", "hyperlinks"])
+    library = Glk(frontend)
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the root window opened")
+
+    return library, frontend, window
+
+
+# Under the display's bare-graphics grant, a picture draws into
+# the buffer's flow: the placed image rides the line data between
+# the text spans -- its alignment named, the picture whole as a
+# data: url -- text after it starts a fresh span, and a flow
+# break moves the next paragraph below the margins.
+def test_pictures_set_into_the_buffers_flow() -> None:
+    _, frontend, window = flowing()
+    picture = ImageInfo(3, b"PNG ", b"\x89PNG", 4, 5)
+
+    window.stream.put_string("Once")
+
+    assert_that(frontend.draw_image(window, picture, 1, 0, 4, 5)).is_true()
+
+    window.stream.put_string(" upon a time.\n")
+    frontend.flow_break(window)
+    window.stream.put_string("Below.\n")
+
+    update = frontend.render()
+    text = next(held for held in update["content"] if "text" in held)["text"]
+
+    assert_that(text[0]["content"]).is_equal_to(
+        [
+            {"style": "normal", "text": "Once"},
+            {
+                "special": "image",
+                "image": 3,
+                "url": "data:image/png;base64,"
+                + base64.b64encode(b"\x89PNG").decode("ascii"),
+                "width": 4,
+                "height": 5,
+                "alignment": "inlineup",
+            },
+            {"style": "normal", "text": " upon a time."},
+        ]
+    )
+    assert_that(text[1]["flowbreak"]).is_true()
+    assert_that(text[1]["content"]).is_equal_to([{"style": "normal", "text": "Below."}])
+
+
+# The margin alignments wear their names, an alignment the library
+# does not recognize draws inlineup as the spec instructs, and a
+# picture drawn under a link value carries it -- clickable art
+# stays clickable. A flow break in any other window is shrugged
+# off, as the spec allows.
+def test_the_alignments_and_links_ride_along() -> None:
+    _, frontend, window = flowing()
+    picture = ImageInfo(3, b"PNG ", b"\x89PNG", 4, 5)
+
+    window.stream.hyperlink = 7
+
+    assert_that(frontend.draw_image(window, picture, 4, 0, 4, 5)).is_true()
+
+    window.stream.hyperlink = 0
+
+    assert_that(frontend.draw_image(window, picture, 99, 0, 4, 5)).is_true()
+
+    frontend.flow_break(TextGridWindow())
+
+    update = frontend.render()
+    spans = next(held for held in update["content"] if "text" in held)["text"][0][
+        "content"
+    ]
+
+    assert_that(spans[0]["alignment"]).is_equal_to("marginleft")
+    assert_that(spans[0]["hyperlink"]).is_equal_to(7)
+    assert_that(spans[1]["alignment"]).is_equal_to("inlineup")
+    assert_that(spans[1]).does_not_contain_key("hyperlink")
 
 
 # Draws for a window that closed before the update vanish rather

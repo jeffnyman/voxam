@@ -12,11 +12,13 @@ from voxam.glulx.glk.objects import (
     FileRef,
     FileStream,
     FileUsage,
+    FlowBreak,
     GraphicsWindow,
     LineRequest,
     MemoryStream,
     Metrics,
     PairWindow,
+    Placed,
     Run,
     SeekMode,
     SoundChannel,
@@ -384,6 +386,31 @@ def test_buffer_runs_split_on_style_and_link() -> None:
 
     assert_that(window.content).is_empty()
     assert_that(window.pending_clear).is_true()
+
+
+# A placed picture or a flow break ends the run it follows: text
+# after one starts a fresh run even in the same dress, the
+# flattening drains skip past them, and take_content hands the
+# whole flow over in order (Glk: Graphics in Text Buffer Windows).
+def test_the_flow_carries_placed_pictures_and_breaks() -> None:
+    window = TextBufferWindow()
+    placed = Placed(3, "data:", 4, 5, 1, 0)
+
+    window.stream.put_string("ab")
+    window.put_placed(placed)
+    window.stream.put_string("cd")
+    window.put_break()
+    window.stream.put_string("ef")
+
+    flow = window.content
+
+    assert_that(flow[0]).is_equal_to(Run(Style.NORMAL, 0, "ab"))
+    assert_that(flow[1]).is_equal_to(placed)
+    assert_that(flow[2]).is_equal_to(Run(Style.NORMAL, 0, "cd"))
+    assert_that(isinstance(flow[3], FlowBreak)).is_true()
+    assert_that(flow[4]).is_equal_to(Run(Style.NORMAL, 0, "ef"))
+    assert_that(window.text()).is_equal_to("abcdef")
+    assert_that(window.take_content()).is_length(5)
 
 
 # The grid writes at the cursor and advances, wraps at the right

@@ -398,12 +398,15 @@ spec-sanctioned refusals with their reasons written down:
   audio decoder aboard is AIFF; a tracker player is an audio
   engine of its own, for a handful of games (Glk: Testing for
   Sound Capabilities).
-- **Margin images in text buffers.** Images draw in graphics
-  windows alone, as the DrawImage gestalt says per window type --
-  "libraries may implement both, neither, or only one" is the
-  spec's own sanction, and text flowed around margin art is the
-  one display feature it explicitly permits declining (Glk:
-  Testing for Graphics Capabilities).
+- **Margin images in text buffers, at the glasses.** There,
+  images draw in graphics windows alone, as the DrawImage gestalt
+  says per window type -- "libraries may implement both, neither,
+  or only one" is the spec's own sanction, and text flowed around
+  margin art is the one display feature it explicitly permits
+  declining (Glk: Testing for Graphics Capabilities). The 2.0 era
+  narrowed this entry to the glasses: the protocol faces lay text
+  around pictures for real, so they claim the whole buffer-image
+  contract -- see the road to 2.0 below.
 
 Everything else in the Glk 0.7.6 and Glulx 3.1.3 specifications
 that a blocking display can express is expressed, and enforced
@@ -511,8 +514,8 @@ wearing its own title.
 
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
-refusal left), colours and sound over the protocol, the refresh
-event, and flow breaks. None blocks a game the corpus plays.
+refusal left), colours and sound over the protocol, and the
+refresh event. None blocks a game the corpus plays.
 
 ### The road to 2.0, underway
 
@@ -611,6 +614,20 @@ remains maps onto the interim releases:
   its own left-over characters, so the input field carries none
   and what comes back is the typed part alone, exactly what the
   machine appends after the preload it holds.
+- **The pictures join the prose.** The protocol faces claim the
+  whole buffer-image contract, because the display genuinely lays
+  text around pictures: glk_image_draw into a text buffer places
+  the picture in the flow -- inline alignments and the margin
+  floats alike, the picture whole as a data: url, a link value
+  riding so clickable art stays clickable -- and
+  glk_window_flow_break moves the next paragraph below the
+  margins. The claim is the display's own grant: GlkOte's init
+  offers bare "graphics" for exactly this, distinct from the
+  "graphicswin" that opens canvases, and the DrawImage gestalt
+  answers per window type per display, so the glasses' ledger
+  entry stays true where it was written. Sensory Jam's ornate
+  initial letter -- a margin-left drop cap -- renders in the
+  browser and the shell, apology withdrawn.
 - **2.0, the declaration.** The road still holds, each its own
   branch: whatever the all-frontends playthroughs surface, and
   -- its own later road -- signed installers (macOS Gatekeeper
