@@ -2,6 +2,7 @@
 
 import io
 import json
+import struct
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,10 @@ READ_CHAR = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
 # Interrupt routines: mark a global then return false or true.
 MARK_THEN_FALSE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB1])
 MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
+
+# sound_effect 3 start volume-word routine, then the aread: the
+# routine operand is ROUTINE_BASE packed for Version 5.
+SOUNDED = bytes([0xF5, 0x51, 0x03, 0x02, 0x00, 0x08, 0x1C]) + AREAD
 
 
 def banded_resources(*, front: bool = False) -> Resources:
@@ -543,6 +548,142 @@ def test_the_grid_box_wears_the_margins(
 
     assert_that(alone["windows"][0]["top"]).is_equal_to(0)
     assert_that(alone["windows"][0]["height"]).is_equal_to(480)
+
+
+def sounding_resources(*, looped: bool = False) -> Resources:
+    """Resources with a tiny AIFF as sound 3, maybe looping forever."""
+
+    aiff_form = chunk(
+        b"FORM",
+        b"AIFF"
+        + chunk(
+            b"COMM",
+            struct.pack(">hLh", 1, 2, 8) + struct.pack(">HQ", 16397, 1 << 63),
+        )
+        + chunk(b"SSND", struct.pack(">LL", 0, 0) + b"\x01\xfe"),
+    )
+    loop = chunk(b"Loop", struct.pack(">LL", 3, 0)) if looped else b""
+    ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
+    first = 12 + len(ridx) + len(loop)
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Snd "
+        + (3).to_bytes(4, "big")
+        + first.to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + loop + aiff_form))
+    )
+
+
+def hearing(
+    code_machine: Callable[..., Machine],
+    resources: Resources,
+    program: bytes = AREAD,
+    support: list[str] | None = None,
+) -> tuple[GlkOteFrontend, Machine]:
+    """A face granted the sound word, a machine at its buffers."""
+
+    frontend = GlkOteFrontend(5, resources)
+
+    frontend.begin(
+        {**INIT, "support": support if support is not None else ["timer", "sound"]}
+    )
+
+    machine = code_machine(program, version=5, frontend=frontend)
+    frontend.machine = machine
+
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+
+    for offset, value in enumerate(MARK_THEN_FALSE):
+        machine.memory.write_byte(ROUTINE_BASE + offset, value)
+
+    return frontend, machine
+
+
+# The §9 sounds speak the wire's dialect: a play op carries the
+# AIFF re-wrapped as a WAVE data: url on the one channel with the
+# volume in eighths, zero repeats spell forever, Version 3's
+# silence is answered by the Loop chunk, a stop lands only on the
+# number sounding, and the bleeps ride as the display's own
+# oscillator notes. Without the display's word nothing rides at
+# all, and without a Blorb nothing is claimed even with it.
+def test_z_sounds_speak_the_dialect(code_machine: Callable[..., Machine]) -> None:
+    frontend, _ = hearing(code_machine, sounding_resources(looped=True))
+
+    assert_that(frontend.has_sounds).is_true()
+    assert_that(frontend.play_sound(3, 4, None)).is_true()
+    assert_that(frontend.play_sound(3, 8, 0)).is_true()
+    assert_that(frontend.play_sound(3, 8, 2)).is_true()
+    assert_that(frontend.play_sound(9, 8, 1)).is_false()
+
+    frontend.stop_sound(7)
+    frontend.stop_sound(3)
+    frontend.stop_sound(None)
+    frontend.bleep(1)
+    frontend.bleep(2)
+
+    ops = frontend.render()["sounds"]
+
+    assert_that([held.get("op") for held in ops]).is_equal_to(
+        ["play", "play", "play", "stop", "bleep", "bleep"]
+    )
+    assert_that(ops[0]["url"]).starts_with("data:audio/wav;base64,")
+    assert_that((ops[0]["repeats"], ops[0]["volume"])).is_equal_to((-1, 0.5))
+    assert_that((ops[1]["repeats"], ops[1]["volume"])).is_equal_to((-1, 1.0))
+    assert_that(ops[2]["repeats"]).is_equal_to(2)
+    assert_that(ops[4]["bleep"]).is_equal_to(1)
+    assert_that(ops[5]["bleep"]).is_equal_to(2)
+
+    quiet, muted = hearing(code_machine, sounding_resources(), support=["timer"])
+
+    assert_that(quiet.has_sounds).is_false()
+
+    quiet.bleep(1)
+    muted.run()
+
+    assert_that(quiet.render()).does_not_contain_key("sounds")
+
+    bare = GlkOteFrontend(5)
+
+    bare.begin({**INIT, "support": ["sound"]})
+
+    assert_that(bare.has_sounds).is_false()
+    assert_that(bare.play_sound(3, 8, 1)).is_false()
+
+
+# The whole §9.4 round over the wire: sound_effect starts the
+# sample and keeps its routine, the wire's finish report fires the
+# end-of-sound routine through the machine's own loop with the
+# read still standing, and a report for a sound since stopped or
+# replaced means nothing, §9.4.4's own rule.
+def test_the_end_of_sound_routine_fires(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = hearing(code_machine, sounding_resources(), program=SOUNDED)
+
+    machine.run()
+
+    played = frontend.render()["sounds"][0]
+
+    assert_that(played["sound"]).is_equal_to(3)
+    assert_that((played["repeats"], played["volume"])).is_equal_to((1, 1.0))
+
+    stray = frontend.accept({"type": "sound", "gen": 1, "channel": 1, "sound": 9})
+
+    assert_that(stray).is_equal_to(PASS)
+
+    verdict = frontend.accept({"type": "sound", "gen": 1, "channel": 1, "sound": 3})
+
+    assert_that(verdict).is_equal_to(STAND)
+    assert_that(machine.memory.read_word(0x102)).is_equal_to(0x63)
+    assert_that(machine.waiting).is_not_none()
+
+    silent = frontend.accept({"type": "sound", "gen": 1, "channel": 1, "sound": 3})
+
+    assert_that(silent).is_equal_to(PASS)
 
 
 # The doorway courtesy over the wire: a Blorb's Fspc cover stands

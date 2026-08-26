@@ -108,6 +108,24 @@ var VoxamAudio = (function() {
         }).catch(function() { });
     }
 
+    /* The interpreter's own bleeps: 1 high, 2 low, a tenth of a
+       second of oscillator with a fade so it ends without a
+       click -- the wire's answer to a terminal's bell. */
+    function bleep(op) {
+        var ctx = ensure();
+        if (!ctx)
+            return;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.frequency.value = (op.bleep === 2) ? 220 : 880;
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+    }
+
     function volume(id, op) {
         var ch = channel(id);
         if (!ch)
@@ -142,6 +160,8 @@ var VoxamAudio = (function() {
                         hush(channels[op.channel]);
                 } else if (op.op === 'volume') {
                     volume(op.channel, op);
+                } else if (op.op === 'bleep') {
+                    bleep(op);
                 }
             }
         }
