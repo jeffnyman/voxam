@@ -22,34 +22,49 @@ the picture inlined as a data: url, the grid and buffer re-based
 below, the header's rows updated as the contract asks (arc_image:
 the contract, part A).
 
-Deliberately not carried, each refused honestly at the claims: the
-Version 6 stage (the painted glasses keep it), colours, the Z
-mouse, sound, and §13.7's terminating characters -- a line here
-ends at Return.
+The rest of the eras' claims live here too, each under the
+display's own grant: the §10.5.2.1 terminating characters the
+wire can name, §10.3's clicks on the grid, §9's sounds in the
+dialect's channel ops, and §8.3's colours as per-span ink with
+the window's own paper. Deliberately not carried, refused
+honestly at the claims: the Version 6 stage -- the painted
+glasses keep it.
 """
 
 import json
 from collections.abc import Sequence
-from typing import TextIO
+from typing import Final, TextIO
 
 from voxam.errors import GlkOteError, VoxamError
 from voxam.frontend import (
     ARC_MODES,
     ARC_PIXEL_ROWS,
     ARC_REFERENCE_WIDTH,
+    COLOUR_VALUES,
     PlainFrontend,
     Status,
 )
 from voxam.glkote import (
+    Ink,
     Page,
     Stanza,
+    TextRun,
     measured,
     partials,
     read_stanza,
     write_stanza,
 )
 from voxam.glulx.glk.resources import Resources, pictured
-from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
+from voxam.screen import (
+    BOLD,
+    CURRENT_COLOUR,
+    DEFAULT_COLOUR,
+    FIXED_PITCH,
+    ITALIC,
+    REVERSE,
+    UPPER,
+    ScreenModel,
+)
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
 from voxam.zmachine.machine import (
     FULL_VOLUME,
@@ -101,6 +116,10 @@ TERMINATOR_NAMES = {code: f"func{code - 132}" for code in range(133, 145)}
 # ZSCII code the read stores; any other name reads as a plain
 # new-line ending.
 TERMINATOR_CODES = {name: code for code, name in TERMINATOR_NAMES.items()}
+
+# A text run wearing the colour dialect's ink is one member
+# longer than a colourless one.
+_INKED_RUN: Final = 4
 
 # One §15 tenth of a second, in the protocol's milliseconds.
 _TENTH_MS = 100
@@ -167,6 +186,12 @@ class GlkOteFrontend(PlainFrontend):
         self._sounding: int | None = None
         self._sound_done = False
         self._speaks_sound = False
+        # The current §8.3.1 pair, inking the lower window's runs;
+        # the model keeps the grid's cells dressed on its own.
+        self._ink: tuple[int, int] = (DEFAULT_COLOUR, DEFAULT_COLOUR)
+        # The turn's tallest split: what keeps a quote box on the
+        # screen after its shrink (see split_window).
+        self._peak_split = 0
 
     # -- the conversation's opening ----------------------------------------
 
@@ -192,6 +217,12 @@ class GlkOteFrontend(PlainFrontend):
             and self._resources.blorb is not None
             and "graphicswin" in support
         )
+
+        # Colours are the dialect's word too: a display that says
+        # it renders the ink the spans carry, and one that never
+        # learned it leaves the header's §8.3 offer honestly
+        # unclaimed.
+        self.has_colours = "colors" in support
 
         # The sound claim is honest twice over as well: the
         # display must say the dialect's word, and a Blorb must
@@ -256,7 +287,15 @@ class GlkOteFrontend(PlainFrontend):
         if self._model.selected == UPPER:
             self._model.write(text)
         else:
-            self._runs.append((_named(self._style), 0, text))
+            self._runs.append(self._run(text))
+
+    def _run(self, text: str) -> TextRun:
+        """One lower-window run in the current dress and ink."""
+
+        name = _named(self._style)
+        ink = _inked(self._ink, reverse=bool(self._style & REVERSE))
+
+        return (name, 0, text) if ink is None else (name, 0, text, ink)
 
     def write_rectangle(self, rows: Sequence[str]) -> None:
         """§15 print_table: stamped in the upper, stacked below."""
@@ -265,7 +304,7 @@ class GlkOteFrontend(PlainFrontend):
             self._model.write_rectangle(rows)
         else:
             for row in rows:
-                self._runs.append((_named(self._style), 0, row + "\n"))
+                self._runs.append(self._run(row + "\n"))
 
     def show_status(self, status: Status) -> None:
         """The §8.2 status line, drawn onto the model's top row."""
@@ -283,10 +322,35 @@ class GlkOteFrontend(PlainFrontend):
 
         self._model.set_font(font)
 
+    def set_colour(self, foreground: int, background: int) -> None:
+        """Change the printing colours (§8.3.1).
+
+        The model keeps the grid's cells dressed; the pair kept
+        here inks the lower window's runs -- zero keeps a colour
+        current, exactly as the model reads it. Only a claiming
+        face hears the call at all (§8.3).
+        """
+
+        self._model.set_colour(foreground, background)
+
+        fg, bg = self._ink
+        self._ink = (
+            foreground if foreground != CURRENT_COLOUR else fg,
+            background if background != CURRENT_COLOUR else bg,
+        )
+
     def erase_window(self, window: int) -> None:
-        """An erasure of the lower half clears the buffer whole."""
+        """An erasure of the lower half clears the buffer whole.
+
+        The whole-screen forms are a deliberate teardown, not a
+        quote box: the high water recedes with the split
+        (§8.7.3.3).
+        """
 
         self._model.erase_window(window)
+
+        if window < 0:
+            self._peak_split = self._model.split
 
         if window != UPPER:
             self._runs.clear()
@@ -454,9 +518,21 @@ class GlkOteFrontend(PlainFrontend):
         )
 
     def split_window(self, lines: int) -> None:
-        """Resize the upper window (§8.7.2.1); the model rules."""
+        """Resize the upper window (§8.7.2.1); the model rules.
+
+        The turn's tallest split is remembered: an Inform quote
+        box splits tall, writes, and shrinks back at once,
+        trusting §8.6.1.2's rule that splitting clears nothing
+        from Version 4 -- on a real §8 screen the box lingers in
+        the unsplit region, so the grid here stands at the turn's
+        high water until the next input arrives, the same
+        courtesy garglk and Parchment extend the same box.
+        """
 
         self._model.split_window(lines)
+
+        if self.version > STATUS_FLAGS_VERSION:
+            self._peak_split = max(self._peak_split, lines)
 
     def set_window(self, window: int) -> None:
         """Select the window taking the next printing (§8.7.2)."""
@@ -499,7 +575,13 @@ class GlkOteFrontend(PlainFrontend):
         # into the status line.
         brow = band_h + (int(rows * cell_h + self._margins[1]) if rows else 0)
 
-        self.page.window(_BUFFER, "buffer", 0, (0, brow, width, height))
+        # The window's paper is the model's own background,
+        # travelling only when a claiming display can show it and
+        # a game has coloured it -- Photopia's scenes bleed to the
+        # window's edge, not just under its letters (§8.3).
+        paper = _css(self._model.background) if self.has_colours else None
+
+        self.page.window(_BUFFER, "buffer", 0, (0, brow, width, height), bg=paper)
 
         if rows:
             if self._grid_ident is None:
@@ -512,6 +594,7 @@ class GlkOteFrontend(PlainFrontend):
                 0,
                 (0, band_h, width, brow),
                 gridsize=(self.screen_columns, rows),
+                bg=paper,
             )
             self.page.grid(self._grid_ident, self._faced(rows))
         else:
@@ -634,46 +717,70 @@ class GlkOteFrontend(PlainFrontend):
         return band_h
 
     def _grid_rows(self) -> int:
-        """The grid's height: the §8.2 chrome plus the split."""
+        """The grid's height: the §8.2 chrome plus the split.
+
+        The split is the turn's high water, not the moment's --
+        the quote-box courtesy split_window explains.
+        """
 
         chrome = 1 if self.version <= STATUS_FLAGS_VERSION else 0
 
-        return chrome + self._model.split
+        return chrome + max(self._model.split, self._peak_split)
 
-    def _faced(self, rows: int) -> list[list[tuple[str, int, str]]]:
-        """The grid's face, cells coalesced into named runs."""
+    def _faced(self, rows: int) -> list[list[TextRun]]:
+        """The grid's face, cells coalesced into named, inked runs."""
 
-        face: list[list[tuple[str, int, str]]] = []
+        face: list[list[TextRun]] = []
 
         for row in range(1, rows + 1):
-            spans: list[tuple[str, int, str]] = []
+            spans: list[TextRun] = []
 
             for column in range(1, self.screen_columns + 1):
                 held = self._model.cell(row, column)
                 name = _named(held.style)
+                ink = _inked(
+                    (held.foreground, held.background),
+                    reverse=bool(held.style & REVERSE),
+                )
 
-                if spans and spans[-1][0] == name:
-                    spans[-1] = (name, 0, spans[-1][2] + held.character)
+                if spans and spans[-1][0] == name and _ink_of(spans[-1]) == ink:
+                    text = spans[-1][2] + held.character
+                    spans[-1] = (name, 0, text) if ink is None else (name, 0, text, ink)
                 else:
-                    spans.append((name, 0, held.character))
+                    spans.append(
+                        (name, 0, held.character)
+                        if ink is None
+                        else (name, 0, held.character, ink)
+                    )
 
             face.append(spans)
 
         return face
 
-    def accept(self, stanza: Stanza) -> str:  # noqa: PLR0911 -- one verdict per event kind
+    def accept(self, stanza: Stanza) -> str:
         """Translate one inbound stanza into a serving verdict.
 
         ADVANCE means the machine can run on; STAND means the wait
         still stands but the picture may have changed -- a timer's
         interrupt printed -- and PASS means the stanza asked for
-        nothing here.
+        nothing here. Delivered input begins the next turn, so a
+        quote box's high water recedes to the real split there.
 
         Raises:
             ZMachineInstructionError: For input no read stands to
                 receive -- unreachable from a conforming display,
                 whose generations shield every withdrawal.
         """
+
+        verdict = self._accepted(stanza)
+
+        if verdict == ADVANCE:
+            self._peak_split = self._model.split
+
+        return verdict
+
+    def _accepted(self, stanza: Stanza) -> str:  # noqa: PLR0911 -- one verdict per event kind
+        """The verdict itself, one return per event kind."""
 
         kind = stanza.get("type")
 
@@ -944,6 +1051,42 @@ def _fronted(resources: Resources) -> Stanza | None:
         "height": cover.height,
         "alignment": "inlineup",
     }
+
+
+def _css(code: int) -> str | None:
+    """A §8.3.1 code as CSS ink, None for the display's own default.
+
+    The values are the shared palette every face shows -- the
+    same RGB the pygame glass mixes (§8.3.7's equivalents).
+    """
+
+    value = COLOUR_VALUES.get(code)
+
+    return None if value is None else "#{:02x}{:02x}{:02x}".format(*value)
+
+
+def _inked(pair: tuple[int, int], *, reverse: bool) -> Ink | None:
+    """§8.3.1 codes as the dialect's ink, None when all default.
+
+    Reverse video swaps ink and paper, as every painted face
+    swaps them (§8.7.1.1) -- a side left None keeps the display's
+    own colour for that half.
+    """
+
+    fg, bg = pair
+
+    if reverse:
+        fg, bg = bg, fg
+
+    held = (_css(fg), _css(bg))
+
+    return None if held == (None, None) else held
+
+
+def _ink_of(run: TextRun) -> Ink | None:
+    """The ink a run wears, None on the colourless three-tuple."""
+
+    return run[3] if len(run) == _INKED_RUN else None
 
 
 def _named(style: int) -> str:

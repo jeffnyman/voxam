@@ -35,6 +35,7 @@ from voxam.frontend import (
     ARC_MODES,
     ARC_PIXEL_ROWS,
     ARC_REFERENCE_WIDTH,
+    COLOUR_VALUES,
     GRAPHICS_FONT,
     Status,
 )
@@ -86,19 +87,6 @@ PAPER_DEFAULT = (0, 0, 0)
 # -- shares one flip per frame instead. Whatever is left owing
 # settles the moment the glass next stands and waits.
 PRESENT_CADENCE = 1 / 60
-COLOUR_VALUES = {
-    2: (0, 0, 0),
-    3: (204, 0, 0),
-    4: (0, 204, 0),
-    5: (204, 204, 0),
-    6: (0, 0, 204),
-    7: (204, 0, 204),
-    8: (0, 204, 204),
-    9: (255, 255, 255),
-    10: (181, 181, 181),
-    11: (139, 139, 139),
-    12: (90, 90, 90),
-}
 
 # §8.3.1's colour code -1: the colour of the pixel under the
 # cursor, Version 6 only. A sampled colour is not one of the

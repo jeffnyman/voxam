@@ -44,6 +44,7 @@ from voxam.glkote import (
     STYLES,
     Page,
     Stanza,
+    TextRun,
     measured,
     partials,
     read_stanza,
@@ -1091,10 +1092,10 @@ def _visible(window: Window | None) -> "list[Window]":
     return [window]
 
 
-def _dressed(segments: "list[Segment]") -> "list[tuple[str, int, str]]":
+def _dressed(segments: "list[Segment]") -> "list[TextRun]":
     """Painted segments as protocol runs: the key opened, the style named."""
 
-    runs: list[tuple[str, int, str]] = []
+    runs: list[TextRun] = []
 
     for key, text in segments:
         style, link = cast("tuple[int, int]", key)

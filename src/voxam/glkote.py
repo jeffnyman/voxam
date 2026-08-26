@@ -18,7 +18,7 @@ from its own screen model.
 """
 
 import json
-from typing import Any, TextIO, cast
+from typing import Any, Final, TextIO, cast
 
 from voxam.errors import GlkOteError
 
@@ -48,6 +48,13 @@ TERMINATORS = frozenset({"escape", *(f"func{number}" for number in range(1, 13))
 # next one wears the flowbreak flag (GlkOte: Buffer Window
 # Updates).
 FLOWBREAK = object()
+
+# A text run: (style name, link value, text), optionally wearing
+# the colour dialect's ink as a fourth member -- (fg, bg) CSS
+# colours, each None where the display's own theme rules.
+Ink = tuple[str | None, str | None]
+TextRun = tuple[str, int, str] | tuple[str, int, str, Ink]
+_INKED_RUN: Final = 4
 
 # The window kinds the protocol draws; pairs and blanks are the
 # server's business and never appear (GlkOte: The Windows Update
@@ -135,6 +142,7 @@ class Page:
         *,
         gridsize: tuple[int, int] | None = None,
         graphsize: tuple[int, int] | None = None,
+        bg: str | None = None,
     ) -> None:
         """Declare a window that stands visible this cycle.
 
@@ -143,7 +151,9 @@ class Page:
         reuse (GlkOte: The Windows Update Array). The box arrives
         as (left, top, right, bottom) in pixels, the shape the
         window models already keep; a grid names its columns and
-        rows, a graphics window its drawable size.
+        rows, a graphics window its drawable size. A bg is the
+        dialect's own word: the window's paper as a CSS colour,
+        absent when the display's own theme is the paper.
 
         Raises:
             GlkOteError: For an unknown kind, a retired or
@@ -198,6 +208,9 @@ class Page:
         if graphsize is not None:
             entry["graphwidth"], entry["graphheight"] = graphsize
 
+        if bg is not None:
+            entry["bg"] = bg
+
         self._declared[ident] = entry
 
     def _resized(self, ident: int, entry: Stanza) -> None:
@@ -218,7 +231,7 @@ class Page:
     def buffer(
         self,
         ident: int,
-        runs: list[tuple[str, int, str] | object],
+        runs: list[TextRun | object],
         *,
         clear: bool = False,
     ) -> None:
@@ -266,7 +279,7 @@ class Page:
             self._texts[ident] = entry
 
     def _segmented(
-        self, runs: list[tuple[str, int, str] | object]
+        self, runs: list[TextRun | object]
     ) -> tuple[list[list[Stanza]], set[int]]:
         """Split a run stream into paragraphs at newlines and breaks.
 
@@ -296,24 +309,32 @@ class Page:
 
                 continue
 
-            style, link, text = cast("tuple[str, int, str]", run)
+            style, link, text, ink = _unrolled(run)
             pieces = text.split("\n")
 
-            self._spanned(segments[-1], style, link, pieces[0])
+            self._spanned(segments[-1], style, link, pieces[0], ink)
 
             for piece in pieces[1:]:
                 segments.append([])
-                self._spanned(segments[-1], style, link, piece)
+                self._spanned(segments[-1], style, link, piece, ink)
 
         return segments, breaks
 
-    def _spanned(self, spans: list[Stanza], style: str, link: int, text: str) -> None:
+    def _spanned(
+        self,
+        spans: list[Stanza],
+        style: str,
+        link: int,
+        text: str,
+        ink: "tuple[str | None, str | None] | None" = None,
+    ) -> None:
         """Add one piece of styled text to a paragraph's spans.
 
         Adjacent pieces wearing the same dress coalesce -- two
         machine styles may share one protocol name -- and the
-        hyperlink key appears only on a real link (GlkOte: The
-        Line Data Array).
+        hyperlink key appears only on a real link, the fg and bg
+        of the colour dialect only on real ink (GlkOte: The Line
+        Data Array).
 
         Raises:
             GlkOteError: For a style the protocol does not name.
@@ -327,12 +348,16 @@ class Page:
         if not text:
             return
 
+        fg, bg = ink if ink is not None else (None, None)
+
         # A special span has no style name, so text after a placed
         # picture starts its own span rather than coalescing.
         if (
             spans
             and spans[-1].get("style") == style
             and spans[-1].get("hyperlink", 0) == link
+            and spans[-1].get("fg") == fg
+            and spans[-1].get("bg") == bg
         ):
             spans[-1]["text"] += text
 
@@ -342,6 +367,12 @@ class Page:
 
         if link:
             span["hyperlink"] = link
+
+        if fg is not None:
+            span["fg"] = fg
+
+        if bg is not None:
+            span["bg"] = bg
 
         spans.append(span)
 
@@ -397,7 +428,7 @@ class Page:
 
         return entries
 
-    def grid(self, ident: int, rows: list[list[tuple[str, int, str]]]) -> None:
+    def grid(self, ident: int, rows: list[list[TextRun]]) -> None:
         """Feed a grid window's whole face; only changed rows travel.
 
         Rows arrive as coalesced (style name, link, text) runs.
@@ -425,8 +456,8 @@ class Page:
         for index, row in enumerate(rows):
             spans: list[Stanza] = []
 
-            for style, link, text in row:
-                self._spanned(spans, style, link, text)
+            for run in row:
+                self._spanned(spans, *_unrolled(run))
 
             spans = _trimmed(spans)
 
@@ -895,6 +926,17 @@ class Page:
         self._requests = {}
         self._timer_request = None
         self._prompt = None
+
+
+def _unrolled(run: object) -> "tuple[str, int, str, Ink | None]":
+    """A text run in either length: colourless, or wearing ink."""
+
+    held = cast("TextRun", run)
+
+    if len(held) == _INKED_RUN:
+        return held[0], held[1], held[2], held[3]
+
+    return held[0], held[1], held[2], None
 
 
 def _trimmed(spans: list[Stanza]) -> list[Stanza]:
