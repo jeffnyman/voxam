@@ -75,6 +75,16 @@ def test_no_blorb_answers_nothing() -> None:
     assert_that(bare.image(1)).is_none()
     assert_that(bare.sound(1)).is_none()
     assert_that(bare.data(1)).is_none()
+    assert_that(bare.frontispiece()).is_none()
+
+
+# The Fspc chunk names the cover outright; a Blorb full of
+# pictures but no Fspc offers nothing rather than a guess (Blorb:
+# Frontispiece Chunk).
+def test_the_frontispiece_answers_only_when_named() -> None:
+    unnamed = Resources(blorb((b"Pict", 1, b"PNG ", png(32, 16))))
+
+    assert_that(unnamed.frontispiece()).is_none()
 
 
 # A picture is measured on first use and remembered after -- the

@@ -51,8 +51,8 @@ MARK_THEN_FALSE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB1])
 MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 
 
-def banded_resources() -> Resources:
-    """Resources holding one 320x96 PNG as picture 8."""
+def banded_resources(*, front: bool = False) -> Resources:
+    """Resources holding one 320x96 PNG as picture 8, maybe the cover."""
 
     art = (
         b"\x89PNG\r\n\x1a\n"
@@ -61,8 +61,9 @@ def banded_resources() -> Resources:
         + (320).to_bytes(4, "big")
         + (96).to_bytes(4, "big")
     )
+    fspc = chunk(b"Fspc", (8).to_bytes(4, "big")) if front else b""
     ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
-    offset = 12 + len(ridx)
+    offset = 12 + len(ridx) + len(fspc)
     index = (
         (1).to_bytes(4, "big")
         + b"Pict"
@@ -72,7 +73,7 @@ def banded_resources() -> Resources:
 
     return Resources(
         Blorb.parse(
-            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + chunk(b"PNG ", art))
+            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + fspc + chunk(b"PNG ", art))
         )
     )
 
@@ -542,6 +543,58 @@ def test_the_grid_box_wears_the_margins(
 
     assert_that(alone["windows"][0]["top"]).is_equal_to(0)
     assert_that(alone["windows"][0]["height"]).is_equal_to(480)
+
+
+# The doorway courtesy over the wire: a Blorb's Fspc cover stands
+# at the top of the story's text -- once, before anything the
+# machine prints, its own paragraph -- when the display grants
+# bare graphics; without the grant, or without a cover, the story
+# simply opens plain.
+def test_the_cover_stands_at_the_door(code_machine: Callable[..., Machine]) -> None:
+    frontend = GlkOteFrontend(5, banded_resources(front=True))
+
+    frontend.begin({**INIT, "support": ["timer", "graphics"]})
+
+    machine = code_machine(AREAD, version=5, frontend=frontend)
+    frontend.machine = machine
+
+    frontend.write("Hello")
+
+    text = frontend.render()["content"][0]["text"]
+    cover = text[0]["content"][0]
+
+    assert_that(cover["special"]).is_equal_to("image")
+    assert_that(cover["image"]).is_equal_to(8)
+    assert_that(cover["alignment"]).is_equal_to("inlineup")
+    assert_that((cover["width"], cover["height"])).is_equal_to((320, 96))
+    assert_that(cover["url"]).starts_with("data:image/png;base64,")
+    assert_that(text[1]["content"]).is_equal_to([{"style": "normal", "text": "Hello"}])
+
+    plain = GlkOteFrontend(5, banded_resources(front=True))
+
+    plain.begin(INIT)
+
+    ungranted = code_machine(AREAD, version=5, frontend=plain)
+    plain.machine = ungranted
+
+    plain.write("Hello")
+
+    opening = plain.render()["content"][0]["text"][0]["content"]
+
+    assert_that(opening).is_equal_to([{"style": "normal", "text": "Hello"}])
+
+    coverless = GlkOteFrontend(5, banded_resources())
+
+    coverless.begin({**INIT, "support": ["timer", "graphics"]})
+
+    unnamed = code_machine(AREAD, version=5, frontend=coverless)
+    coverless.machine = unnamed
+
+    coverless.write("Hello")
+
+    bare = coverless.render()["content"][0]["text"][0]["content"]
+
+    assert_that(bare).is_equal_to([{"style": "normal", "text": "Hello"}])
 
 
 # The arc_image band hangs above the whole screen: a graphics

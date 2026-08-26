@@ -48,7 +48,7 @@ from voxam.glkote import (
     read_stanza,
     write_stanza,
 )
-from voxam.glulx.glk.resources import Resources
+from voxam.glulx.glk.resources import Resources, pictured
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
 from voxam.zmachine.machine import SINGLE_CLICK, Filing, Machine, Reading
@@ -179,6 +179,18 @@ class GlkOteFrontend(PlainFrontend):
             and self._resources.blorb is not None
             and "graphicswin" in support
         )
+
+        # The doorway courtesy, over the wire: the Blorb's cover
+        # stands at the top of the story's text, when there is one
+        # and the display grants bare graphics -- pictures laid in
+        # text (Blorb: Frontispiece Chunk). Art is a courtesy,
+        # never a gate: no cover, no grant, or an unmeasurable
+        # picture simply plays on.
+        if "graphics" in support and self._resources is not None:
+            cover = _fronted(self._resources)
+
+            if cover is not None:
+                self._runs.extend([cover, ("normal", 0, "\n")])
 
         self._measure(stanza)
 
@@ -771,6 +783,30 @@ def serve(
         write_stanza(writer, {"type": "error", "message": f"voxam: {error}"})
 
         return False
+
+
+def _fronted(resources: Resources) -> Stanza | None:
+    """The Blorb's cover as a ready-made image span, or None.
+
+    The picture rides whole as a data: url, drawn inline at its
+    own size -- the display's proportional cap shrinks a large
+    cover to the page (Blorb: Frontispiece Chunk; GlkOte: The
+    Line Data Array).
+    """
+
+    cover = resources.frontispiece()
+
+    if cover is None:
+        return None
+
+    return {
+        "special": "image",
+        "image": cover.number,
+        "url": pictured(cover),
+        "width": cover.width,
+        "height": cover.height,
+        "alignment": "inlineup",
+    }
 
 
 def _named(style: int) -> str:
