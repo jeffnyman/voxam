@@ -66,13 +66,14 @@ from voxam.glulx.glk.objects import (
     PairWindow,
     Placed,
     Run,
+    SoundChannel,
     Style,
     TextBufferWindow,
     TextGridWindow,
     Window,
     to_char,
 )
-from voxam.glulx.glk.painted import grouped
+from voxam.glulx.glk.painted import FOREVER, grouped
 from voxam.glulx.glk.resources import ImageInfo, pictured
 from voxam.glulx.glk.wrap import Segment
 from voxam.glulx.machine import Machine
@@ -112,6 +113,11 @@ ALIGNMENT_NAMES = {
     4: "marginleft",
     5: "marginright",
 }
+
+# Glk's full volume, which the wire's own unit gain divides by --
+# a channel may legally ask for more than 1.0, and the display's
+# gain node obliges (Glk: Other Sound Channel Functions).
+FULL_GAIN = 0x10000
 
 # The named keys of a char event, each to its Glk keycode; a name
 # from some newer display reads as unknown (GlkOte: Input:
@@ -352,6 +358,9 @@ class GlkOteFrontend(Frontend):
         self._ops: dict[Window, list[Stanza]] = {}
         self._restarted = False
         self._covered = False
+        self._sound_ops: list[Stanza] = []
+        self._channel_idents: dict[SoundChannel, int] = {}
+        self._next_channel = 1
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -371,6 +380,10 @@ class GlkOteFrontend(Frontend):
         self.graphics = "graphicswin" in support
         self.buffer_images = "graphics" in support
         self.hyperlink_input = "hyperlinks" in support
+        # Sound is VΘXΔM's own dialect word: only a display that
+        # says it -- our pages say it -- gets channels opened over
+        # it, and every other display keeps the conforming quiet.
+        self.sound = "sound" in support
 
         self._measure(stanza)
 
@@ -603,6 +616,114 @@ class GlkOteFrontend(Frontend):
         if isinstance(window, TextBufferWindow):
             window.put_break()
 
+    # -- the sound contract, in the wire's own dialect ---------------------
+
+    def _sound_ended(self, stanza: Stanza) -> Event | None:
+        """A play finished naturally on the display.
+
+        The channel falls silent in the model, as the painted
+        spine's listener clears it, and a play that asked for
+        notification comes home as the completion glk_select
+        promises -- a zero notify was never an event, only the
+        model's own bookkeeping (Glk: Playing Sounds).
+        """
+
+        ended = int(stanza.get("sound", 0))
+        notify = int(stanza.get("notify", 0))
+
+        for held, minted in self._channel_idents.items():
+            if minted == stanza.get("channel") and held.sound == ended:
+                held.sound = 0
+
+        if not notify:
+            return None
+
+        return Event(EventType.SOUND_NOTIFY, None, ended, notify)
+
+    def _channeled(self, channel: SoundChannel) -> int:
+        """The channel's wire ident, minted once and never reused."""
+
+        if channel not in self._channel_idents:
+            self._channel_idents[channel] = self._next_channel
+            self._next_channel += 1
+
+        return self._channel_idents[channel]
+
+    def play_sound(
+        self, channel: SoundChannel, sound: int, repeats: int, notify: int
+    ) -> bool:
+        """Start a sound on its own wire channel.
+
+        The play op carries the sound whole as a data: url in a
+        container the display's audio engine decodes, the repeat
+        count with -1 for until-stopped, the notify value whose
+        completion comes back as a sound event, and the channel's
+        own volume as a unit gain (Glk: Playing Sounds). A sound
+        no wire container can carry -- MOD music -- refuses here,
+        and the music gestalt already said so.
+        """
+
+        url = self._library().resources.audible(sound)
+
+        if url is None:
+            return False
+
+        self._sound_ops.append(
+            {
+                "channel": self._channeled(channel),
+                "op": "play",
+                "sound": sound,
+                "url": url,
+                "repeats": -1 if repeats == FOREVER else repeats,
+                "notify": notify,
+                "volume": channel.volume / FULL_GAIN,
+            }
+        )
+
+        return True
+
+    def stop_sound(self, channel: SoundChannel) -> None:
+        """Silence a channel (Glk: Playing Sounds)."""
+
+        self._sound_ops.append({"channel": self._channeled(channel), "op": "stop"})
+
+    def pause_sound(self, channel: SoundChannel, paused: bool) -> None:
+        """Pause as silence; resume as starting over.
+
+        The painted spine's own semantics, kept for parity: no
+        display here tracks a playback position, so an unpaused
+        channel plays its sound again from the start, and neither
+        edge is a natural ending (Glk: Playing Sounds). A channel
+        with nothing sounding shrugs both edges off, and no op
+        rides the wire for it.
+        """
+
+        if not channel.sound:
+            return
+
+        if paused:
+            self.stop_sound(channel)
+        else:
+            self.play_sound(channel, channel.sound, channel.repeats, channel.notify)
+
+    def set_volume(self, channel: SoundChannel, volume: int, duration: int) -> None:
+        """Change a sounding channel's gain, fading over a duration.
+
+        Better than the speaker's next-play-only honesty: the
+        display's gain node ramps live, so the extended form's
+        fade means what it says (Glk: Other Sound Channel
+        Functions).
+        """
+
+        self._sound_ops.append(
+            {
+                "channel": self._channeled(channel),
+                "op": "volume",
+                "volume": volume / FULL_GAIN,
+                "duration": duration,
+            }
+        )
+
     # -- the two halves of the conversation --------------------------------
 
     def _front(self, glk: Glk) -> None:
@@ -671,6 +792,10 @@ class GlkOteFrontend(Frontend):
             self.page.draw(self.composer.ident(window), ops)
 
         self._ops = {}
+
+        if self._sound_ops:
+            self.page.sounds(self._sound_ops)
+            self._sound_ops = []
 
         if self._restarted:
             self.page.timer(glk.timer_interval, restart=True)
@@ -753,6 +878,9 @@ class GlkOteFrontend(Frontend):
 
         if kind == "timer":
             return Event(EventType.TIMER)
+
+        if kind == "sound":
+            return self._sound_ended(stanza)
 
         if kind == "redraw":
             # An unnamed window means every canvas, which Glk

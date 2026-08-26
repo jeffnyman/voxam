@@ -1,5 +1,9 @@
 """Glk's view of the Blorb: pictures measured, sounds reframed."""
 
+import base64
+import struct
+
+import pytest
 from assertpy import assert_that
 
 from voxam.blorb import Blorb
@@ -85,6 +89,51 @@ def test_the_frontispiece_answers_only_when_named() -> None:
     unnamed = Resources(blorb((b"Pict", 1, b"PNG ", png(32, 16))))
 
     assert_that(unnamed.frontispiece()).is_none()
+
+
+def tiny_aiff() -> bytes:
+    """A mono 8-bit AIFF FORM payload: two sample points at 16384Hz."""
+
+    return (
+        b"AIFF"
+        + chunk(
+            b"COMM",
+            struct.pack(">hLh", 1, 2, 8) + struct.pack(">HQ", 16397, 1 << 63),
+        )
+        + chunk(b"SSND", struct.pack(">LL", 0, 0) + b"\x01\xfe")
+    )
+
+
+# Sounds travel the wire in containers browsers decode: the AIFF's
+# points come back inside a WAVE data: url, byte for byte where
+# the unsigned convention moves them; an Ogg travels as itself;
+# MOD music, a broken AIFF, and an absent number answer None --
+# and every answer is remembered.
+def test_sounds_travel_in_wire_containers() -> None:
+    held = Resources(
+        blorb(
+            (b"Snd ", 3, b"FORM", tiny_aiff()),
+            (b"Snd ", 4, b"OGGV", b"OggS-ish"),
+            (b"Snd ", 5, b"MOD ", b"\x00"),
+            (b"Snd ", 6, b"FORM", b"AIFFjunk"),
+        )
+    )
+
+    url = held.audible(3)
+
+    if url is None:
+        pytest.fail("the AIFF travelled")
+
+    assert_that(url).starts_with("data:audio/wav;base64,")
+    assert_that(base64.b64decode(url.split(",", 1)[1])[44:]).is_equal_to(b"\x81\x7e")
+    assert_that(held.audible(4)).is_equal_to(
+        "data:audio/ogg;base64," + base64.b64encode(b"OggS-ish").decode("ascii")
+    )
+    assert_that(held.audible(5)).is_none()
+    assert_that(held.audible(6)).is_none()
+    assert_that(held.audible(9)).is_none()
+    assert_that(held.audible(3)).is_same_as(held.audible(3))
+    assert_that(Resources().audible(1)).is_none()
 
 
 # A picture is measured on first use and remembered after -- the

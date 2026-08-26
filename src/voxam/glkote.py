@@ -116,6 +116,7 @@ class Page:
         self._requests: dict[int, Stanza] = {}
         self._timer_request: tuple[int, bool] | None = None
         self._prompt: Stanza | None = None
+        self._sounds: list[Stanza] = []
 
     @property
     def gen(self) -> int:
@@ -608,6 +609,20 @@ class Page:
             "filetype": filetype,
         }
 
+    def sounds(self, ops: list[Stanza]) -> None:
+        """Feed sound channel operations, one cycle's worth.
+
+        The dialect is VΘXΔM's own: GlkOte never grew a sound
+        vocabulary, but both ends of this wire are ours, so the
+        update carries channel ops -- play, stop, volume -- in
+        the order they happened, each play with its sound inlined
+        whole as a data: url. A display that never learned the
+        word simply ignores the field, which is the conforming
+        quiet every sound game ships ready to accept.
+        """
+
+        self._sounds.extend(ops)
+
     def timer(self, interval: int, *, restart: bool = False) -> None:
         """Note the timer cadence in milliseconds, zero for none.
 
@@ -660,6 +675,7 @@ class Page:
             or input_changed
             or timer_field is not _UNSET
             or self._prompt is not None
+            or bool(self._sounds)
             or exit
         )
 
@@ -686,6 +702,10 @@ class Page:
 
         if self._prompt is not None:
             stanza["specialinput"] = self._prompt
+
+        if self._sounds:
+            stanza["sounds"] = self._sounds
+            self._sounds = []
 
         if exit:
             stanza["exit"] = True

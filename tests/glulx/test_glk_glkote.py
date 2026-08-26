@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import struct
 from collections.abc import Callable
 from typing import Any
 
@@ -380,6 +381,8 @@ def test_the_init_grants_the_capabilities() -> None:
     assert_that(frontend.buffer_images).is_false()
     assert_that(frontend.hyperlink_input).is_true()
 
+    assert_that(frontend.sound).is_false()
+
     bare = opened(support=["graphics"])
 
     assert_that(bare.graphics).is_false()
@@ -387,6 +390,10 @@ def test_the_init_grants_the_capabilities() -> None:
     assert_that(bare.timer_input).is_false()
     assert_that(bare.hyperlink_input).is_false()
     assert_that(bare.mouse_input).is_true()
+
+    heard = opened(support=["sound"])
+
+    assert_that(heard.sound).is_true()
 
 
 # The metrics measure the display and its cells, falling back from
@@ -695,6 +702,151 @@ def test_the_cover_stands_at_the_door() -> None:
     ]
 
     assert_that(again[0]["content"]).is_equal_to([{"style": "normal", "text": "More"}])
+
+
+def sounding_resources() -> Resources:
+    """Resources with a tiny AIFF as sound 3 and a MOD as sound 5."""
+
+    aiff_form = chunk(
+        b"FORM",
+        b"AIFF"
+        + chunk(
+            b"COMM",
+            struct.pack(">hLh", 1, 2, 8) + struct.pack(">HQ", 16397, 1 << 63),
+        )
+        + chunk(b"SSND", struct.pack(">LL", 0, 0) + b"\x01\xfe"),
+    )
+    mod = chunk(b"MOD ", b"\x00")
+    ridx = chunk(b"RIdx", (2).to_bytes(4, "big") + b"\x00" * 24)
+    first = 12 + len(ridx)
+    index = (
+        (2).to_bytes(4, "big")
+        + b"Snd "
+        + (3).to_bytes(4, "big")
+        + first.to_bytes(4, "big")
+        + b"Snd "
+        + (5).to_bytes(4, "big")
+        + (first + len(aiff_form)).to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + aiff_form + mod))
+    )
+
+
+def sounding() -> tuple[Glk, GlkOteFrontend]:
+    """A session whose display says the sound word, sounds aboard."""
+
+    frontend = opened(support=["timer", "sound"])
+    library = Glk(frontend, resources=sounding_resources())
+    library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    return library, frontend
+
+
+# Under the display's own sound word the channels speak the wire
+# dialect: a play op carries the sound whole as a WAVE data: url
+# with repeats, notify, and the channel's unit gain; volume fades
+# and stops follow on the same minted channel ident; forever
+# spells -1; and a MOD no wire container carries refuses, exactly
+# as the music gestalt said it would.
+def test_sound_channels_speak_the_dialect() -> None:
+    library, frontend = sounding()
+    channel = library.glk_schannel_create(0)
+
+    if channel is None:
+        pytest.fail("the channel opened")
+
+    assert_that(library.glk_schannel_play_ext(channel, 3, 2, 7)).is_equal_to(1)
+
+    library.glk_schannel_set_volume_ext(channel, 0x8000, 500, 0)
+    library.glk_schannel_stop(channel)
+
+    assert_that(library.glk_schannel_play_ext(channel, 5, 1, 0)).is_equal_to(0)
+
+    ops = frontend.render()["sounds"]
+
+    assert_that(ops).is_length(3)
+    assert_that(ops[0]["op"]).is_equal_to("play")
+    assert_that(ops[0]["channel"]).is_equal_to(1)
+    assert_that(ops[0]["sound"]).is_equal_to(3)
+    assert_that(ops[0]["repeats"]).is_equal_to(2)
+    assert_that(ops[0]["notify"]).is_equal_to(7)
+    assert_that(ops[0]["volume"]).is_equal_to(1.0)
+    assert_that(ops[0]["url"]).starts_with("data:audio/wav;base64,")
+    assert_that(ops[1]).is_equal_to(
+        {"channel": 1, "op": "volume", "volume": 0.5, "duration": 500}
+    )
+    assert_that(ops[2]).is_equal_to({"channel": 1, "op": "stop"})
+    assert_that(frontend.render().get("sounds", [])).is_empty()
+
+
+# A pause is silence and an unpause starts the sound over -- the
+# painted spine's own semantics -- while a channel with nothing
+# sounding shrugs both off; a finished play comes home as the
+# SoundNotify completion, falling silent in the model, and a play
+# that never asked for notification only falls silent.
+def test_sound_completions_come_home() -> None:
+    library, frontend = sounding()
+    channel = library.glk_schannel_create(0)
+    idle = library.glk_schannel_create(0)
+
+    if channel is None or idle is None:
+        pytest.fail("the channels opened")
+
+    assert_that(library.glk_schannel_play_ext(channel, 3, 0xFFFFFFFF, 9)).is_equal_to(1)
+
+    library.glk_schannel_pause(channel)
+    library.glk_schannel_unpause(channel)
+    library.glk_schannel_pause(idle)
+    library.glk_schannel_unpause(idle)
+
+    ops = frontend.render()["sounds"]
+
+    assert_that([held["op"] for held in ops]).is_equal_to(["play", "stop", "play"])
+    assert_that(ops[2]["repeats"]).is_equal_to(-1)
+
+    gen = frontend.page.gen
+    landed = frontend.accept(
+        {"type": "sound", "gen": gen, "channel": 1, "sound": 3, "notify": 9}
+    )
+
+    if landed is None:
+        pytest.fail("the completion landed")
+
+    assert_that((landed.kind, landed.window, landed.val1, landed.val2)).is_equal_to(
+        (EventType.SOUND_NOTIFY, None, 3, 9)
+    )
+    assert_that(channel.sound).is_equal_to(0)
+
+    assert_that(library.glk_schannel_play_ext(channel, 3, 1, 0)).is_equal_to(1)
+
+    frontend.render()
+
+    quiet = frontend.accept(
+        {
+            "type": "sound",
+            "gen": frontend.page.gen,
+            "channel": 1,
+            "sound": 3,
+            "notify": 0,
+        }
+    )
+
+    assert_that(quiet).is_none()
+    assert_that(channel.sound).is_equal_to(0)
+
+    stray = frontend.accept(
+        {
+            "type": "sound",
+            "gen": frontend.page.gen,
+            "channel": 99,
+            "sound": 3,
+            "notify": 0,
+        }
+    )
+
+    assert_that(stray).is_none()
 
 
 # Draws for a window that closed before the update vanish rather
