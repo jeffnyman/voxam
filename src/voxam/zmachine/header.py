@@ -91,6 +91,11 @@ DEFAULT_BACKGROUND_ADDRESS = 0x2C
 DEFAULT_FOREGROUND_ADDRESS = 0x2D
 COLOURS_VERSION = 5
 
+# From Version 5 the word at $2E may name a "terminating characters
+# table": a zero-terminated list of input codes that end a read
+# alongside new-line (§10.5.2.1, §11.1).
+TERMINATING_TABLE = 0x2E
+
 # An interpreter obeying revision n.m of the Standard writes n at
 # $32 and m at $33 (§11.1.5); games check it before using late
 # opcodes like print_unicode.
@@ -274,6 +279,17 @@ class Header:
         """
 
         return self._word(ALPHABET_TABLE)
+
+    @property
+    def terminating_table_address(self) -> int:
+        """The terminating characters table's byte address, or 0 (§10.5.2.1).
+
+        Zero means new-line alone ends a read. The field exists
+        from Version 5; earlier versions leave the word zero
+        anyway.
+        """
+
+        return self._word(TERMINATING_TABLE)
 
     @property
     def unicode_translation_address(self) -> int:

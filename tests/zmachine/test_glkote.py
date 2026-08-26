@@ -263,6 +263,49 @@ def test_erasures_and_echoes(code_machine: Callable[..., Machine]) -> None:
     )
 
 
+# A read under a §10.5.2.1 terminating table offers the function
+# keys the wire can name -- a cursor-key entry stays legal but
+# unnameable in the protocol's vocabulary -- and the key that ends
+# the line stores its own code with nothing echoed, since only a
+# return-ended read prints its return (§15 read).
+def test_a_terminator_rides_the_wire(code_machine: Callable[..., Machine]) -> None:
+    frontend, machine = opened(code_machine)
+
+    machine.memory.write_word(0x2E, 0x1A0)
+
+    for offset, code in enumerate((135, 133, 129, 0)):
+        machine.memory.write_byte(0x1A0 + offset, code)
+
+    machine.run()
+
+    asked = frontend.render()
+
+    assert_that(asked["input"]).is_equal_to(
+        [
+            {
+                "id": 1,
+                "type": "line",
+                "maxlen": 21,
+                "gen": 1,
+                "terminators": ["func1", "func3"],
+            }
+        ]
+    )
+
+    verdict = frontend.accept(
+        {"type": "line", "gen": 1, "window": 1, "value": "go", "terminator": "func3"}
+    )
+
+    assert_that(verdict).is_equal_to(ADVANCE)
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(135)
+
+    machine.run()
+
+    landed = frontend.render(exit=True)
+
+    assert_that(landed).does_not_contain_key("content")
+
+
 # Named keys land as their §3.8 codes; a name the table lacks, and
 # a key ZSCII cannot spell, pass with the read standing.
 def test_named_keys_land(code_machine: Callable[..., Machine]) -> None:

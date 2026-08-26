@@ -182,6 +182,14 @@ DEFAULT_BACKGROUND_COLOUR = 2
 # previous array overran them.
 COUNTED_TEXT_VERSION = 5
 
+# From Version 5 a game's terminating characters table may end a
+# read besides new-line. Only the function key codes are permitted
+# -- 129 to 154 with the three click codes -- and the value 255
+# stands for all of them (§10.5.2.1).
+TERMINATING_VERSION = 5
+FUNCTION_KEY_CODES = frozenset(range(129, 155)) | frozenset({252, 253, 254})
+ANY_FUNCTION_KEY = 255
+
 # The arc_image draw carries its picture id and band mode, both
 # owed before any band hangs (arc_image: the contract, part A).
 ARC_OPERANDS = 2
@@ -426,6 +434,9 @@ class Reading:
         held: The preloaded text a counted buffer carried into a
             line read (§15 read) -- the half-typed command a
             display should show already standing.
+        terminators: The §10.5.2.1 codes that may end this line
+            read besides new-line -- what a display should offer
+            as terminator keys, empty for new-line alone.
     """
 
     def __init__(  # noqa: PLR0913 -- the read's whole parked tail
@@ -441,6 +452,7 @@ class Reading:
         counted: bool = False,
         capacity: int = 0,
         preloaded: int = 0,
+        terminators: frozenset[int] = frozenset(),
     ) -> None:
         """Park one read, tail and all."""
 
@@ -454,6 +466,7 @@ class Reading:
         self.counted = counted
         self.capacity = capacity
         self.preloaded = preloaded
+        self.terminators = terminators
 
 
 class Filing:
@@ -852,8 +865,13 @@ class Machine:
                 # moves past it, and run continues from there.
                 return
 
-    def deliver_line(self, line: str) -> None:
+    def deliver_line(self, line: str, terminator: int = 0) -> None:
         """Complete a suspended line read with the player's text.
+
+        The terminator is zero for a plain new-line, or the
+        §10.5.2.1 code of the terminating character that ended the
+        line -- one the read's own table named, since a display
+        can only offer the keys the request carried.
 
         The transcript echo and the stream-4 record ride the same
         tail the blocking path runs; the screen echo is the
@@ -861,10 +879,19 @@ class Machine:
 
         Raises:
             ZMachineInstructionError: When no line read stands
-                suspended to receive it.
+                suspended to receive it, or for a terminator the
+                read's table never named.
         """
 
         waiting = self._required("line")
+
+        if terminator and terminator not in waiting.terminators:
+            msg = (
+                f"a line ended by code {terminator}, which the read's "
+                f"terminating characters table does not name (§10.5.2.1)"
+            )
+
+            raise ZMachineInstructionError(msg)
 
         self._waiting = None
         self._landed_line(
@@ -877,6 +904,7 @@ class Machine:
             preloaded=waiting.preloaded,
             held=waiting.held,
             played=False,
+            terminator=terminator,
         )
 
     def deliver_key(self, key: str) -> bool:
@@ -2354,8 +2382,10 @@ class Machine:
         a zero-terminated string from byte 1; from Version 5 the
         typed count lands in byte 1 with the letters from byte 2, the
         parse buffer may be zero to skip lexing, and the instruction
-        stores its terminating character -- 13, the return key, since
-        input here always ends in a newline (§15 read).
+        stores its terminating character (§15 read) -- 13, the return
+        key, on the blocking path, whose input always ends in a
+        newline, or a code from the game's §10.5.2.1 terminating
+        characters table when a suspending display heard one.
 
         A time and routine pair asks for interrupts during real
         waiting (§15); the patient typist lets one interval elapse
@@ -2489,6 +2519,7 @@ class Machine:
         preloaded: int,
         held: str,
         played: bool,
+        terminator: int = 0,
     ) -> None:
         """Finish a line read: the typed text lands everywhere it goes."""
 
@@ -2512,8 +2543,11 @@ class Machine:
         if parse_buffer or not counted:
             self._parse(parse_buffer, line, first_letter=2 if counted else 1)
 
+        # The stored result is the terminating character: 13 for
+        # the return key however the keyboard spelled it, or the
+        # §10.5.2.1 code that cut the line short (§15 read).
         if instruction.opcode.stores:
-            self._store_result(instruction.store_variable, ZSCII_NEWLINE)
+            self._store_result(instruction.store_variable, terminator or ZSCII_NEWLINE)
 
         self._pc = instruction.next_address
 
@@ -2576,6 +2610,7 @@ class Machine:
             counted=counted,
             capacity=capacity,
             preloaded=preloaded,
+            terminators=self._terminators(),
         )
 
         raise MachineSuspended
@@ -2592,6 +2627,43 @@ class Machine:
             return values[TIMED_TIME_INDEX], values[TIMED_ROUTINE_INDEX]
 
         return 0, 0
+
+    def _terminators(self) -> frozenset[int]:
+        """The §10.5.2.1 codes that end this read besides new-line.
+
+        The table is walked fresh at every read, because it lives
+        in the game's own memory and the game may rewrite it
+        between reads -- Beyond Zork's menus turn theirs on and
+        off. An entry outside the function key codes is not
+        permitted (§10.5.2.1) and asks for nothing; the wildcard
+        255 names them all.
+
+        Raises:
+            ZMachineMemoryError: When the table runs past the end
+                of memory without its zero, through the memory's
+                own bounds -- a table address that is no table.
+        """
+
+        if self._memory.header.version < TERMINATING_VERSION:
+            return frozenset()
+
+        address = self._memory.header.terminating_table_address
+
+        if not address:
+            return frozenset()
+
+        codes = set()
+
+        while code := self._memory.read_byte(address):
+            if code == ANY_FUNCTION_KEY:
+                return FUNCTION_KEY_CODES
+
+            if code in FUNCTION_KEY_CODES:
+                codes.add(code)
+
+            address += 1
+
+        return frozenset(codes)
 
     def _line_input(self) -> tuple[str, bool]:
         """The next command line, and whether stream 1 supplied it.

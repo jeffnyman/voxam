@@ -85,6 +85,17 @@ ZSCII_KEYS = {
     "func12": chr(144),
 }
 
+# The §10.5.2.1 terminating characters the wire can name: the
+# twelve function keys alone -- a table's cursor, keypad, and
+# click codes have no terminator names in the protocol's
+# vocabulary, so those stay unoffered here (GlkOte: Input Events).
+TERMINATOR_NAMES = {code: f"func{code - 132}" for code in range(133, 145)}
+
+# The same keys read back: a line event's terminator name as the
+# ZSCII code the read stores; any other name reads as a plain
+# new-line ending.
+TERMINATOR_CODES = {name: code for code, name in TERMINATOR_NAMES.items()}
+
 # One §15 tenth of a second, in the protocol's milliseconds.
 _TENTH_MS = 100
 
@@ -397,7 +408,16 @@ class GlkOteFrontend(PlainFrontend):
             self.page.prompt("write" if waiting.purpose == "save" else "read", "save")
         elif isinstance(waiting, Reading):
             if waiting.wants == "line":
-                self.page.line_input(_BUFFER, waiting.capacity, initial=waiting.held)
+                self.page.line_input(
+                    _BUFFER,
+                    waiting.capacity,
+                    initial=waiting.held,
+                    terminators=tuple(
+                        TERMINATOR_NAMES[code]
+                        for code in sorted(waiting.terminators)
+                        if code in TERMINATOR_NAMES
+                    ),
+                )
             else:
                 self.page.char_input(_BUFFER)
 
@@ -520,11 +540,17 @@ class GlkOteFrontend(PlainFrontend):
 
         if kind == "line":
             line = str(stanza.get("value", ""))
+            terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
 
             # The machine never echoes: the display owes the typed
-            # line and its newline, in the input dress.
-            self._runs.append(("input", 0, line + "\n"))
-            self._machine().deliver_line(line)
+            # line and its newline, in the input dress -- but only
+            # a return-ended read prints its return (§15 read). A
+            # terminator-ended line stays uncommitted, ready for
+            # the preloaded re-read Beyond Zork answers one with.
+            if not terminator:
+                self._runs.append(("input", 0, line + "\n"))
+
+            self._machine().deliver_line(line, terminator)
 
             return ADVANCE
 

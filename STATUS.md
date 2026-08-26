@@ -512,8 +512,8 @@ wearing its own title.
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
 refusal left), colours and the Z mouse and sound over the
-protocol, §13.7's terminating characters, the refresh event, and
-flow breaks. None blocks a game the corpus plays.
+protocol, the refresh event, and flow breaks. None blocks a game
+the corpus plays.
 
 ### The road to 2.0, underway
 
@@ -588,6 +588,17 @@ remains maps onto the interim releases:
   save's own rider with 2, exactly as at the blocking glasses,
   so a Zork saved in the browser or the shell is a real Quetzal
   on disk. Both machines now save on every face that can ask.
+- **The terminators ride the wire.** The §10.5.2.1 terminating
+  characters table is read on the suspending faces: a Version 5
+  or later read stands with the table's function keys in hand,
+  the protocol request offers the twelve the wire can name, and
+  the key that ends the line stores its own code where a plain
+  return stores 13 -- with nothing echoed, since only a
+  return-ended read prints its return, which is exactly the
+  cursor-standing contract Beyond Zork's preloaded re-reads
+  lean on. The cursor and keypad codes stay legal but unnameable
+  in the protocol's vocabulary, an honest limit of the wire; the
+  blocking editor keeps its own claim on the arrows for now.
 - **2.0, the declaration.** The road still holds, each its own
   branch: whatever the all-frontends playthroughs surface, and
   -- its own later road -- signed installers (macOS Gatekeeper
