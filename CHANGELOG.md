@@ -1,3 +1,14 @@
+## v2.1.0 (2026-08-26)
+
+### Feat
+
+- **glkote**: an iFiction record is displayed at the start of play (#286)
+- **cli**: decompose reads a Blorb's resources and allows for extracting content (#285)
+- **glkote**: the refresh answers whole -- a lost display asks and gets everything back, the buffers' kept scrollback behind a clear and the game's own redraw for its canvases (#284)
+- **zmachine**: the colours ride the wire -- §8.3 as per-span ink and the window's own paper, and the quote box stands at the turn's high water (#283)
+- **zmachine**: the machine sounds on the wire -- §9 joins the dialect through the untouched seam, the Loop chunk answering Version 3 and the finish reports firing the end-of-sound routines (#282)
+- **glulx**: the channels ring on the wire -- sound joins the protocol dialect, AIFF rewrapped as WAVE and played by the page's own Web Audio, under the display's grant (#281)
+
 ## v2.0.0 (2026-08-26)
 
 ### Feat
