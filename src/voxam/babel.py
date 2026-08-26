@@ -153,12 +153,17 @@ class IFiction:
         title: The work's title, or None unrecorded.
         author: The author, or None unrecorded.
         headline: The subtitle-like headline, or None unrecorded.
+        description: The work's blurb, or None unrecorded -- its
+            <br/> line breaks carried as newlines, since the
+            treaty spells paragraph breaks with them (Babel: The
+            iFiction format).
     """
 
     ifid: str | None = None
     title: str | None = None
     author: str | None = None
     headline: str | None = None
+    description: str | None = None
 
 
 def ifiction(xml: bytes) -> IFiction | None:
@@ -190,6 +195,7 @@ def ifiction(xml: bytes) -> IFiction | None:
         title=_field(bibliographic, "title"),
         author=_field(bibliographic, "author"),
         headline=_field(bibliographic, "headline"),
+        description=_broken_field(bibliographic, "description"),
     )
 
 
@@ -215,6 +221,37 @@ def _field(section: ElementTree.Element | None, name: str) -> str | None:
         return None
 
     return found.text.strip() or None
+
+
+def _broken_field(section: ElementTree.Element | None, name: str) -> str | None:
+    """A field whose <br/> children mark line breaks, walked whole.
+
+    A description is mixed content: taking .text alone would
+    silently drop everything after the first break, so the walk
+    keeps every piece with a newline at each <br/> (Babel: The
+    iFiction format).
+    """
+
+    if section is None:
+        return None
+
+    found = _child(section, name)
+
+    if found is None:
+        return None
+
+    pieces = [found.text or ""]
+
+    for child in found:
+        if child.tag.rpartition("}")[2] == "br":
+            pieces.append("\n")
+
+        pieces.append(child.text or "")
+        pieces.append(child.tail or "")
+
+    lines = [line.strip() for line in "".join(pieces).split("\n")]
+
+    return "\n".join(lines).strip() or None
 
 
 def _branded(data: bytes) -> str | None:

@@ -741,3 +741,15 @@ is recorded here.
   already are -- AIFF FORMs re-framed whole so a player opens
   them, the story under its own version's name -- and a file
   already standing is never overwritten.
+- **The card at the door.** The iFiction record's bibliography
+  greets the player the way WinFrotz's little window does: on the
+  protocol faces the cover is followed by the title, headline,
+  author, and the description's paragraphs -- the record's
+  <br/>-broken blurb now parsed whole, mixed content walked
+  rather than truncated at the first break -- and the same card
+  prints with the banner before a Z-Machine story takes the
+  terminal. The card needs no display
+  grant, being only text; a record with some fields shows what it
+  has, and a blorb with none simply opens plain. Miss Gosling's
+  Last Case opens in the browser with its own obituary, exactly
+  as its author dressed it (Babel: The iFiction format).

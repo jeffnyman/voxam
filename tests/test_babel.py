@@ -152,6 +152,37 @@ def test_ifiction_records_read_whole() -> None:
 
     assert_that(bare.ifid).is_equal_to("DUMMY-1")
     assert_that(bare.title).is_none()
+    assert_that(bare.description).is_none()
+
+
+# A description is mixed content: its <br/> children mark line
+# breaks, so the walk keeps every piece -- text alone would drop
+# everything after the first break -- while a stray non-br child's
+# words survive too, and a blank description is no description.
+def test_descriptions_keep_their_breaks() -> None:
+    record = ifiction(
+        b"<ifindex><story><bibliographic>"
+        b"<description>One paragraph. <br/> Another one, "
+        b"<em>emphasized</em> even.</description>"
+        b"</bibliographic></story></ifindex>"
+    )
+
+    if record is None:
+        pytest.fail("the record did not parse")
+
+    assert_that(record.description).is_equal_to(
+        "One paragraph.\nAnother one, emphasized even."
+    )
+
+    blank = ifiction(
+        b"<ifindex><story><bibliographic><description>  </description>"
+        b"</bibliographic></story></ifindex>"
+    )
+
+    if blank is None:
+        pytest.fail("the blank record did not parse")
+
+    assert_that(blank.description).is_none()
 
 
 # What cannot be read answers None -- broken XML, an index with no

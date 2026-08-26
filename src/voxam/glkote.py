@@ -20,6 +20,7 @@ from its own screen model.
 import json
 from typing import Any, Final, TextIO, cast
 
+from voxam.babel import IFiction
 from voxam.errors import GlkOteError
 
 # The eleven style names, in the order Glk numbers them; the
@@ -1084,6 +1085,39 @@ def measured(metrics: Stanza, prefix: str) -> tuple[float, float, float, float]:
         field("marginx", "marginx", "margin", default=0),
         field("marginy", "marginy", "margin", default=0),
     )
+
+
+def carded(record: "IFiction") -> list[tuple[str, str]]:
+    """The iFiction card as (style name, text) runs.
+
+    The four fields WinFrotz's own little window shows: the title
+    in the header dress, the headline and author emphasized, then
+    the description's paragraphs separated by blank lines -- each
+    <br/>-broken line its own paragraph -- and a closing blank
+    line before the story begins. A record with none of them
+    makes no card at all (Babel: The iFiction format).
+    """
+
+    lines: list[tuple[str, str]] = []
+
+    if record.title:
+        lines.append(("header", record.title + "\n"))
+
+    if record.headline:
+        lines.append(("emphasized", record.headline + "\n"))
+
+    if record.author:
+        lines.append(("emphasized", record.author + "\n"))
+
+    if record.description:
+        paragraphs = [held for held in record.description.split("\n") if held]
+
+        lines.append(("normal", "\n" + "\n\n".join(paragraphs) + "\n"))
+
+    if lines:
+        lines.append(("normal", "\n"))
+
+    return lines
 
 
 def partials(partial: object) -> dict[int, str]:

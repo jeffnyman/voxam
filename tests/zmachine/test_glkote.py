@@ -57,8 +57,8 @@ MARK_THEN_TRUE = bytes([0x00, 0x0D, 0x11, 0x63, 0xB0])
 SOUNDED = bytes([0xF5, 0x51, 0x03, 0x02, 0x00, 0x08, 0x1C]) + AREAD
 
 
-def banded_resources(*, front: bool = False) -> Resources:
-    """Resources holding one 320x96 PNG as picture 8, maybe the cover."""
+def banded_resources(*, front: bool = False, record: bytes | None = None) -> Resources:
+    """Resources holding one 320x96 PNG as picture 8, maybe more."""
 
     art = (
         b"\x89PNG\r\n\x1a\n"
@@ -68,8 +68,9 @@ def banded_resources(*, front: bool = False) -> Resources:
         + (96).to_bytes(4, "big")
     )
     fspc = chunk(b"Fspc", (8).to_bytes(4, "big")) if front else b""
+    told = chunk(b"IFmd", record) if record is not None else b""
     ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
-    offset = 12 + len(ridx) + len(fspc)
+    offset = 12 + len(ridx) + len(fspc) + len(told)
     index = (
         (1).to_bytes(4, "big")
         + b"Pict"
@@ -79,7 +80,10 @@ def banded_resources(*, front: bool = False) -> Resources:
 
     return Resources(
         Blorb.parse(
-            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + fspc + chunk(b"PNG ", art))
+            chunk(
+                b"FORM",
+                b"IFRS" + chunk(b"RIdx", index) + fspc + told + chunk(b"PNG ", art),
+            )
         )
     )
 
@@ -887,6 +891,41 @@ def test_colours_ride_the_wire(code_machine: Callable[..., Machine]) -> None:
     quiet.begin(INIT)
 
     assert_that(quiet.has_colours).is_false()
+
+
+# The record's card joins the cover at the door: the title in the
+# header dress, the headline and author emphasized, and the
+# description's paragraphs blank-line separated -- needing no
+# display grant, since a card is only text (Babel: The iFiction
+# format).
+def test_the_card_stands_at_the_door(code_machine: Callable[..., Machine]) -> None:
+    record = (
+        b"<ifindex><story><bibliographic><title>Tiny Case</title>"
+        b"<headline>An interactive test</headline><author>A. Tester</author>"
+        b"<description>One.<br/>Two.</description>"
+        b"</bibliographic></story></ifindex>"
+    )
+    frontend = GlkOteFrontend(5, banded_resources(front=True, record=record))
+
+    frontend.begin({**INIT, "support": ["timer", "graphics"]})
+
+    machine = code_machine(AREAD, version=5, frontend=frontend)
+    frontend.machine = machine
+
+    text = frontend.render()["content"][0]["text"]
+
+    assert_that(text[0]["content"][0]["special"]).is_equal_to("image")
+    assert_that(text[1]["content"]).is_equal_to(
+        [{"style": "header", "text": "Tiny Case"}]
+    )
+    assert_that(text[2]["content"]).is_equal_to(
+        [{"style": "emphasized", "text": "An interactive test"}]
+    )
+    assert_that(text[3]["content"]).is_equal_to(
+        [{"style": "emphasized", "text": "A. Tester"}]
+    )
+    assert_that(text[5]["content"]).is_equal_to([{"style": "normal", "text": "One."}])
+    assert_that(text[7]["content"]).is_equal_to([{"style": "normal", "text": "Two."}])
 
 
 # The doorway courtesy over the wire: a Blorb's Fspc cover stands

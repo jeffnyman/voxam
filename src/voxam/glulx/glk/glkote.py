@@ -39,6 +39,7 @@ refresh event, answered by an update complete in content.
 import json
 from typing import TextIO, cast
 
+from voxam.babel import ifiction
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import (
     FLOWBREAK,
@@ -46,6 +47,7 @@ from voxam.glkote import (
     Page,
     Stanza,
     TextRun,
+    carded,
     measured,
     partials,
     read_stanza,
@@ -120,6 +122,14 @@ ALIGNMENT_NAMES = {
 # a channel may legally ask for more than 1.0, and the display's
 # gain node obliges (Glk: Other Sound Channel Functions).
 FULL_GAIN = 0x10000
+
+# The iFiction card's protocol dresses as Glk's own style numbers,
+# for the runs the doorway courtesy writes into the model.
+_CARD_STYLES = {
+    "header": Style.HEADER,
+    "emphasized": Style.EMPHASIZED,
+    "normal": Style.NORMAL,
+}
 
 # The named keys of a char event, each to its Glk keycode; a name
 # from some newer display reads as unknown (GlkOte: Input:
@@ -730,22 +740,39 @@ class GlkOteFrontend(Frontend):
     # -- the two halves of the conversation --------------------------------
 
     def _front(self, glk: Glk) -> None:
-        """Stand the Blorb's cover at the head of the first buffer.
+        """Stand the cover and the record's card at the first buffer.
 
         The doorway courtesy, over the wire: shown once, before
-        whatever the game has already written, when the display
-        grants bare graphics and the gblorb names a cover (Blorb:
-        Frontispiece Chunk). A tree with no buffer window yet
-        waits for one; art is a courtesy, never a gate, so a
-        session with no cover simply plays on.
+        whatever the game has already written -- the Fspc cover
+        when the display grants bare graphics, then the iFiction
+        card, which is only text and needs no grant (Blorb:
+        Frontispiece Chunk; Babel: The iFiction format). A tree
+        with no buffer window yet waits for one; art and
+        bibliography are courtesies, never gates, so a session
+        with neither simply plays on.
         """
 
-        if self._covered or not self.buffer_images:
+        if self._covered:
             return
 
-        cover = glk.resources.frontispiece()
+        opening: list[Run | Placed] = []
+        cover = glk.resources.frontispiece() if self.buffer_images else None
 
-        if cover is None:
+        if cover is not None:
+            opening.append(
+                Placed(cover.number, pictured(cover), cover.width, cover.height, 1, 0)
+            )
+            opening.append(Run(Style.NORMAL, 0, "\n"))
+
+        held = glk.resources.blorb.ifiction if glk.resources.blorb is not None else None
+        record = ifiction(held) if held is not None else None
+
+        if record is not None:
+            opening.extend(
+                Run(_CARD_STYLES[name], 0, text) for name, text in carded(record)
+            )
+
+        if not opening:
             self._covered = True
 
             return
@@ -757,10 +784,7 @@ class GlkOteFrontend(Frontend):
         if window is None:
             return
 
-        window.content[:0] = [
-            Placed(cover.number, pictured(cover), cover.width, cover.height, 1, 0),
-            Run(Style.NORMAL, 0, "\n"),
-        ]
+        window.content[:0] = opening
         self._covered = True
 
     def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name

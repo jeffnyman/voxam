@@ -28,6 +28,7 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.glkote import carded
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.glkote import GlkOteFrontend, serve
 from voxam.glulx.glk.objects import KeyCode
@@ -1740,6 +1741,15 @@ def _present_resources(
         return
 
     print(f"Resources: {blorb.described()}\n")
+
+    # The record's card, the bibliography WinFrotz shows in its
+    # own little window: title, headline, author, and the blurb,
+    # printed plainly before play (Babel: The iFiction format).
+    record = ifiction(blorb.ifiction) if blorb.ifiction is not None else None
+
+    if record is not None:
+        for _, text in carded(record):
+            print(text, end="")
 
     if not blorb.matches(story):
         print("voxam: the resource file names a different story\n")
