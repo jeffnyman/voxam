@@ -28,6 +28,7 @@ from voxam.errors import (
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
+from voxam.glkote import carded
 from voxam.glulx.glk.api import Glk
 from voxam.glulx.glk.glkote import GlkOteFrontend, serve
 from voxam.glulx.glk.objects import KeyCode
@@ -1745,6 +1746,19 @@ def _present_resources(
         print("voxam: the resource file names a different story\n")
 
     if painted is not None:
+        # The record's card, the bibliography WinFrotz shows in
+        # its own little window -- at a painted terminal only,
+        # the cover's own rule: a plain stream is the
+        # machine-readable face, and a record may quote anything,
+        # ">"-prefixed sample commands included, which would
+        # desynchronize any harness that frames output by the
+        # prompt (Babel: The iFiction format).
+        record = ifiction(blorb.ifiction) if blorb.ifiction is not None else None
+
+        if record is not None:
+            for _, text in carded(record):
+                print(text, end="")
+
         _show_cover(blorb, painted, pixels=pixels)
 
 

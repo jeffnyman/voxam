@@ -5,8 +5,9 @@ from typing import Any, cast
 import pytest
 from assertpy import assert_that
 
+from voxam.babel import IFiction
 from voxam.errors import GlkOteError
-from voxam.glkote import FLOWBREAK, Page, TextRun
+from voxam.glkote import FLOWBREAK, Page, TextRun, carded
 
 BOX = (0, 0, 640, 400)
 TOP = (0, 0, 640, 30)
@@ -713,3 +714,9 @@ def test_exit_forces_a_real_update() -> None:
     assert_that(page.update(exit=True)).is_equal_to(
         {"type": "update", "gen": 2, "exit": True}
     )
+
+
+# A record with none of the card's four fields makes no card at
+# all -- no stray blank lines for a bibliography-less blorb.
+def test_an_empty_record_makes_no_card() -> None:
+    assert_that(carded(IFiction())).is_empty()

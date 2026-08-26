@@ -639,7 +639,7 @@ def test_the_alignments_and_links_ride_along() -> None:
     assert_that(spans[1]).does_not_contain_key("hyperlink")
 
 
-def fronted_resources() -> Resources:
+def fronted_resources(record: bytes | None = None) -> Resources:
     """Resources with one 2x3 PNG as picture 8, named the cover."""
 
     art = (
@@ -650,8 +650,9 @@ def fronted_resources() -> Resources:
         + (3).to_bytes(4, "big")
     )
     fspc = chunk(b"Fspc", (8).to_bytes(4, "big"))
+    told = chunk(b"IFmd", record) if record is not None else b""
     ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
-    offset = 12 + len(ridx) + len(fspc)
+    offset = 12 + len(ridx) + len(fspc) + len(told)
     index = (
         (1).to_bytes(4, "big")
         + b"Pict"
@@ -661,9 +662,42 @@ def fronted_resources() -> Resources:
 
     return Resources(
         Blorb.parse(
-            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + fspc + chunk(b"PNG ", art))
+            chunk(
+                b"FORM",
+                b"IFRS" + chunk(b"RIdx", index) + fspc + told + chunk(b"PNG ", art),
+            )
         )
     )
+
+
+# The record's card needs no grant: it shows even where the
+# display never granted graphics -- the cover stays home, the
+# bibliography stands -- with the missing fields simply absent and
+# the game's own text following after.
+def test_the_card_stands_at_the_door() -> None:
+    record = (
+        b"<ifindex><story><bibliographic><title>Tiny Case</title>"
+        b"<author>A. Tester</author></bibliographic></story></ifindex>"
+    )
+    frontend = opened()
+    library = Glk(frontend, resources=fronted_resources(record))
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the root window opened")
+
+    saying(window, "Banner")
+
+    text = next(held for held in frontend.render()["content"] if "text" in held)["text"]
+
+    assert_that(text[0]["content"]).is_equal_to(
+        [{"style": "header", "text": "Tiny Case"}]
+    )
+    assert_that(text[1]["content"]).is_equal_to(
+        [{"style": "emphasized", "text": "A. Tester"}]
+    )
+    assert_that(text[2]).is_equal_to({})
+    assert_that(text[3]["content"]).is_equal_to([{"style": "normal", "text": "Banner"}])
 
 
 # The gblorb's Fspc cover stands at the head of the first buffer

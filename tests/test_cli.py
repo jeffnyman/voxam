@@ -1500,6 +1500,7 @@ def covered_story(
     tmp_path: Path,
     pictures: list[tuple[int, Chunk]],
     fspc: int | None = None,
+    record: bytes | None = None,
 ) -> Path:
     """Package the reading story and pictures into one .zblorb."""
 
@@ -1524,10 +1525,59 @@ def covered_story(
     if fspc is not None:
         body += chunk(b"Fspc", fspc.to_bytes(4, "big"))
 
+    if record is not None:
+        body += chunk(b"IFmd", record)
+
     path = tmp_path / "covered.zblorb"
     path.write_bytes(chunk(b"FORM", bytes(body)))
 
     return path
+
+
+IFICTION_RECORD = (
+    b"<ifindex><story><identification><ifid>TEST</ifid></identification>"
+    b"<bibliographic><title>Tiny Case</title>"
+    b"<headline>An interactive test</headline><author>A. Tester</author>"
+    b"<description>One paragraph.<br/>Another one.</description>"
+    b"</bibliographic></story></ifindex>"
+)
+
+
+# The iFiction card prints with the banner at a painted terminal
+# -- the record's title, headline, author, and description, its
+# <br/>-broken paragraphs blank-line separated, the little window
+# WinFrotz shows. The plain stream keeps its machine-readable
+# quiet: a record may quote anything, ">"-prefixed sample
+# commands included, and a pipe-driving harness must never meet
+# one.
+def test_the_ifiction_card_prints_at_the_banner(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = covered_story(tmp_path, [], record=IFICTION_RECORD)
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+    assert_that(main([str(path)])).is_equal_to(0)
+
+    plain = capsys.readouterr().out
+
+    assert_that(plain).does_not_contain("Tiny Case")
+
+    keys = iter([*"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    assert_that(main([str(path)])).is_equal_to(0)
+
+    out = capsys.readouterr().out
+
+    assert_that(out).contains("Tiny Case\nAn interactive test\nA. Tester\n")
+    assert_that(out).contains("One paragraph.\n\nAnother one.\n")
 
 
 # A PNG cover in the story's Blorb shows before play at a painted
