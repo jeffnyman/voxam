@@ -684,6 +684,22 @@ npx tauri dev        # run it; the first compile takes minutes
 npx tauri build      # produce the platform installer
 ```
 
+Two facts worth knowing when changing the shell's display. First,
+part of `desktop/ui/` is vendored copies rather than originals:
+`glkote.js`, `glkote.css`, `jquery-1.12.4.min.js`, `waiting.gif`,
+`voxam-audio.js`, and `LICENSE-glkote.txt` are the same files the
+Python package ships in `src/voxam/pages/`, copied in so the
+shell needs no network and no build step -- when the originals
+change, re-copy them (`index.html` and `shell.js` are the shell's
+own and live only here). Second, a built shell *embeds* `ui/` at compile time:
+`npx tauri dev` serves the directory live, so edits show on
+reload, but an installer or a release binary keeps serving
+whatever was embedded when it was built. After any `ui/` change,
+rebuild (`npx tauri build`, or `cargo build --release` inside
+`src-tauri/` for the bare executable) before trusting what an
+installed shell shows -- a stale embed looks exactly like your
+change not working.
+
 The shell finds `voxam` on the PATH -- `uv tool install voxam` or
 `pipx install voxam` puts it there -- and says so plainly when it
 cannot. Open a story from the landing page or the File menu --

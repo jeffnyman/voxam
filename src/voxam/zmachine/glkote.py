@@ -51,7 +51,13 @@ from voxam.glkote import (
 from voxam.glulx.glk.resources import Resources, pictured
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
-from voxam.zmachine.machine import SINGLE_CLICK, Filing, Machine, Reading
+from voxam.zmachine.machine import (
+    FULL_VOLUME,
+    SINGLE_CLICK,
+    Filing,
+    Machine,
+    Reading,
+)
 from voxam.zmachine.story import Story
 
 # The verdicts accept hands the serving loops: run the machine on,
@@ -154,6 +160,13 @@ class GlkOteFrontend(PlainFrontend):
         self._band: tuple[int, int] | None = None
         self._band_ident: int | None = None
         self._band_dirty = False
+        # The sound seam: the cycle's queued channel ops, the
+        # number sounding on the wire's one channel, and the
+        # once-only flag a natural ending raises for poll_sound.
+        self._sound_ops: list[Stanza] = []
+        self._sounding: int | None = None
+        self._sound_done = False
+        self._speaks_sound = False
 
     # -- the conversation's opening ----------------------------------------
 
@@ -178,6 +191,17 @@ class GlkOteFrontend(PlainFrontend):
             self._resources is not None
             and self._resources.blorb is not None
             and "graphicswin" in support
+        )
+
+        # The sound claim is honest twice over as well: the
+        # display must say the dialect's word, and a Blorb must
+        # actually hang sounds behind the story (§9, §11.1). The
+        # interpreter's own bleeps need only the display.
+        self._speaks_sound = "sound" in support
+        self.has_sounds = (
+            self._speaks_sound
+            and self._resources is not None
+            and self._resources.blorb is not None
         )
 
         # The doorway courtesy, over the wire: the Blorb's cover
@@ -304,6 +328,92 @@ class GlkOteFrontend(PlainFrontend):
         self._band_dirty = True
 
         self._rebased()
+
+    # -- the §9 sounds, in the wire's own dialect ---------------------------
+
+    def bleep(self, number: int) -> None:
+        """Sound a bleep over the wire: 1 is high, 2 is low (§9.2).
+
+        The op carries no sample: the display's own oscillator
+        answers, the way a terminal's bell would. Only a display
+        that said the dialect's word hears it -- no Blorb needed,
+        since the bleeps are the interpreter's own.
+        """
+
+        if self._speaks_sound:
+            self._sound_ops.append({"op": "bleep", "bleep": number})
+
+    def play_sound(self, number: int, volume: int, repeats: int | None) -> bool:
+        """Start a sampled sound on the wire's one channel (§9.4).
+
+        The newest play winning is §9.4.2's own rule, and the
+        display's channel does exactly that. The §9.3 volume maps
+        to eighths of unit gain, and a sound the wire cannot
+        carry starts nothing -- so its end-of-sound routine is
+        never kept.
+        """
+
+        if self._resources is None:
+            return False
+
+        url = self._resources.audible(number)
+
+        if url is None:
+            return False
+
+        self._sound_ops.append(
+            {
+                "channel": 1,
+                "op": "play",
+                "sound": number,
+                "url": url,
+                "repeats": self._repeated(number, repeats),
+                "notify": 0,
+                "volume": volume / FULL_VOLUME,
+            }
+        )
+        self._sounding = number
+        self._sound_done = False
+
+        return True
+
+    def _repeated(self, number: int, repeats: int | None) -> int:
+        """The §9.4.3 play count in the dialect's own spelling.
+
+        Zero repeats until stopped, spelled -1 on the wire; None
+        is Version 3's silence on the matter, answered by the
+        Blorb's Loop chunk -- how The Lurking Horror's rats hum
+        until the valve stops them (Blorb: The Looping Chunk).
+        """
+
+        if repeats is None:
+            blorb = self._resources.blorb if self._resources is not None else None
+
+            return -1 if blorb is not None and number in blorb.loops else 1
+
+        return -1 if repeats == 0 else repeats
+
+    def stop_sound(self, number: int | None) -> None:
+        """Stop the sounding sample, when the ask names it (§9.4).
+
+        One sound plays at a time (§9.4.2), so a stop for some
+        other number stops nothing -- and None, the stop-them-all
+        form, always lands on whatever sounds.
+        """
+
+        if self._sounding is None or (number is not None and number != self._sounding):
+            return
+
+        self._sounding = None
+        self._sound_done = False
+        self._sound_ops.append({"channel": 1, "op": "stop"})
+
+    def sound_finished(self) -> bool:
+        """Whether the wire reported a natural ending, once (§9.4.4)."""
+
+        done, self._sound_done = self._sound_done, False
+
+        return done
 
     def _band_height(self) -> int:
         """The band's height in display pixels, aspect held true.
@@ -463,6 +573,10 @@ class GlkOteFrontend(PlainFrontend):
 
         self._last_read = waiting
 
+        if self._sound_ops:
+            self.page.sounds(self._sound_ops)
+            self._sound_ops = []
+
         return self.page.update(exit=exit)
 
     def _banded(self, width: int) -> int:
@@ -594,6 +708,9 @@ class GlkOteFrontend(PlainFrontend):
         if kind == "timer":
             return self._ticked()
 
+        if kind == "sound":
+            return self._sound_over(stanza)
+
         if kind == "specialresponse":
             return self._answered(stanza)
 
@@ -685,6 +802,26 @@ class GlkOteFrontend(PlainFrontend):
             key = named
 
         return ADVANCE if self._machine().deliver_key(key) else PASS
+
+    def _sound_over(self, stanza: Stanza) -> str:
+        """A sampled sound finished naturally on the display.
+
+        The ending is noted once and §9.4.4's end-of-sound
+        routine fires through the machine's own re-entrant loop,
+        its prints rendered while any read stands. A report for a
+        sound since stopped or replaced means nothing -- §9.4.4's
+        own rule -- and passes with the picture unchanged.
+        """
+
+        if self._sounding is None or stanza.get("sound") != self._sounding:
+            return PASS
+
+        self._sounding = None
+        self._sound_done = True
+
+        self._machine().poll_sound()
+
+        return STAND
 
     def _ticked(self) -> str:
         """A timer event: the §15 interrupt fires, or nothing does."""

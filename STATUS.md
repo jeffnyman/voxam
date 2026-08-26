@@ -520,9 +520,8 @@ wearing its own title.
 
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
-refusal left), colours over the protocol, the Z-Machine's half of
-the sound dialect (the Glk channels already ring in the browser),
-and the refresh event. None blocks a game the corpus plays.
+refusal left), colours over the protocol, and the refresh event.
+None blocks a game the corpus plays.
 
 ### The road to 2.0, travelled
 
@@ -683,6 +682,20 @@ is recorded here.
   speaker's next-play honesty ever offered. The claim is the
   display's grant ("sound" in the init's support), so every
   recorded session keeps its conforming silence. Sensory Jam's
-  gong rings in the browser; the Z-Machine's own sound seam --
-  The Lurking Horror's rats, Sherlock's chimes -- is the named
-  next road.
+  gong rings in the browser.
+- **The Z-Machine sounds on the wire.** §9 joins the same
+  dialect through the machine's untouched seam: the wire's one
+  channel is §9.4.2's newest-play-wins made literal, the §9.3
+  volume maps to eighths of unit gain, Version 3's silence on
+  repeats is answered by the Blorb's Loop chunk -- how The
+  Lurking Horror's dream chant loops through its 2-4-6-8
+  crescendo in a browser tab, proved against the recording whose
+  annotations were written as this very test plan -- and the
+  display's finish reports drive §9.4.4's end-of-sound routines
+  through the machine's own re-entrant loop, the seam Sherlock's
+  chimes lean on. Even the interpreter's own bleeps travel, as
+  oscillator notes: the wire's answer to a terminal's bell. The
+  claim is honest twice over -- the display's word and a Blorb
+  actually aboard -- and §9's pacing courtesy stays at the
+  blocking glasses, where a synchronous answer exists; the wire's
+  newest-wins is what that courtesy was approximating anyway.
