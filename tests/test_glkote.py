@@ -6,7 +6,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import GlkOteError
-from voxam.glkote import FLOWBREAK, Page
+from voxam.glkote import FLOWBREAK, Page, TextRun
 
 BOX = (0, 0, 640, 400)
 TOP = (0, 0, 640, 30)
@@ -305,7 +305,7 @@ def gridded() -> Page:
 # Updates).
 def test_a_grid_sends_only_changed_rows() -> None:
     page = gridded()
-    face = [[("normal", 0, "Score 10   ")], [], []]
+    face: list[list[TextRun]] = [[("normal", 0, "Score 10   ")], [], []]
 
     page.grid(1, face)
 
@@ -340,7 +340,7 @@ def test_a_grid_sends_only_changed_rows() -> None:
 # a resize is unspecified, so every row is resent.
 def test_a_resized_grid_resends_its_rows() -> None:
     page = gridded()
-    face = [[("normal", 0, "steady")], [], []]
+    face: list[list[TextRun]] = [[("normal", 0, "steady")], [], []]
 
     page.grid(1, face)
     page.update()

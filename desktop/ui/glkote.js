@@ -988,6 +988,11 @@ function accept_one_window(arg) {
             glkote_error('Window ' + arg.id + ' was created with type ' + win.type + ', but now is described as type ' + arg.type);
     }
 
+    /* VOXAM: the color dialect's window paper -- present when a
+       game has colored it, cleared back to the page's own theme
+       when absent. */
+    frameel.css('background-color', arg.bg || '');
+
     win.inplace = true;
 
     if (win.type == 'grid') {
@@ -1144,13 +1149,15 @@ function accept_one_content(arg) {
                 lineel.empty();
                 for (let sx=0; sx<content.length; sx++) {
                     const rdesc = content[sx];
-                    let rstyle, rtext, rlink;
+                    let rstyle, rtext, rlink, rfg, rbg;
                     if (jQuery.type(rdesc) === 'object') {
                         if (rdesc.special !== undefined)
                             continue;
                         rstyle = rdesc.style;
                         rtext = rdesc.text;
                         rlink = rdesc.hyperlink;
+                        rfg = rdesc.fg;
+                        rbg = rdesc.bg;
                     }
                     else {
                         rstyle = rdesc;
@@ -1160,6 +1167,11 @@ function accept_one_content(arg) {
                     }
                     const el = $('<span>',
                                  { 'class': 'Style_' + rstyle } );
+                    /* VOXAM: the color dialect's per-span ink. */
+                    if (rfg)
+                        el.css('color', rfg);
+                    if (rbg)
+                        el.css('background-color', rbg);
                     if (rlink == undefined) {
                         insert_text_detecting(el, rtext);
                     }
@@ -1249,7 +1261,7 @@ function accept_one_content(arg) {
             }
             for (let sx=0; sx<content.length; sx++) {
                 const rdesc = content[sx];
-                let rstyle, rtext, rlink;
+                let rstyle, rtext, rlink, rfg, rbg;
                 if (jQuery.type(rdesc) === 'object') {
                     if (rdesc.special !== undefined) {
                         if (rdesc.special == 'image') {
@@ -1332,6 +1344,8 @@ function accept_one_content(arg) {
                     rstyle = rdesc.style;
                     rtext = rdesc.text;
                     rlink = rdesc.hyperlink;
+                    rfg = rdesc.fg;
+                    rbg = rdesc.bg;
                 }
                 else {
                     rstyle = rdesc;
@@ -1341,6 +1355,11 @@ function accept_one_content(arg) {
                 }
                 const el = $('<span>',
                              { 'class': 'Style_' + rstyle } );
+                /* VOXAM: the color dialect's per-span ink. */
+                if (rfg)
+                    el.css('color', rfg);
+                if (rbg)
+                    el.css('background-color', rbg);
                 if (rlink == undefined) {
                     insert_text_detecting(el, rtext);
                 }
@@ -2277,8 +2296,9 @@ function send_response(type, win, val, val2) {
     else if (type == 'init') {
         res.metrics = val;
         /* VOXAM: 'sound' advertises the dialect voxam-audio.js
-           plays; stock GlkOte has no such word. */
-        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound'];
+           plays, and 'colors' the per-span ink this page renders;
+           stock GlkOte has neither word. */
+        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound', 'colors'];
     }
     else if (type == 'arrange') {
         res.metrics = val;

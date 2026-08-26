@@ -476,7 +476,9 @@ def test_ticks_stand_and_advance(code_machine: Callable[..., Machine]) -> None:
 
 # A grid that closes and reopens is a new window with a new id --
 # the protocol forbids reuse -- and an arrange remeasures for the
-# next boot while the picture stands.
+# next boot while the picture stands. The teardown is §8.7.3.3's
+# whole-screen erasure: a bare unsplit holds until the next input,
+# the quote-box courtesy.
 def test_the_grid_comes_and_goes_with_new_names(
     code_machine: Callable[..., Machine],
 ) -> None:
@@ -488,7 +490,7 @@ def test_the_grid_comes_and_goes_with_new_names(
 
     assert_that(first["windows"][1]["id"]).is_equal_to(2)
 
-    frontend.split_window(0)
+    frontend.erase_window(-1)
 
     gone = frontend.render()
 
@@ -542,7 +544,7 @@ def test_the_grid_box_wears_the_margins(
     assert_that(split["windows"][0]["top"]).is_equal_to(52)
     assert_that(split["windows"][0]["height"]).is_equal_to(428)
 
-    frontend.split_window(0)
+    frontend.erase_window(-1)
 
     alone = frontend.render()
 
@@ -684,6 +686,123 @@ def test_the_end_of_sound_routine_fires(
     silent = frontend.accept({"type": "sound", "gen": 1, "channel": 1, "sound": 3})
 
     assert_that(silent).is_equal_to(PASS)
+
+
+# An Inform quote box splits the upper window tall, writes, and
+# shrinks the split back at once, trusting §8.6.1.2's no-clearing
+# rule to leave the box standing on the screen -- so the grid
+# stays at the turn's high water until the next input arrives,
+# and a whole-screen erasure tears the box down with the split.
+def test_a_quote_box_survives_the_shrink(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine)
+
+    frontend.split_window(3)
+    frontend.set_window(1)
+    frontend.set_cursor(2, 5)
+    frontend.write("Will you read me a story?")
+    frontend.set_window(0)
+    frontend.split_window(1)
+
+    update = frontend.render()
+
+    assert_that(update["windows"][1]["gridheight"]).is_equal_to(3)
+
+    boxed = next(
+        line
+        for entry in update["content"]
+        if "lines" in entry
+        for line in entry["lines"]
+        if line["line"] == 1
+    )
+
+    assert_that(boxed["content"][0]["text"]).contains("Will you read me a story?")
+
+    machine.run()
+    frontend.render()
+    frontend.accept({"type": "line", "gen": 2, "window": 1, "value": "go"})
+    machine.run()
+
+    shrunk = frontend.render(exit=True)
+
+    assert_that(shrunk["windows"][1]["gridheight"]).is_equal_to(1)
+
+    torn, _ = opened(code_machine)
+
+    torn.split_window(3)
+    torn.erase_window(-1)
+
+    cleared = torn.render()
+
+    assert_that([held["type"] for held in cleared["windows"]]).is_equal_to(["buffer"])
+
+    # Version 3 keeps no high water: splitting clears the upper
+    # window there (§8.6.1.1), so no box could survive anyway.
+    classic, _ = opened(code_machine, version=3)
+
+    classic.split_window(2)
+    classic.split_window(0)
+
+    plain = classic.render()
+
+    assert_that(plain["windows"][1]["gridheight"]).is_equal_to(1)
+
+
+# The §8.3 colours ride the wire under the display's own word:
+# runs carry the shared palette's CSS ink, adjacent same-ink text
+# coalesces, reverse video swaps ink and paper as every painted
+# face swaps them, the grid's cells dress their spans through the
+# model, and the model's background travels as both windows'
+# paper -- Photopia's scenes bleed to the window's edge, not just
+# under its letters. Without the word there is no claim at all.
+def test_colours_ride_the_wire(code_machine: Callable[..., Machine]) -> None:
+    frontend = GlkOteFrontend(5)
+
+    frontend.begin({**INIT, "support": ["timer", "colors"]})
+
+    machine = code_machine(AREAD, version=5, frontend=frontend)
+    frontend.machine = machine
+
+    assert_that(frontend.has_colours).is_true()
+
+    frontend.set_colour(3, 1)
+    frontend.write("red ")
+    frontend.write("more")
+    frontend.set_style(REVERSE)
+    frontend.write("swap")
+    frontend.set_style(0)
+    frontend.set_colour(0, 6)
+    frontend.write("sea")
+    frontend.split_window(1)
+    frontend.set_window(1)
+    frontend.set_cursor(1, 1)
+    frontend.write("Top")
+    frontend.set_window(0)
+    frontend.set_colour(1, 0)
+    frontend.write("plain")
+
+    update = frontend.render()
+
+    assert_that(update["content"][0]["text"][0]["content"]).is_equal_to(
+        [
+            {"style": "normal", "text": "red more", "fg": "#cc0000"},
+            {"style": "user1", "text": "swap", "bg": "#cc0000"},
+            {"style": "normal", "text": "sea", "fg": "#cc0000", "bg": "#0000cc"},
+            {"style": "normal", "text": "plain", "bg": "#0000cc"},
+        ]
+    )
+    assert_that(update["content"][1]["lines"][0]["content"]).is_equal_to(
+        [{"style": "normal", "text": "Top", "fg": "#cc0000", "bg": "#0000cc"}]
+    )
+    assert_that(update["windows"][0]["bg"]).is_equal_to("#0000cc")
+    assert_that(update["windows"][1]["bg"]).is_equal_to("#0000cc")
+
+    quiet = GlkOteFrontend(5)
+
+    quiet.begin(INIT)
+
+    assert_that(quiet.has_colours).is_false()
 
 
 # The doorway courtesy over the wire: a Blorb's Fspc cover stands

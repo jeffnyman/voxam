@@ -520,8 +520,8 @@ wearing its own title.
 
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
-refusal left), colours over the protocol, and the refresh event.
-None blocks a game the corpus plays.
+refusal left) and the refresh event. Neither blocks a game the
+corpus plays.
 
 ### The road to 2.0, travelled
 
@@ -699,3 +699,17 @@ is recorded here.
   actually aboard -- and §9's pacing courtesy stays at the
   blocking glasses, where a synchronous answer exists; the wire's
   newest-wins is what that courtesy was approximating anyway.
+- **The colours ride the wire.** §8.3 joins the dialect under
+  its own word: text spans carry per-run ink -- fg and bg as CSS,
+  drawn from the same palette the pygame glass mixes, promoted to
+  a shared home so every face shows the same red -- and the
+  window's paper travels on its declaration, so Photopia's scenes
+  bleed to the window's edge rather than stopping under the
+  letters. The grid's cells dress their spans through the same
+  §8 model the painted terminal trusts, reverse video swaps ink
+  and paper as every painted face swaps it, and the default
+  colour deliberately emits nothing: code 1 is each display's own
+  theme, which is what §8.3's "default" has always meant. A
+  display that never said the word leaves the header's colour
+  offer honestly unclaimed, and every recorded session replays
+  untouched on the blocking seam it always used.

@@ -46,6 +46,26 @@ ARC_PIXEL_ROWS = 8
 COURIER_FONT = 4
 CURRENT_FONT = 0
 
+# The §8.3.1 colour codes as RGB, shared by every face that shows
+# real ink: 2 to 9 are the classic eight, and the greys at 10 to
+# 12 are the Version 6 additions, their values scaled from the
+# spec's own true-colour equivalents (§8.3.7). Codes 0 and 1 --
+# "no change" and "the interpreter's default" -- are deliberately
+# absent: the default is each face's own affair.
+COLOUR_VALUES = {
+    2: (0, 0, 0),
+    3: (204, 0, 0),
+    4: (0, 204, 0),
+    5: (204, 204, 0),
+    6: (0, 0, 204),
+    7: (204, 0, 204),
+    8: (0, 204, 204),
+    9: (255, 255, 255),
+    10: (181, 181, 181),
+    11: (139, 139, 139),
+    12: (90, 90, 90),
+}
+
 
 @dataclass(frozen=True)
 class Status:
