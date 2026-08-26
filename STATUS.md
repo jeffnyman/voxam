@@ -518,10 +518,9 @@ reverse video worn as the page's own inverse. Zork I's status bar
 updates one changed row at a time; Bronze plays in a browser tab
 wearing its own title.
 
-What the faces do not yet carry, each a named road: the Version 6
-stage ("the stage stays at the painted glasses" -- the one
-refusal left) and the refresh event. Neither blocks a game the
-corpus plays.
+What the faces do not yet carry, one named road: the Version 6
+stage -- "the stage stays at the painted glasses", the one
+refusal left, and it blocks no game the corpus plays.
 
 ### The road to 2.0, travelled
 
@@ -713,3 +712,20 @@ is recorded here.
   display that never said the word leaves the header's colour
   offer honestly unclaimed, and every recorded session replays
   untouched on the blocking seam it always used.
+- **The refresh answers whole.** A display that lost its picture
+  -- a reconnect, a confusion -- may ask with the protocol's
+  refresh event, and the answer is an ordinary update complete in
+  content: every window, the buffer's kept scrollback behind a
+  clear (bounded at two hundred paragraphs, pictures and covers
+  riding along since their data: urls were kept with the text),
+  the grid's every row with the blank ones as bare line numbers,
+  standing input fields stamped anew, a running timer renamed.
+  The event is honored ahead of the generation gate, since a lost
+  display is out of sync by definition; on Glulx the game also
+  hears the spec's own redraw, because canvas pixels are the
+  game's to repaint. The quote box stands beside it, from the
+  colour era's own bug hunt: the Z grid holds the turn's tallest
+  split until the next input arrives -- the courtesy garglk and
+  Parchment extend the same box -- so Photopia asks "Will you
+  read me a story?" in the browser the way it always asked at
+  the glasses.

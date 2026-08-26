@@ -1025,6 +1025,57 @@ def test_an_arrange_relays_and_remeasures() -> None:
     )
 
 
+# A display that lost its picture asks with refresh -- accepted
+# ahead of the generation gate, since a lost display is out of
+# sync by definition -- and hears the spec's own redraw for its
+# canvases, while the next update replays everything kept: the
+# windows whole, the buffer's scrollback behind a clear, the
+# input field stamped anew, and whatever the redraw repainted.
+def test_a_refresh_earns_the_whole_picture() -> None:
+    library, frontend, canvas = canvased()
+    window = next(
+        held for held in library.windows if isinstance(held, TextBufferWindow)
+    )
+
+    saying(window, "Once upon a time.\n")
+    library.glk_request_line_event(window, None, 0)
+    frontend.render()
+
+    event = frontend.accept({"type": "refresh", "gen": 77})
+
+    if event is None:
+        pytest.fail("the refresh answered")
+
+    assert_that((event.kind, event.window)).is_equal_to((EventType.REDRAW, None))
+
+    frontend.fill_rect(canvas, 0xFFFFFF, 0, 0, 1, 1)
+
+    whole = frontend.render()
+
+    assert_that([held["type"] for held in whole["windows"]]).is_equal_to(
+        ["buffer", "graphics"]
+    )
+
+    texted = next(entry for entry in whole["content"] if "clear" in entry)
+
+    assert_that(texted["text"][0]["content"][0]["text"]).is_equal_to(
+        "Once upon a time."
+    )
+
+    drawn = next(entry for entry in whole["content"] if "draw" in entry)
+
+    assert_that(drawn["draw"][-1]["special"]).is_equal_to("fill")
+    assert_that(whole["input"][0]["gen"]).is_equal_to(whole["gen"])
+
+    # A canvas nothing repainted contributes nothing: its pixels
+    # were the game's to redraw, and the game declined.
+    frontend.accept({"type": "refresh", "gen": 88})
+
+    again = frontend.render()
+
+    assert_that([entry for entry in again["content"] if "draw" in entry]).is_empty()
+
+
 # A stale generation and the kinds this face does not carry mean
 # nothing here, quietly.
 def test_stale_and_foreign_stanzas_mean_nothing() -> None:
@@ -1033,7 +1084,6 @@ def test_stale_and_foreign_stanzas_mean_nothing() -> None:
     frontend.render()
 
     assert_that(frontend.accept({"type": "char", "gen": 0, "window": 1})).is_none()
-    assert_that(frontend.accept({"type": "refresh", "gen": 1})).is_none()
     assert_that(frontend.accept({"type": "external", "gen": 1, "value": 9})).is_none()
     assert_that(frontend.accept({"type": "debuginput", "gen": 1})).is_none()
 

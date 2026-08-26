@@ -56,6 +56,11 @@ Ink = tuple[str | None, str | None]
 TextRun = tuple[str, int, str] | tuple[str, int, str, Ink]
 _INKED_RUN: Final = 4
 
+# How many sent paragraphs each buffer window keeps for a
+# refresh's re-telling: a display that lost its picture gets the
+# recent scrollback, not the whole session.
+KEPT_PARAGRAPHS = 200
+
 # The window kinds the protocol draws; pairs and blanks are the
 # server's business and never appear (GlkOte: The Windows Update
 # Array).
@@ -114,6 +119,7 @@ class Page:
         self._typed: dict[int, str] = {}
         self._timer_shown = 0
         self._retired: set[int] = set()
+        self._kept: dict[int, list[Stanza]] = {}
 
         # The cycle in progress, cleared by every update.
         self._declared: dict[int, Stanza] = {}
@@ -681,8 +687,20 @@ class Page:
 
     # -- the update itself -------------------------------------------------
 
-    def update(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
+    def update(
+        self,
+        *,
+        exit: bool = False,  # noqa: A002 -- the field's name
+        refresh: bool = False,
+    ) -> Stanza:
         """Assemble the cycle into an update stanza, or the pass.
+
+        A refresh assembles the whole picture instead: the display
+        lost its state, so every window travels, buffers replay
+        their kept scrollback behind a clear, grids resend every
+        row, standing input fields are stamped anew, and a running
+        timer is renamed -- an ordinary update in form, complete
+        in content (GlkOte: the refresh input event).
 
         Raises:
             GlkOteError: When the cycle's pieces contradict each
@@ -696,6 +714,12 @@ class Page:
         windows = list(self._declared.values())
         windows_changed = self._shown is None or windows != self._shown
         content = self._content()
+
+        self._retold(content)
+
+        if refresh:
+            content = self._retold_whole()
+
         conflicted = {entry["id"] for entry in content}
         input_changed = self._input_changed(conflicted)
         timer_field = self._timer_field()
@@ -707,6 +731,7 @@ class Page:
             or timer_field is not _UNSET
             or self._prompt is not None
             or bool(self._sounds)
+            or refresh
             or exit
         )
 
@@ -718,18 +743,20 @@ class Page:
         gen = self._gen + 1
         stanza: Stanza = {"type": "update", "gen": gen}
 
-        if windows_changed:
+        if windows_changed or refresh:
             stanza["windows"] = windows
 
         if content:
             stanza["content"] = content
 
-        if input_changed:
+        if input_changed or refresh:
             stanza["input"] = self._roster(gen, conflicted)
 
         if timer_field is not _UNSET:
             stanza["timer"] = timer_field
             self._timer_shown = timer_field if isinstance(timer_field, int) else 0
+        elif refresh and self._timer_shown:
+            stanza["timer"] = self._timer_shown
 
         if self._prompt is not None:
             stanza["specialinput"] = self._prompt
@@ -903,6 +930,68 @@ class Page:
 
         return _UNSET
 
+    def _retold(self, content: list[Stanza]) -> None:
+        """Keep each buffer's sent paragraphs for a refresh's re-telling.
+
+        Bounded at KEPT_PARAGRAPHS: a display that reconnects gets
+        the recent scrollback, not the whole session -- and a
+        clear starts the keeping over, exactly as it starts the
+        display over.
+        """
+
+        for entry in content:
+            ident = entry["id"]
+
+            if ident not in self._texts:
+                continue
+
+            held = self._kept.setdefault(ident, [])
+
+            if entry.get("clear"):
+                held.clear()
+
+            held.extend(dict(piece) for piece in entry.get("text", []))
+            del held[:-KEPT_PARAGRAPHS]
+
+    def _retold_whole(self) -> list[Stanza]:
+        """The complete picture, for a display that lost its own.
+
+        Buffers replay their kept scrollback behind a clear --
+        pictures and covers ride along, since their data: urls
+        were kept with the text -- grids resend every row, the
+        blank ones as bare line numbers, and canvases carry
+        whatever this cycle's re-feed drew, because pixels are the
+        game's to repaint (GlkOte: Redraw Events).
+        """
+
+        content: list[Stanza] = []
+
+        for ident, held in self._declared.items():
+            if held["type"] == "buffer":
+                entry: Stanza = {"id": ident, "clear": True}
+                kept = self._kept.get(ident, [])
+
+                if kept:
+                    entry["text"] = [dict(piece) for piece in kept]
+
+                content.append(entry)
+            elif held["type"] == "grid":
+                content.append(
+                    {
+                        "id": ident,
+                        "lines": [
+                            {"line": index, "content": spans}
+                            if spans
+                            else {"line": index}
+                            for index, spans in enumerate(self._rows.get(ident, []))
+                        ],
+                    }
+                )
+            elif self._draws.get(ident):
+                content.append({"id": ident, "draw": self._draws[ident]})
+
+        return content
+
     def _buried(self) -> None:
         """Retire the windows this cycle no longer declares."""
 
@@ -914,6 +1003,7 @@ class Page:
             self._flowing.pop(ident, None)
             self._asked.pop(ident, None)
             self._typed.pop(ident, None)
+            self._kept.pop(ident, None)
             self._retired.add(ident)
 
     def _rested(self) -> None:

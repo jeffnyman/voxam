@@ -192,6 +192,9 @@ class GlkOteFrontend(PlainFrontend):
         # The turn's tallest split: what keeps a quote box on the
         # screen after its shrink (see split_window).
         self._peak_split = 0
+        # A display that lost its picture asked for it whole; the
+        # next render answers with everything.
+        self._refresh_owed = False
 
     # -- the conversation's opening ----------------------------------------
 
@@ -660,7 +663,9 @@ class GlkOteFrontend(PlainFrontend):
             self.page.sounds(self._sound_ops)
             self._sound_ops = []
 
-        return self.page.update(exit=exit)
+        refresh, self._refresh_owed = self._refresh_owed, False
+
+        return self.page.update(exit=exit, refresh=refresh)
 
     def _banded(self, width: int) -> int:
         """Declare the band's canvas and feed any owed drawing.
@@ -786,6 +791,19 @@ class GlkOteFrontend(PlainFrontend):
 
         if kind not in _NO_PARTIAL:
             self.page.typed(partials(stanza.get("partial")))
+
+        if kind == "refresh":
+            # The display lost its picture and asks for it whole
+            # -- ahead of the generation gate, since a refreshing
+            # display is out of sync by definition (GlkOte: the
+            # refresh input event). The band owes its drawing
+            # again too.
+            self._refresh_owed = True
+
+            if self._band is not None:
+                self._band_dirty = True
+
+            return STAND
 
         if stanza.get("gen") != self.page.gen:
             return PASS
