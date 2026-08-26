@@ -511,9 +511,8 @@ wearing its own title.
 
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
-refusal left), colours and the Z mouse and sound over the
-protocol, the refresh event, and flow breaks. None blocks a game
-the corpus plays.
+refusal left), colours and sound over the protocol, the refresh
+event, and flow breaks. None blocks a game the corpus plays.
 
 ### The road to 2.0, underway
 
@@ -599,6 +598,19 @@ remains maps onto the interim releases:
   lean on. The cursor and keypad codes stay legal but unnameable
   in the protocol's vocabulary, an honest limit of the wire; the
   blocking editor keeps its own claim on the arrows for now.
+- **The mouse rides the wire.** Clicks are core GlkOte, so the
+  protocol faces claim §10.3 honestly: a keystroke read arms the
+  grid -- the whole clickable surface, since buffer windows take
+  no clicks -- and a click lands as input code 254 with its cell
+  coordinates one step over in the header extension, which
+  counts the screen from (1,1). A line read arms the grid only
+  when its terminating table names the click code, and the click
+  then ends the line, taking the half-typed command that rides
+  the event as the protocol's partial input. The same branch
+  settled the §15 preload contract on the wire: the story prints
+  its own left-over characters, so the input field carries none
+  and what comes back is the typed part alone, exactly what the
+  machine appends after the preload it holds.
 - **2.0, the declaration.** The road still holds, each its own
   branch: whatever the all-frontends playthroughs surface, and
   -- its own later road -- signed installers (macOS Gatekeeper

@@ -1503,6 +1503,47 @@ def test_an_unnamed_terminator_is_refused(
     assert_that(waiting.terminators).is_empty()
 
 
+# §10.3.3's suspended twin: a click lands on a keystroke read as
+# code 254 with its coordinates recorded at (1,1) in the header
+# extension, ends a line read only when the §10.5.2.1 table names
+# the click code -- taking the composed text as the typed line --
+# leaves a deaf read standing with False, and is refused loudly
+# with nothing suspended at all.
+def test_clicks_deliver_to_suspended_reads(
+    code_machine: Callable[..., Machine],
+) -> None:
+    read_char = bytes([0xF6, 0x7F, 0x01, 0x10, 0xBA])
+    machine = code_machine(read_char, version=5, frontend=SuspendingFrontend())
+    machine.memory.write_word(0x36, 0x1B0)
+    machine.memory.write_word(0x1B0, 2)
+
+    machine.run()
+
+    assert_that(machine.deliver_click(5, 3)).is_true()
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(machine.memory.read_word(0x1B2)).is_equal_to(5)
+    assert_that(machine.memory.read_word(0x1B4)).is_equal_to(3)
+
+    lined = suspended(code_machine, program=AREAD, version=5)
+    plant_terminators(lined, 254)
+
+    lined.run()
+
+    assert_that(lined.deliver_click(2, 1, "go")).is_true()
+    assert_that(counted_text(lined.memory)).is_equal_to("go")
+    assert_that(lined.memory.read_word(0x100)).is_equal_to(254)
+
+    deaf = suspended(code_machine, program=AREAD, version=5)
+
+    deaf.run()
+
+    assert_that(deaf.deliver_click(1, 1)).is_false()
+    assert_that(deaf.waiting).is_not_none()
+
+    with pytest.raises(ZMachineInstructionError, match="no read suspended"):
+        code_machine(read_char, version=5).deliver_click(1, 1)
+
+
 # A table address that is no table -- pointing past every readable
 # byte, with no zero to stop the walk -- is loud through the
 # memory's own §1.1.2 bounds.

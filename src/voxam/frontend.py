@@ -99,7 +99,8 @@ class Frontend(Protocol):
             font can be drawn (§8.1.5.1).
         has_colours: Whether coloured text can be shown (§8.3).
         has_mouse: Whether mouse clicks can arrive as input codes
-            (§10.3) -- true only at a windowed glass.
+            (§10.3) -- true at a windowed glass, and on the wire,
+            where clicks are core GlkOte.
         has_pictures: Whether pictures can actually be drawn
             (§11.1.4) -- true only where a gallery of art hangs
             behind a glass with pixels.
