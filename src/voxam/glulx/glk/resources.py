@@ -185,6 +185,19 @@ class Resources:
 
         return info
 
+    def frontispiece(self) -> ImageInfo | None:
+        """The cover picture the Fspc chunk names, measured, or None.
+
+        None for a bare story, a Blorb with no Fspc, or a cover
+        whose dimensions cannot be read -- art is a courtesy,
+        never a gate (Blorb: Frontispiece Chunk).
+        """
+
+        if self.blorb is None or self.blorb.frontispiece is None:
+            return None
+
+        return self.image(self.blorb.frontispiece)
+
     def pictured(self, number: int) -> str | None:
         """A picture whole, as a data: url a display draws directly.
 

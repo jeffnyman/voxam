@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from assertpy import assert_that
 
+from voxam.blorb import Blorb
 from voxam.errors import GlkOteError, GlulxGlkError
 from voxam.glkote import Page
 from voxam.glulx.glk.api import Glk, Prompting
@@ -30,9 +31,10 @@ from voxam.glulx.glk.objects import (
     WindowMethod,
     WindowType,
 )
-from voxam.glulx.glk.resources import ImageInfo
+from voxam.glulx.glk.resources import ImageInfo, Resources
 from voxam.glulx.machine import Machine
 from voxam.glulx.story import Story
+from voxam.iff import chunk
 
 ABOVE_FIXED = WindowMethod.ABOVE | WindowMethod.FIXED
 
@@ -628,6 +630,71 @@ def test_the_alignments_and_links_ride_along() -> None:
     assert_that(spans[0]["hyperlink"]).is_equal_to(7)
     assert_that(spans[1]["alignment"]).is_equal_to("inlineup")
     assert_that(spans[1]).does_not_contain_key("hyperlink")
+
+
+def fronted_resources() -> Resources:
+    """Resources with one 2x3 PNG as picture 8, named the cover."""
+
+    art = (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + (2).to_bytes(4, "big")
+        + (3).to_bytes(4, "big")
+    )
+    fspc = chunk(b"Fspc", (8).to_bytes(4, "big"))
+    ridx = chunk(b"RIdx", (1).to_bytes(4, "big") + b"\x00" * 12)
+    offset = 12 + len(ridx) + len(fspc)
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Pict"
+        + (8).to_bytes(4, "big")
+        + offset.to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(
+            chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + fspc + chunk(b"PNG ", art))
+        )
+    )
+
+
+# The gblorb's Fspc cover stands at the head of the first buffer
+# window -- once, above whatever the game already wrote, waiting
+# through renders until the tree grows a buffer -- and only under
+# the display's bare-graphics grant.
+def test_the_cover_stands_at_the_door() -> None:
+    frontend = opened(support=["timer", "graphics", "graphicswin", "hyperlinks"])
+    library = Glk(frontend, resources=fronted_resources())
+    grid = library.glk_window_open(None, 0, 0, WindowType.TEXT_GRID, 0)
+
+    early = frontend.render()
+
+    assert_that(early.get("content", [])).is_empty()
+
+    window = library.glk_window_open(grid, ABOVE_FIXED, 2, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the buffer opened")
+
+    saying(window, "Banner")
+
+    text = next(held for held in frontend.render()["content"] if "text" in held)["text"]
+    cover = text[0]["content"][0]
+
+    assert_that(cover["special"]).is_equal_to("image")
+    assert_that(cover["image"]).is_equal_to(8)
+    assert_that((cover["width"], cover["height"])).is_equal_to((2, 3))
+    assert_that(cover["alignment"]).is_equal_to("inlineup")
+    assert_that(text[1]["content"]).is_equal_to([{"style": "normal", "text": "Banner"}])
+
+    saying(window, "More")
+
+    again = next(held for held in frontend.render()["content"] if "text" in held)[
+        "text"
+    ]
+
+    assert_that(again[0]["content"]).is_equal_to([{"style": "normal", "text": "More"}])
 
 
 # Draws for a window that closed before the update vanish rather

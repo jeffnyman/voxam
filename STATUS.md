@@ -628,6 +628,18 @@ remains maps onto the interim releases:
   entry stays true where it was written. Sensory Jam's ornate
   initial letter -- a margin-left drop cap -- renders in the
   browser and the shell, apology withdrawn.
+- **The cover stands at the door.** The frontispiece rides the
+  wire: the Blorb's Fspc cover stands at the top of the story's
+  text on both machines' protocol faces -- once, before anything
+  the story prints, the picture whole as a data: url shrunk to
+  the page by the display's own proportional cap -- under the
+  same bare-graphics grant the buffer images ride, because a
+  cover in the text is exactly a picture laid in text. The
+  doorway courtesy the painted glasses have always offered, now
+  in the browser tab and the shell: Violet's writing-day art
+  opens the session it belongs to. Art is a courtesy, never a
+  gate -- no cover, no grant, or an unmeasurable picture simply
+  plays on.
 - **2.0, the declaration.** The road still holds, each its own
   branch: whatever the all-frontends playthroughs surface, and
   -- its own later road -- signed installers (macOS Gatekeeper

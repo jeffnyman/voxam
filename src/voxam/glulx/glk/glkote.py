@@ -66,6 +66,7 @@ from voxam.glulx.glk.objects import (
     PairWindow,
     Placed,
     Run,
+    Style,
     TextBufferWindow,
     TextGridWindow,
     Window,
@@ -350,6 +351,7 @@ class GlkOteFrontend(Frontend):
         self._graphics_cell = CHARACTER_CELL
         self._ops: dict[Window, list[Stanza]] = {}
         self._restarted = False
+        self._covered = False
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -603,6 +605,40 @@ class GlkOteFrontend(Frontend):
 
     # -- the two halves of the conversation --------------------------------
 
+    def _front(self, glk: Glk) -> None:
+        """Stand the Blorb's cover at the head of the first buffer.
+
+        The doorway courtesy, over the wire: shown once, before
+        whatever the game has already written, when the display
+        grants bare graphics and the gblorb names a cover (Blorb:
+        Frontispiece Chunk). A tree with no buffer window yet
+        waits for one; art is a courtesy, never a gate, so a
+        session with no cover simply plays on.
+        """
+
+        if self._covered or not self.buffer_images:
+            return
+
+        cover = glk.resources.frontispiece()
+
+        if cover is None:
+            self._covered = True
+
+            return
+
+        window = next(
+            (held for held in glk.windows if isinstance(held, TextBufferWindow)), None
+        )
+
+        if window is None:
+            return
+
+        window.content[:0] = [
+            Placed(cover.number, pictured(cover), cover.width, cover.height, 1, 0),
+            Run(Style.NORMAL, 0, "\n"),
+        ]
+        self._covered = True
+
     def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
         """Compose everything since the last update into a stanza.
 
@@ -614,6 +650,8 @@ class GlkOteFrontend(Frontend):
         """
 
         glk = self._library()
+
+        self._front(glk)
 
         for window in list(self._ops):
             if window not in glk.windows:
