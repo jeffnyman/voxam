@@ -51,7 +51,7 @@ from voxam.glkote import (
 from voxam.glulx.glk.resources import Resources
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, UPPER, ScreenModel
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
-from voxam.zmachine.machine import Filing, Machine, Reading
+from voxam.zmachine.machine import SINGLE_CLICK, Filing, Machine, Reading
 from voxam.zmachine.story import Story
 
 # The verdicts accept hands the serving loops: run the machine on,
@@ -123,6 +123,9 @@ class GlkOteFrontend(PlainFrontend):
     has_bold = True
     has_italic = True
     has_fixed_pitch = True
+    # Clicks have no support token: they are core GlkOte, so the
+    # header's §10.3.1.1 request answers honestly on the wire.
+    has_mouse = True
 
     def __init__(self, version: int, resources: Resources | None = None) -> None:
         """Open unmeasured, before any init; the model comes sized."""
@@ -408,10 +411,15 @@ class GlkOteFrontend(PlainFrontend):
             self.page.prompt("write" if waiting.purpose == "save" else "read", "save")
         elif isinstance(waiting, Reading):
             if waiting.wants == "line":
+                # The field carries no §15 preload: "the game must
+                # do this" -- the held text is already printed by
+                # the story's own hand, so what the field sends
+                # back is the typed part alone, which is exactly
+                # what the machine appends after the preload it
+                # holds (§15 read).
                 self.page.line_input(
                     _BUFFER,
                     waiting.capacity,
-                    initial=waiting.held,
                     terminators=tuple(
                         TERMINATOR_NAMES[code]
                         for code in sorted(waiting.terminators)
@@ -420,6 +428,17 @@ class GlkOteFrontend(PlainFrontend):
                 )
             else:
                 self.page.char_input(_BUFFER)
+
+            if self._grid_ident is not None and (
+                waiting.wants == "key" or SINGLE_CLICK in waiting.terminators
+            ):
+                # A keystroke read hears a click the way it hears
+                # any key; a line read only when its table names
+                # the click code (§10.3.3). The grid is the whole
+                # clickable surface: "buffer windows do not
+                # support mouse-click input" (GlkOte: The Input
+                # Update Array).
+                self.page.passive_input(self._grid_ident, mouse=True)
 
         if isinstance(waiting, Reading) and waiting.time and waiting.routine:
             # A fresh timed read restarts the display's clock even
@@ -557,6 +576,9 @@ class GlkOteFrontend(PlainFrontend):
         if kind == "char":
             return self._keyed(stanza)
 
+        if kind == "mouse":
+            return self._pointed(stanza)
+
         if kind == "timer":
             return self._ticked()
 
@@ -612,6 +634,28 @@ class GlkOteFrontend(PlainFrontend):
             self._rebased()
 
         return STAND
+
+    def _pointed(self, stanza: Stanza) -> str:
+        """A click in the grid to the machine, §10.3-spelled.
+
+        The event's cell coordinates count from the grid's own
+        zero; the header extension counts the screen from (1,1),
+        and the grid sits at the screen's top, so one step moves
+        between them (§10.3.2). A click that ends a line read
+        takes the typed text riding the event as the line
+        composed so far; a click nothing can hear passes with
+        the wait standing.
+        """
+
+        if self._grid_ident is None or stanza.get("window") != self._grid_ident:
+            return PASS
+
+        typed = partials(stanza.get("partial")).get(_BUFFER, "")
+        heard = self._machine().deliver_click(
+            int(stanza.get("x", 0)) + 1, int(stanza.get("y", 0)) + 1, typed
+        )
+
+        return ADVANCE if heard else PASS
 
     def _keyed(self, stanza: Stanza) -> str:
         """One keystroke to the machine, §3.8-spelled."""

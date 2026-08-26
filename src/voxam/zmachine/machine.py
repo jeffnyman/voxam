@@ -233,6 +233,7 @@ MARGIN_WINDOW_OPERAND = 2
 # (§10.3.2, §10.3.3). The request bit answers honestly from
 # Version 5, where mouse support begins (§10.3, §10.3.1.1).
 CLICK_CODES = {"\xfe": 254, "\xfd": 253}
+SINGLE_CLICK = 254
 EXTENSION_CLICK_WORDS = 2
 
 # read_mouse fills four words: y, x, button bits, menu word (§15).
@@ -928,6 +929,56 @@ class Machine:
 
         self._waiting = None
         self._landed_key(waiting.instruction, code, noted=True)
+
+        return True
+
+    def deliver_click(self, x: int, y: int, text: str = "") -> bool:
+        """Complete a suspended read with a mouse click, if it hears one.
+
+        §10.3.3: a click is the keyboard code 254, so a keystroke
+        read takes it the way it takes any key; a line read ends
+        early only when its §10.5.2.1 table names the click code,
+        taking the text composed so far as the typed line. Either
+        way the click's position lands in header extension words 1
+        and 2 first (§10.3.2), at (1,1) in the top corner. A read
+        that cannot hear a click leaves the wait standing, and
+        False says so -- the blocking editor's shrug, suspended.
+
+        Raises:
+            ZMachineInstructionError: When no read stands
+                suspended to receive it.
+        """
+
+        waiting = self._waiting
+
+        if not isinstance(waiting, Reading):
+            msg = "a click arrived with no read suspended to receive it"
+
+            raise ZMachineInstructionError(msg)
+
+        if waiting.wants == "line" and SINGLE_CLICK not in waiting.terminators:
+            return False
+
+        self._note_click((x, y))
+        self._waiting = None
+
+        if waiting.wants == "key":
+            self._landed_key(waiting.instruction, SINGLE_CLICK, noted=True)
+
+            return True
+
+        self._landed_line(
+            waiting.instruction,
+            waiting.text_buffer,
+            waiting.parse_buffer,
+            text,
+            counted=waiting.counted,
+            capacity=waiting.capacity,
+            preloaded=waiting.preloaded,
+            held=waiting.held,
+            played=False,
+            terminator=SINGLE_CLICK,
+        )
 
         return True
 
@@ -3825,10 +3876,9 @@ class Machine:
 
         §10.3.3: clicks are keyboard codes, 254 for a single click
         and 253 for a double -- and before delivery the click's
-        position lands in header extension words 1 and 2, when the
-        story provides an extension that large (§10.3.2). Inform
-        6.12 and later always do; a story without one still hears
-        the click, it just cannot ask where.
+        position lands in the header extension (§10.3.2), asked of
+        the click source when a script is pressing the mouse and
+        of the frontend otherwise.
         """
 
         code = CLICK_CODES.get(key)
@@ -3836,11 +3886,22 @@ class Machine:
         if code is None:
             return None
 
-        position = (
+        self._note_click(
             self._click_source()
             if self._click_source is not None
             else self._frontend.click_position()
         )
+
+        return code
+
+    def _note_click(self, position: tuple[int, int] | None) -> None:
+        """Record a click's position in header extension words 1 and 2.
+
+        Only when the story provides an extension that large
+        (§10.3.2): a story without one still hears the click, it
+        just cannot ask where.
+        """
+
         extension = self._memory.read_word(HEADER_EXTENSION)
 
         if (
@@ -3851,8 +3912,6 @@ class Machine:
             x, y = position
             self._memory.write_word(extension + 2, x)
             self._memory.write_word(extension + 4, y)
-
-        return code
 
     def _keystroke(self) -> int:
         """Take one key from the queue, refilled a line at a time.

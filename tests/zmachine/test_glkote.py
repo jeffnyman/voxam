@@ -306,6 +306,112 @@ def test_a_terminator_rides_the_wire(code_machine: Callable[..., Machine]) -> No
     assert_that(landed).does_not_contain_key("content")
 
 
+# A keystroke read arms the grid for clicks -- the whole clickable
+# surface, since buffers take none -- and a click lands as §10.3's
+# code 254: a wrong window passes with the read standing, while a
+# story without a header extension still hears the click, it just
+# cannot ask where.
+def test_a_click_lands_on_a_keystroke_read(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine, program=READ_CHAR)
+
+    frontend.split_window(1)
+    machine.run()
+
+    asked = frontend.render()
+
+    assert_that(asked["input"]).is_equal_to(
+        [
+            {"id": 1, "type": "char", "gen": 1},
+            {"id": 2, "mouse": True},
+        ]
+    )
+
+    stray = frontend.accept({"type": "mouse", "gen": 1, "window": 9, "x": 0, "y": 0})
+
+    assert_that(stray).is_equal_to(PASS)
+
+    verdict = frontend.accept({"type": "mouse", "gen": 1, "window": 2, "x": 4, "y": 0})
+
+    assert_that(verdict).is_equal_to(ADVANCE)
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+
+
+# A line read under a table naming the click code arms the grid
+# too, and the click ends the line: the typed text rides the event
+# as the buffer's partial input -- the field carries no §15
+# preload, since the story prints its own -- the machine appends
+# it after the held text, and the click's cell coordinates land
+# one step over in the header extension, which counts the screen
+# from (1,1).
+def test_a_click_ends_a_line_read(code_machine: Callable[..., Machine]) -> None:
+    frontend, machine = opened(code_machine)
+
+    frontend.split_window(1)
+    machine.memory.write_word(0x2E, 0x1A0)
+    machine.memory.write_byte(0x1A0, 254)
+    machine.memory.write_byte(0x1A1, 0)
+    machine.memory.write_word(0x36, 0x1B0)
+    machine.memory.write_word(0x1B0, 2)
+    machine.memory.write_byte(TEXT_BUFFER + 1, 2)
+    machine.memory.write_byte(TEXT_BUFFER + 2, ord("g"))
+    machine.memory.write_byte(TEXT_BUFFER + 3, ord("o"))
+
+    machine.run()
+
+    asked = frontend.render()
+
+    assert_that(asked["input"]).is_equal_to(
+        [
+            {"id": 1, "type": "line", "maxlen": 21, "gen": 1},
+            {"id": 2, "mouse": True},
+        ]
+    )
+
+    verdict = frontend.accept(
+        {
+            "type": "mouse",
+            "gen": 1,
+            "window": 2,
+            "x": 3,
+            "y": 0,
+            "partial": {"1": " hi"},
+        }
+    )
+
+    assert_that(verdict).is_equal_to(ADVANCE)
+    assert_that(machine.memory.read_byte(TEXT_BUFFER + 1)).is_equal_to(5)
+    assert_that(machine.memory.read_word(0x100)).is_equal_to(254)
+    assert_that(machine.memory.read_word(0x1B2)).is_equal_to(4)
+    assert_that(machine.memory.read_word(0x1B4)).is_equal_to(1)
+
+
+# A click nothing can hear passes with the wait standing: with no
+# grid there is nowhere to land, and a line read whose table never
+# named the click code leaves it unheard.
+def test_a_click_nothing_hears_passes(code_machine: Callable[..., Machine]) -> None:
+    frontend, machine = opened(code_machine)
+
+    machine.run()
+    frontend.render()
+
+    gridless = frontend.accept({"type": "mouse", "gen": 1, "window": 2, "x": 0, "y": 0})
+
+    assert_that(gridless).is_equal_to(PASS)
+
+    armed, lined = opened(code_machine)
+
+    armed.split_window(1)
+    lined.run()
+    armed.render()
+
+    verdict = armed.accept({"type": "mouse", "gen": 1, "window": 2, "x": 0, "y": 0})
+
+    assert_that(verdict).is_equal_to(PASS)
+    assert_that(lined.waiting).is_not_none()
+
+
 # Named keys land as their §3.8 codes; a name the table lacks, and
 # a key ZSCII cannot spell, pass with the read standing.
 def test_named_keys_land(code_machine: Callable[..., Machine]) -> None:
