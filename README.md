@@ -354,8 +354,10 @@ found on its own -- `--resources` names one explicitly. A
 packaged iFiction record greets the player as a card before play
 -- title, headline, author, and the blurb, the little window
 WinFrotz shows -- standing under the cover art in the browser
-and the shell, and printed with the banner before a Z-Machine
-story takes the terminal. At a
+and the shell, and printed with the banner at a painted
+terminal. The plain stream keeps its machine-readable quiet: a
+record may quote anything, so no free-form bibliography reaches
+a pipe. At a
 painted terminal a packaged cover picture shows before play;
 `--pixels` draws it in real pixels after asking whether the
 terminal speaks sixel, falling back to half-blocks when it

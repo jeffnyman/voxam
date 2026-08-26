@@ -1742,19 +1742,23 @@ def _present_resources(
 
     print(f"Resources: {blorb.described()}\n")
 
-    # The record's card, the bibliography WinFrotz shows in its
-    # own little window: title, headline, author, and the blurb,
-    # printed plainly before play (Babel: The iFiction format).
-    record = ifiction(blorb.ifiction) if blorb.ifiction is not None else None
-
-    if record is not None:
-        for _, text in carded(record):
-            print(text, end="")
-
     if not blorb.matches(story):
         print("voxam: the resource file names a different story\n")
 
     if painted is not None:
+        # The record's card, the bibliography WinFrotz shows in
+        # its own little window -- at a painted terminal only,
+        # the cover's own rule: a plain stream is the
+        # machine-readable face, and a record may quote anything,
+        # ">"-prefixed sample commands included, which would
+        # desynchronize any harness that frames output by the
+        # prompt (Babel: The iFiction format).
+        record = ifiction(blorb.ifiction) if blorb.ifiction is not None else None
+
+        if record is not None:
+            for _, text in carded(record):
+                print(text, end="")
+
         _show_cover(blorb, painted, pixels=pixels)
 
 

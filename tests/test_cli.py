@@ -1543,21 +1543,36 @@ IFICTION_RECORD = (
 )
 
 
-# The iFiction card prints with the banner: the record's title,
-# headline, author, and description -- its <br/>-broken paragraphs
-# blank-line separated -- the little window WinFrotz shows, told
-# in the terminal's own plain voice.
+# The iFiction card prints with the banner at a painted terminal
+# -- the record's title, headline, author, and description, its
+# <br/>-broken paragraphs blank-line separated, the little window
+# WinFrotz shows. The plain stream keeps its machine-readable
+# quiet: a record may quote anything, ">"-prefixed sample
+# commands included, and a pipe-driving harness must never meet
+# one.
 def test_the_ifiction_card_prints_at_the_banner(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    path = covered_story(tmp_path, [], record=IFICTION_RECORD)
+
     monkeypatch.setattr("sys.stdin", io.StringIO(""))
 
-    path = covered_story(tmp_path, [], record=IFICTION_RECORD)
-    exit_code = main([str(path)])
+    assert_that(main([str(path)])).is_equal_to(0)
 
-    assert_that(exit_code).is_equal_to(0)
+    plain = capsys.readouterr().out
+
+    assert_that(plain).does_not_contain("Tiny Case")
+
+    keys = iter([*"look\n"])
+
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "blessed.Terminal.inkey", lambda _self, _timeout=None: next(keys)
+    )
+
+    assert_that(main([str(path)])).is_equal_to(0)
 
     out = capsys.readouterr().out
 

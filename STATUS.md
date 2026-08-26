@@ -747,8 +747,11 @@ is recorded here.
   author, and the description's paragraphs -- the record's
   <br/>-broken blurb now parsed whole, mixed content walked
   rather than truncated at the first break -- and the same card
-  prints with the banner before a Z-Machine story takes the
-  terminal. The card needs no display
+  prints with the banner at a painted terminal, under the
+  cover's own rule: the plain stream is the machine-readable
+  face, and a record may quote anything -- Zork I's blurb quotes
+  a ">"-prefixed command, which would desynchronize any harness
+  that frames output by the prompt. The card needs no display
   grant, being only text; a record with some fields shows what it
   has, and a blorb with none simply opens plain. Miss Gosling's
   Last Case opens in the browser with its own obituary, exactly
