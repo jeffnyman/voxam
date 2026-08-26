@@ -67,7 +67,7 @@ reach perfect scores with their sounds heard aloud; *Arthur*,
 *Shogun*, and *Zork Zero* render their art in a real graphics
 window; and even *Journey* -- Infocom's finale, a game with no
 command line at all -- replays through its opening chapter as
-pure keystrokes. Forty recordings verify those sessions
+pure keystrokes. Forty-four recordings verify those sessions
 end-to-end, their annotations doubling as an archaeology of where
 the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says
@@ -78,17 +78,49 @@ them: *Adventure* answers at the terminal, and glulxercise says
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
 </p>
 
+## How to Play
+
+One command, several faces -- every face speaks both machines,
+and a story file is all any of them needs:
+
+- **At the terminal.** `voxam story.z5` -- with the `screen`
+  extra installed, the painted display takes over: status line,
+  windows, menus, real time. `--plain` keeps the classic text
+  stream.
+- **In a window.** `voxam --graphics story.ulx` -- the pygame
+  window: the illustrated home of the Version 6 games, Glulx's
+  canvases and mouse, and a fine roomy home for everything else.
+- **In a browser.** `voxam --web story.gblorb` -- a GlkOte tab
+  on your own machine, art and covers inlined, saves written
+  beside the story.
+- **As a desktop app.** Grab the VΘXΔM installer for your
+  platform from the
+  [latest release](https://github.com/jeffnyman/voxam/releases/latest)
+  (Windows, macOS, Linux; unsigned, so expect the usual
+  first-run nudge). The shell drives the `voxam` command, so
+  install that first -- `pipx install voxam` or
+  `uv tool install voxam` puts it on the PATH.
+- **On a wire.** `voxam --glkote story.z8` -- the whole session
+  as JSON stanzas on stdin and stdout, the seam any
+  GlkOte-speaking host drives down a pipe.
+
+Installation of the command itself is one line -- see
+[Installation](#installation) -- and the flags' full stories live
+in [Playing stories](#playing-stories).
+
 ## Status
 
-Version `1.9`: The desktop shell arrives -- installers on the
-release, and the displays polished.
+Version `2.0`: the declaration. Both machines on every face --
+terminal, window, browser, desktop, and the wire between -- the
+protocol era complete, and every claim enforced rather than
+promised.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
 illustrated at a pygame window, painted at a terminal, spoken
 aloud with the sound extra -- and everything is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, forty recorded playthroughs swept
+100% branch coverage, forty-four recorded playthroughs swept
 end-to-end, and the community's checkers held to their exact
 tallies, CZECH at four versions among them.
 
@@ -181,7 +213,7 @@ status bar updates one changed row at a time, Bronze plays in a
 browser tab wearing its own title, and the one refusal left is
 honest -- the Version 6 stage stays at the painted glasses.
 
-New in `1.9`, the desktop shell arrives: a
+The desktop shell is `1.9`'s: a
 [Tauri](https://tauri.app/) webview wearing the same GlkOte
 display, driving `voxam --glkote` down a pipe -- native menus for
 opening and restarting, the Story menu claiming a §11.1.3
@@ -193,8 +225,22 @@ stamped everywhere. And the displays kept their honesty: the
 protocol grid wears its margins so status rows draw whole, the
 pygame glass presents on the frame's own cadence -- Zugzwang's
 chessboard, near a thousand writes a turn, snaps into place --
-and the browser tab wears the machine's own icon. The road to
-`2.0` runs through pictures and saves in the shell.
+and the browser tab wears the machine's own icon.
+
+And `2.0` completes the era. The Z-Machine's saves stand down
+the way its reads do, so a Zork saved in the browser or the
+shell is a real Quetzal on disk. The §10.5.2.1 terminating
+characters and §10.3's mouse ride the wire -- a function key
+ends a read, a click lands with real coordinates -- which makes
+*Beyond Zork* playable in a browser tab. Text buffers claim
+their pictures on the protocol faces, margins and flow breaks
+whole, under the display's own graphics grant -- *Sensory Jam*'s
+ornate drop cap renders in the shell, apology withdrawn -- and
+the Blorb's cover stands at the top of the story's text, so
+*Violet*'s writing-day art opens the session it belongs to. What
+remains is named honestly in the ledger -- the Version 6 stage,
+colours and sound over the protocol, signed installers -- and
+none of it blocks a game the corpus plays.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).

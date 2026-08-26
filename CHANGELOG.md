@@ -1,3 +1,23 @@
+## v2.0.0 (2026-08-26)
+
+### Feat
+
+- **glkote**: the cover stands at the door -- the Blorb's Fspc frontispiece opens the session on both machines' protocol faces, under the display's own graphics grant (#279)
+- **glulx**: the pictures join the prose -- buffer windows claim glk_image_draw on the protocol faces, margins and flow breaks whole, under the display's own graphics grant (#278)
+- **zmachine**: the mouse rides the wire -- §10.3's clicks land from the protocol faces, ending the reads their tables name, with the §15 preload contract set right on the way (#277)
+- **zmachine**: the terminators ride the wire -- §10.5.2.1's function keys end a suspended read, offered on the protocol faces and stored where a return stores 13 (#276)
+- **zmachine**: the saves stand down -- §15's save and restore ask for their files the way the reads ask for their lines, on every face that can answer (#275)
+- **glass**: the band stands from boot -- the fixed-band profile made for this machine, the mode read from the art's own aspect (#272)
+- **zmachine**: the band hangs over the protocol -- arc_image plays illustrated in the browser and the shell, scene by scene above the story (#271)
+- **zmachine**: the machine learns the band's word -- EXT:0x80 reaches a claiming frontend whole, and Flags 1 answers for it in 5, 7, and 8 (#270)
+- **desktop**: the picker knows the stories' home -- a pinned folder or the last story's own, and a save elsewhere never drags it away (#268)
+- **desktop**: the save dialog answers the prompt -- a real picker over the interpreter's own filesystem, and the player's path honored whole (#267)
+- **glkote**: the pictures ride the updates -- every canvas draw carries its art as a data: url, and the shell owes no picture road (#266)
+
+### Fix
+
+- **zmachine**: private EXT opcodes pass unclaimed -- §14.2's reserved range steps over quietly, and the Standard's own table stays loud (#269)
+
 ## v1.9.0 (2026-08-25)
 
 ### Feat
