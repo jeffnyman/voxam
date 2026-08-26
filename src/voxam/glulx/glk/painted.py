@@ -42,6 +42,7 @@ from voxam.glulx.glk.objects import (
     GraphicsWindow,
     KeyCode,
     PairWindow,
+    Run,
     SoundChannel,
     Style,
     TextBufferWindow,
@@ -300,9 +301,13 @@ class PaintedFrontend(Frontend):
         # The wrapper keys runs by style and link together, so a
         # linked run survives wrapping distinct from its plain
         # neighbours -- the "something richer" the wrapper's
-        # contract always allowed for (Glk: Hyperlinks).
+        # contract always allowed for (Glk: Hyperlinks). Text
+        # alone: a glass that claims no buffer images never has a
+        # placed picture to meet here.
         wrapper.add(
-            ((run.style, run.hyperlink), run.text) for run in window.take_content()
+            ((run.style, run.hyperlink), run.text)
+            for run in window.take_content()
+            if isinstance(run, Run)
         )
 
         left, top, _, _ = window.bbox

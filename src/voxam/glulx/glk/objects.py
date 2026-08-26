@@ -256,6 +256,32 @@ class Run(NamedTuple):
     text: str
 
 
+class Placed(NamedTuple):
+    """One picture set into a buffer's text flow.
+
+    What a display that lays text around pictures needs to lay
+    this one: the Pict's number, the picture whole as a data: url,
+    the size the draw asked for, the §imagealign value naming how
+    the text meets it, and the link value it was drawn under (Glk:
+    Graphics in Text Buffer Windows).
+    """
+
+    image: int
+    url: str
+    width: int
+    height: int
+    alignment: int
+    hyperlink: int
+
+
+class FlowBreak:
+    """A flow break in a buffer's text flow.
+
+    Text past the break starts below any margin images standing at
+    the point of the break (Glk: Graphics in Text Buffer Windows).
+    """
+
+
 class Stream(GlkObject):
     """Base stream: a sink, a source, or both (Glk: Streams).
 
@@ -937,7 +963,9 @@ class TextBufferWindow(TextWindow):
     """A scrolling text window (Glk: Text Buffer Windows).
 
     Contents accumulate as runs of text sharing a style and a link
-    value, oldest first, until a display drains them.
+    value, oldest first -- with any pictures and flow breaks a
+    claiming display placed among them, in flow order -- until a
+    display drains them.
     """
 
     wintype: ClassVar[int] = WindowType.TEXT_BUFFER
@@ -947,30 +975,44 @@ class TextBufferWindow(TextWindow):
 
         super().__init__(rock)
 
-        self.content: list[Run] = []
+        self.content: list[Run | Placed | FlowBreak] = []
 
     def put_char(self, character: int) -> None:
         """Append to the last run, or start a new one.
 
         A run continues only while both the style and the link
-        value hold.
+        value hold -- and only across text: a placed picture or a
+        flow break ends the run it follows.
         """
 
         super().put_char(character)
 
         char = to_char(character)
         link = self.stream.hyperlink
+        last = self.content[-1] if self.content else None
 
-        if self.content and self.content[-1][:2] == (self.style, link):
-            last = self.content[-1]
+        if isinstance(last, Run) and (last.style, last.hyperlink) == (
+            self.style,
+            link,
+        ):
             self.content[-1] = Run(last.style, last.hyperlink, last.text + char)
         else:
             self.content.append(Run(self.style, link, char))
 
-    def text(self) -> str:
-        """The accumulated text, styles flattened away."""
+    def put_placed(self, placed: Placed) -> None:
+        """Set a picture into the flow, after everything written so far."""
 
-        return "".join(run.text for run in self.content)
+        self.content.append(placed)
+
+    def put_break(self) -> None:
+        """Set a flow break into the flow (Glk: Graphics in Text Buffer Windows)."""
+
+        self.content.append(FlowBreak())
+
+    def text(self) -> str:
+        """The accumulated text, styles and pictures flattened away."""
+
+        return "".join(run.text for run in self.content if isinstance(run, Run))
 
     def take_text(self) -> str:
         """Return accumulated text and reset, for a display to render."""
@@ -981,11 +1023,11 @@ class TextBufferWindow(TextWindow):
 
         return out
 
-    def take_content(self) -> list[Run]:
-        """Return accumulated runs and reset, keeping their styles.
+    def take_content(self) -> list[Run | Placed | FlowBreak]:
+        """Return accumulated flow and reset, keeping their styles.
 
         The same drain as take_text, for a display that renders
-        styles rather than flattening them.
+        styles -- and lays pictures -- rather than flattening them.
         """
 
         out = self.content[:]
