@@ -18,6 +18,7 @@ from voxam.acceptance import (
 )
 from voxam.babel import IFiction, ifiction, ifid
 from voxam.blorb import PNG_ID, Blorb
+from voxam.decompose import decompose_report, extracted
 from voxam.errors import (
     AIFFError,
     BlorbError,
@@ -164,6 +165,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="report the story's IFID (Treaty of Babel) and exit",
     )
     parser.add_argument(
+        "--decompose",
+        action="store_true",
+        help="list a resource file's contents (Blorb) and exit",
+    )
+    parser.add_argument(
+        "--extract",
+        type=Path,
+        nargs="?",
+        const=Path(),
+        help="with --decompose: export the resources, right here or to a directory",
+    )
+    parser.add_argument(
         "--trace",
         type=Path,
         help="write every executed instruction to this file, listing-style",
@@ -276,8 +289,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
 
-def _static_report(arguments: argparse.Namespace) -> int | None:
-    """Serve --header, --listing, or --babel; None means none asked.
+def _static_report(  # noqa: PLR0911 -- one verdict per report
+    arguments: argparse.Namespace,
+) -> int | None:
+    """Serve --header, --listing, --babel, or --decompose; None if unasked.
 
     The reports read the same pristine story, so they share their
     guards -- but each is its own document, and asking for more
@@ -290,12 +305,18 @@ def _static_report(arguments: argparse.Namespace) -> int | None:
             ("--header", arguments.header),
             ("--listing", arguments.listing),
             ("--babel", arguments.babel),
+            ("--decompose", arguments.decompose),
         )
         if wanted
     ]
 
     if len(chosen) > 1:
         print(f"voxam: {' and '.join(chosen)} are each their own report; pick one")
+
+        return EXIT_UNUSABLE
+
+    if arguments.extract is not None and not arguments.decompose:
+        print("voxam: --extract rides --decompose; add it")
 
         return EXIT_UNUSABLE
 
@@ -307,6 +328,9 @@ def _static_report(arguments: argparse.Namespace) -> int | None:
 
     if arguments.babel:
         return _babel_report(arguments)
+
+    if arguments.decompose:
+        return _decompose_report(arguments)
 
     return None
 
@@ -340,6 +364,35 @@ def _only_reads(arguments: argparse.Namespace, flag: str) -> int | None:
         return EXIT_UNUSABLE
 
     return None
+
+
+def _decompose_report(arguments: argparse.Namespace) -> int:
+    """Print a resource file's census, and free its contents if asked.
+
+    The file itself must be a Blorb -- packaged story or sidecar
+    alike -- and a loose story earns the honest refusal that it
+    has no chunks to list.
+    """
+
+    refused = _only_reads(arguments, "--decompose")
+
+    if refused is not None:
+        return refused
+
+    try:
+        data = arguments.story.read_bytes()
+
+        print(decompose_report(arguments.story.name, data))
+
+        if arguments.extract is not None:
+            print()
+            print(extracted(data, arguments.extract))
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    return EXIT_OK
 
 
 def _babel_report(arguments: argparse.Namespace) -> int:

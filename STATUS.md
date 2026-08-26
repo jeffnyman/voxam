@@ -729,3 +729,15 @@ is recorded here.
   Parchment extend the same box -- so Photopia asks "Will you
   read me a story?" in the browser the way it always asked at
   the glasses.
+- **The resource files read apart.** `--decompose` joins the
+  archaeology instruments beside `--header`, `--babel`, and
+  `--listing`: every chunk of a Blorb told in file order with the
+  facts Voxam's own decoders can measure -- the story's version
+  and serial from its own bytes, pictures sized with the cover
+  credited, AIFFs shaped with their loops credited, the
+  descriptive chunks each in their own voice, Infocom's copyright
+  lines and wide-charactered story names included. `--extract`
+  frees the contents as ordinary files in the formats their bytes
+  already are -- AIFF FORMs re-framed whole so a player opens
+  them, the story under its own version's name -- and a file
+  already standing is never overwritten.
