@@ -520,8 +520,9 @@ wearing its own title.
 
 What the faces do not yet carry, each a named road: the Version 6
 stage ("the stage stays at the painted glasses" -- the one
-refusal left), colours and sound over the protocol, and the
-refresh event. None blocks a game the corpus plays.
+refusal left), colours over the protocol, the Z-Machine's half of
+the sound dialect (the Glk channels already ring in the browser),
+and the refresh event. None blocks a game the corpus plays.
 
 ### The road to 2.0, travelled
 
@@ -662,3 +663,26 @@ way, and the road mapped onto the interim releases:
   Gatekeeper and SmartScreen warn on the unsigned ones). None of
   it blocks a game the corpus plays, and forty-four recordings
   hold the whole claim to replay.
+
+### Beyond the declaration
+
+The residue ledger is a menu, not a debt; what gets taken from it
+is recorded here.
+
+- **The channels ring on the wire.** Sound joins the dialect:
+  GlkOte never grew a sound vocabulary, but both ends of this
+  wire are ours, so updates carry channel ops -- play, stop,
+  volume -- and a finished play comes home as its own event. The
+  sounds travel whole: AIFF re-wrapped as WAVE data: urls by a
+  pure-stdlib writer, sample points intact, because a browser's
+  decoder handles WAVE everywhere and AIFF almost nowhere; Ogg
+  travels as itself; MOD keeps its refusal and the music gestalt
+  its zero. The page's own module drives Web Audio -- one gain
+  node per channel, counted repeats, forever as a native loop,
+  and volume fades as real ramps, which is more than the
+  speaker's next-play honesty ever offered. The claim is the
+  display's grant ("sound" in the init's support), so every
+  recorded session keeps its conforming silence. Sensory Jam's
+  gong rings in the browser; the Z-Machine's own sound seam --
+  The Lurking Horror's rats, Sherlock's chimes -- is the named
+  next road.

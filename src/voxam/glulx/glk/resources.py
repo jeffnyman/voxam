@@ -17,11 +17,17 @@ Graphics Capabilities).
 import base64
 from dataclasses import dataclass
 
+from voxam import aiff
 from voxam.blorb import PNG_ID, USAGE_DATA, USAGE_PICTURE, USAGE_SOUND, Blorb
+from voxam.errors import AIFFError
 from voxam.iff import Chunk, chunk
+from voxam.wav import riff
 
 FORM = b"FORM"
 TEXT = b"TEXT"
+
+# The Ogg Vorbis sound chunk type (Blorb: Sound Resource Chunks).
+OGG_ID = b"OGGV"
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _PNG_HEADER_END = 24
@@ -155,6 +161,7 @@ class Resources:
 
         self.blorb = blorb
         self._images: dict[int, ImageInfo | None] = {}
+        self._audible: dict[int, str | None] = {}
 
     def image(self, number: int) -> ImageInfo | None:
         """Look up a picture, measuring it on first use.
@@ -211,6 +218,31 @@ class Resources:
 
         return None if image is None else pictured(image)
 
+    def audible(self, number: int) -> str | None:
+        """A sound whole, as a data: url a display plays directly.
+
+        AIFF -- every vendored Infocom sound -- travels re-wrapped
+        as WAVE, since a browser's decoder handles WAVE everywhere
+        and AIFF almost nowhere; an Ogg sound travels as itself,
+        which browsers decode natively (Blorb: Sound Resource
+        Chunks). MOD music has no decoder on either side of the
+        wire and answers None, as does an AIFF too broken to read
+        -- a sound that cannot travel is a sound the display
+        cannot start.
+        """
+
+        if number in self._audible:
+            return self._audible[number]
+
+        found = (
+            self.blorb.resource(USAGE_SOUND, number) if self.blorb is not None else None
+        )
+        held = _sounded(found.chunk) if found is not None else None
+
+        self._audible[number] = held
+
+        return held
+
     def sound(self, number: int) -> bytes | None:
         """Return a sound resource's bytes, or None if absent.
 
@@ -247,6 +279,27 @@ class Resources:
             return _contents(found.chunk), False
 
         return found.chunk.payload, found.chunk.chunk_id == TEXT
+
+
+def _sounded(piece: Chunk) -> str | None:
+    """One sound chunk as a data: url in a wire-worthy container."""
+
+    if piece.chunk_id == FORM:
+        try:
+            sound = aiff.decode(chunk(piece.chunk_id, piece.payload))
+        except AIFFError:
+            return None
+
+        held = base64.b64encode(riff(sound)).decode("ascii")
+
+        return f"data:audio/wav;base64,{held}"
+
+    if piece.chunk_id == OGG_ID:
+        held = base64.b64encode(piece.payload).decode("ascii")
+
+        return f"data:audio/ogg;base64,{held}"
+
+    return None
 
 
 def _contents(piece: Chunk) -> bytes:

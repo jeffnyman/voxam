@@ -39,13 +39,16 @@ html, body {
 </style>
 <script src="jquery-1.12.4.min.js" type="text/javascript"></script>
 <script src="glkote.js" type="text/javascript"></script>
+<script src="voxam-audio.js" type="text/javascript"></script>
 <script type="text/javascript">
 /* The Game interface object GlkOte drives: every event becomes
    one POST, and the response body is the update -- the burst
    model, one exchange per turn. Pictures arrive inline as data:
    urls in the update itself, so no Blorb interface is owed; the
    server's /pict road still answers by number for anyone who
-   asks. */
+   asks. Sounds ride the update the same way, in VOXAM's own
+   dialect, played by voxam-audio.js -- whose finished plays come
+   back through the same POST every other event takes. */
 var Game = {
   accept: function(event) {
     fetch("/event", {
@@ -55,12 +58,14 @@ var Game = {
     }).then(function(response) {
       return response.json();
     }).then(function(update) {
+      VoxamAudio.update(update);
       GlkOte.update(update);
     }).catch(function(fault) {
       GlkOte.error("The session was lost: " + fault);
     });
   }
 };
+VoxamAudio.start(function(event) { Game.accept(event); });
 </script>
 </head>
 <body onload="GlkOte.init();">

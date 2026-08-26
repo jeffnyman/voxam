@@ -92,6 +92,10 @@ var Game = {
 };
 window.Game = Game;
 
+/* A finished play reports back down the same pipe every other
+   event takes. */
+VoxamAudio.start(function(event) { Game.accept(event); });
+
 /* The picker starts at the stories' own home -- a pinned folder,
    or the last story's -- so a save to some other corner of the
    disk never drags the story picker after it. */
@@ -144,6 +148,9 @@ function deliver(kind, payload) {
   if (payload.id !== sessionId) return;
 
   if (kind === "stanza") {
+    /* Sounds ride the update in VOXAM's own dialect; the audio
+       module reads them before GlkOte draws the rest. */
+    VoxamAudio.update(payload.stanza);
     GlkOte.update(payload.stanza);
   } else if (kind === "fault") {
     /* Refusals and crashes both land in GlkOte's error pane,
