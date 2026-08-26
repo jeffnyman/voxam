@@ -13,6 +13,7 @@ from assertpy import assert_that
 from voxam.blorb import Blorb
 from voxam.errors import GlkOteError
 from voxam.frontend import Status
+from voxam.glkote import KEPT_PARAGRAPHS
 from voxam.glulx.glk.resources import Resources
 from voxam.iff import chunk
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, ROMAN
@@ -508,7 +509,6 @@ def test_the_grid_comes_and_goes_with_new_names(
 
     assert_that(verdict).is_equal_to(STAND)
     assert_that(frontend.accept({"type": "external", "gen": 3})).is_equal_to(PASS)
-    assert_that(frontend.accept({"type": "refresh", "gen": 3})).is_equal_to(PASS)
 
 
 # The grid's box carries the display's interior margins on top of
@@ -686,6 +686,90 @@ def test_the_end_of_sound_routine_fires(
     silent = frontend.accept({"type": "sound", "gen": 1, "channel": 1, "sound": 3})
 
     assert_that(silent).is_equal_to(PASS)
+
+
+# A display that lost its picture asks for it whole: the refresh
+# event is accepted ahead of the generation gate -- a lost display
+# is out of sync by definition -- and earns an update complete in
+# content: every window, the buffer's kept scrollback behind a
+# clear, the grid's every row with the blank ones as bare line
+# numbers, the input field stamped anew at the new generation, and
+# a running timer renamed. The keeping is bounded: a long session
+# replays its recent paragraphs, not its whole life.
+def test_a_refresh_earns_the_whole_picture(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine)
+
+    frontend.write("Once upon a time.\n")
+    frontend.split_window(2)
+    frontend.set_window(1)
+    frontend.set_cursor(1, 1)
+    frontend.write("Status")
+    frontend.set_window(0)
+    frontend.write("And then more.\n")
+    machine.run()
+    frontend.render()
+
+    assert_that(frontend.accept({"type": "refresh", "gen": 99})).is_equal_to(STAND)
+
+    whole = frontend.render()
+
+    assert_that([held["type"] for held in whole["windows"]]).is_equal_to(
+        ["buffer", "grid"]
+    )
+
+    texted = next(entry for entry in whole["content"] if entry["id"] == 1)
+
+    assert_that(texted["clear"]).is_true()
+    assert_that(
+        [para["content"][0]["text"] for para in texted["text"] if "content" in para]
+    ).is_equal_to(["Once upon a time.", "And then more."])
+
+    gridded = next(entry for entry in whole["content"] if "lines" in entry)
+
+    assert_that(gridded["lines"][0]["content"][0]["text"]).contains("Status")
+    assert_that(gridded["lines"][1]).is_equal_to({"line": 1})
+    assert_that(whole["input"][0]["gen"]).is_equal_to(whole["gen"])
+
+    ticking, clock = opened(
+        code_machine, program=TIMED, version=4, routine=MARK_THEN_FALSE
+    )
+
+    clock.run()
+    ticking.render()
+    ticking.accept({"type": "refresh", "gen": 1})
+
+    assert_that(ticking.render()["timer"]).is_equal_to(1000)
+
+    longwinded, teller = opened(code_machine)
+
+    for number in range(KEPT_PARAGRAPHS + 10):
+        longwinded.write(f"para {number}\n")
+
+    teller.run()
+    longwinded.render()
+    longwinded.accept({"type": "refresh", "gen": 1})
+
+    told = next(entry for entry in longwinded.render()["content"] if entry["id"] == 1)
+
+    assert_that(told["text"]).is_length(KEPT_PARAGRAPHS)
+    assert_that(told["text"][0]["content"][0]["text"]).is_equal_to("para 10")
+
+    banded = GlkOteFrontend(5, banded_resources())
+
+    banded.begin({**INIT, "support": ["timer", "graphicswin"]})
+
+    artist = code_machine(AREAD, version=5, frontend=banded)
+    banded.machine = artist
+
+    banded.draw_arc_image(8, 12)
+    banded.render()
+    banded.accept({"type": "refresh", "gen": 5})
+
+    hung = next(entry for entry in banded.render()["content"] if "draw" in entry)
+
+    assert_that(hung["draw"][-1]["special"]).is_equal_to("image")
 
 
 # An Inform quote box splits the upper window tall, writes, and

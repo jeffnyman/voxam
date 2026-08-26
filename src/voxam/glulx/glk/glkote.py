@@ -27,12 +27,13 @@ that must be made anew takes it as its initial, so an
 interruption never eats a command in progress (GlkOte: Partial
 Input).
 
-Deliberately not carried yet, each a named road: the refresh
-event (this transport loses nothing), and the metrics' outspacing
-and inspacing (the window arrangement leaves no gaps for them).
+Deliberately not carried yet: the metrics' outspacing and
+inspacing (the window arrangement leaves no gaps for them).
 Buffer windows claim their images here: the display lays text
-around pictures, so the placed pictures and flow breaks travel
-in the line data (Glk: Graphics in Text Buffer Windows).
+around pictures, so the placed pictures and flow breaks travel in
+the line data (Glk: Graphics in Text Buffer Windows) -- and a
+display that lost its picture may ask for it whole with the
+refresh event, answered by an update complete in content.
 """
 
 import json
@@ -359,6 +360,7 @@ class GlkOteFrontend(Frontend):
         self._ops: dict[Window, list[Stanza]] = {}
         self._restarted = False
         self._covered = False
+        self._refresh_owed = False
         self._sound_ops: list[Stanza] = []
         self._channel_idents: dict[SoundChannel, int] = {}
         self._next_channel = 1
@@ -809,7 +811,9 @@ class GlkOteFrontend(Frontend):
                 _FILE_KINDS[glk.waiting.usage & FileUsage.TYPE_MASK],
             )
 
-        return self.page.update(exit=exit)
+        refresh, self._refresh_owed = self._refresh_owed, False
+
+        return self.page.update(exit=exit, refresh=refresh)
 
     def _filemode(self, fmode: int) -> str:
         """A Glk file mode as the protocol's name for it.
@@ -853,6 +857,17 @@ class GlkOteFrontend(Frontend):
             # can carry them, a stale one included -- the typing
             # is current even when the event is not.
             self.page.typed(partials(stanza.get("partial")))
+
+        if kind == "refresh":
+            # The display lost its picture and asks for it whole
+            # -- ahead of the generation gate, since a refreshing
+            # display is out of sync by definition (GlkOte: the
+            # refresh input event). The game hears the spec's own
+            # redraw for every canvas; the next render carries the
+            # rest.
+            self._refresh_owed = True
+
+            return Event(EventType.REDRAW, None)
 
         if stanza.get("gen") != self.page.gen:
             return None
