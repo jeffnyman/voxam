@@ -1319,6 +1319,50 @@ def test_babel_reports_ifids(
     assert_that(capsys.readouterr().out).contains("voxam:")
 
 
+# --decompose lists a resource file's chunks and --extract frees
+# them into a directory made on demand; a loose story has no
+# chunks to list, and --extract without --decompose is refused
+# rather than silently ignored.
+def test_decompose_lists_and_extracts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    header = bytearray(0x20)
+    header[0] = 5
+    header[2:4] = (11).to_bytes(2, "big")
+    header[0x12:0x18] = b"250101"
+    story = chunk(b"ZCOD", bytes(header))
+    index = (
+        (1).to_bytes(4, "big")
+        + b"Exec"
+        + (0).to_bytes(4, "big")
+        + (12 + 8 + 16).to_bytes(4, "big")
+    )
+    package = tmp_path / "tiny.zblorb"
+    package.write_bytes(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + story))
+
+    assert_that(main(["--decompose", str(package)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("z5 story, release 11")
+
+    freed = tmp_path / "freed"
+
+    assert_that(
+        main(["--decompose", str(package), "--extract", str(freed)])
+    ).is_equal_to(0)
+    assert_that((freed / "story.z5").exists()).is_true()
+    assert_that(capsys.readouterr().out).contains("story.z5 -- ")
+
+    assert_that(main(["--extract", str(package)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("rides --decompose")
+
+    assert_that(main(["--decompose"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("needs a story file")
+
+    loose = broken_story(tmp_path, bytes([0xBA]))
+
+    assert_that(main(["--decompose", str(loose)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("voxam:")
+
+
 # The static reports are Z-Machine instruments; a Glulx story gets
 # a plain refusal instead of a version-70 riddle.
 def test_the_static_reports_decline_glulx(

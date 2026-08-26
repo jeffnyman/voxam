@@ -392,6 +392,35 @@ The same identities name the session itself: a game the iFiction
 record or the Infocom catalog knows plays under its own title, in
 the terminal's title bar and the pygame window's alike.
 
+And `--decompose` reads a resource file apart -- a `.zblorb`,
+`.gblorb`, `.blb`, or `.blorb`, packaged story or sidecar alike:
+
+```bash
+voxam --decompose story.zblorb
+```
+
+Every chunk is listed in file order with whatever Voxam's own
+decoders can say about it: the packaged story's version, release,
+and serial read from its own header; each picture's pixel size
+with the Fspc cover credited; each AIFF's shape and duration with
+the Loop chunk's repeats credited; and the descriptive chunks in
+their own words -- the iFiction record, the release number, even
+the wide-charactered story name and Infocom's own copyright
+lines in the old `.blb` sets. Add `--extract` to free the
+contents as ordinary files -- into the current directory, or one
+named after the flag, created if need be:
+
+```bash
+voxam --decompose story.zblorb --extract art/
+```
+
+Each resource lands in the format its bytes already are, ready
+for a viewer or a player: `pict-1.png`, `snd-4.aiff` (the FORM
+re-framed whole, so it opens anywhere), `story.z8` or
+`story.ulx` under the story's own version, and the iFiction
+record as `ifiction.xml`. A file already standing is never
+overwritten -- it earns a note and the rest proceed.
+
 Deeper than the manifest, `--listing` disassembles the whole story
 txd-style -- every routine with its locals, every opcode with its
 operands drawn for what they mean (call targets and jump
