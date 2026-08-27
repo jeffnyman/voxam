@@ -8,6 +8,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from voxam.aamachine.story import FORM_ID as AAM_FORM
 from voxam.acceptance import (
     CLICK,
     DOUBLE_CLICK,
@@ -38,6 +39,7 @@ from voxam.glulx.glk.stdio import StdioFrontend
 from voxam.glulx.machine import Machine as GlulxMachine
 from voxam.glulx.story import MAGIC as GLULX_MAGIC
 from voxam.glulx.story import Story as GlulxStory
+from voxam.iff import FORM_ID as IFF_FORM
 from voxam.infocom import title as infocom_title
 from voxam.listing import Tracer
 from voxam.listing import report as listing_report
@@ -415,6 +417,15 @@ def _only_reads(arguments: argparse.Namespace, flag: str) -> int | None:
     return None
 
 
+def _aamachine_story(story_path: Path) -> bool:
+    """Whether the file opens as an Å-machine story's FORM AAVM."""
+
+    with story_path.open("rb") as handle:
+        opening = handle.read(12)
+
+    return opening[:4] == IFF_FORM and opening[8:12] == AAM_FORM
+
+
 def _decompose_report(arguments: argparse.Namespace) -> int:
     """Print a resource file's census, and free its contents if asked.
 
@@ -432,6 +443,12 @@ def _decompose_report(arguments: argparse.Namespace) -> int:
         data = arguments.story.read_bytes()
 
         print(decompose_report(arguments.story.name, data))
+
+        if arguments.extract is not None and data[8:12] == AAM_FORM:
+            print()
+            print("voxam: an Å-machine story frees nothing yet; the census is whole")
+
+            return EXIT_UNUSABLE
 
         if arguments.extract is not None:
             print()
@@ -2110,6 +2127,17 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
                 port=port,
                 zoom=zoom,
             )
+
+        if _aamachine_story(story_path):
+            # The third machine's stories are recognized before
+            # they can play: the reports read them today, and the
+            # machine itself is the 2.3 era's road.
+            print(
+                "voxam: an Å-machine story -- the third machine is the "
+                "road ahead; --decompose and --babel read it today"
+            )
+
+            return EXIT_UNUSABLE
 
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)

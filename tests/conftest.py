@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from voxam.aamachine.story import SUMMED
+from voxam.iff import chunk as iff_chunk
 from voxam.png import SIGNATURE
 from voxam.zmachine.story import Story
 
@@ -110,3 +112,51 @@ def load_fixture(
         return Story.load(fixture_path(version))
 
     return _load
+
+
+def _aastory(*, branded: bool) -> bytes:
+    """A minimal valid Å-machine story: META, one Å aboard."""
+
+    lang = (
+        b"\x00\x00"
+        + (8).to_bytes(2, "big")
+        + b"\x00\x00\x00\x00"
+        + bytes([1, 0xE5, 0xC5])
+        + (0xC5).to_bytes(3, "big")
+    )
+    crc = 0
+
+    for name in SUMMED:
+        crc = zlib.crc32(lang if name == b"LANG" else b"", crc)
+
+    head = (
+        bytes([0, 5, 2, 0])
+        + (7).to_bytes(2, "big")
+        + b"260827"
+        + crc.to_bytes(4, "big")
+        + (16).to_bytes(2, "big")
+        + (8).to_bytes(2, "big")
+        + (32).to_bytes(2, "big")
+        + (b"UUID://a5aa4f02-8f50-4649-a4bd-b1b5c5408b67//\x00" if branded else b"")
+    )
+    meta = bytes([2]) + b"\x01Cloak\x00" + b"\x02\x80kesson\x00"
+    pieces = [iff_chunk(b"HEAD", head), iff_chunk(b"META", meta)]
+
+    for name in SUMMED:
+        pieces.append(iff_chunk(name, lang if name == b"LANG" else b""))
+
+    return iff_chunk(b"FORM", b"AAVM" + b"".join(pieces))
+
+
+@pytest.fixture
+def aastory() -> bytes:
+    """The branded story: an IFID rides its HEAD."""
+
+    return _aastory(branded=True)
+
+
+@pytest.fixture
+def bare_aastory() -> bytes:
+    """The same story without the optional IFID field."""
+
+    return _aastory(branded=False)

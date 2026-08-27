@@ -194,3 +194,25 @@ def test_extraction_frees_the_resources(tmp_path: Path) -> None:
     assert_that((oddities / "story.abcd").exists()).is_true()
     assert_that((oddities / "pict-9.bin").exists()).is_true()
     assert_that(told).contains("story.abcd -- ")
+
+
+# An Å-machine story reads apart too: the census speaks the form,
+# the HEAD's own claims, the bibliography with its Å drawn from
+# the story's character table, each chunk's purpose, and the
+# embedded IFID at the tail.
+def test_aamachine_stories_census(aastory: bytes) -> None:
+    report = decompose_report("cloak.aastory", aastory)
+
+    assert_that(report).contains("cloak.aastory: FORM AAVM, 9 chunks")
+    assert_that(report).contains("format 0.5, release 7, serial 260827")
+    assert_that(report).contains("Cloak, \u00c5kesson")
+    assert_that(report).contains("compressed text")
+    assert_that(report).contains("IFID A5AA4F02-8F50-4649-A4BD-B1B5C5408B67")
+
+
+# A story without the optional IFID censuses without the tail.
+def test_aamachine_census_without_an_ifid(bare_aastory: bytes) -> None:
+    report = decompose_report("bare.aastory", bare_aastory)
+
+    assert_that(report).contains("FORM AAVM")
+    assert_that(report).does_not_contain("IFID")
