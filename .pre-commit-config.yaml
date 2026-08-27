@@ -55,22 +55,28 @@ repos:
         entry: uv run --frozen debug-statement-hook
         language: system
         types: [python]
+      # The test fixtures are byte-exact data -- reference-engine
+      # transcripts whose trailing spaces, mixed line endings, and
+      # even a missing final newline are the content under test --
+      # so the text-hygiene fixers must never touch them.
       - id: end-of-file-fixer
         name: fix end of files
         entry: uv run --frozen end-of-file-fixer
+        exclude: '^tests/fixtures/'
         language: system
         types: [text]
       - id: mixed-line-ending
         name: normalize line endings to lf
         entry: uv run --frozen mixed-line-ending
         args: [--fix=lf]
-        exclude: '\.(bat|cmd|ps1|psm1)$'
+        exclude: '(^tests/fixtures/|\.(bat|cmd|ps1|psm1)$)'
         language: system
         types: [text]
       - id: trailing-whitespace
         name: trim trailing whitespace
         entry: uv run --frozen trailing-whitespace-fixer
         args: [--markdown-linebreak-ext=md]
+        exclude: '^tests/fixtures/'
         language: system
         types: [text]
 

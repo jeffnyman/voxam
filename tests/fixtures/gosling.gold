@@ -90,7 +90,7 @@ collar and is dragging him off to the sitting room.
 
 Watson’s eyes are fixed on you as he’s pulled away, whimpering and scrabbling at
 the carpet. Even if the police won’t listen, Watson will! So you imagine
-yourself following him, and the world around you changes...
+yourself following him, and the world around you changes... 
 
 
 Miss Gosling’s Last Case
@@ -483,7 +483,7 @@ bright sunny day?”
 
 You watch as it clicks in her head, and she hurries to the telephone.
 “Something’s wrong here. I better ring the Inspector and tell the boys at the
-lab...”
+lab...” 
 
 
 “...results back from Fletcher at the lab. The Marsh test was positive. Arsenic
@@ -920,9 +920,9 @@ beautiful deep blue, but to your eyes the rest of the plants are a uniform
 yellowish colour—you’ve never been any better than Watson at distinguishing reds
 from yellows from greens.
 
-  NW  NE
+  NW  NE  
 W   <>   E
-  SW  SE
+  SW  SE  
 
 Exits: north west
 
@@ -965,9 +965,9 @@ Looking through the red glass, the garden beds in the northwest, northeast,
 west, and east are a vibrant white, while the ones in the centre, southwest, and
 southeast are featureless black.
 
-  WW  WW
+  WW  WW  
 WW  BB  WW
-  BB  BB
+  BB  BB  
 
 Exits: north west
 
@@ -984,9 +984,9 @@ Looking through the green glass, the garden beds in the northeast, east,
 southwest, and southeast are a vibrant white, while the ones in the centre,
 northwest, and west are featureless black.
 
-  BB  WW
+  BB  WW  
 BB  BB  WW
-  WW  WW
+  WW  WW  
 
 Your score has gone up by one point.
 
@@ -4762,4 +4762,4 @@ Would you like to:
      QUIT the program,
      or RESTART from the beginning?
 
->
+> 

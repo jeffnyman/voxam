@@ -38,7 +38,7 @@ U+00CA [Ê] E circumflex
 U+00CB [Ë] E diaeresis
 U+00CE [Î] I circumflex
 U+00CF [Ï] I diaeresis
-U+00D4 [Ô] O circumflex>
+U+00D4 [Ô] O circumflex> 
 
 U+00A0 [] no-break space
 U+00AB [«] left guillemet
@@ -55,7 +55,7 @@ U+00CA [Ê] E circumflex
 U+00CB [Ë] E diaeresis
 U+00CE [Î] I circumflex
 U+00CF [Ï] I diaeresis
-U+00D4 [Ô] O circumflex>
+U+00D4 [Ô] O circumflex> 
 
 U+00A0 [] no-break space
 U+00AB [«] left guillemet
@@ -72,7 +72,7 @@ U+00CA [Ê] E circumflex
 U+00CB [Ë] E diaeresis
 U+00CE [Î] I circumflex
 U+00CF [Ï] I diaeresis
-U+00D4 [Ô] O circumflex>
+U+00D4 [Ô] O circumflex> 
 
 U+00A0 [] no-break space
 U+00AB [«] left guillemet
@@ -89,7 +89,7 @@ U+00CA [Ê] E circumflex
 U+00CB [Ë] E diaeresis
 U+00CE [Î] I circumflex
 U+00CF [Ï] I diaeresis
-U+00D4 [Ô] O circumflex>
+U+00D4 [Ô] O circumflex> 
 
 U+00A0 [] no-break space
 U+00AB [«] left guillemet
@@ -106,7 +106,7 @@ U+00CA [Ê] E circumflex
 U+00CB [Ë] E diaeresis
 U+00CE [Î] I circumflex
 U+00CF [Ï] I diaeresis
-U+00D4 [Ô] O circumflex>
+U+00D4 [Ô] O circumflex> 
 
 U+00D6 [Ö] O diaeresis
 U+00D8 [Ø] O stroke
@@ -123,7 +123,7 @@ U+00E6 [æ] ae ligature
 U+00E7 [ç] c cedilla
 U+00E8 [è] e grave
 U+00E9 [é] e acute
-U+00EA [ê] e circumflex>
+U+00EA [ê] e circumflex> 
 
 U+00EB [ë] e diaeresis
 U+00EE [î] i circumflex
@@ -140,7 +140,7 @@ U+00FF [ÿ] y diaeresis
 U+0141 [Ł] L stroke
 U+0142 [ł] l stroke
 U+0152 [Œ] OE ligature
-U+0153 [œ] oe ligature>
+U+0153 [œ] oe ligature> 
 
 U+0178 [Ÿ] Y diaeresis
 U+1E9E [ẞ] capital sharp s
@@ -157,7 +157,7 @@ U+2026 […] ellipsis
 U+202F [ ] narrow no-break space
 U+2039 [‹] left single guillemet
 U+203A [›] right single guillemet
-U+20AC [€] euro sign>
+U+20AC [€] euro sign> 
 
 Z-machine fallback set, in context:
 Dashes: an en–dash, an em—dash.
@@ -170,7 +170,7 @@ Progress bars:
 [=======================================                                      ]
 [=================================================================            ]
 [================================================================================================================================================================================================================================================================================================================]
->
+> 
 
 Line breaking. A run that breaks has
 lines ending in aa; one that holds
@@ -183,7 +183,7 @@ aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb
 aa bb aa bb aa bb
 U+202F, should hold:
 aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb
-aa bb aa bb aa bb>
+aa bb aa bb aa bb> 
 
 Negative control. Every line below
 should show the unknown-character
@@ -195,7 +195,7 @@ U+0100 [Ā] A macron
 U+0393 [Γ] Greek capital gamma
 U+2190 [←] leftwards arrow
 U+2264 [≤] less-than or equal
-U+2764 [❤] heavy black heart>
+U+2764 [❤] heavy black heart> 
 
 Fold straddling. A two-char expansion
 split across a fold must lose nothing.
@@ -246,7 +246,7 @@ lands exactly after an em dash. No
 blank line may appear below:
 123456789 123456789 123456789 123456789 123456789 123456789 12345678 abcdefghij—
 zzz zzz zzz
-123456789 123456789 123456789 1 abcdef— qqq qqq qqq>
+123456789 123456789 123456789 1 abcdef— qqq qqq qqq> 
 
 Negative control 2. Consecutive
 unknowns--each must become its
@@ -254,7 +254,7 @@ own unknown-character glyph:
 Γ←❤
 ©¿Ā≤
 Inside words:
-aaΓ←bb cc❤Ādd>
+aaΓ←bb cc❤Ādd> 
 Alias probe: alpha beta pending
 gamma delta resume.
 'pending' must appear exactly once,
@@ -267,7 +267,7 @@ own unknown-character glyph:
 Γ←❤
 ©¿Ā≤
 Inside words:
-aaΓ←bb cc❤Ādd>
+aaΓ←bb cc❤Ādd> 
 
 Negative control 2. Consecutive
 unknowns--each must become its
@@ -275,7 +275,7 @@ own unknown-character glyph:
 Γ←❤
 ©¿Ā≤
 Inside words:
-aaΓ←bb cc❤Ādd>
+aaΓ←bb cc❤Ādd> 
 
 Negative control 2. Consecutive
 unknowns--each must become its
@@ -283,7 +283,7 @@ own unknown-character glyph:
 Γ←❤
 ©¿Ā≤
 Inside words:
-aaΓ←bb cc❤Ādd>
+aaΓ←bb cc❤Ādd> 
 
 Negative control 2. Consecutive
 unknowns--each must become its
@@ -291,7 +291,7 @@ own unknown-character glyph:
 Γ←❤
 ©¿Ā≤
 Inside words:
-aaΓ←bb cc❤Ādd>
+aaΓ←bb cc❤Ādd> 
 
 Fold straddling. A two-char expansion
 split across a fold must lose nothing.
@@ -342,7 +342,7 @@ lands exactly after an em dash. No
 blank line may appear below:
 123456789 123456789 123456789 123456789 123456789 123456789 12345678 abcdefghij—
 zzz zzz zzz
-123456789 123456789 123456789 1 abcdef— qqq qqq qqq>
+123456789 123456789 123456789 1 abcdef— qqq qqq qqq> 
 
 Negative control. Every line below
 should show the unknown-character
@@ -354,5 +354,5 @@ U+0100 [Ā] A macron
 U+0393 [Γ] Greek capital gamma
 U+2190 [←] leftwards arrow
 U+2264 [≤] less-than or equal
-U+2764 [❤] heavy black heart>
+U+2764 [❤] heavy black heart> 
 Done.

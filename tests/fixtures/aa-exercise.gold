@@ -76,7 +76,7 @@ yes
 Persistent choicepoint environment: yes
 AUX list splitting: yes
 2-word comparison: yes
-Tail-call optimisation:
+Tail-call optimisation: 
 no (unsupported)
 This interpreter supports the following features:
 UNDO
