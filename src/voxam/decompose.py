@@ -12,6 +12,8 @@ import struct
 from pathlib import Path
 
 from voxam import aiff
+from voxam.aamachine.story import FORM_ID as AAM_FORM
+from voxam.aamachine.story import Story as AAMachineStory
 from voxam.blorb import (
     FRONTISPIECE_ID,
     GLULX_ID,
@@ -81,8 +83,12 @@ def decompose_report(name: str, data: bytes) -> str:
         IFFError: If the FORM itself cannot be walked.
     """
 
+    form, chunks = parse_form(data)
+
+    if form == AAM_FORM:
+        return _aamachine_census(name, data, chunks)
+
     held = Blorb.parse(data)
-    _, chunks = parse_form(data)
     placed = {
         piece.chunk.offset: (piece.usage, piece.number) for piece in held.resources
     }
@@ -100,6 +106,65 @@ def decompose_report(name: str, data: bytes) -> str:
         lines.append(f"{told.rstrip()} -- {len(piece.payload):,} bytes")
 
     return "\n".join(lines)
+
+
+def _aamachine_census(name: str, data: bytes, chunks: tuple[Chunk, ...]) -> str:
+    """The census of an Å-machine story: its chunks, measured.
+
+    The HEAD row carries the format's own claims -- version,
+    release, serial, and the embedded IFID when one rides -- and
+    the META row the bibliography, so the report reads as the
+    story introduces itself (Aa-machine: Story file).
+    """
+
+    story = AAMachineStory(data)
+    lines = [f"{name}: FORM AAVM, {len(chunks)} chunks, {len(data):,} bytes", ""]
+
+    for piece in chunks:
+        kind = piece.chunk_id.decode("latin-1").strip()
+        facts = _aamachine_measured(piece, story)
+        told = f"-      -  {kind:<4} {facts}".rstrip()
+
+        lines.append(f"{told} -- {len(piece.payload):,} bytes")
+
+    if story.ifid is not None:
+        lines.extend(["", f"IFID {story.ifid}"])
+
+    return "\n".join(lines)
+
+
+# What each Å-machine chunk is for, by the spec's own account
+# (Aa-machine: Story file).
+_AAM_NOTES = {
+    b"CODE": "bytecode instructions",
+    b"DICT": "game dictionary",
+    b"FILE": "embedded resource file",
+    b"INIT": "initial game state",
+    b"LANG": "character set and decoders",
+    b"LOOK": "style sheet",
+    b"MAPS": "word-to-object maps",
+    b"TAGS": "internal object names",
+    b"URLS": "table of resources",
+    b"WRIT": "compressed text",
+}
+
+
+def _aamachine_measured(piece: Chunk, story: "AAMachineStory") -> str:
+    """One Å-machine chunk's annotation for the census row."""
+
+    if piece.chunk_id == b"HEAD":
+        major, minor = story.version
+
+        return f"format {major}.{minor}, release {story.release}, serial {story.serial}"
+
+    if piece.chunk_id == b"META":
+        told = [
+            story.meta[field] for field in ("title", "author") if field in story.meta
+        ]
+
+        return ", ".join(told) if told else "story metadata"
+
+    return _AAM_NOTES.get(piece.chunk_id, "")
 
 
 def extracted(data: bytes, directory: Path) -> str:

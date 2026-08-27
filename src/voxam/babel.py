@@ -19,7 +19,11 @@ import re
 from dataclasses import dataclass
 from xml.etree import ElementTree
 
+from voxam.aamachine.story import FORM_ID as AAM_FORM
+from voxam.aamachine.story import Story as AAMachineStory
+from voxam.errors import VoxamError
 from voxam.glulx.story import MAGIC as GLULX_MAGIC
+from voxam.iff import FORM_ID as IFF_FORM
 
 # The brand modern design systems burn into byte-accessible
 # memory. The treaty spells an IFID with digits, capitals, and
@@ -75,10 +79,28 @@ def ifid(data: bytes) -> str | None:
     if data[:4] == GLULX_MAGIC:
         return glulx_ifid(data)
 
+    if data[:4] == IFF_FORM and data[8:12] == AAM_FORM:
+        return aamachine_ifid(data)
+
     if 1 <= data[0] <= _LAST_Z_VERSION:
         return zcode_ifid(data)
 
     return None
+
+
+def aamachine_ifid(data: bytes) -> str | None:
+    """The IFID an Å-machine story carries in its HEAD, or None.
+
+    The embedded UUID is the treaty answer for a Dialog story --
+    the compiler stamps one at build time -- and a story without
+    the optional field, or one this reader cannot parse, answers
+    nothing rather than an invented hash (Aa-machine: HEAD).
+    """
+
+    try:
+        return AAMachineStory(data).ifid
+    except VoxamError:
+        return None
 
 
 def zcode_ifid(data: bytes) -> str:

@@ -2627,3 +2627,34 @@ def test_picture_file_sidecars_hang_or_decline(
 
     assert_that(_picture_file_gallery(story)).is_none()
     assert_that(capsys.readouterr().out).contains("picture file cannot be read")
+
+
+# An Å-machine story is recognized before it can play: the run
+# refuses with the road named, the census and the treaty read it
+# today, and --extract frees nothing yet, saying so.
+def test_aamachine_stories_are_recognized(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], aastory: bytes
+) -> None:
+    story = tmp_path / "cloak.aastory"
+
+    story.write_bytes(aastory)
+
+    refused = main([str(story)])
+
+    assert_that(refused).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("the third machine is the road")
+
+    census = main([str(story), "--decompose"])
+
+    assert_that(census).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("FORM AAVM")
+
+    unfreed = main([str(story), "--decompose", "--extract", str(tmp_path / "out")])
+
+    assert_that(unfreed).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("frees nothing yet")
+
+    told = main([str(story), "--babel"])
+
+    assert_that(told).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("A5AA4F02")

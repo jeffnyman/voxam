@@ -213,3 +213,15 @@ def test_ifid_routes_by_format() -> None:
     assert_that(ifid(b"\x00" * 64)).is_none()
     assert_that(ifid(b"MZ" + b"\x00" * 62)).is_none()
     assert_that(ifid(b"\x05")).is_none()
+
+
+# The treaty routes an Å-machine story by its form and answers
+# the HEAD's embedded UUID; a story the reader cannot verify
+# answers nothing rather than an invented identity.
+def test_aamachine_identities(aastory: bytes) -> None:
+    assert_that(ifid(aastory)).is_equal_to("A5AA4F02-8F50-4649-A4BD-B1B5C5408B67")
+
+    corrupt = bytearray(aastory)
+    corrupt[-1] ^= 0xFF
+
+    assert_that(ifid(bytes(corrupt))).is_none()
