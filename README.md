@@ -51,27 +51,43 @@
 An interpreter for the Z-Machine, for Glulx, and for the
 Å-machine, written in Python.
 
-The Z-Machine is the virtual machine Infocom designed in 1979 to
-run its text adventures, and which the interactive fiction
-community has used ever since; Glulx is its modern successor, the
-target of today's Inform; and the Å-machine is what
-[Dialog](https://linusakesson.net/dialog/) compiles to, the
-newest of the three. VΘXΔM reads a compiled story file and
-executes it, with two guiding commitments: fidelity to the
-specifications (the
-[Z-Machine Standard](https://jeffnyman.github.io/z-machine-standard/),
-the [Glulx](https://www.eblong.com/zarf/glulx/) and
-[Glk](https://www.eblong.com/zarf/glk/), and the Å-machine's own,
-with every rule the interpreter enforces citing the section it
-came from) and reproducibility, so that a recorded play session
-replays identically, forever.
+Three virtual machines, spanning the whole history of
+interactive fiction:
+
+- **The Z-Machine** is the virtual machine Infocom designed in
+  1979 to run its text adventures, and which the community has
+  used ever since -- the home of everything from *Zork* to the
+  modern Inform and PunyInform games, and the target of
+  [Arcturus](https://github.com/8bitgames/arcturus), a modern
+  programming language and compiler designed for writing
+  interactive fiction that compiles down to efficient Infocom
+  Z-Machine story files.
+- **Glulx** is the Z-Machine's successor, built to shed its
+  size limits, and the target of today's Inform.
+- **The Å-machine** is a specialized virtual machine created by
+  Linus Åkesson to run interactive fiction written in his
+  [Dialog](https://linusakesson.net/dialog/) programming
+  language -- the newest of the three.
+
+VΘXΔM reads a compiled story file and executes it, with two
+guiding commitments:
+
+- Fidelity to the specifications: the
+  [Z-Machine Standard](https://jeffnyman.github.io/z-machine-standard/),
+  the [Glulx](https://www.eblong.com/zarf/glulx/) and
+  [Glk](https://www.eblong.com/zarf/glk/) specifications, and the
+  [Å-machine](https://github.com/Dialog-IF/aamachine/tree/main/docs),
+  with every rule the interpreter enforces citing the section it
+  came from.
+- Reproducibility, so that a recorded play session replays identically,
+  forever.
 
 VΘXΔM is developed against real games. The *Zork* trilogy,
 *Trinity*, *A Mind Forever Voyaging*, *The Hitchhiker's Guide to
 the Galaxy*, and -- filed in triplicate, blood pressure rising --
 *Bureaucracy* have all been played to winning conclusions,
 several to perfect scores. *Arthur* draws the sword from the
-stone in what is, as far as we know, the first seeded, replayable
+stone in what is, as far as I know, the first seeded, replayable
 *Arthur* session anywhere; *The Lurking Horror* and *Sherlock*
 reach perfect scores with their sounds heard aloud; *Arthur*,
 *Shogun*, and *Zork Zero* render their art in a real graphics
@@ -85,8 +101,11 @@ them: *Adventure* answers at the terminal, and glulxercise says
 every test battery its reference implementation ships replays
 under VΘXΔM byte-identical to the reference engine's own
 transcripts -- *Miss Gosling's Last Case* walked three hundred
-fifty-one commands to its finale among them. The full ledger
-lives in [STATUS.md](STATUS.md).
+fifty-one commands to its finale among them.
+
+The full ledger -- the current release, what plays, what is
+certified, and what remains -- lives in [STATUS.md](STATUS.md),
+and the road here, told era by era, is [HISTORY.md](HISTORY.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -114,7 +133,7 @@ story file is all any of them needs:
   (Windows, macOS, Linux; unsigned, so expect the usual
   first-run nudge). The shell drives the `voxam` command, so
   install that first -- `pipx install voxam` or
-  `uv tool install voxam` puts it on the PATH.
+  `uvx install voxam` puts it on the PATH.
 - **On a wire.** `voxam --glkote story.z8` -- the whole session
   as JSON stanzas on stdin and stdout, the seam any
   GlkOte-speaking host drives down a pipe.
@@ -122,37 +141,6 @@ story file is all any of them needs:
 Installation of the command itself is one line -- see
 [Installation](#installation) -- and the flags' full stories live
 in [Playing stories](#playing-stories).
-
-## Status
-
-Version `2.3`: the third machine. VΘXΔM now plays the
-Å-machine -- the virtual machine [Dialog](https://linusakesson.net/dialog/)
-compiles to, Prolog heart and all -- at the terminal, over the
-GlkOte wire, in a browser tab, and in the desktop shell, with
-AASV savefiles written and revived and undo aboard everywhere.
-The claim is certified the strongest way an implementation can
-be: every test battery the reference implementation ships
-replays under VΘXΔM byte-identical to the reference engine's
-own transcripts, seeded dice included, from the opcode
-stress-test to a 351-command walk through a real mystery.
-
-The standing claims beneath it, each enforced in continuous
-integration rather than promised: the Z-Machine is complete --
-every opcode §14 defines, all eight story file versions, version
-6 illustrated -- and held to the community's checkers at their
-exact tallies; Full Glulx is declared, glulxercise entire, with
-an exclusion ledger of exactly two spec-sanctioned refusals;
-GlkOte is spoken from the machine's side, so the stories play
-at the terminal, the pygame window, the browser, the desktop
-shell, and down a stdio wire, sound and art and the Version 6
-stage included; the Treaty of Babel names every story that can
-be named; and a seeded session replays identically, forever --
-forty-four recorded playthroughs and a test suite at 100% branch
-coverage hold the whole of it.
-
-The full ledger -- what plays, what is certified, what remains --
-lives in [STATUS.md](STATUS.md), and the road here, told era by
-era, is [HISTORY.md](HISTORY.md).
 
 ## Installation
 
@@ -165,7 +153,13 @@ pip install voxam
 or, as an isolated tool:
 
 ```bash
-pipx install voxam        # or: uv tool install voxam
+pipx install voxam
+```
+
+If you're using uv managed Python:
+
+```bash
+uvx install voxam
 ```
 
 The painted screen frontend rides in the `screen` extra, the
@@ -173,18 +167,24 @@ pygame window in the `graphics` extra, and sampled-sound playback
 in the `sound` extra beside them:
 
 ```bash
-pip install "voxam[screen,graphics,sound]"    # or: uv tool install "voxam[screen,graphics,sound]"
+pip install "voxam[screen,graphics,sound]"
+```
+
+Again, if you're using uv managed Python:
+
+```bash
+uv tool install "voxam[screen,graphics,sound]"
 ```
 
 On Windows and macOS the sound extra is self-contained; on Linux,
 PortAudio comes from the distribution (`apt install libportaudio2`
 or the local equivalent). Without the extras, VΘXΔM plays as a
-plain text stream -- every game still works; the status line
+plain text stream. Every game still works; the status line
 simply stays imaginary, and the sound games play in the conforming
 silence they were shipped to accept.
 
 VΘXΔM ships no story files. Bring your own: the
-[IF Archive](https://ifarchive.org/) hosts thousands of freely
+[IF Archive](https://ifarchive.org/) hosts hundreds of freely
 available games, and story files you own from commercial collections
 work as-is.
 
@@ -197,18 +197,18 @@ voxam path/to/story.z3
 ```
 
 At a terminal with the `screen` extra installed, the painted
-frontend takes over automatically -- status line, windows, menus,
+frontend takes over automatically: status line, windows, menus,
 real-time input. Pass `--plain` to keep the classic stream
 instead; pipes and scripted replays always use the stream, which
 is what keeps recordings deterministic. And `--graphics` opens
-the pygame window -- the home of the Version 6 games, and a fine
-roomy home for the earlier ones too. `--zoom` sets how much of
-the desktop it takes (0.85 by default; `--zoom 0` keeps the
+the pygame window, which is the home of the Version 6 games, and
+a fine roomy home for the earlier ones too. `--zoom` sets how much
+of the desktop it takes (0.85 by default; `--zoom 0` keeps the
 classic compact 80 by 24).
 
 Glulx stories play the same way: a `.ulx` file or a packaged
 `.gblorb` is recognized by its own magic, and at a real terminal
-it earns the painted glass -- the Glk window tree drawn across
+it earns the painted glass: the Glk window tree drawn across
 the whole screen, status grids in place, buffer text wrapping
 behind a `[MORE]` pause, styles in terminal dress, and the
 gblorb's AIFF sounds playing when the sound extra is installed:
@@ -218,18 +218,18 @@ voxam path/to/story.ulx
 ```
 
 `--plain` keeps the classic stream, buffer text flowing as prose
-and grids drawn as blocks -- and a piped session keeps it on its
+and grids drawn as blocks, and a piped session keeps it on its
 own, which is exactly how the glulxercise certification drives
 it. And `--graphics` opens the pygame window here too: the same
 tree in a real window, the fitted faces carrying the styles, the
-gblorb's sounds aboard, and a glulx badge on the frame -- plus
+gblorb's sounds aboard, and a glulx badge on the fram, plus
 everything only a window can offer: graphics canvases with the
 gblorb's PNG art drawn on, mouse clicks in each window's own
 units, and hyperlinks in the reader's blue, selected by click.
 
 The newest face is the browser's. `--web` serves a Glulx story to
-a browser tab over the GlkOte protocol -- the display library of
-Lectrote and the modern web interpreters, shipped inside the
+a browser tab over the GlkOte protocol, which is the display library
+of Lectrote and the modern web interpreters, shipped inside the
 package, nothing to install and no network beyond your own
 machine:
 
@@ -251,7 +251,7 @@ beside a `.ulx` or `.gblorb`, status line and split windows in
 the protocol's own grid, and the Version 6 stage as one scaled
 canvas in the art's own coordinates.
 
-Å-machine stories play the same way -- an `.aastory` is
+Å-machine stories play the same way: an `.aastory` is
 recognized by its own form and verified by its own checksum
 before it runs:
 
@@ -281,15 +281,16 @@ voxam --seed 1137 path/to/story.z3
 
 Blorb resources ride along automatically: a `.zblorb` story boots
 from its package, and a like-named `.blb` beside a story file is
-found on its own -- `--resources` names one explicitly. A
-packaged iFiction record greets the player as a card before play
--- title, headline, author, and the blurb, the little window
-WinFrotz shows -- standing under the cover art in the browser
-and the shell, and printed with the banner at a painted
+found on its own and, if the names differ, then `--resources` names
+one explicitly. A packaged iFiction record greets the player as a
+card before play -- title, headline, author, and the blurb, the
+little window WinFrotz shows -- standing under the cover art in the
+browser and the shell, and printed with the banner at a painted
 terminal. The plain stream keeps its machine-readable quiet: a
 record may quote anything, so no free-form bibliography reaches
-a pipe. At a
-painted terminal a packaged cover picture shows before play;
+a pipe.
+
+At a painted terminal a packaged cover picture shows before play;
 `--pixels` draws it in real pixels after asking whether the
 terminal speaks sixel, falling back to half-blocks when it
 does not. `--interpreter` claims any §11.1.3 platform by name or
@@ -315,14 +316,13 @@ before any interpreter stamps in capabilities of its own. Packaged
 `.zblorb` stories work as-is.
 
 `--babel` names the story instead: its IFID, computed by the
-Treaty of Babel's own per-format rules -- the `UUID://` brand
+Treaty of Babel's own per-format rules: the `UUID://` brand
 where one is burned in, the human-readable legacy identities like
-`ZCODE-88-840726` from the header numbers otherwise -- and, when
+`ZCODE-88-840726` from the header numbers otherwise. And, when
 a blorb carries an iFiction record, the record's IFID first with
 its title, author, and headline beside it. Unlike the Z-Machine's
-own reports, this one speaks all three machines -- an
-`.aastory`'s embedded IFID unwraps from the header where one is
-burned in:
+own reports, this one speaks all three machines: an `.aastory`'s
+embedded IFID unwraps from the header where one is burned in:
 
 ```bash
 voxam --babel path/to/story.gblorb
@@ -332,7 +332,7 @@ The same identities name the session itself: a game the iFiction
 record or the Infocom catalog knows plays under its own title, in
 the terminal's title bar and the pygame window's alike.
 
-And `--decompose` reads a resource file apart -- a `.zblorb`,
+And `--decompose` reads a resource file apart: a `.zblorb`,
 `.gblorb`, `.blb`, or `.blorb`, packaged story or sidecar alike,
 and an `.aastory` census in the same dress, its header's claims
 and its dictionary's word count read from the chunks themselves:
@@ -341,16 +341,16 @@ and its dictionary's word count read from the chunks themselves:
 voxam --decompose story.zblorb
 ```
 
-Every chunk is listed in file order with whatever Voxam's own
+Every chunk is listed in file order with whatever VΘXΔM's own
 decoders can say about it: the packaged story's version, release,
 and serial read from its own header; each picture's pixel size
 with the Fspc cover credited; each AIFF's shape and duration with
 the Loop chunk's repeats credited; and the descriptive chunks in
-their own words -- the iFiction record, the release number, even
+their own words: the iFiction record, the release number, even
 the wide-charactered story name and Infocom's own copyright
 lines in the old `.blb` sets. Add `--extract` to free the
-contents as ordinary files -- into the current directory, or one
-named after the flag, created if need be:
+contents as ordinary files; either into the current directory, or
+one named after the flag, created if need be:
 
 ```bash
 voxam --decompose story.zblorb --extract art/
@@ -361,10 +361,10 @@ for a viewer or a player: `pict-1.png`, `snd-4.aiff` (the FORM
 re-framed whole, so it opens anywhere), `story.z8` or
 `story.ulx` under the story's own version, and the iFiction
 record as `ifiction.xml`. A file already standing is never
-overwritten -- it earns a note and the rest proceed.
+overwritten; it just earns a note and the rest proceed.
 
 Deeper than the manifest, `--listing` disassembles the whole story
-txd-style -- every routine with its locals, every opcode with its
+txd-style: every routine with its locals, every opcode with its
 operands drawn for what they mean (call targets and jump
 destinations as the $addresses they reach, variables by name,
 inline text decoded), then the encoded strings that follow the
@@ -379,7 +379,7 @@ found the way Mark Howell's txd found them: by decoding. A trial
 decode accepts an address as a routine only when every instruction
 holds together, the region grows through constant call operands to
 a fixed point, and whatever refuses to decode is reported as data
-rather than skipped -- Zork I lists its full 440 routines, exactly
+rather than skipped. *Zork I* lists its full 440 routines, exactly
 txd's own count. The listing is the excavation tool for games
 whose source never shipped: when an expedition stalls, the routine
 that decided can now be read.
@@ -396,7 +396,7 @@ voxam --accept recording.accept --trace session.trace
 
 A replayed recording makes the trace a *golden* one: when another
 interpreter disagrees with VΘXΔM about a story, the first
-differing line of their traces is the bug -- and when a session
+differing line of their traces is the bug. And when a session
 halts, the trace's last line is the instruction that halted it.
 The two halves agree with each other too: every address a session
 executes appears in the static listing, which is also how you
@@ -414,8 +414,8 @@ for keeping a paper log -- writes the transcript to `zork1.scr`,
 opening with Infocom's own "Here begins a transcript" banner and
 closing at `unscript`; the player's commands appear between the
 game's text exactly as §7.1.1.1 asks, and 'Flags 2' bit 0 holds
-the stream's status at every moment, however the game works it --
-the §7.4 rule *A Mind Forever Voyaging* depends on. Output stream
+the stream's status at every moment, however the game works it. This
+is the §7.4 rule *A Mind Forever Voyaging* depends on. Output stream
 4 records the player's commands to `zork1.cmd` as they finish,
 and §10.2's input stream 1 plays such a file back, line by line
 in the very format stream 4 writes, reverting to the keyboard

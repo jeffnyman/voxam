@@ -6,6 +6,33 @@ the road here, told era by era, is [HISTORY.md](HISTORY.md);
 this is the long one, kept with the same rule the code keeps --
 nothing below is promised, only enforced.
 
+## The current release
+
+Version `2.3`: the third machine. VΘXΔM now plays the
+Å-machine -- the virtual machine [Dialog](https://linusakesson.net/dialog/)
+compiles to, Prolog heart and all -- at the terminal, over the
+GlkOte wire, in a browser tab, and in the desktop shell, with
+AASV savefiles written and revived and undo aboard everywhere.
+The claim is certified the strongest way an implementation can
+be: every test battery the reference implementation ships
+replays under VΘXΔM byte-identical to the reference engine's
+own transcripts, seeded dice included, from the opcode
+stress-test to a 351-command walk through a real mystery.
+
+The standing claims beneath it, each enforced in continuous
+integration rather than promised: the Z-Machine is complete --
+every opcode §14 defines, all eight story file versions, version
+6 illustrated -- and held to the community's checkers at their
+exact tallies; Full Glulx is declared, glulxercise entire, with
+an exclusion ledger of exactly two spec-sanctioned refusals;
+GlkOte is spoken from the machine's side, so the stories play
+at the terminal, the pygame window, the browser, the desktop
+shell, and down a stdio wire, sound and art and the Version 6
+stage included; the Treaty of Babel names every story that can
+be named; and a seeded session replays identically, forever --
+forty-four recorded playthroughs and a test suite at 100% branch
+coverage hold the whole of it.
+
 ## The played-games ledger
 
 VΘXΔM is developed against real games. The *Zork* trilogy,
