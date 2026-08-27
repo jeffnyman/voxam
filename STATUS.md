@@ -936,11 +936,24 @@ the reference engine's own transcripts.
   revival. At the terminal a save asks for its name on the
   spot; undo is aboard at every face, pruned at the reference's
   own depth.
+- **The dress.** At a real terminal the LOOK chunk's styles are
+  worn: bold as bold, italics as underlines (the Dialog
+  debugger's own rendering, drawn by every terminal), and the
+  sheet's colors as truecolor ink and paper -- named, hex, and
+  rgb() spellings alike, an insistent normal!important turning
+  a dress off mid-span, and the deprecated SET_STYLE bits
+  composing beside the classes. The honesty gate is the stream
+  itself: a pipe stays plain, every certified transcript still
+  matches byte for byte, and VM_INFO answers the styling and
+  color questions truthfully per stream -- which makes VΘXΔM,
+  as far as we know, the first command-line Å-machine
+  interpreter to clear the specification's styling bar.
 
 The third machine's own footpaths, named: savefiles over the
 wire await the suspended file-wait the Z-Machine's saves ride;
-the status areas and LOOK's styling stay honestly unclaimed on
-every face, the reference terminal's own posture; the
-acceptance driver, the tracer, and the filmstrip do not speak
-`.aastory` yet; and the browser tab borrows the Glulx icon
-until the third machine earns its own mark.
+the status areas stay honestly unclaimed on every face, and
+LOOK's styling on the wire face, the browser's own CSS being a
+different road than the terminal's attributes; the acceptance
+driver, the tracer, and the filmstrip do not speak `.aastory`
+yet; and the browser tab borrows the Glulx icon until the third
+machine earns its own mark.
