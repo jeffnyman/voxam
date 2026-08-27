@@ -39,7 +39,7 @@ is refused loudly at the door.
 
 import json
 from base64 import b64encode
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Final, TextIO
 
 from voxam.babel import ifiction
@@ -162,6 +162,11 @@ _CELL: Final = 8
 # §8.3.1's "the colour of the pixel under the cursor", passed
 # through signed by the machine.
 _PIXEL_COLOUR: Final = -1
+
+# Where the stage's minted colour codes begin: past every §8.3.1
+# code the spec names, exactly as the pygame glass mints its
+# sampled colours.
+_FIRST_SAMPLED: Final = 16
 
 # The stage's own §8.3.1 code-1 defaults: white ink on black
 # paper, the machine's home look, matching the pygame glass.
@@ -1116,6 +1121,12 @@ class StageFrontend(GlkOteFrontend):
         self._urls: dict[int, tuple[int, str]] = {}
         self._chrome: dict[int, tuple[int, int]] = {}
         self._palette_serial = 0
+        # The minted colours: §8.3.1's under-cursor samples, each
+        # distinct CSS colour given a code past the named ones --
+        # the wire's twin of the glass's sampled palette.
+        self._minted: dict[int, str] = {}
+        self._codes: dict[str, int] = {}
+        self._next_code = _FIRST_SAMPLED
 
         # The opening curtain: the stage's own paper before any
         # game paints, the setcolor keeping a rescaled canvas's
@@ -1215,23 +1226,39 @@ class StageFrontend(GlkOteFrontend):
         self._stage.set_colour(self._sampled(foreground), self._sampled(background))
 
     def _sampled(self, code: int) -> int:
-        """§8.3.1's -1 as the cursor cell's own background code.
+        """§8.3.1's -1 as the colour showing under the cursor.
 
-        The spec asks for the pixel under the cursor; a wire face
-        keeps cells, not pixels, so the nearest truth is what that
-        cell's paper was painted with -- the pygame glass samples
-        the real pixel, and this face tells the same story at
-        cell resolution.
+        The painted stage itself answers, as the glass's real
+        pixel does: the drawn ops walked newest-first, an image's
+        own pixel or a fill's colour, and the found colour minted
+        as a code past the named ones -- how Zork Zero's status
+        text sits on its ribbons without a seam.
         """
 
         if code != _PIXEL_COLOUR:
             return code
 
-        line, column = self._stage.screen_cursor()
-        row = (line - 1) // self.font_height + 1
-        col = (column - 1) // self.font_width + 1
+        self._flowed()
 
-        return self._stage.cell(row, col).background
+        line, column = self._stage.screen_cursor()
+        css = _plotted(
+            [*self._journal, *self._ops], column - 1, line - 1, self._gallery
+        )
+
+        return self._minted_code(css)
+
+    def _minted_code(self, css: str) -> int:
+        """The code a sampled colour wears, minted once per colour."""
+
+        held = self._codes.get(css)
+
+        if held is None:
+            held = self._next_code
+            self._next_code += 1
+            self._codes[css] = held
+            self._minted[held] = css
+
+        return held
 
     def erase_window(self, window: int) -> None:
         """§8.7.3: the stage fills; its paint carries the erasure.
@@ -1439,7 +1466,9 @@ class StageFrontend(GlkOteFrontend):
                 "y": line - 1,
                 "width": width,
                 "height": height,
-                "color": _css(self._stage.background) or _PAPER_DEFAULT,
+                "color": _coloured(
+                    self._stage.background, self._minted, _PAPER_DEFAULT
+                ),
             }
         )
 
@@ -1451,7 +1480,7 @@ class StageFrontend(GlkOteFrontend):
         lands under it, text after lands over.
         """
 
-        self._ops.extend(_oped(self._stage.paints(), self.font_width))
+        self._ops.extend(_oped(self._stage.paints(), self.font_width, self._minted))
         self._stage.sweep()
 
     # -- the conversation, one canvas per cycle -----------------------------
@@ -1701,20 +1730,21 @@ def _fronted(resources: Resources) -> Stanza | None:
     }
 
 
-def _oped(paints: list[Paint], cell: int) -> list[Stanza]:
+def _oped(paints: list[Paint], cell: int, minted: Mapping[int, str]) -> list[Stanza]:
     """Stage paints as the dialect's draw ops, 0-based on the canvas.
 
     Text paints arrive one dressed character at a time; runs
     along a row in the same dress coalesce into one op, the wire
     staying light. Fills and shifts translate one to one, the
-    §8.3.1 codes becoming the shared palette's CSS.
+    §8.3.1 codes becoming the shared palette's CSS -- the minted
+    sampled colours included.
     """
 
     ops: list[Stanza] = []
 
     for paint in paints:
         if isinstance(paint, TextPaint):
-            op = _texted(paint, cell)
+            op = _texted(paint, cell, minted)
             last = ops[-1] if ops else None
 
             if last is not None and _joins(last, op, cell):
@@ -1729,7 +1759,7 @@ def _oped(paints: list[Paint], cell: int) -> list[Stanza]:
                     "y": paint.line - 1,
                     "width": paint.width,
                     "height": paint.height,
-                    "color": _css(paint.background) or _PAPER_DEFAULT,
+                    "color": _coloured(paint.background, minted, _PAPER_DEFAULT),
                 }
             )
         else:
@@ -1747,7 +1777,7 @@ def _oped(paints: list[Paint], cell: int) -> list[Stanza]:
     return ops
 
 
-def _texted(paint: TextPaint, cell: int) -> Stanza:
+def _texted(paint: TextPaint, cell: int, minted: Mapping[int, str]) -> Stanza:
     """One placed character as a text op, reverse pre-swapped.
 
     The dress travels resolved: ink and paper as CSS with the
@@ -1756,8 +1786,8 @@ def _texted(paint: TextPaint, cell: int) -> Stanza:
     """
 
     held = paint.cell
-    ink = _css(held.foreground) or _INK_DEFAULT
-    paper = _css(held.background) or _PAPER_DEFAULT
+    ink = _coloured(held.foreground, minted, _INK_DEFAULT)
+    paper = _coloured(held.background, minted, _PAPER_DEFAULT)
 
     if held.style & REVERSE:
         ink, paper = paper, ink
@@ -1790,6 +1820,73 @@ def _joins(last: Stanza, op: Stanza, cell: int) -> bool:
         and op["x"] == last["x"] + cell * len(last["text"])
         and all(op.get(key) == last.get(key) for key in ("fg", "bg", "bold", "italic"))
     )
+
+
+def _plotted(ops: Sequence[Stanza], x: int, y: int, gallery: Gallery | None) -> str:
+    """The colour showing at a canvas point, newest paint first.
+
+    §8.3.1's sample asks for the pixel under the cursor, and the
+    drawn ops are the stage's pixels: an image's own pixel
+    answers -- a transparent hole deferring to what shows through
+    beneath -- a fill answers its colour, and paint never laid
+    answers the stage's default paper. Text ops are passed over:
+    a game samples its art and its fills, not its letters.
+    """
+
+    for op in reversed(ops):
+        if op["special"] == "image":
+            css = _art_pixel(op, x, y, gallery)
+
+            if css is not None:
+                return css
+        elif op["special"] == "fill" and _within(op, x, y):
+            return str(op["color"])
+
+    return _PAPER_DEFAULT
+
+
+def _art_pixel(op: Stanza, x: int, y: int, gallery: Gallery | None) -> str | None:
+    """One drawn image's pixel at a canvas point, None to look on.
+
+    The point maps back through the op's drawn size to the art's
+    own pixels -- Reso scaling undone by the same ratio that
+    applied it -- and a fully transparent pixel defers to
+    whatever the point shows through to.
+    """
+
+    if gallery is None or not _within(op, x, y):
+        return None
+
+    picture = gallery.picture(op["image"])
+
+    if picture is None:
+        return None
+
+    px = (x - op["x"]) * picture.width // op["width"]
+    py = (y - op["y"]) * picture.height // op["height"]
+
+    if picture.clear is not None and picture.clear[py][px]:
+        return None
+
+    return "#{:02x}{:02x}{:02x}".format(*picture.rows[py][px])
+
+
+def _within(op: Stanza, x: int, y: int) -> bool:
+    """Whether a drawn op's rectangle covers a canvas point."""
+
+    return bool(
+        op["x"] <= x < op["x"] + op["width"] and op["y"] <= y < op["y"] + op["height"]
+    )
+
+
+def _coloured(code: int, minted: Mapping[int, str], default: str) -> str:
+    """A colour code as CSS, the minted samples consulted first.
+
+    Then the shared palette, and the stage's own default for
+    everything else -- code 1 included.
+    """
+
+    return minted.get(code) or _css(code) or default
 
 
 def _css(code: int) -> str | None:

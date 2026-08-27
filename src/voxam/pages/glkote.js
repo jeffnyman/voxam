@@ -1048,6 +1048,7 @@ function accept_one_window(arg) {
                its own logical units and the display magnifies it to
                the frame; a stock canvas scales by exactly one. */
             win.voxamscale = voxam_canvas_scale(arg);
+            win.voxamscaled = !!arg.scaled;
             const effective = win.scaleratio * win.voxamscale;
             el.attr('width', win.graphwidth * effective);
             el.attr('height', win.graphheight * effective);
@@ -1061,6 +1062,8 @@ function accept_one_window(arg) {
             if (ctx) {
                 /* Set scale to win.scaleratio (VOXAM: and the logical scale) */
                 ctx.setTransform(effective, 0, 0, effective, 0, 0);
+                /* VOXAM: a magnified stage keeps its pixels chunky. */
+                ctx.imageSmoothingEnabled = !win.voxamscaled;
             }
             win.frameel.append(el);
         }
@@ -1073,6 +1076,7 @@ function accept_one_window(arg) {
                 win.graphwidth = arg.graphwidth;
                 win.graphheight = arg.graphheight;
                 win.voxamscale = newscale;
+                win.voxamscaled = !!arg.scaled;
                 const effective = win.scaleratio * win.voxamscale;
                 el.attr('width', win.graphwidth * effective);
                 el.attr('height', win.graphheight * effective);
@@ -1082,6 +1086,8 @@ function accept_one_window(arg) {
                 const ctx = canvas_get_2dcontext(el);
                 if (ctx) {
                     ctx.setTransform(effective, 0, 0, effective, 0, 0);
+                    /* VOXAM: a magnified stage keeps its pixels chunky. */
+                    ctx.imageSmoothingEnabled = !win.voxamscaled;
                     ctx.fillStyle = win.defcolor;
                     ctx.fillRect(0, 0, win.graphwidth, win.graphheight);
                     ctx.fillStyle = '#000000';
@@ -2140,6 +2146,11 @@ function voxam_canvas_scale(arg) {
     const availwidth = arg.width - current_metrics.graphicsmarginx;
     const availheight = arg.height - current_metrics.graphicsmarginy;
     const scale = Math.min(availwidth / arg.graphwidth, availheight / arg.graphheight);
+    /* Whole multiples keep the stage's pixels square and crisp;
+       only a frame too small for one falls back to a fractional
+       fit. */
+    if (scale >= 1)
+        return Math.floor(scale);
     return (scale > 0) ? scale : 1;
 }
 
@@ -2803,6 +2814,8 @@ function evhan_doc_pixelreschange() {
                 if (ctx) {
                     /* Set scale to win.scaleratio (VOXAM: and the logical scale) */
                     ctx.setTransform(effective, 0, 0, effective, 0, 0);
+                    /* VOXAM: a magnified stage keeps its pixels chunky. */
+                    ctx.imageSmoothingEnabled = !win.voxamscaled;
                     ctx.fillStyle = win.defcolor;
                     ctx.fillRect(0, 0, win.graphwidth, win.graphheight);
                     ctx.fillStyle = '#000000';
@@ -2948,6 +2961,14 @@ function evhan_window_mousedown(ev) {
 
     if (win.inputel) {
         last_known_focus = win.id;
+        /* VOXAM: a canvas's input is invisible, so nothing else
+           catches the click -- the click itself must restore the
+           keyboard, after the mousedown's own blur has happened,
+           or the stage's menus go deaf to the arrow keys. */
+        if (win.type == 'graphics') {
+            const inputel = win.inputel;
+            defer_func(function() { inputel.focus(); });
+        }
     }
 
     if (win.needspaging)
