@@ -132,6 +132,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="replay an acceptance script, then keep playing at the prompt",
     )
     parser.add_argument(
+        "--shots",
+        type=Path,
+        help="save a filmstrip of the replay, one screenshot per turn",
+    )
+    parser.add_argument(
         "--record",
         type=Path,
         help="write the session as an acceptance script at this path",
@@ -595,6 +600,7 @@ def _scripted_session(
             handoff=arguments.replay is not None,
             identity=identity,
             trace=arguments.trace,
+            shots=arguments.shots,
         )
 
     return None
@@ -651,6 +657,11 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
 
     if arguments.accept is not None and arguments.replay is not None:
         return "--accept and --replay are one script apiece; pick one"
+
+    if arguments.shots is not None and arguments.accept is None:
+        # The camera photographs a replayed walk; a live session
+        # already has a player watching.
+        return "--shots rides --accept; the filmstrip is a replay's camera"
 
     if arguments.graphics and arguments.plain:
         return "--graphics and --plain name two different glasses; pick one"
@@ -824,13 +835,18 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     identity: Identity | None = None,
     recorder: Recorder | None = None,
     trace: Path | None = None,
+    shots: Path | None = None,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
     With handoff, the exhausted script yields to the interactive
     terminal instead of ending the session -- and with a recorder,
     every handed-off line is also appended to the recording, while
-    the replayed prefix is not: it is already on the page.
+    the replayed prefix is not: it is already on the page. With
+    shots, the walk replays at the real pygame glass instead of
+    the plain stream, one screenshot saved per settled turn -- the
+    filmstrip; the responses live in the frames rather than on
+    stdout, so the refusal watch keeps quiet counsel there.
     """
 
     if story is not None:
@@ -861,19 +877,36 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
 
         return live()
 
-    source = replay(
-        script.commands,
-        sys.stdout.write,
-        exhausted=handed_off if handoff else None,
-        typed=watch.typed,
-    )
-
     try:
         glulx = _glulx_story(script.game)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
 
         return EXIT_UNUSABLE
+
+    camera = None
+    painted: GraphicsFrontend | None = None
+
+    if shots is not None:
+        aimed = _walk_camera(script.game, shots, glulx=glulx is not None)
+
+        if aimed is None:
+            return EXIT_UNUSABLE
+
+        camera, painted = aimed
+
+    def noted(index: int) -> None:
+        watch.typed(index)
+
+        if camera is not None:
+            camera.frame(index)
+
+    source = replay(
+        script.commands,
+        sys.stdout.write,
+        exhausted=handed_off if handoff else None,
+        typed=noted,
+    )
 
     if glulx is not None:
         # The Glulx replay rides the stdio display's own seams:
@@ -912,14 +945,83 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         script.game,
         seed,
         source,
-        PlainFrontend(tee),
+        painted if painted is not None else PlainFrontend(tee),
         identity=identity,
         trace=trace,
         click_source=lambda: next(positions, None),
     )
     watch.finish()
 
+    if camera is not None:
+        camera.finish(len(script.commands))
+
     return code
+
+
+def _walk_camera(
+    game: Path, shots: Path, *, glulx: bool
+) -> "tuple[_Camera, GraphicsFrontend] | None":
+    """The filmstrip's driven glass and its camera, or None said loud.
+
+    The camera photographs the Z glass; a Glulx walk is refused
+    honestly until that glass joins -- a silent half-strip would
+    be worse than the honest wait.
+    """
+
+    if glulx:
+        print("voxam: the filmstrip covers the Z glass; the Glulx glass is a road")
+
+        return None
+
+    try:
+        walked, sidecar = _load_story(game, None)
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return None
+
+    painted = _graphics_frontend(
+        walked.header.version,
+        sidecar,
+        story_path=game,
+        title=_titled(game, sidecar),
+        driven=True,
+    )
+
+    if painted is None:
+        print("voxam: the filmstrip needs the graphics window to photograph")
+
+        return None
+
+    return _Camera(painted, shots), painted
+
+
+class _Camera:
+    """One screenshot per settled turn, numbered for the strip.
+
+    The replay's typed hook fires just before each command, which
+    is the moment the previous response stands complete -- so
+    frame N shows the screen after N commands were answered, and
+    frame zero is the boot screen itself. The closing frame, taken
+    after the session ends, carries the last response.
+    """
+
+    def __init__(self, frontend: "GraphicsFrontend", directory: Path) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+
+        self._frontend = frontend
+        self._directory = directory
+
+    def frame(self, index: int) -> None:
+        """Photograph the screen as command `index` is about to type."""
+
+        self._frontend.snapshot(str(self._directory / f"turn-{index:04d}.png"))
+
+    def finish(self, total: int) -> None:
+        """The closing frame, and a word on where the strip lies."""
+
+        self.frame(total)
+        print(f"voxam: {total + 1} frames in {self._directory}")
 
 
 # The §11.1.3 interpreter numbers, by the names Infocom used.
@@ -977,13 +1079,14 @@ def _identity(interpreter: str | None, *, tandy: bool) -> Identity | None:
     return Identity(interpreter=number, tandy=tandy)
 
 
-def _graphics_frontend(
+def _graphics_frontend(  # noqa: PLR0913 -- one seat per optional collaborator
     version: int,
     blorb: Blorb | None,
     zoom: float | None = None,
     story_path: Path | None = None,
     *,
     title: str | None = None,
+    driven: bool = False,
 ) -> "GraphicsFrontend | None":
     """A pygame window, when the graphics extra allows.
 
@@ -1017,6 +1120,7 @@ def _graphics_frontend(
             arc=GlkResources(blorb) if blorb is not None else None,
             zoom=zoom,
             title=title,
+            driven=driven,
         )
     except ImportError:
         print(
