@@ -153,6 +153,16 @@ class Story:
 
         return self._held.get(chunk_id)
 
+    def summed(self, chunk_id: bytes) -> Chunk:
+        """A summed chunk, present by the door's own certification.
+
+        The checksum runs over every SUMMED chunk at parse, so a
+        missing one never reaches here -- asking for anything
+        else is a caller's wiring fault, loud by KeyError.
+        """
+
+        return self._held[chunk_id]
+
     def _certified(self) -> None:
         """Verify the HEAD's CRC-32 over the summed chunks.
 

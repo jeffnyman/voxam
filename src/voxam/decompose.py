@@ -14,6 +14,7 @@ from pathlib import Path
 from voxam import aiff
 from voxam.aamachine.story import FORM_ID as AAM_FORM
 from voxam.aamachine.story import Story as AAMachineStory
+from voxam.aamachine.text import Speech
 from voxam.blorb import (
     FRONTISPIECE_ID,
     GLULX_ID,
@@ -118,11 +119,12 @@ def _aamachine_census(name: str, data: bytes, chunks: tuple[Chunk, ...]) -> str:
     """
 
     story = AAMachineStory(data)
+    speech = Speech(story)
     lines = [f"{name}: FORM AAVM, {len(chunks)} chunks, {len(data):,} bytes", ""]
 
     for piece in chunks:
         kind = piece.chunk_id.decode("latin-1").strip()
-        facts = _aamachine_measured(piece, story)
+        facts = _aamachine_measured(piece, story, speech)
         told = f"-      -  {kind:<4} {facts}".rstrip()
 
         lines.append(f"{told} -- {len(piece.payload):,} bytes")
@@ -149,7 +151,7 @@ _AAM_NOTES = {
 }
 
 
-def _aamachine_measured(piece: Chunk, story: "AAMachineStory") -> str:
+def _aamachine_measured(piece: Chunk, story: "AAMachineStory", speech: Speech) -> str:
     """One Å-machine chunk's annotation for the census row."""
 
     if piece.chunk_id == b"HEAD":
@@ -163,6 +165,9 @@ def _aamachine_measured(piece: Chunk, story: "AAMachineStory") -> str:
         ]
 
         return ", ".join(told) if told else "story metadata"
+
+    if piece.chunk_id == b"DICT":
+        return f"game dictionary, {len(speech.words)} words"
 
     return _AAM_NOTES.get(piece.chunk_id, "")
 
