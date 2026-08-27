@@ -331,6 +331,139 @@ def test_the_filmstrip_refusals(
     assert_that(capsys.readouterr().out).contains("needs the graphics window")
 
 
+# The web filmstrip shoots the wire itself: the walk drives the
+# very Session the browser face serves, one launch per frame, the
+# page written beside the strip -- and the camera's refusals each
+# speak their own words: --browser rides --shots, clicks wait
+# their turn, a browserless world is told plainly, and a walk the
+# wire refuses comes back loud instead of photographed.
+def test_the_web_filmstrip_shoots_the_wire(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path, version=4)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+    shots = tmp_path / "strip"
+    named = tmp_path / "chrome.exe"
+
+    named.write_bytes(b"")
+
+    def printing(arguments: list[str], **_knobs: object) -> None:
+        for piece in arguments:
+            if piece.startswith("--screenshot="):
+                Path(piece.removeprefix("--screenshot=")).write_bytes(b"png")
+
+    monkeypatch.setattr("subprocess.run", printing)
+
+    code = main(
+        ["--accept", str(script), "--shots", str(shots), "--browser", str(named)]
+    )
+
+    assert_that(code).is_equal_to(0)
+    assert_that((shots / "turn-0000.png").exists()).is_true()
+    assert_that((shots / "turn-0001.png").exists()).is_true()
+    assert_that((shots / "page" / "replay.html").exists()).is_true()
+    assert_that(capsys.readouterr().out).contains("2 frames")
+
+    unridden = main([str(story), "--browser"])
+
+    assert_that(unridden).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("rides --shots")
+
+    clicked = tmp_path / "clicked.accept"
+
+    clicked.write_text(f"! GAME={story}\n<click 3 4>\n", encoding="utf-8")
+
+    aimless = main(
+        ["--accept", str(clicked), "--shots", str(shots), "--browser", str(named)]
+    )
+
+    assert_that(aimless).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("cannot aim")
+
+    # A walk that breaks mid-stride keeps its earned frames and
+    # says where it broke -- recordings can diverge across faces,
+    # and showing the seam is the strip's whole purpose.
+    quits = broken_story(tmp_path, bytes([0xBA]))
+    deaf = tmp_path / "deaf.accept"
+
+    deaf.write_text(f"! GAME={quits}\nlook\n", encoding="utf-8")
+
+    unheard = main(
+        ["--accept", str(deaf), "--shots", str(shots), "--browser", str(named)]
+    )
+    told = capsys.readouterr().out
+
+    assert_that(unheard).is_equal_to(0)
+    assert_that(told).contains("broke at command 1")
+    assert_that(told).contains("1 frames")
+
+    # A wire that answers the protocol's error photographs
+    # nothing true, and says so.
+    crashed = broken_story(tmp_path, bytes([0x00]))
+    wrecked = tmp_path / "wrecked.accept"
+
+    wrecked.write_text(f"! GAME={crashed}\n", encoding="utf-8")
+
+    fatal = main(
+        ["--accept", str(wrecked), "--shots", str(shots), "--browser", str(named)]
+    )
+
+    assert_that(fatal).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("error")
+
+    monkeypatch.setattr("voxam.cli.browsed", lambda _named: None)
+
+    unfound = main(["--accept", str(script), "--shots", str(shots), "--browser"])
+
+    assert_that(unfound).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("no browser found")
+
+
+# The wire strip covers Glulx too -- the session is the same
+# object the web face serves -- proven here through the seams,
+# with the walk and camera stood in for.
+def test_the_web_filmstrip_speaks_glulx(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\n")
+    named = tmp_path / "chrome.exe"
+
+    named.write_bytes(b"")
+
+    def printing(arguments: list[str], **_knobs: object) -> None:
+        for piece in arguments:
+            if piece.startswith("--screenshot="):
+                Path(piece.removeprefix("--screenshot=")).write_bytes(b"png")
+
+    monkeypatch.setattr("subprocess.run", printing)
+    monkeypatch.setattr("voxam.cli._glulx_story", lambda _path: object())
+    monkeypatch.setattr("voxam.cli._glulx_resources", lambda *_seats: None)
+    monkeypatch.setattr("voxam.cli.GlulxSession", lambda *_seats, **_knobs: object())
+    monkeypatch.setattr(
+        "voxam.cli.walked",
+        lambda _session, _commands: ([{"type": "update"}], [1], None),
+    )
+
+    code = main(
+        [
+            "--accept",
+            str(script),
+            "--shots",
+            str(tmp_path / "strip"),
+            "--browser",
+            str(named),
+        ]
+    )
+
+    assert_that(code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("1 frames")
+
+
 # The watch reads the conversation during --accept and points at the
 # script line whose command drew the refusal.
 def test_replay_warns_about_refused_commands(

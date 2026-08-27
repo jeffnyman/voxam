@@ -25,6 +25,7 @@ from voxam.errors import (
     PNGError,
     VoxamError,
 )
+from voxam.filmstrip import browsed, paged, shot, walked
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
@@ -45,7 +46,7 @@ from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
-from voxam.web import Face, GlulxSession, ZSession, serve_web
+from voxam.web import Face, GlulxSession, Session, ZSession, serve_web
 from voxam.zmachine.glkote import fronted as z_fronted
 from voxam.zmachine.glkote import serve as serve_z
 from voxam.zmachine.instruction import Instruction
@@ -135,6 +136,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--shots",
         type=Path,
         help="save a filmstrip of the replay, one screenshot per turn",
+    )
+    parser.add_argument(
+        "--browser",
+        nargs="?",
+        const="",
+        help="shoot the filmstrip at the web display, with this browser or a found one",
     )
     parser.add_argument(
         "--record",
@@ -601,6 +608,7 @@ def _scripted_session(
             identity=identity,
             trace=arguments.trace,
             shots=arguments.shots,
+            browser=arguments.browser,
         )
 
     return None
@@ -658,24 +666,38 @@ def _flag_refusal(arguments: argparse.Namespace, script: Path | None) -> str | N
     if arguments.accept is not None and arguments.replay is not None:
         return "--accept and --replay are one script apiece; pick one"
 
-    if arguments.shots is not None and arguments.accept is None:
-        # The camera photographs a replayed walk; a live session
-        # already has a player watching.
-        return "--shots rides --accept; the filmstrip is a replay's camera"
-
     if arguments.graphics and arguments.plain:
         return "--graphics and --plain name two different glasses; pick one"
 
     if not 0 <= arguments.zoom <= 1:
         return "--zoom takes a fraction of the desktop, 0 to 1"
 
-    for gated in (_glkote_refusal, _regtest_refusal, _resume_refusal):
+    for gated in (
+        _filmstrip_refusal,
+        _glkote_refusal,
+        _regtest_refusal,
+        _resume_refusal,
+    ):
         refused = gated(arguments)
 
         if refused is not None:
             return refused
 
     return _record_refusal(arguments.record, script, arguments.story)
+
+
+def _filmstrip_refusal(arguments: argparse.Namespace) -> str | None:
+    """Why the camera flags cannot proceed, or None when they can."""
+
+    if arguments.shots is not None and arguments.accept is None:
+        # The camera photographs a replayed walk; a live session
+        # already has a player watching.
+        return "--shots rides --accept; the filmstrip is a replay's camera"
+
+    if arguments.browser is not None and arguments.shots is None:
+        return "--browser rides --shots; it names the filmstrip's camera"
+
+    return None
 
 
 def _glkote_refusal(arguments: argparse.Namespace) -> str | None:
@@ -836,6 +858,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     recorder: Recorder | None = None,
     trace: Path | None = None,
     shots: Path | None = None,
+    browser: str | None = None,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
@@ -888,10 +911,10 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     painted: GraphicsFrontend | None = None
 
     if shots is not None:
-        aimed = _walk_camera(script.game, shots, glulx=glulx is not None)
+        aimed = _filmed(script, seed, shots, browser, glulx)
 
-        if aimed is None:
-            return EXIT_UNUSABLE
+        if isinstance(aimed, int):
+            return aimed
 
         camera, painted = aimed
 
@@ -956,6 +979,78 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         camera.finish(len(script.commands))
 
     return code
+
+
+def _filmed(
+    script: AcceptanceScript,
+    seed: int | None,
+    shots: Path,
+    browser: str | None,
+    glulx: "GlulxStory | None",
+) -> "int | tuple[_Camera, GraphicsFrontend]":
+    """The strip's camera, whichever display was asked for.
+
+    A browser shoots the wire whole and answers an exit code; the
+    glass answers its camera pair, or the code its refusal earned.
+    """
+
+    if browser is not None:
+        return _web_filmstrip(script, seed, shots, browser, glulx)
+
+    aimed = _walk_camera(script.game, shots, glulx=glulx is not None)
+
+    return EXIT_UNUSABLE if aimed is None else aimed
+
+
+def _web_filmstrip(
+    script: AcceptanceScript,
+    seed: int | None,
+    shots: Path,
+    browser: str,
+    glulx: "GlulxStory | None",
+) -> int:
+    """Shoot the walk at the wire: the web Session, photographed.
+
+    The strip covers both machines -- the session is the same
+    object the web face serves -- while a walk that clicks or
+    follows links waits for the camera to learn aiming.
+    """
+
+    if script.clicks or script.links:
+        print("voxam: the web filmstrip cannot aim the walk's clicks yet")
+
+        return EXIT_UNUSABLE
+
+    camera = browsed(browser)
+
+    if camera is None:
+        print("voxam: no browser found to photograph with; name one with --browser")
+
+        return EXIT_UNUSABLE
+
+    try:
+        if glulx is not None:
+            sidecar = _glulx_resources(script.game, None)
+            session: Session = GlulxSession(glulx, GlkResources(sidecar), seed=seed)
+        else:
+            told, sidecar = _load_story(script.game, None)
+            session = ZSession(told, GlkResources(sidecar), seed=seed)
+
+        updates, marks, note = walked(session, list(script.commands))
+
+        if note is not None:
+            print(f"voxam: {note}")
+
+        page = paged(shots / "page", updates)
+        frames = shot(page, shots, marks, camera)
+    except (OSError, VoxamError) as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    print(f"voxam: {frames} frames in {shots}")
+
+    return EXIT_OK
 
 
 def _walk_camera(

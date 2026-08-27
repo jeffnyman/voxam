@@ -123,10 +123,13 @@ jobs:
       # every section, and the certification asserts the exact
       # tally -- 70 sections passed, no failures, and the closing
       # verdict spoken -- through the same stdio session a player
-      # would use.
+      # would use. The seed is pinned: the random section does
+      # statistical checks, and an honest unseeded stream fails
+      # them by pure chance every few dozen runs -- which twice
+      # read as a phantom regression on a green change.
       - name: Glulxercise, the whole battery
         run: |
-          out="$(echo all | uv run voxam entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
+          out="$(echo all | uv run voxam --seed 777 entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
           echo "$out" | tail -3
           test "$(echo "$out" | grep -c '^Passed\.$')" -eq 70
           echo "$out" | grep -q "All tests passed."
