@@ -46,7 +46,7 @@ from voxam.saves import FileSaveSlot
 from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
 from voxam.web import Face, GlulxSession, ZSession, serve_web
-from voxam.zmachine.glkote import GlkOteFrontend as ZGlkOteFrontend
+from voxam.zmachine.glkote import fronted as z_fronted
 from voxam.zmachine.glkote import serve as serve_z
 from voxam.zmachine.instruction import Instruction
 from voxam.zmachine.machine import Identity, Machine
@@ -78,10 +78,6 @@ RECORDED_SEED_CEILING = 100_000
 
 # Where the browser face listens unless --port says otherwise.
 WEB_PORT = 8080
-
-# The Version 6 stage: the one screen model the GlkOte faces
-# cannot speak yet.
-STAGE_VERSION = 6
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1362,7 +1358,7 @@ def _serve_web(
 def _serve_z_glkote(story: Story, blorb: Blorb | None, *, seed: int | None) -> int:
     """Speak the GlkOte protocol for one Z story, both streams whole."""
 
-    frontend = ZGlkOteFrontend(story.header.version, GlkResources(blorb))
+    frontend = z_fronted(story.header.version, GlkResources(blorb))
 
     try:
         served = serve_z(story, frontend, sys.stdin, sys.stdout, seed=seed)
@@ -1886,13 +1882,6 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
     header = story.header
 
     if glkote or web:
-        if header.version == STAGE_VERSION:
-            # The eight-window stage asks for placed geometry the
-            # protocol's two-window picture cannot speak yet.
-            print("voxam: the Version 6 stage stays at the painted glasses")
-
-            return EXIT_UNUSABLE
-
         if web:
             return _serve_z_web(story_path, story, blorb, seed=seed, port=port)
 

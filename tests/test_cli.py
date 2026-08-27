@@ -537,8 +537,8 @@ def test_glkote_refuses_company(
 
 
 # The Z-Machine speaks the protocol now: a Z story routes to its
-# own serve, the verdict mapping to the exit code -- while the
-# Version 6 stage stays at the painted glasses, loudly.
+# own serve, the verdict mapping to the exit code -- the Version 6
+# stage included, its own face routed like any other's.
 def test_z_stories_speak_the_protocol(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -569,8 +569,7 @@ def test_z_stories_speak_the_protocol(
 
     staged = broken_story(tmp_path, bytes([0xBA]), version=6)
 
-    assert_that(main([str(staged), "--web"])).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("stage stays at the painted")
+    assert_that(main([str(staged), "--web"])).is_equal_to(0)
 
     def unbound(_face: object, _port: int) -> int:
         raise OSError("address in use")

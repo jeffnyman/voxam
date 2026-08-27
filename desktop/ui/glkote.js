@@ -1053,6 +1053,10 @@ function accept_one_window(arg) {
             el.attr('height', win.graphheight * effective);
             el.css('width', (win.graphwidth * win.voxamscale + 'px'));
             el.css('height', (win.graphheight * win.voxamscale + 'px'));
+            if (arg.scaled) {
+                /* VOXAM: the stage centers in its letterbox. */
+                el.css({ display: 'block', margin: '0 auto' });
+            }
             win.frameel.css('background-color', win.defcolor);
             if (ctx) {
                 /* Set scale to win.scaleratio (VOXAM: and the logical scale) */
@@ -1618,7 +1622,12 @@ function accept_inputset(arg) {
                game having painted its own prompt. Stock GlkOte never
                emplaces an input in a graphics window at all. */
             const canel = $('#'+dom_prefix+'win'+win.id+'_canvas', dom_context);
-            const canpos = canel.position();
+            /* Offset arithmetic rather than position(): a centered
+               canvas wears an auto margin position() would drop. */
+            const canoff = canel.offset();
+            const frameoff = win.frameel.offset();
+            const canpos = { left: canoff.left - frameoff.left,
+                             top: canoff.top - frameoff.top };
             const scale = win.voxamscale || 1;
             if (argi.type == 'line') {
                 const cellwidth = argi.cell[0] * scale;
@@ -2189,6 +2198,10 @@ function perform_graphics_ops(loadedimg, loadedev) {
         case 'setcolor':
             /* Set the default color (no visible changes). */
             win.defcolor = op.color;
+            /* VOXAM: on a scaled canvas the frame is the letterbox
+               around the stage, and it wears the stage's paper. */
+            if (win.voxamscale && win.voxamscale != 1)
+                win.frameel.css('background-color', win.defcolor);
             break;
         case 'fill':
             /* Both color and geometry are optional here. */
@@ -2251,10 +2264,12 @@ function perform_graphics_ops(loadedimg, loadedev) {
             /* Either way, continue with the queue. */
             break;
         case 'text': {
-            /* VOXAM: the stage dialect's placed text. Each character
-               is centered in its own cell so the string lands exactly
-               on the §8.8 grid whatever the font's metrics say; the
-               cell background paints first, as a screen's would. */
+            /* VOXAM: the stage dialect's placed text. The cell
+               background paints first, as a screen's would; then the
+               run is stretched onto the §8.8 cell grid -- a
+               proportional-metric monospace glyph is narrower than
+               the stage's square cell, and stretching reproduces the
+               bitmap look the art was drawn around. */
             const cellwidth = op.cell[0];
             const cellheight = op.cell[1];
             if (op.bg !== undefined) {
@@ -2268,12 +2283,15 @@ function perform_graphics_ops(loadedimg, loadedev) {
             if (op.bold)
                 face += 'bold ';
             ctx.font = face + cellheight + 'px monospace';
-            ctx.textAlign = 'center';
+            const advance = ctx.measureText('0').width;
+            const stretch = (advance > 0) ? (cellwidth / advance) : 1;
+            ctx.save();
+            ctx.translate(op.x, op.y + cellheight / 2);
+            ctx.scale(stretch, 1);
+            ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            for (let ix=0; ix<op.text.length; ix++) {
-                ctx.fillText(op.text[ix],
-                    op.x + ix*cellwidth + cellwidth/2, op.y + cellheight/2);
-            }
+            ctx.fillText(op.text, 0, 0);
+            ctx.restore();
             ctx.fillStyle = '#000000';
             break;
         }

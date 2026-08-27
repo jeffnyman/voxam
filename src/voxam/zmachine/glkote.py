@@ -26,9 +26,15 @@ The rest of the eras' claims live here too, each under the
 display's own grant: the §10.5.2.1 terminating characters the
 wire can name, §10.3's clicks on the grid, §9's sounds in the
 dialect's channel ops, and §8.3's colours as per-span ink with
-the window's own paper. Deliberately not carried, refused
-honestly at the claims: the Version 6 stage -- the painted
-glasses keep it.
+the window's own paper.
+
+The Version 6 stage joins at last, as its own face: the
+StageFrontend hosts the same StageModel the pygame glass paints
+from, and its unit-positioned paints become the stage dialect's
+draw ops on one scaled canvas -- placed text, fills, sliding
+rectangles -- in the art's own coordinate space, the display
+magnifying it to fit. A display that never learned the dialect
+is refused loudly at the door.
 """
 
 import json
@@ -45,6 +51,7 @@ from voxam.frontend import (
     PlainFrontend,
     Status,
 )
+from voxam.gallery import Gallery
 from voxam.glkote import (
     Ink,
     Page,
@@ -67,6 +74,7 @@ from voxam.screen import (
     UPPER,
     ScreenModel,
 )
+from voxam.stage import FillPaint, Paint, StageModel, TextPaint
 from voxam.zmachine.header import STATUS_FLAGS_VERSION
 from voxam.zmachine.machine import (
     FULL_VOLUME,
@@ -134,6 +142,29 @@ _NO_PARTIAL = frozenset({"init", "specialresponse", "refresh", "debuginput"})
 # The buffer window's protocol id; the grid's ids are minted
 # fresh at every reopening, since the protocol forbids reuse.
 _BUFFER = 1
+
+# The screen model that plays on the §8.8 stage.
+STAGE_VERSION: Final = 6
+
+# The stage without a Reso chunk: MCGA's 320 by 200, the screen
+# Infocom's Version 6 art was drawn for -- and the Blorb rule for
+# art without a Reso is one image pixel per screen pixel, so the
+# art's own space is the only default that draws it true (Blorb:
+# The Resolution Chunk).
+STANDARD_STAGE: Final = (320, 200)
+
+# One stage cell in units: the 8-by-8 character of the MCGA
+# presentation (§8.8.1).
+_CELL: Final = 8
+
+# §8.3.1's "the colour of the pixel under the cursor", passed
+# through signed by the machine.
+_PIXEL_COLOUR: Final = -1
+
+# The stage's own §8.3.1 code-1 defaults: white ink on black
+# paper, the machine's home look, matching the pygame glass.
+_INK_DEFAULT: Final = "#ffffff"
+_PAPER_DEFAULT: Final = "#000000"
 
 
 class GlkOteFrontend(PlainFrontend):
@@ -272,6 +303,24 @@ class GlkOteFrontend(PlainFrontend):
             columns=self.screen_columns, lines=self.screen_lines, version=self.version
         )
 
+    def _sized(self, stanza: Stanza) -> Stanza:
+        """Take the display's box from its metrics, which it must carry.
+
+        Raises:
+            GlkOteError: When the metrics carry no size.
+        """
+
+        metrics: Stanza = stanza.get("metrics", {})
+
+        if "width" not in metrics or "height" not in metrics:
+            msg = "the display's metrics carry no size (GlkOte: The Metrics Object)"
+
+            raise GlkOteError(msg)
+
+        self._size = (int(metrics["width"]), int(metrics["height"]))
+
+        return metrics
+
     def _measure(self, stanza: Stanza) -> None:
         """Take the display's size and cells from its metrics.
 
@@ -279,16 +328,9 @@ class GlkOteFrontend(PlainFrontend):
             GlkOteError: When the metrics carry no size.
         """
 
-        metrics = stanza.get("metrics", {})
-
-        if "width" not in metrics or "height" not in metrics:
-            msg = "the display's metrics carry no size (GlkOte: The Metrics Object)"
-
-            raise GlkOteError(msg)
-
+        metrics = self._sized(stanza)
         width, height, margin_x, margin_y = measured(metrics, "grid")
 
-        self._size = (int(metrics["width"]), int(metrics["height"]))
         self._cell = (width, height)
         self._margins = (margin_x, margin_y)
         self.screen_columns = max(1, int((self._size[0] - margin_x) // width))
@@ -664,9 +706,21 @@ class GlkOteFrontend(PlainFrontend):
                 # Update Array).
                 self.page.passive_input(self._grid_ident, mouse=True)
 
+        self._timed(waiting)
+        self._sung()
+
+        refresh, self._refresh_owed = self._refresh_owed, False
+
+        return self.page.update(exit=exit, refresh=refresh)
+
+    def _timed(self, waiting: Filing | Reading | None) -> None:
+        """The timer field for the cycle, from the standing wait.
+
+        A fresh timed read restarts the display's clock even at
+        the same cadence, as §15 restarts its own.
+        """
+
         if isinstance(waiting, Reading) and waiting.time and waiting.routine:
-            # A fresh timed read restarts the display's clock even
-            # at the same cadence, as §15 restarts its own.
             self.page.timer(
                 waiting.time * _TENTH_MS, restart=waiting is not self._last_read
             )
@@ -675,13 +729,12 @@ class GlkOteFrontend(PlainFrontend):
 
         self._last_read = waiting
 
+    def _sung(self) -> None:
+        """The cycle's queued channel ops onto the page, once."""
+
         if self._sound_ops:
             self.page.sounds(self._sound_ops)
             self._sound_ops = []
-
-        refresh, self._refresh_owed = self._refresh_owed, False
-
-        return self.page.update(exit=exit, refresh=refresh)
 
     def _banded(self, width: int) -> int:
         """Declare the band's canvas and feed any owed drawing.
@@ -829,12 +882,12 @@ class GlkOteFrontend(PlainFrontend):
             terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
 
             # The machine never echoes: the display owes the typed
-            # line and its newline, in the input dress -- but only
-            # a return-ended read prints its return (§15 read). A
-            # terminator-ended line stays uncommitted, ready for
-            # the preloaded re-read Beyond Zork answers one with.
+            # line and its newline -- but only a return-ended read
+            # prints its return (§15 read). A terminator-ended
+            # line stays uncommitted, ready for the preloaded
+            # re-read Beyond Zork answers one with.
             if not terminator:
-                self._runs.append(("input", 0, line + "\n"))
+                self._echoed(line)
 
             self._machine().deliver_line(line, terminator)
 
@@ -859,6 +912,11 @@ class GlkOteFrontend(PlainFrontend):
             return self._reshaped(kind, stanza)
 
         return PASS
+
+    def _echoed(self, line: str) -> None:
+        """The typed line and its newline, in the input dress."""
+
+        self._runs.append(("input", 0, line + "\n"))
 
     def _answered(self, stanza: Stanza) -> str:
         """The player's file name, or not, to the suspended ask.
@@ -992,6 +1050,487 @@ class GlkOteFrontend(PlainFrontend):
         return self.machine
 
 
+class StageFrontend(GlkOteFrontend):
+    """The Version 6 stage at the far end of the protocol.
+
+    One scaled canvas in the stage dialect's words: the same
+    StageModel the pygame glass paints from reduces the
+    eight-window screen to unit-positioned paints, and each
+    becomes a draw op here -- placed text, fills, sliding
+    rectangles -- in the art's own logical space, the display
+    magnifying it to fit (§8.8). The stage is pinned to the
+    Blorb's Reso standard window, or MCGA's 320 by 200 without
+    one, so layouts land exactly where the artists put them and
+    the Reso arithmetic collapses to each picture's own standard
+    ratio.
+
+    The doorway courtesies stay off the stage -- a Version 6 game
+    paints its own opening -- and the [MORE] budget stays unarmed:
+    a suspending face cannot hold a scroll mid-print, so long
+    passages flow uninterrupted, the scrollback road not yet
+    taken.
+    """
+
+    has_stage = True
+    # The stage paints its own ink into the ops, so the §8.3
+    # claim needs no display grant.
+    has_colours = True
+    font_width = _CELL
+    font_height = _CELL
+
+    def __init__(self, version: int, resources: Resources | None = None) -> None:
+        """Open at the art's own size, before any init."""
+
+        super().__init__(version, resources)
+
+        blorb = resources.blorb if resources is not None else None
+        width, height = STANDARD_STAGE
+
+        if blorb is not None and blorb.resolution is not None:
+            width, height = blorb.resolution.width, blorb.resolution.height
+
+        self.screen_columns = max(1, width // self.font_width)
+        self.screen_lines = max(1, height // self.font_height)
+        # The gallery rules the picture claims exactly as it does
+        # at the glass: placards measured, Reso understood, and a
+        # count of zero leaving the header's offer unclaimed.
+        self._gallery: Gallery | None = blorb.gallery() if blorb is not None else None
+        self.has_pictures = self._gallery is not None and self._gallery.count > 0
+        self._stage = StageModel(
+            self.screen_columns, self.screen_lines, self.font_width, self.font_height
+        )
+        self._canvas_ident: int | None = None
+        # The cycle's draw ops, and the journal a repaint replays:
+        # everything since the last whole-stage fill, since
+        # nothing before one can ever show again.
+        self._ops: list[Stanza] = []
+        self._journal: list[Stanza] = []
+        self._repaint_owed = False
+
+        # The opening curtain: the stage's own paper before any
+        # game paints, the setcolor keeping a rescaled canvas's
+        # clear the same colour.
+        self._ops.append({"special": "setcolor", "color": _PAPER_DEFAULT})
+        self._ops.append(self._whole(_PAPER_DEFAULT))
+
+    def _logical(self) -> tuple[int, int]:
+        """The stage's size in its own units."""
+
+        return (
+            self.screen_columns * self.font_width,
+            self.screen_lines * self.font_height,
+        )
+
+    def _whole(self, color: str) -> Stanza:
+        """A fill covering the whole stage."""
+
+        width, height = self._logical()
+
+        return {
+            "special": "fill",
+            "x": 0,
+            "y": 0,
+            "width": width,
+            "height": height,
+            "color": color,
+        }
+
+    def begin(self, stanza: Stanza) -> None:
+        """Open the session; the stage needs the dialect spoken.
+
+        The screen's size never comes from the metrics here: the
+        stage is pinned to the art's own space and the display
+        scales it. Only the box is taken.
+
+        Raises:
+            GlkOteError: When the display never learned the stage
+                dialect, or the metrics carry no size.
+        """
+
+        support = stanza.get("support", [])
+
+        if "stage" not in support:
+            msg = (
+                "the display never learned the stage; the Version 6 "
+                "screen needs the dialect's own word"
+            )
+
+            raise GlkOteError(msg)
+
+        self.has_timed_input = "timer" in support
+        self._speaks_sound = "sound" in support
+        self.has_sounds = (
+            self._speaks_sound
+            and self._resources is not None
+            and self._resources.blorb is not None
+        )
+
+        self._sized(stanza)
+
+    # -- the §8.8 screen, straight onto the stage ---------------------------
+
+    def write(self, text: str) -> None:
+        """Story text onto the stage, §8.8-flowed."""
+
+        self._stage.write(text)
+
+    def write_rectangle(self, rows: Sequence[str]) -> None:
+        """§15 print_table: right-and-down from the cursor."""
+
+        self._stage.write_rectangle(rows)
+
+    def show_status(self, status: Status) -> None:
+        """§8.2 has no line on a stage; the model says so loudly."""
+
+        self._stage.show_status(status)
+
+    def set_style(self, style: int) -> None:
+        """§8.7.1: the stage keeps every window's own dress."""
+
+        self._stage.set_style(style)
+
+    def set_font(self, font: int) -> None:
+        """§8.1.2 fonts, the stage's own ledger."""
+
+        self._stage.set_font(font)
+
+    def set_buffering(self, buffered: bool) -> None:
+        """§7.2.2: the stage wraps for itself, so buffering is real."""
+
+        self._stage.set_buffering(buffered)
+
+    def set_colour(self, foreground: int, background: int) -> None:
+        """§8.3.1, the under-cursor sample resolved to a cell truth."""
+
+        self._stage.set_colour(self._sampled(foreground), self._sampled(background))
+
+    def _sampled(self, code: int) -> int:
+        """§8.3.1's -1 as the cursor cell's own background code.
+
+        The spec asks for the pixel under the cursor; a wire face
+        keeps cells, not pixels, so the nearest truth is what that
+        cell's paper was painted with -- the pygame glass samples
+        the real pixel, and this face tells the same story at
+        cell resolution.
+        """
+
+        if code != _PIXEL_COLOUR:
+            return code
+
+        line, column = self._stage.screen_cursor()
+        row = (line - 1) // self.font_height + 1
+        col = (column - 1) // self.font_width + 1
+
+        return self._stage.cell(row, col).background
+
+    def erase_window(self, window: int) -> None:
+        """§8.7.3: the stage fills; its paint carries the erasure."""
+
+        self._stage.erase_window(window)
+
+    def erase_line(self, pixels: int | None = None) -> None:
+        """§8.7.3.2, the pixel-width form included."""
+
+        self._stage.erase_line(pixels)
+
+    def split_window(self, lines: int) -> None:
+        """§8.8.4.1's tiling, the stage's own arithmetic.
+
+        Splitting clears nothing on a stage, so a quote box's
+        pixels stand without any high-water courtesy.
+        """
+
+        self._stage.split_window(lines)
+
+    def set_window(self, window: int) -> None:
+        """Select among all eight (§8.8.3)."""
+
+        self._stage.set_window(window)
+
+    def set_cursor(self, line: int, column: int) -> None:
+        """The selected window's cursor, in its own units."""
+
+        self._stage.set_cursor(line, column)
+
+    def cursor_position(self) -> tuple[int, int]:
+        """What get_cursor reads back: the stage's own ledger."""
+
+        return self._stage.get_cursor()
+
+    def place_window(
+        self, window: int, line: int, column: int, height: int, width: int
+    ) -> None:
+        """§8.8 geometry, forwarded whole."""
+
+        self._stage.place_window(window, line, column, height, width)
+
+    def scroll_window(self, window: int, pixels: int) -> None:
+        """§15 scroll_window, in units."""
+
+        self._stage.scroll_window(window, pixels)
+
+    def set_margins(self, window: int, left: int, right: int) -> None:
+        """§8.8.3.2.1 margins, in units."""
+
+        self._stage.set_margins(window, left, right)
+
+    def set_line_count(self, window: int, count: int) -> None:
+        """§8.8.3.2.6's budget, the game's own hand on it."""
+
+        self._stage.set_line_count(window, count)
+
+    # -- the §11 pictures, Reso-scaled onto the canvas ----------------------
+
+    def picture_data(self, number: int) -> tuple[int, int] | None:
+        """A picture's drawn height and width (§15 picture_data).
+
+        The Reso arithmetic is the gallery's, exactly as at the
+        glass -- though on a stage pinned to the standard window
+        the Elbow Room Factor is one, and only each picture's own
+        standard ratio remains (Blorb: The Resolution Chunk).
+        """
+
+        gallery = self._gallery
+
+        if gallery is None:
+            return None
+
+        size = gallery.size(number)
+
+        if size is None:
+            return None
+
+        height, width = size
+        logical_w, logical_h = self._logical()
+        factor = gallery.scale(number, logical_w, logical_h)
+
+        return int(height * factor), int(width * factor)
+
+    def picture_census(self) -> tuple[int, int]:
+        """The count of drawable pictures and the art's release."""
+
+        if self._gallery is None:
+            return (0, 0)
+
+        return (self._gallery.count, self._gallery.release)
+
+    def draw_picture(self, number: int, line: int, column: int) -> None:
+        """§15 draw_picture as an image op at its unit position.
+
+        A Rect placard has no bytes to send and draws nothing --
+        invisible by design, its size still spoken for layout.
+        """
+
+        size = self.picture_data(number)
+
+        if size is None:
+            return
+
+        url = self._resources.pictured(number) if self._resources is not None else None
+
+        if url is None:
+            return
+
+        height, width = size
+
+        self._flowed()
+        self._ops.append(
+            {
+                "special": "image",
+                "image": number,
+                "url": url,
+                "x": column - 1,
+                "y": line - 1,
+                "width": width,
+                "height": height,
+            }
+        )
+
+    def erase_picture(self, number: int, line: int, column: int) -> None:
+        """§15 erase_picture: the picture's rectangle, papered over."""
+
+        size = self.picture_data(number)
+
+        if size is None:
+            return
+
+        height, width = size
+
+        self._flowed()
+        self._ops.append(
+            {
+                "special": "fill",
+                "x": column - 1,
+                "y": line - 1,
+                "width": width,
+                "height": height,
+                "color": _css(self._stage.background) or _PAPER_DEFAULT,
+            }
+        )
+
+    def _flowed(self) -> None:
+        """Drain the stage's pending paints into the cycle's ops.
+
+        Called ahead of every picture op too, so the canvas keeps
+        the turn's true order -- text written before a picture
+        lands under it, text after lands over.
+        """
+
+        self._ops.extend(_oped(self._stage.paints(), self.font_width))
+        self._stage.sweep()
+
+    # -- the conversation, one canvas per cycle -----------------------------
+
+    def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
+        """Compose the stage into one scaled canvas update."""
+
+        machine = self._machine()
+        width, height = self._size
+
+        if self._canvas_ident is None:
+            self._canvas_ident = self._next_ident
+            self._next_ident += 1
+
+        self.page.window(
+            self._canvas_ident,
+            "graphics",
+            0,
+            (0, 0, width, height),
+            graphsize=self._logical(),
+            scaled=True,
+        )
+
+        self._flowed()
+        self._journaled(self._ops)
+
+        refresh, self._refresh_owed = self._refresh_owed, False
+        repaint, self._repaint_owed = self._repaint_owed or refresh, False
+        ops, self._ops = list(self._journal) if repaint else self._ops, []
+
+        if ops:
+            self.page.draw(self._canvas_ident, ops)
+
+        waiting = machine.waiting
+
+        if isinstance(waiting, Filing):
+            self.page.prompt("write" if waiting.purpose == "save" else "read", "save")
+        elif isinstance(waiting, Reading):
+            # An input pause rests the scroll budgets, as every
+            # face's read does (§8.8.3.2.6).
+            self._stage.rest()
+
+            if waiting.wants == "line":
+                line, column = self._stage.screen_cursor()
+
+                self.page.line_input(
+                    self._canvas_ident,
+                    waiting.capacity,
+                    terminators=tuple(
+                        TERMINATOR_NAMES[code]
+                        for code in sorted(waiting.terminators)
+                        if code in TERMINATOR_NAMES
+                    ),
+                    cursor=(column - 1, line - 1),
+                    cell=(self.font_width, self.font_height),
+                    mouse=SINGLE_CLICK in waiting.terminators,
+                )
+            else:
+                # A keystroke read hears a click the way it hears
+                # any key (§10.3.3).
+                self.page.char_input(self._canvas_ident, mouse=True)
+
+        self._timed(waiting)
+        self._sung()
+
+        return self.page.update(exit=exit, refresh=refresh)
+
+    def _journaled(self, ops: list[Stanza]) -> None:
+        """Fold the cycle's ops into the repaint journal.
+
+        A fill covering the whole stage starts the journal over,
+        a setcolor restated ahead of it so a rescaled canvas's
+        clear wears the right paper. Games repaper the stage at
+        every scene, so the journal stays a scene deep.
+        """
+
+        width, height = self._logical()
+
+        for op in ops:
+            if (
+                op["special"] == "fill"
+                and op.get("x") == 0
+                and op.get("y") == 0
+                and op.get("width") == width
+                and op.get("height") == height
+            ):
+                self._journal = [
+                    {"special": "setcolor", "color": op["color"]},
+                    dict(op),
+                ]
+            else:
+                self._journal.append(op)
+
+    def _echoed(self, line: str) -> None:
+        """The typed line onto the stage at the read's own cursor.
+
+        A Version 6 interpreter echoes into the window itself
+        (§7.1.2): the wire's editor showed the typing, and the
+        landed line prints here so the screen keeps it.
+        """
+
+        self._stage.write(line + "\n")
+
+    def _pointed(self, stanza: Stanza) -> str:
+        """A click on the stage, §10.3-spelled in units.
+
+        The canvas hears clicks in the stage's own logical units,
+        0-based; the header extension counts from (1,1), one step
+        over (§10.3.2).
+        """
+
+        if self._canvas_ident is None or stanza.get("window") != self._canvas_ident:
+            return PASS
+
+        typed = partials(stanza.get("partial")).get(self._canvas_ident, "")
+        heard = self._machine().deliver_click(
+            int(stanza.get("x", 0)) + 1, int(stanza.get("y", 0)) + 1, typed
+        )
+
+        return ADVANCE if heard else PASS
+
+    def _reshaped(self, kind: str, stanza: Stanza) -> str:
+        """An arrange re-boxes the canvas; a redraw owes the journal.
+
+        The stage's units never move with the display's box, so
+        the machine hears nothing of an arrange -- and a redraw
+        means the display cleared its rescaled canvas, so the
+        whole journal is owed (GlkOte: Redraw Events).
+        """
+
+        if kind == "redraw":
+            self._repaint_owed = True
+
+            return STAND
+
+        self._sized(stanza)
+
+        return STAND
+
+
+def fronted(version: int, resources: Resources | None = None) -> GlkOteFrontend:
+    """The face a story's screen model asks for.
+
+    The §8.8 stage for Version 6, the two-window picture for
+    every other version -- one seam, so the CLI and the web shell
+    route alike.
+    """
+
+    if version == STAGE_VERSION:
+        return StageFrontend(version, resources)
+
+    return GlkOteFrontend(version, resources)
+
+
 def serve(
     story: Story,
     frontend: GlkOteFrontend,
@@ -1085,6 +1624,97 @@ def _fronted(resources: Resources) -> Stanza | None:
         "height": cover.height,
         "alignment": "inlineup",
     }
+
+
+def _oped(paints: list[Paint], cell: int) -> list[Stanza]:
+    """Stage paints as the dialect's draw ops, 0-based on the canvas.
+
+    Text paints arrive one dressed character at a time; runs
+    along a row in the same dress coalesce into one op, the wire
+    staying light. Fills and shifts translate one to one, the
+    §8.3.1 codes becoming the shared palette's CSS.
+    """
+
+    ops: list[Stanza] = []
+
+    for paint in paints:
+        if isinstance(paint, TextPaint):
+            op = _texted(paint, cell)
+            last = ops[-1] if ops else None
+
+            if last is not None and _joins(last, op, cell):
+                last["text"] += op["text"]
+            else:
+                ops.append(op)
+        elif isinstance(paint, FillPaint):
+            ops.append(
+                {
+                    "special": "fill",
+                    "x": paint.column - 1,
+                    "y": paint.line - 1,
+                    "width": paint.width,
+                    "height": paint.height,
+                    "color": _css(paint.background) or _PAPER_DEFAULT,
+                }
+            )
+        else:
+            ops.append(
+                {
+                    "special": "shift",
+                    "x": paint.column - 1,
+                    "y": paint.line - 1,
+                    "width": paint.width,
+                    "height": paint.height,
+                    "rise": paint.rise,
+                }
+            )
+
+    return ops
+
+
+def _texted(paint: TextPaint, cell: int) -> Stanza:
+    """One placed character as a text op, reverse pre-swapped.
+
+    The dress travels resolved: ink and paper as CSS with the
+    stage's own defaults for code 1, reverse video already
+    swapped, bold and italic as the op's flags (§8.7.1).
+    """
+
+    held = paint.cell
+    ink = _css(held.foreground) or _INK_DEFAULT
+    paper = _css(held.background) or _PAPER_DEFAULT
+
+    if held.style & REVERSE:
+        ink, paper = paper, ink
+
+    op: Stanza = {
+        "special": "text",
+        "x": paint.column - 1,
+        "y": paint.line - 1,
+        "text": held.character,
+        "cell": [cell, cell],
+        "fg": ink,
+        "bg": paper,
+    }
+
+    if held.style & BOLD:
+        op["bold"] = True
+
+    if held.style & ITALIC:
+        op["italic"] = True
+
+    return op
+
+
+def _joins(last: Stanza, op: Stanza, cell: int) -> bool:
+    """Whether a fresh text op continues the last one's run."""
+
+    return (
+        last.get("special") == "text"
+        and op["y"] == last["y"]
+        and op["x"] == last["x"] + cell * len(last["text"])
+        and all(op.get(key) == last.get(key) for key in ("fg", "bg", "bold", "italic"))
+    )
 
 
 def _css(code: int) -> str | None:

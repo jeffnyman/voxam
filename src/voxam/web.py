@@ -29,6 +29,7 @@ from voxam.glulx.machine import Machine
 from voxam.glulx.story import Story
 from voxam.zmachine.glkote import ADVANCE, STAND
 from voxam.zmachine.glkote import GlkOteFrontend as ZGlkOteFrontend
+from voxam.zmachine.glkote import fronted as z_fronted
 from voxam.zmachine.machine import Machine as ZMachine
 from voxam.zmachine.story import Story as ZStory
 
@@ -190,7 +191,7 @@ class ZSession(Session):
         self._machine: ZMachine | None = None
 
     def _reborn(self, stanza: Stanza) -> Stanza:
-        self._frontend = ZGlkOteFrontend(self._story.header.version, self.resources)
+        self._frontend = z_fronted(self._story.header.version, self.resources)
 
         self._frontend.begin(stanza)
 
