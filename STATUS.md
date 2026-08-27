@@ -172,7 +172,8 @@ early games answer with altered text and *Beyond Zork* answers
 with its whole screen-model personality (§11.1.3, §16).
 
 And at a pygame window -- the `graphics` extra, opened with
-`--graphics` -- the Version 6 era plays illustrated. The §8.8
+`--graphics` -- the Version 6 era plays illustrated, and since
+`2.2` the same stage plays in the browser too (below). The §8.8
 screen is real there: eight placeable windows on one pixel grid,
 text at true pixel positions, margins that wrap prose around scene
 art, and a [MORE] that pauses a screenful in the window's own
@@ -518,9 +519,9 @@ reverse video worn as the page's own inverse. Zork I's status bar
 updates one changed row at a time; Bronze plays in a browser tab
 wearing its own title.
 
-What the faces do not yet carry, one named road: the Version 6
-stage -- "the stage stays at the painted glasses", the one
-refusal left, and it blocks no game the corpus plays.
+The one named road the faces did not yet carry -- the Version 6
+stage, "the stage stays at the painted glasses" -- stood as the
+last refusal until `2.2` travelled it (below).
 
 ### The road to 2.0, travelled
 
@@ -666,8 +667,8 @@ way, and the road mapped onto the interim releases:
 
 The residue ledger is a menu, not a debt; what gets taken from it
 is recorded here. The first helping shipped as `2.1` -- the whole
-roster below, leaving the Version 6 stage as the one named road
-anywhere in this document.
+roster below -- leaving the Version 6 stage as the one named
+road, which `2.2` then travelled.
 
 - **The channels ring on the wire.** Sound joins the dialect:
   GlkOte never grew a sound vocabulary, but both ends of this
@@ -758,3 +759,86 @@ anywhere in this document.
   has, and a blorb with none simply opens plain. Miss Gosling's
   Last Case opens in the browser with its own obituary, exactly
   as its author dressed it (Babel: The iFiction format).
+
+### The stage and the camera: 2.2
+
+The second helping took the last named road and then built the
+instrument that keeps such roads travelled.
+
+- **The stage dialect.** The protocol grew the words a §8.8
+  screen needs, both wire ends being ours: a graphics window may
+  declare itself `scaled` -- its drawable size a logical space
+  the display magnifies to fit, whole multiples for square
+  pixels -- and its draw ops grew `text` (placed, dressed,
+  stretched onto the cell grid) and `shift` (§8.8.3.6's scroll
+  as a canvas self-copy), with line input emplaced at the game's
+  own cursor, sized by its cell, written in its ink. A display
+  that never learned the dialect is refused loudly at the door.
+- **The stage face.** The same StageModel the pygame glass
+  paints from feeds the wire: its unit-positioned paints become
+  the dialect's ops on one canvas pinned to the art's own
+  coordinate space -- the Reso standard window, or MCGA's 320 by
+  200, the only default that draws no-Reso art true. A repaint
+  journal answers redraws and refreshes; every §8.8 window op,
+  the pictures, the clicks in units, the saves, and the timed
+  reads ride the seams the two-window face already built.
+- **The palettes bake.** A browser handed an adaptive stub's own
+  bytes paints its placeholder palette, so the wire plots
+  through the gallery's own APal-and-BPal dance and re-encodes
+  the plotted pixels -- a pure-stdlib PNG writer joining the
+  pure-stdlib reader -- with the standing chrome re-plotted when
+  a scene changes the Current Palette. §8.3.1's color -1 samples
+  the painted stage itself, walking the drawn ops newest-first,
+  the found color minted past the named codes exactly as the
+  glass mints its sampled pixels.
+- **The seven repairs.** The stage's first live rounds named
+  seven mechanisms, none of them in the stage: Enter had been
+  silently dead on every wire keystroke read since `1.8` (spelled
+  as a raw carriage return ZSCII refuses); a misaimed event --
+  one keystroke landing across the roster's swap -- killed the
+  whole session where a shrug was owed; focusing the canvas's
+  input scrolled the stage sideways; GlkOte's reused input field
+  kept the old duty's length cap and handlers; the model's
+  text-flow scroll swept its own margins, erasing Shogun's ship
+  at every face including the pygame glass, two eras unseen; the
+  web server sent no cache headers, so stale displays masqueraded
+  as unfixed bugs; and the editor wrote in the browser's default
+  black -- invisible ink on a dark stage. Each is fixed at its
+  proper layer, the model fix repairing the glass as well.
+- **The filmstrip.** Any recorded walk photographs at a real
+  face: `--shots` rides `--accept`, the glass runs driven -- no
+  `[MORE]` waits on a player -- and saves its own surface each
+  settled turn, headless under a dummy video driver if asked;
+  `--browser` shoots the web display instead, the walk driving
+  the very Session the browser face serves, both machines, the
+  frames rendered through the shipped display files by the
+  player's own browser in headless mode. A walk that breaks
+  mid-stride keeps every frame it earned and says where it broke.
+- **The strip diff.** `--strip-diff` compares two filmstrips
+  frame by frame through Voxam's own decoder -- pixel truth, not
+  file bytes -- naming each differing frame with its tally and
+  the verdict with where the strips part, exit codes on
+  RegTest's contract so a sweep can gate on it. A driven, seeded
+  walk reproduces to the pixel, which is the property the whole
+  instrument stands on.
+- **The dice are seeded.** The CI glulxercise battery now runs
+  under a pinned seed: its random section does statistical
+  checks, and an honest unseeded stream fails them by pure
+  chance every few dozen runs -- which twice read as a phantom
+  regression on a green change before the cause was named.
+- **A finding worth keeping.** Version 6 games can read their
+  presentation into their own randomness, so a walk recorded at
+  one face may diverge honestly at another -- Zork Zero's does,
+  at the same seed. Filmstrips therefore compare face to same
+  face, and the strips themselves are the per-face references a
+  regression sweep needs.
+
+What stays behind stays named, footpaths now rather than roads:
+the Glulx games at the filmstrip's glass camera, the walk's
+clicks at its web camera, `[MORE]` pacing on the wire's stage,
+*Zork Zero*'s `read_mouse` minigames, the pre-Blorb picture
+files on the wire, a period bitmap font for the stage's text,
+the blocking editor's own claim on the arrow keys, and the
+signed installers that remain a certificate rather than a
+branch. None of it blocks a game the corpus plays, and
+forty-four recordings hold the whole claim to replay.

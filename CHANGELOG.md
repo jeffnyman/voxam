@@ -1,3 +1,19 @@
+## v2.2.0 (2026-08-27)
+
+### Feat
+
+- **cli**: strip diff compares two filmstrips frame by frame through decoder (#295)
+- **cli**: the filmstrip photograph the web display through the browser (#294)
+- **cli**: add the filmstrip, an acceptance walk replays at a driven glass and photographs every settled turn (#293)
+- **zmachine**: whole-multiple scaling with chunky pixels for v6 (#291)
+- **zmachine**: adaptive palettes baked into the wire's pictures, the standing chrome re-dressed as scenes re-paint (#290)
+- **zmachine**: Version 6 screen plays as one scaled canvas (#289)
+- **glkote**: scaled canvases with placed text, sliding rectangles, and an emplaced editor, for a Version 6 screen (#288)
+
+### Fix
+
+- **zmachine**: support more of v6 in the browser (#292)
+
 ## v2.1.0 (2026-08-26)
 
 ### Feat
