@@ -602,13 +602,14 @@ def test_the_stage_editor_is_placed() -> None:
     page = Page()
 
     page.window(1, "graphics", 0, BOX, graphsize=(320, 200), scaled=True)
-    page.line_input(1, 40, cursor=(8, 184), cell=(8, 8))
+    page.line_input(1, 40, cursor=(8, 184), cell=(8, 8), ink="#c0ffee")
 
     entry = page.update()["input"][0]
 
     assert_that(entry["xpos"]).is_equal_to(8)
     assert_that(entry["ypos"]).is_equal_to(184)
     assert_that(entry["cell"]).is_equal_to([8, 8])
+    assert_that(entry["ink"]).is_equal_to("#c0ffee")
 
     blind = Page()
 

@@ -1285,12 +1285,15 @@ def test_a_session_serves_end_to_end() -> None:
     assert_that(garbled).is_false()
     assert_that(noise[-1]["message"]).contains("not JSON")
 
-    wrongful, spoken = served(
+    # A misaimed keystroke -- a char event while a line read
+    # stands -- is the blocking loop's shrug now, not a fatal
+    # wiring fault: the session answers the pass stanza and lives.
+    misaimed, spoken = served(
         [json.dumps(INIT), json.dumps({"type": "char", "gen": 1, "value": "A"})]
     )
 
-    assert_that(wrongful).is_false()
-    assert_that(spoken[-1]["message"]).contains("no key read suspended")
+    assert_that(misaimed).is_true()
+    assert_that(spoken[-1]).is_equal_to({"type": "pass"})
 
 
 STAGE_INIT = {
@@ -1650,6 +1653,7 @@ def test_the_stage_asks_and_echoes_the_line() -> None:
     assert_that(entry["xpos"]).is_equal_to(16)
     assert_that(entry["ypos"]).is_equal_to(0)
     assert_that(entry["cell"]).is_equal_to([8, 8])
+    assert_that(entry["ink"]).is_equal_to("#ffffff")
     assert_that(entry["terminators"]).is_equal_to(["func1"])
     assert_that(entry["mouse"]).is_true()
 
@@ -1771,6 +1775,72 @@ def test_the_stage_reshapes_and_replays() -> None:
 
     assert_that(told).contains_key("windows")
     assert_that([op.get("text") for op in stage_ops(told)]).contains("new")
+
+
+# A display can misaim one event across the roster's swap -- the
+# focus dance lands a keystroke in a field already replaced --
+# and every misaimed delivery answers the blocking loop's shrug,
+# never the machine's session-fatal wiring fault. Return,
+# meanwhile, spells as the newline ZSCII knows and finally lands.
+def test_misaimed_events_pass_and_return_lands(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine)
+
+    machine.run()
+
+    lined = frontend.render()["gen"]
+
+    astray = {"type": "char", "gen": lined, "value": "x"}
+
+    assert_that(frontend.accept(astray)).is_equal_to(PASS)
+
+    unasked = {"type": "specialresponse", "gen": lined, "response": "fileref_prompt"}
+
+    assert_that(frontend.accept(unasked)).is_equal_to(PASS)
+
+    keyed, pressed = opened(code_machine, READ_CHAR)
+
+    pressed.run()
+
+    asked = keyed.render()["gen"]
+
+    typed = {"type": "line", "gen": asked, "value": "go"}
+
+    assert_that(keyed.accept(typed)).is_equal_to(PASS)
+
+    entered = {"type": "char", "gen": asked, "value": "return"}
+
+    assert_that(keyed.accept(entered)).is_equal_to(ADVANCE)
+
+    pressed.run()
+
+    assert_that(pressed.memory.read_word(0x100)).is_equal_to(13)
+
+
+# The guards hold at the pointers too: a click with only a file
+# ask standing passes at the grid and at the stage alike.
+def test_misaimed_clicks_pass(code_machine: Callable[..., Machine]) -> None:
+    frontend, machine = opened(code_machine, SAVED)
+
+    frontend.split_window(1)
+    machine.run()
+
+    update = frontend.render()
+    grid = update["windows"][1]["id"]
+    poked = {"type": "mouse", "gen": update["gen"], "window": grid, "x": 1, "y": 1}
+
+    assert_that(frontend.accept(poked)).is_equal_to(PASS)
+
+    staged_front, saving = staged(SAVED)
+
+    saving.run()
+
+    told = staged_front.render()
+    canvas = told["windows"][0]["id"]
+    tapped = {"type": "mouse", "gen": told["gen"], "window": canvas, "x": 1, "y": 1}
+
+    assert_that(staged_front.accept(tapped)).is_equal_to(PASS)
 
 
 def adaptive_resources() -> Resources:

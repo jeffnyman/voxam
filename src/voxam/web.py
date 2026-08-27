@@ -334,6 +334,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(payload)))
+        # Without an explicit answer the browser caches assets
+        # heuristically, and a tab can keep serving last week's
+        # display against this week's server -- a mismatch that
+        # reads as mystery breakage, never as staleness.
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(payload)
 

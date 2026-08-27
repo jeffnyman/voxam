@@ -596,3 +596,24 @@ def test_erasing_minus_one_without_a_split_retiles_nothing() -> None:
 
     assert_that(stage.erase_window(-1)).is_equal_to((1, 1, 10, 20))
     assert_that(stage.rendered().strip()).is_equal_to("")
+
+
+# A window's own text-flow scroll sweeps only the region between
+# its margins: the margins' art stays anchored, which is how
+# Shogun keeps its ship beside fifty scrolled lines while §15's
+# explicit scroll_window still takes the whole rectangle
+# (§8.8.3.2.1).
+def test_flow_scrolls_leave_the_margins_anchored() -> None:
+    stage = staged()
+
+    stage.set_margins(0, 20, 60)
+    stage.write("\n".join(str(number) for number in range(1, 12)))
+    stage.paints()
+    stage.write("\n12")
+
+    paints = stage.paints()
+    shifts = [paint for paint in paints if isinstance(paint, ShiftPaint)]
+    exposed = [paint for paint in paints if isinstance(paint, FillPaint)]
+
+    assert_that(shifts).is_equal_to([ShiftPaint(1, 21, 100, 120, 10)])
+    assert_that(exposed).contains(FillPaint(91, 21, 10, 120, 1))
