@@ -1,4 +1,4 @@
-"""Reading PNG pictures with nothing but the standard library.
+"""Reading and writing PNG pictures with the standard library alone.
 
 Blorb resource files carry their pictures as PNG (Blorb: Picture
 Resource Chunks), and a cover picture is worth showing before play
@@ -167,6 +167,69 @@ def decode(
     )
 
     return Picture(width, height, rows, clear, alpha)
+
+
+def encoded(picture: Picture) -> bytes:
+    """Encode a Picture back into PNG bytes, its palette long applied.
+
+    The write-side twin of decode, for art whose true colours only
+    exist after the adaptive-palette dance: a display handed an
+    adaptive stub's own bytes would paint the placeholder palette,
+    so the plotted pixels travel instead (Blorb: The Adaptive
+    Palette Chunk). Truecolour when every pixel is opaque,
+    truecolour with alpha when any is not; every scanline rides
+    unfiltered ahead of one zlib stream (PNG 9.2, 11.2.4 IDAT).
+    """
+
+    translucent = picture.clear is not None or picture.alpha is not None
+    colour_type = TRUE_ALPHA if translucent else TRUECOLOUR
+    lines = bytearray()
+
+    for row in range(picture.height):
+        lines.append(FILTER_NONE)
+
+        for column in range(picture.width):
+            lines.extend(picture.rows[row][column])
+
+            if translucent:
+                lines.append(_opacity(picture, row, column))
+
+    # Width, height, one byte per channel, the colour type, and
+    # the format's sole compression, filter, and interlace methods
+    # -- all zero (PNG 11.2.1 IHDR).
+    header = struct.pack(
+        ">IIBBBBB", picture.width, picture.height, BYTE_DEPTH, colour_type, 0, 0, 0
+    )
+
+    return (
+        SIGNATURE
+        + _chunked(IHDR, header)
+        + _chunked(IDAT, zlib.compress(bytes(lines)))
+        + _chunked(IEND, b"")
+    )
+
+
+def _opacity(picture: Picture, row: int, column: int) -> int:
+    """One pixel's alpha: clear flags rule, alpha values refine."""
+
+    if picture.clear is not None and picture.clear[row][column]:
+        return 0
+
+    if picture.alpha is not None:
+        return picture.alpha[row][column]
+
+    return OPAQUE
+
+
+def _chunked(name: bytes, payload: bytes) -> bytes:
+    """One PNG chunk: length, name, payload, and its CRC (PNG 5.3)."""
+
+    return (
+        len(payload).to_bytes(LENGTH_SIZE, "big")
+        + name
+        + payload
+        + zlib.crc32(name + payload).to_bytes(CRC_SIZE, "big")
+    )
 
 
 def palette(data: bytes) -> tuple[tuple[int, int, int], ...]:

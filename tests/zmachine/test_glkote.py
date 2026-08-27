@@ -3,6 +3,7 @@
 import io
 import json
 import struct
+import zlib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -1302,8 +1303,30 @@ SAVED = bytes([0xBE, 0x00, 0xFF, 0x10, 0xBA])
 RESTORED = bytes([0xBE, 0x01, 0xFF, 0x10, 0xBA])
 
 
+def indexed_png(colours: tuple[tuple[int, int, int], ...]) -> bytes:
+    """A 2-by-1 indexed-colour PNG wearing the given palette."""
+
+    def piece(name: bytes, payload: bytes) -> bytes:
+        return (
+            len(payload).to_bytes(4, "big")
+            + name
+            + payload
+            + zlib.crc32(name + payload).to_bytes(4, "big")
+        )
+
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            piece(b"IHDR", struct.pack(">IIBBBBB", 2, 1, 8, 3, 0, 0, 0)),
+            piece(b"PLTE", b"".join(bytes(colour) for colour in colours)),
+            piece(b"IDAT", zlib.compress(b"\x00\x00\x01")),
+            piece(b"IEND", b""),
+        ]
+    )
+
+
 def staged_resources() -> Resources:
-    """A stage Blorb: a 64x48 PNG, a 24x16 Rect, Reso, release 9.
+    """A stage Blorb: a 2x1 PNG, a 24x16 Rect, Reso, release 9.
 
     The Reso standard window is 640x400 -- roomier than the MCGA
     default, proving the stage takes the art's own word -- and
@@ -1311,13 +1334,7 @@ def staged_resources() -> Resources:
     doubles even on the standard window itself.
     """
 
-    art = (
-        b"\x89PNG\r\n\x1a\n"
-        + (13).to_bytes(4, "big")
-        + b"IHDR"
-        + (64).to_bytes(4, "big")
-        + (48).to_bytes(4, "big")
-    )
+    art = indexed_png(((10, 20, 30), (40, 50, 60)))
     rect = (24).to_bytes(4, "big") + (16).to_bytes(4, "big")
     reln = chunk(b"RelN", (9).to_bytes(2, "big"))
     reso = chunk(
@@ -1415,6 +1432,9 @@ def test_the_stage_opens_at_the_arts_own_size() -> None:
     assert_that(bare.screen_lines).is_equal_to(25)
     assert_that(bare.picture_data(1)).is_none()
     assert_that(bare.picture_census()).is_equal_to((0, 0))
+
+    # A galleryless stage draws nothing, quietly.
+    bare.draw_picture(1, 1, 1)
 
     dressed = StageFrontend(6, staged_resources())
 
@@ -1545,6 +1565,9 @@ def test_the_stage_forwards_the_eight_window_ops() -> None:
 
     assert_that(frontend.cursor_position()).is_equal_to((1, 9))
 
+    # A single window's erasure homes it and keeps any chrome.
+    frontend.erase_window(2)
+
     ops = stage_ops(frontend.render(exit=True))
     placed = next(op for op in ops if op["special"] == "text")
     shift = next(op for op in ops if op["special"] == "shift")
@@ -1567,7 +1590,7 @@ def test_the_stage_draws_its_pictures() -> None:
     frontend, machine = staged(bytes([0xBA]), resources=staged_resources())
 
     assert_that(frontend.picture_census()).is_equal_to((2, 9))
-    assert_that(frontend.picture_data(1)).is_equal_to((96, 128))
+    assert_that(frontend.picture_data(1)).is_equal_to((2, 4))
     assert_that(frontend.picture_data(2)).is_equal_to((16, 24))
     assert_that(frontend.picture_data(7)).is_none()
 
@@ -1589,8 +1612,8 @@ def test_the_stage_draws_its_pictures() -> None:
     assert_that(image["image"]).is_equal_to(1)
     assert_that(image["url"]).starts_with("data:image/png;base64,")
     assert_that((image["x"], image["y"])).is_equal_to((20, 10))
-    assert_that((image["width"], image["height"])).is_equal_to((128, 96))
-    assert_that((papered["width"], papered["height"])).is_equal_to((128, 96))
+    assert_that((image["width"], image["height"])).is_equal_to((4, 2))
+    assert_that((papered["width"], papered["height"])).is_equal_to((4, 2))
 
 
 # A line read asks at the stage's own cursor with the editor's
@@ -1734,6 +1757,72 @@ def test_the_stage_reshapes_and_replays() -> None:
 
     assert_that(told).contains_key("windows")
     assert_that([op.get("text") for op in stage_ops(told)]).contains("new")
+
+
+def adaptive_resources() -> Resources:
+    """A stage Blorb in the APal style: two scenes and one chrome.
+
+    Pictures 1 and 3 are scenes wearing full palettes of their
+    own; picture 2 is the adaptive chrome the APal chunk names,
+    its stub palette waiting on whatever scene plots first.
+    """
+
+    scene = indexed_png(((200, 0, 0), (0, 200, 0)))
+    stub = indexed_png(((1, 2, 3), (4, 5, 6)))
+    other = indexed_png(((0, 0, 200), (200, 200, 0)))
+    apal = chunk(b"APal", (2).to_bytes(4, "big"))
+    wrapped = [chunk(b"PNG ", art) for art in (scene, stub, other)]
+    ridx_size = 8 + 4 + 3 * 12
+    offsets = []
+    at = 12 + ridx_size + len(apal)
+
+    for held in wrapped:
+        offsets.append(at)
+        at += len(held)
+
+    index = (3).to_bytes(4, "big") + b"".join(
+        b"Pict" + number.to_bytes(4, "big") + offset.to_bytes(4, "big")
+        for number, offset in zip((1, 2, 3), offsets, strict=True)
+    )
+
+    return Resources(
+        Blorb.parse(
+            chunk(
+                b"FORM",
+                b"IFRS" + chunk(b"RIdx", index) + apal + b"".join(wrapped),
+            )
+        )
+    )
+
+
+# The chrome wears the scene: a scene's plot absorbs its palette
+# and the standing chrome re-plots in the Current Palette -- new
+# bytes at the same position, the wire's spelling of Infocom's
+# hardware recolouring -- while encodings are remembered per
+# palette era and a whole-screen erasure takes the chrome along.
+def test_the_stage_chrome_wears_the_scene() -> None:
+    frontend, machine = staged(READ_CHAR, resources=adaptive_resources())
+
+    frontend.draw_picture(1, 1, 1)
+    frontend.draw_picture(2, 1, 9)
+    frontend.draw_picture(2, 1, 9)
+    frontend.draw_picture(3, 9, 1)
+    machine.run()
+
+    update = frontend.render()
+    images = [op for op in stage_ops(update) if op["special"] == "image"]
+
+    assert_that([op["image"] for op in images]).is_equal_to([1, 2, 2, 3, 2])
+    assert_that(images[1]["url"]).is_equal_to(images[2]["url"])
+    assert_that(images[4]["url"]).is_not_equal_to(images[1]["url"])
+    assert_that((images[4]["x"], images[4]["y"])).is_equal_to((8, 0))
+
+    frontend.erase_window(-1)
+    frontend.draw_picture(1, 1, 1)
+
+    told = [op for op in stage_ops(frontend.render()) if op["special"] == "image"]
+
+    assert_that([op["image"] for op in told]).is_equal_to([1])
 
 
 # A save asks for its file through the protocol's special input,

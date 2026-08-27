@@ -38,6 +38,7 @@ is refused loudly at the door.
 """
 
 import json
+from base64 import b64encode
 from collections.abc import Sequence
 from typing import Final, TextIO
 
@@ -64,6 +65,7 @@ from voxam.glkote import (
     write_stanza,
 )
 from voxam.glulx.glk.resources import Resources, pictured
+from voxam.png import encoded
 from voxam.screen import (
     BOLD,
     CURRENT_COLOUR,
@@ -1106,6 +1108,14 @@ class StageFrontend(GlkOteFrontend):
         self._ops: list[Stanza] = []
         self._journal: list[Stanza] = []
         self._repaint_owed = False
+        # The adaptive-palette seam: each picture's encoding
+        # remembered per palette era, the standing chrome's
+        # positions, and the last Current Palette serial seen --
+        # a change re-dresses the chrome (Blorb: The Adaptive
+        # Palette Chunk).
+        self._urls: dict[int, tuple[int, str]] = {}
+        self._chrome: dict[int, tuple[int, int]] = {}
+        self._palette_serial = 0
 
         # The opening curtain: the stage's own paper before any
         # game paints, the setcolor keeping a rescaled canvas's
@@ -1224,9 +1234,16 @@ class StageFrontend(GlkOteFrontend):
         return self._stage.cell(row, col).background
 
     def erase_window(self, window: int) -> None:
-        """§8.7.3: the stage fills; its paint carries the erasure."""
+        """§8.7.3: the stage fills; its paint carries the erasure.
+
+        A whole-screen erasure takes the drawn chrome with it, as
+        the glass's does -- nothing is left to re-dress.
+        """
 
         self._stage.erase_window(window)
+
+        if window < 0:
+            self._chrome.clear()
 
     def erase_line(self, pixels: int | None = None) -> None:
         """§8.7.3.2, the pixel-width form included."""
@@ -1319,14 +1336,25 @@ class StageFrontend(GlkOteFrontend):
 
         A Rect placard has no bytes to send and draws nothing --
         invisible by design, its size still spoken for layout.
+        The plotting runs through the gallery's adaptive-palette
+        seam: a scene's plot absorbs its palette, the chrome
+        wears the Current Palette -- and a plot that changes the
+        palette re-plots the standing chrome in it, the wire's
+        spelling of the hardware recolouring Infocom's
+        interpreters did (Blorb: The Adaptive Palette Chunk).
         """
+
+        gallery = self._gallery
+
+        if gallery is None:
+            return
 
         size = self.picture_data(number)
 
         if size is None:
             return
 
-        url = self._resources.pictured(number) if self._resources is not None else None
+        url = self._pictured(gallery, number)
 
         if url is None:
             return
@@ -1345,6 +1373,53 @@ class StageFrontend(GlkOteFrontend):
                 "height": height,
             }
         )
+
+        if number in gallery.adaptive:
+            self._chrome[number] = (line, column)
+
+        if gallery.serial != self._palette_serial:
+            self._palette_serial = gallery.serial
+
+            self._redressed()
+
+    def _pictured(self, gallery: Gallery, number: int) -> str | None:
+        """The picture plotted for the wire, its palette truly worn.
+
+        The gallery decodes through the adaptive dance and the
+        plotted pixels are re-encoded whole -- a display handed
+        an adaptive stub's own bytes would paint the placeholder
+        palette. Encodings are remembered per palette era, so the
+        chrome only pays its decode bill again when a scene
+        re-dresses it.
+        """
+
+        picture = gallery.picture(number)
+
+        if picture is None:
+            return None
+
+        era = gallery.serial if number in gallery.adaptive else -1
+        held = self._urls.get(number)
+
+        if held is None or held[0] != era:
+            spelled = b64encode(encoded(picture)).decode("ascii")
+            held = (era, f"data:image/png;base64,{spelled}")
+
+            self._urls[number] = held
+
+        return held[1]
+
+    def _redressed(self) -> None:
+        """Re-plot the standing chrome in the fresh Current Palette.
+
+        Infocom's interpreters recoloured the chrome through the
+        hardware palette without replotting; the wire has no
+        palette hardware, so the chrome replots -- the same
+        positions, the new dress.
+        """
+
+        for held, (line, column) in list(self._chrome.items()):
+            self.draw_picture(held, line, column)
 
     def erase_picture(self, number: int, line: int, column: int) -> None:
         """§15 erase_picture: the picture's rectangle, papered over."""
