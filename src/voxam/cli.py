@@ -439,6 +439,7 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
     glkote: bool,
     web: bool,
     port: int,
+    screen: bool = True,
 ) -> int:
     """Run one Å-machine story over a face.
 
@@ -484,7 +485,7 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
 
         return EXIT_OK if served else EXIT_UNUSABLE
 
-    played(story, seed=seed)
+    played(story, seed=seed, dressed=None if screen else False)
 
     return EXIT_OK
 
@@ -2201,6 +2202,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
                 glkote=glkote,
                 web=web,
                 port=port,
+                screen=screen,
             )
 
         story, blorb = _load_story(story_path, resources)

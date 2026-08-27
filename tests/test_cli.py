@@ -2645,12 +2645,19 @@ def test_aamachine_stories_are_recognized(
 
     played = []
     monkeypatch.setattr(
-        "voxam.cli.played", lambda held, seed: played.append((held, seed))
+        "voxam.cli.played",
+        lambda held, seed, dressed: played.append((held, seed, dressed)),
     )
 
     assert_that(main([str(story), "--seed", "9"])).is_equal_to(0)
     assert_that(played).is_length(1)
     assert_that(played[0][1]).is_equal_to(9)
+
+    # A bare run leaves the dress to the terminal's own honesty
+    # gate; --plain keeps the classic stream by name.
+    assert_that(played[0][2]).is_none()
+    assert_that(main([str(story), "--plain"])).is_equal_to(0)
+    assert_that(played[1][2]).is_false()
 
     census = main([str(story), "--decompose"])
 
