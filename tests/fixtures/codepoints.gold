@@ -1,0 +1,358 @@
+
+Codepoint Exercise
+SPACE/ENTER = next page
+B = back
+1-4 = set status bar height
+W = probe the wrap buffer
+Q = quit
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 1234hnnnnnnnnw34hbbq
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 
+
+U+00A0 [] no-break space
+U+00AB [«] left guillemet
+U+00BB [»] right guillemet
+U+00C0 [À] A grave
+U+00C2 [Â] A circumflex
+U+00C4 [Ä] A diaeresis
+U+00C5 [Å] A ring
+U+00C6 [Æ] AE ligature
+U+00C7 [Ç] C cedilla
+U+00C8 [È] E grave
+U+00C9 [É] E acute
+U+00CA [Ê] E circumflex
+U+00CB [Ë] E diaeresis
+U+00CE [Î] I circumflex
+U+00CF [Ï] I diaeresis
+U+00D4 [Ô] O circumflex> 
+
+U+00D6 [Ö] O diaeresis
+U+00D8 [Ø] O stroke
+U+00D9 [Ù] U grave
+U+00DB [Û] U circumflex
+U+00DC [Ü] U diaeresis
+U+00DF [ß] sharp s
+U+00E0 [à] a grave
+U+00E1 [á] a acute
+U+00E2 [â] a circumflex
+U+00E4 [ä] a diaeresis
+U+00E5 [å] a ring
+U+00E6 [æ] ae ligature
+U+00E7 [ç] c cedilla
+U+00E8 [è] e grave
+U+00E9 [é] e acute
+U+00EA [ê] e circumflex> 
+
+U+00EB [ë] e diaeresis
+U+00EE [î] i circumflex
+U+00EF [ï] i diaeresis
+U+00F1 [ñ] n tilde
+U+00F4 [ô] o circumflex
+U+00F6 [ö] o diaeresis
+U+00F8 [ø] o stroke
+U+00F9 [ù] u grave
+U+00FB [û] u circumflex
+U+00FC [ü] u diaeresis
+U+00FD [ý] y acute
+U+00FF [ÿ] y diaeresis
+U+0141 [Ł] L stroke
+U+0142 [ł] l stroke
+U+0152 [Œ] OE ligature
+U+0153 [œ] oe ligature> 
+
+U+0178 [Ÿ] Y diaeresis
+U+1E9E [ẞ] capital sharp s
+U+2010 [‐] hyphen
+U+2013 [–] en dash
+U+2014 [—] em dash
+U+2018 [‘] left single quote
+U+2019 [’] right single quote
+U+201C [“] left double quote
+U+201D [”] right double quote
+U+201E [„] low double quote
+U+2022 [•] bullet
+U+2026 […] ellipsis
+U+202F [ ] narrow no-break space
+U+2039 [‹] left single guillemet
+U+203A [›] right single guillemet
+U+20AC [€] euro sign> 
+
+Z-machine fallback set, in context:
+Dashes: an en–dash, an em—dash.
+Quotes: “double”, „low”, ‘single’.
+Bullet: • first • second • third.
+Ellipsis: wait… and then…
+Progress bars:
+[                                                                             ]
+[===================                                                          ]
+[=======================================                                      ]
+[=================================================================            ]
+[================================================================================================================================================================================================================================================================================================================]
+> 
+
+Line breaking. A run that breaks has
+lines ending in aa; one that holds
+together has every line ending in bb.
+U+00A0, should break:
+aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa
+bb aa bb aa bb
+(nbsp), currently degrades to breaking space:
+aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb
+aa bb aa bb aa bb
+U+202F, should hold:
+aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb aa bb
+aa bb aa bb aa bb> 
+
+Negative control. Every line below
+should show the unknown-character
+glyph (? on the Apple II, a solid
+box on the C64):
+U+00A9 [©] copyright sign
+U+00BF [¿] inverted question mark
+U+0100 [Ā] A macron
+U+0393 [Γ] Greek capital gamma
+U+2190 [←] leftwards arrow
+U+2264 [≤] less-than or equal
+U+2764 [❤] heavy black heart> 
+
+Fold straddling. A two-char expansion
+split across a fold must lose nothing.
+39-pad puts an expansion on col 40;
+79-pad puts one on col 80.
+No blank lines should appear.
+---
+Normal, 80 chars:
+12345678901234567890123456789012345678901234567890123456789012345678901234567890
+Word wrap at 40 chars:
+1234567890123456789012345678901234567890
+1234567890123456789012345678901234567890
+Em dash, 38-pad:
+12345678901234567890123456789012345678—123456789012345678901234567890123456789
+Ellipsis, 38-pad:
+123456789 123456789 123456789 12345678… 123456789 123456789 123456789 12345678
+Em dash, 39-pad:
+123456789012345678901234567890123456789—123456789012345678901234567890123456789
+Ellipsis, 39-pad:
+123456789 123456789 123456789 123456789… 123456789 123456789 123456789 12345678
+Em dash, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789—X
+Ellipsis, 79-pad:
+123456789 123456789 123456789 123456789 123456789 123456789 123456789
+123456789…X
+---
+Overlong words of expanding characters
+must hard-fold without corruption:
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß END
+ÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆ END
+---
+Transliterated space on the fold. It is
+laid down as an ordinary character, so
+if it wraps the next line starts with
+it (watch for an indented Z):
+NBSP, 39-pad:
+123456789012345678901234567890123456789 Z
+NNBS, 39-pad:
+123456789012345678901234567890123456789 Z
+NBSP, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789
+Z
+NNBS, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789 Z
+---
+Flowing paragraphs whose wrap point
+lands exactly after an em dash. No
+blank line may appear below:
+123456789 123456789 123456789 123456789 123456789 123456789 12345678 abcdefghij—
+zzz zzz zzz
+123456789 123456789 123456789 1 abcdef— qqq qqq qqq> 
+
+Negative control 2. Consecutive
+unknowns--each must become its
+own unknown-character glyph:
+Γ←❤
+©¿Ā≤
+Inside words:
+aaΓ←bb cc❤Ādd> 
+Alias probe: alpha beta pending
+gamma delta resume.
+'pending' must appear exactly once,
+and 'gamma delta resume.' must follow
+it on the same line.
+
+Negative control 2. Consecutive
+unknowns--each must become its
+own unknown-character glyph:
+Γ←❤
+©¿Ā≤
+Inside words:
+aaΓ←bb cc❤Ādd> 
+
+Negative control 2. Consecutive
+unknowns--each must become its
+own unknown-character glyph:
+Γ←❤
+©¿Ā≤
+Inside words:
+aaΓ←bb cc❤Ādd> 
+
+Negative control 2. Consecutive
+unknowns--each must become its
+own unknown-character glyph:
+Γ←❤
+©¿Ā≤
+Inside words:
+aaΓ←bb cc❤Ādd> 
+
+Negative control 2. Consecutive
+unknowns--each must become its
+own unknown-character glyph:
+Γ←❤
+©¿Ā≤
+Inside words:
+aaΓ←bb cc❤Ādd> 
+
+Fold straddling. A two-char expansion
+split across a fold must lose nothing.
+39-pad puts an expansion on col 40;
+79-pad puts one on col 80.
+No blank lines should appear.
+---
+Normal, 80 chars:
+12345678901234567890123456789012345678901234567890123456789012345678901234567890
+Word wrap at 40 chars:
+1234567890123456789012345678901234567890
+1234567890123456789012345678901234567890
+Em dash, 38-pad:
+12345678901234567890123456789012345678—123456789012345678901234567890123456789
+Ellipsis, 38-pad:
+123456789 123456789 123456789 12345678… 123456789 123456789 123456789 12345678
+Em dash, 39-pad:
+123456789012345678901234567890123456789—123456789012345678901234567890123456789
+Ellipsis, 39-pad:
+123456789 123456789 123456789 123456789… 123456789 123456789 123456789 12345678
+Em dash, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789—X
+Ellipsis, 79-pad:
+123456789 123456789 123456789 123456789 123456789 123456789 123456789
+123456789…X
+---
+Overlong words of expanding characters
+must hard-fold without corruption:
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß END
+ÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆ END
+---
+Transliterated space on the fold. It is
+laid down as an ordinary character, so
+if it wraps the next line starts with
+it (watch for an indented Z):
+NBSP, 39-pad:
+123456789012345678901234567890123456789 Z
+NNBS, 39-pad:
+123456789012345678901234567890123456789 Z
+NBSP, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789
+Z
+NNBS, 79-pad:
+1234567890123456789012345678901234567890123456789012345678901234567890123456789 Z
+---
+Flowing paragraphs whose wrap point
+lands exactly after an em dash. No
+blank line may appear below:
+123456789 123456789 123456789 123456789 123456789 123456789 12345678 abcdefghij—
+zzz zzz zzz
+123456789 123456789 123456789 1 abcdef— qqq qqq qqq> 
+
+Negative control. Every line below
+should show the unknown-character
+glyph (? on the Apple II, a solid
+box on the C64):
+U+00A9 [©] copyright sign
+U+00BF [¿] inverted question mark
+U+0100 [Ā] A macron
+U+0393 [Γ] Greek capital gamma
+U+2190 [←] leftwards arrow
+U+2264 [≤] less-than or equal
+U+2764 [❤] heavy black heart> 
+Done.

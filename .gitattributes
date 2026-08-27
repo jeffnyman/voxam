@@ -47,3 +47,11 @@
 *.qzl      binary
 *.sav      binary
 *.dat      binary
+
+# The Å-machine's stories and its reference-certification
+# fixtures: the golds and input scripts are byte-exact transcripts
+# (one even depends on its missing final newline), so the line
+# normalizer must never touch them.
+*.aastory  binary
+tests/fixtures/*.gold binary
+tests/fixtures/*.in   binary
