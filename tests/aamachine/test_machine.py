@@ -98,3 +98,19 @@ def test_an_unseeded_machine_still_runs() -> None:
     machine = Machine(story, PlainVoice(story))
 
     assert_that(machine.run()).is_equal_to("quit")
+
+
+# With a file-keeping voice the exercise declares SAVEFILE and
+# the whole transcript matches the reference engine's untouched
+# gold, feature lines and all. The exercise queries the features
+# without saving; the AASV round trip itself is certified by the
+# cloak walks in the terminal and saves tests.
+def test_the_exercise_with_saves_matches_the_full_gold() -> None:
+    story = fixed("aa-exercise")
+    voice = PlainVoice(story)
+    voice.has_saves = True
+    machine = Machine(story, voice, seed=1234)
+    machine.run()
+    voice.line()
+
+    assert_that(voice.told()).is_equal_to(golden("aa-exercise-saves"))

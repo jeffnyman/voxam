@@ -8,7 +8,10 @@ from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from voxam.aamachine.glkote import serve as serve_aamachine
 from voxam.aamachine.story import FORM_ID as AAM_FORM
+from voxam.aamachine.story import Story as AAMachineStory
+from voxam.aamachine.terminal import played
 from voxam.acceptance import (
     CLICK,
     DOUBLE_CLICK,
@@ -48,7 +51,7 @@ from voxam.regtest import parse_script, run_script
 from voxam.saves import FileSaveSlot
 from voxam.scribe import FileScribe
 from voxam.speaker import Speaker, open_sounddevice_stream
-from voxam.web import Face, GlulxSession, Session, ZSession, serve_web
+from voxam.web import AAMachineSession, Face, GlulxSession, Session, ZSession, serve_web
 from voxam.zmachine.glkote import fronted as z_fronted
 from voxam.zmachine.glkote import serve as serve_z
 from voxam.zmachine.instruction import Instruction
@@ -424,6 +427,66 @@ def _aamachine_story(story_path: Path) -> bool:
         opening = handle.read(12)
 
     return opening[:4] == IFF_FORM and opening[8:12] == AAM_FORM
+
+
+def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
+    story_path: Path,
+    *,
+    seed: int | None,
+    recorder: "Recorder | None",
+    trace: Path | None,
+    input_source: Callable[[], str] | None,
+    glkote: bool,
+    web: bool,
+    port: int,
+) -> int:
+    """Run one Å-machine story over a face.
+
+    The terminal is the default face -- the reference frontends'
+    own shape, certified against their transcripts -- with the
+    GlkOte wire and the browser behind their usual flags. The
+    session instruments the other machines carry are refused by
+    name rather than half-working: the acceptance driver and the
+    tracer are the third machine's later roads.
+    """
+
+    if recorder is not None or input_source is not None or trace is not None:
+        if recorder is not None:
+            recorder.close()
+
+        print(
+            "voxam: the Å-machine plays live for now -- the acceptance "
+            "driver and the tracer are later roads"
+        )
+
+        return EXIT_UNUSABLE
+
+    story = AAMachineStory(story_path.read_bytes())
+
+    if web:
+        caption = story.meta.get("title", story_path.stem)
+        session = AAMachineSession(story, GlkResources(None), seed=seed)
+
+        try:
+            return serve_web(Face(session, caption), port)
+        except OSError as error:
+            # The port would not bind, most likely: say so plainly.
+            print(f"voxam: {error}")
+
+            return EXIT_UNUSABLE
+
+    if glkote:
+        try:
+            served = serve_aamachine(story, sys.stdin, sys.stdout, seed=seed)
+        except OSError:
+            # The pipe itself failed: no stream is left to answer on.
+            return EXIT_UNUSABLE
+
+        return EXIT_OK if served else EXIT_UNUSABLE
+
+    played(story, seed=seed)
+
+    return EXIT_OK
 
 
 def _decompose_report(arguments: argparse.Namespace) -> int:
@@ -2129,15 +2192,16 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
             )
 
         if _aamachine_story(story_path):
-            # The third machine's stories are recognized before
-            # they can play: the reports read them today, and the
-            # machine itself is the 2.3 era's road.
-            print(
-                "voxam: an Å-machine story -- the third machine is the "
-                "road ahead; --decompose and --babel read it today"
+            return _run_aamachine(
+                story_path,
+                seed=seed,
+                recorder=recorder,
+                trace=trace,
+                input_source=input_source,
+                glkote=glkote,
+                web=web,
+                port=port,
             )
-
-            return EXIT_UNUSABLE
 
         story, blorb = _load_story(story_path, resources)
         witness, close_trace = _tracing(trace)

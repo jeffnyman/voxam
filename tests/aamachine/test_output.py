@@ -172,3 +172,13 @@ def test_a_zero_total_progress_bar_draws_empty() -> None:
     voice.progress(0, 0)
 
     assert_that(voice.told()).contains("[          ]")
+
+
+# At width zero -- the wire's shape -- forced spaces go out whole,
+# unclamped: the display owns the wrapping.
+def test_width_zero_never_clamps_spaces() -> None:
+    voice = PlainVoice(dressed(), width=0)
+    voice.say("x")
+    voice.spaces(5)
+
+    assert_that(voice.told()).is_equal_to("x     ")

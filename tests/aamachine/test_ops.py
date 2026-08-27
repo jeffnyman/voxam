@@ -1177,14 +1177,72 @@ def test_save_fails_without_a_file_keeper() -> None:
 
 # A voice that claims saves reaches the frontier report instead:
 # the savefile is a later rung, loudly.
-def test_save_with_a_file_keeper_is_the_frontier() -> None:
-    story = crafted(bytes([0x72]) + absolute(0) + QUIT)
-    voice = PlainVoice(story)
-    voice.has_saves = True
-    machine = Machine(story, voice)
+class KeepingVoice(PlainVoice):
+    """A voice keeping one savefile in memory, or refusing to."""
 
-    with pytest.raises(AAMachineError, match=r"later rung"):
-        machine.run()
+    has_saves = True
+
+    def __init__(self, story: Story, *, granting: bool = True) -> None:
+        super().__init__(story)
+
+        self.kept: bytes | None = None
+        self._granting = granting
+
+    def save(self, data: bytes) -> bool:
+        if not self._granting:
+            return False
+
+        self.kept = data
+
+        return True
+
+    def restore(self) -> bytes | None:
+        return self.kept
+
+
+def saving_story() -> Story:
+    """A story that saves, restores, and reports which path ran.
+
+    The save continues to print 1, a later restore lands at the
+    saved address to print 2, and a failed restore falls through
+    to print 3.
+    """
+
+    head = bytes([0x72])
+    landing = 1 + 1 + 3 + len(shown(0x4001)) + len(shown(0x4003)) + len(QUIT) + 2
+    body = (
+        head
+        + absolute(landing)
+        + shown(0x4001)
+        + bytes([0x70, 0x02])
+        + shown(0x4003)
+        + QUIT
+        + shown(0x4002)
+        + QUIT
+    )
+
+    return crafted(body)
+
+
+# A granted save continues, and the restore that follows revives
+# the kept file, landing at the address the save named.
+def test_a_kept_savefile_revives_at_its_landing() -> None:
+    story = saving_story()
+    voice = KeepingVoice(story)
+    machine = Machine(story, voice, seed=7)
+    machine.run()
+
+    assert_that(voice.told()).contains("1").contains("2").does_not_contain("3")
+
+
+# A refused save fails to the choice point.
+def test_a_refused_save_fails() -> None:
+    story = crafted(caught(bytes([0x72]) + absolute(0)))
+    voice = KeepingVoice(story, granting=False)
+    machine = Machine(story, voice, seed=7)
+    machine.run()
+
+    assert_that(voice.told()).contains("9")
 
 
 # RESTORE with no saves continues as a failed restore.
@@ -1194,15 +1252,24 @@ def test_restore_without_saves_continues() -> None:
     assert_that(spoken(story)).contains("5")
 
 
-# RESTORE with a file keeper reaches the frontier report.
-def test_restore_with_a_file_keeper_is_the_frontier() -> None:
-    story = crafted(bytes([0x70, 0x02]) + QUIT)
-    voice = PlainVoice(story)
-    voice.has_saves = True
-    machine = Machine(story, voice)
+# A restore with nothing kept, and one handed unreadable bytes,
+# both continue as failed restores.
+def test_an_empty_or_unreadable_restore_continues() -> None:
+    class HollowVoice(KeepingVoice):
+        def restore(self) -> bytes | None:
+            return None
 
-    with pytest.raises(AAMachineError, match=r"later rung"):
+    class CorruptVoice(KeepingVoice):
+        def restore(self) -> bytes | None:
+            return b"junk"
+
+    for shape in (HollowVoice, CorruptVoice):
+        story = saving_story()
+        voice = shape(story)
+        machine = Machine(story, voice, seed=7)
         machine.run()
+
+        assert_that(voice.told()).contains("1").contains("3")
 
 
 # UNDO with nothing kept and nothing pruned fails.
@@ -1717,3 +1784,27 @@ def test_vm_info_middle_selectors_answer_zero() -> None:
     story = crafted(main + QUIT)
 
     assert_that(spoken(story)).contains("0")
+
+
+# A restore revives the divs that were open at the save, entering
+# them again on the voice in order.
+def test_a_restore_reenters_the_open_divs() -> None:
+    head = bytes([0x66, 0x05, 0x72])
+    landing = 1 + len(head) + 3 + 1 + len(shown(0x4001)) + len(shown(0x4003)) + 4
+    body = (
+        head
+        + absolute(landing)
+        + bytes([0xE6])
+        + shown(0x4001)
+        + bytes([0x70, 0x02])
+        + shown(0x4003)
+        + QUIT
+        + shown(0x4002)
+        + QUIT
+    )
+    story = crafted(body)
+    voice = KeepingVoice(story)
+    machine = Machine(story, voice, seed=7)
+    machine.run()
+
+    assert_that(voice.told()).contains("1").contains("2").does_not_contain("3")
