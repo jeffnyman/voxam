@@ -39,7 +39,7 @@ from voxam.glulx.glk.terminal import TerminalFrontend
 from voxam.iff import Chunk, chunk, write_form
 from voxam.iff import chunk as iff_chunk
 from voxam.painter import ScreenFrontend, Terminal
-from voxam.png import SIGNATURE
+from voxam.png import SIGNATURE, Picture, encoded
 from voxam.speaker import Speaker, open_sounddevice_stream
 
 
@@ -329,6 +329,53 @@ def test_the_filmstrip_refusals(
 
     assert_that(unglassed).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("needs the graphics window")
+
+
+# The strip diff speaks RegTest's exit contract: zero for
+# identical strips, one where they part, two for a strip that
+# cannot be read -- and it needs no story, refuses one, and joins
+# the reports' pick-one family.
+def test_strip_diff_reports_and_exits(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    left = tmp_path / "a"
+    right = tmp_path / "b"
+
+    left.mkdir()
+    right.mkdir()
+
+    frame = encoded(Picture(1, 1, (((1, 2, 3),),)))
+    other = encoded(Picture(1, 1, (((9, 9, 9),),)))
+
+    (left / "turn-0000.png").write_bytes(frame)
+    (right / "turn-0000.png").write_bytes(frame)
+
+    twinned = main(["--strip-diff", str(left), str(right)])
+
+    assert_that(twinned).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("identical: 1 frames")
+
+    (right / "turn-0000.png").write_bytes(other)
+
+    departed = main(["--strip-diff", str(left), str(right)])
+
+    assert_that(departed).is_equal_to(1)
+    assert_that(capsys.readouterr().out).contains("the strips part at")
+
+    hollow = main(["--strip-diff", str(left), str(tmp_path / "hollow")])
+
+    assert_that(hollow).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("no frames")
+
+    storied = main(["story.z3", "--strip-diff", str(left), str(right)])
+
+    assert_that(storied).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("drop the story")
+
+    crowded = main(["--strip-diff", str(left), str(right), "--header"])
+
+    assert_that(crowded).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("pick one")
 
 
 # The web filmstrip shoots the wire itself: the walk drives the

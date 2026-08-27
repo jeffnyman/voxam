@@ -25,7 +25,7 @@ from voxam.errors import (
     PNGError,
     VoxamError,
 )
-from voxam.filmstrip import browsed, paged, shot, walked
+from voxam.filmstrip import browsed, paged, parted, shot, walked
 from voxam.frontend import Frontend, PlainFrontend
 from voxam.gallery import Gallery
 from voxam.glance import report as glance_report
@@ -179,6 +179,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="list a resource file's contents (Blorb) and exit",
     )
     parser.add_argument(
+        "--strip-diff",
+        nargs=2,
+        type=Path,
+        metavar=("LEFT", "RIGHT"),
+        help="compare two filmstrips frame by frame and exit",
+    )
+    parser.add_argument(
         "--extract",
         type=Path,
         nargs="?",
@@ -315,6 +322,7 @@ def _static_report(  # noqa: PLR0911 -- one verdict per report
             ("--listing", arguments.listing),
             ("--babel", arguments.babel),
             ("--decompose", arguments.decompose),
+            ("--strip-diff", arguments.strip_diff is not None),
         )
         if wanted
     ]
@@ -341,7 +349,39 @@ def _static_report(  # noqa: PLR0911 -- one verdict per report
     if arguments.decompose:
         return _decompose_report(arguments)
 
+    if arguments.strip_diff is not None:
+        return _strip_diff_report(arguments)
+
     return None
+
+
+def _strip_diff_report(arguments: argparse.Namespace) -> int:
+    """Compare two filmstrips; the exit code is RegTest's contract.
+
+    Zero for identical strips, one for strips that part -- the
+    verdict a CI step can gate on -- and the unusable two when a
+    strip cannot be read at all. The comparison needs no story:
+    the strips already hold everything a game showed.
+    """
+
+    if arguments.story is not None:
+        print("voxam: --strip-diff compares two strips; drop the story")
+
+        return EXIT_UNUSABLE
+
+    left, right = arguments.strip_diff
+
+    try:
+        lines, differs = parted(left, right)
+    except VoxamError as error:
+        print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    for line in lines:
+        print(f"voxam: {line}")
+
+    return EXIT_FAILED_CHECKS if differs else EXIT_OK
 
 
 def _only_reads(arguments: argparse.Namespace, flag: str) -> int | None:

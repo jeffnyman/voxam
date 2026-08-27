@@ -18,6 +18,7 @@ from pathlib import Path
 
 from voxam.errors import GlkOteError
 from voxam.glkote import Stanza
+from voxam.png import decode
 from voxam.web import Session
 from voxam.zmachine.glkote import ZSCII_KEYS
 
@@ -311,3 +312,105 @@ def shot(page: Path, directory: Path, marks: list[int], browser: Path) -> int:
             raise GlkOteError(msg)
 
     return len(marks)
+
+
+def parted(left: Path, right: Path) -> tuple[list[str], bool]:
+    """Compare two filmstrips frame by frame, our decoder ruling.
+
+    Same-named frames decode and compare pixel for pixel; frames
+    only one strip holds are named; and the verdict line says
+    where the strips part. The comparison belongs to the same
+    decoder the strips' pictures rode out on, so the diff answers
+    from pixel truth rather than file bytes -- two encoders'
+    identical screens compare equal.
+
+    Raises:
+        GlkOteError: For a strip holding no frames at all.
+        PNGError: For a frame the decoder cannot read.
+    """
+
+    held_left = _framed(left)
+    held_right = _framed(right)
+    lines: list[str] = []
+    first: str | None = None
+    differing = 0
+
+    lonely = sorted(set(held_left) ^ set(held_right))
+
+    for name in lonely:
+        side = left if name in held_left else right
+
+        lines.append(f"{name} stands only in {side}")
+
+    shared = sorted(set(held_left) & set(held_right))
+
+    for name in shared:
+        told = _differed(left / name, right / name)
+
+        if told is None:
+            continue
+
+        lines.append(told)
+
+        differing += 1
+
+        if first is None:
+            first = name
+
+    differs = bool(lonely) or differing > 0
+
+    if not differs:
+        lines.append(f"identical: {len(shared)} frames")
+    else:
+        start = first if first is not None else lonely[0]
+        tail = f", {len(lonely)} unshared" if lonely else ""
+
+        lines.append(
+            f"the strips part at {start}: {differing} of {len(shared)} "
+            f"shared frames differ{tail}"
+        )
+
+    return lines, differs
+
+
+def _differed(mine: Path, theirs: Path) -> str | None:
+    """How one frame pair differs, or None when it does not."""
+
+    one = decode(mine.read_bytes())
+    other = decode(theirs.read_bytes())
+
+    if (one.width, one.height) != (other.width, other.height):
+        return (
+            f"{mine.name} differs: {one.width}x{one.height} against "
+            f"{other.width}x{other.height}"
+        )
+
+    if one.rows == other.rows:
+        return None
+
+    changed = sum(
+        1
+        for row, other_row in zip(one.rows, other.rows, strict=True)
+        for pixel, other_pixel in zip(row, other_row, strict=True)
+        if pixel != other_pixel
+    )
+
+    return f"{mine.name} differs: {changed} of {one.width * one.height} pixels"
+
+
+def _framed(strip: Path) -> set[str]:
+    """The frame names a strip holds.
+
+    Raises:
+        GlkOteError: When the directory holds no frames -- an
+            empty comparison would answer identical, dishonestly.
+    """
+
+    names = {held.name for held in strip.glob("*.png")}
+
+    if not names:
+        msg = f"no frames at {strip}"
+
+        raise GlkOteError(msg)
+
+    return names

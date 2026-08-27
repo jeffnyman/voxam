@@ -8,8 +8,9 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import GlkOteError
-from voxam.filmstrip import browsed, paged, shot, walked
+from voxam.filmstrip import browsed, paged, parted, shot, walked
 from voxam.glulx.glk.resources import Resources
+from voxam.png import Picture, encoded
 from voxam.web import ZSession
 from voxam.zmachine.story import Story
 
@@ -174,3 +175,63 @@ def test_shots_launch_once_per_frame(
 
     with pytest.raises(GlkOteError, match="printed no frame"):
         shot(page, tmp_path / "hole", [1], tmp_path / "chrome.exe")
+
+
+def framed(
+    directory: Path, name: str, pixels: tuple[tuple[int, int, int], ...]
+) -> None:
+    """One encoded frame in a strip: our own encoder writes it."""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / name).write_bytes(encoded(Picture(len(pixels), 1, (pixels,))))
+
+
+# The diff answers from pixel truth: identical strips say so with
+# their count, a changed pixel names its frame and its tally, a
+# frame one strip lacks stands alone, sizes that disagree are
+# said, and the verdict line names where the strips part.
+def test_strips_part_where_their_pixels_do(tmp_path: Path) -> None:
+    left = tmp_path / "a"
+    right = tmp_path / "b"
+    same = ((1, 2, 3), (4, 5, 6))
+
+    framed(left, "turn-0000.png", same)
+    framed(right, "turn-0000.png", same)
+
+    lines, differs = parted(left, right)
+
+    assert_that(differs).is_false()
+    assert_that(lines[-1]).is_equal_to("identical: 1 frames")
+
+    framed(left, "turn-0001.png", same)
+    framed(right, "turn-0001.png", ((9, 9, 9), (4, 5, 6)))
+    framed(left, "turn-0002.png", same)
+
+    lines, differs = parted(left, right)
+
+    assert_that(differs).is_true()
+    assert_that(lines).contains("turn-0001.png differs: 1 of 2 pixels")
+    assert_that(str(lines)).contains("turn-0002.png stands only in")
+    assert_that(lines[-1]).contains("the strips part at turn-0001.png")
+    assert_that(lines[-1]).contains("1 of 2 shared frames differ, 1 unshared")
+
+    framed(right, "turn-0000.png", ((7, 7, 7), (4, 5, 6)))
+
+    lines, differs = parted(left, right)
+
+    assert_that(lines[-1]).contains("the strips part at turn-0000.png")
+    assert_that(lines[-1]).contains("2 of 2 shared frames differ")
+
+    wide = tmp_path / "wide"
+    narrow = tmp_path / "narrow"
+
+    framed(wide, "turn-0000.png", same)
+    framed(narrow, "turn-0000.png", ((1, 2, 3),))
+
+    lines, differs = parted(wide, narrow)
+
+    assert_that(differs).is_true()
+    assert_that(lines[0]).contains("2x1 against 1x1")
+
+    with pytest.raises(GlkOteError, match="no frames"):
+        parted(tmp_path / "hollow", left)
