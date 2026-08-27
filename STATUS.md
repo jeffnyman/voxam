@@ -1,7 +1,8 @@
 # VΘXΔM Status
 
 The claims ledger: what plays, what is certified, and what
-remains. The short version lives in the [README](README.md);
+remains. The short version lives in the [README](README.md), and
+the road here, told era by era, is [HISTORY.md](HISTORY.md);
 this is the long one, kept with the same rule the code keeps --
 nothing below is promised, only enforced.
 
@@ -61,7 +62,15 @@ witnesses too: Stefan Vogt's *Rabenstein* plays to its ending
 illustrated, the arc_image band following the story scene by
 scene, and Mathbrush's *The Impossible Stairs* -- compiled from
 Dialog -- replays through its menu-driven dialogue, proving the
-toolchain a new generation of story files is written in.
+toolchain a new generation of story files is written in. And
+the third machine has its witnesses in kind: *Cloak of
+Darkness* -- Roger Firth's reference game in Linus Åkesson's
+own Dialog port -- plays at the terminal, in the browser, and
+over the wire, its savefile written and revived mid-hook; and
+Daniel Stelzer's *Miss Gosling's Last Case* walks three hundred
+fifty-one commands deep, the whole mystery to its finale, with
+the transcript matching the reference engine's own byte for
+byte at the same seed.
 Forty-four recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
@@ -368,8 +377,8 @@ a second mouse event on Glulx -- Glk knows only clicks -- and
 `<double-click x y>` replays it on either machine.
 
 And the Treaty of Babel is aboard. Every story Voxam plays can
-be asked its IFID -- `--babel` speaks both machines and their
-blorbs -- computed by the treaty's own per-format rules: the
+be asked its IFID -- `--babel` speaks every machine and the
+blorbs besides -- computed by the treaty's own per-format rules: the
 `UUID://` brand scanned out of byte-accessible memory where
 modern Inform burned one in, gated by the treaty's own pre-2006
 serial rule; the human-readable legacy identities otherwise,
@@ -842,3 +851,69 @@ the blocking editor's own claim on the arrow keys, and the
 signed installers that remain a certificate rather than a
 branch. None of it blocks a game the corpus plays, and
 forty-four recordings hold the whole claim to replay.
+
+## The Å-machine: 2.3
+
+The third machine. Dialog compiles to the Å-machine the way
+Inform compiles to Glulx, and VΘXΔM now carries the whole of it
+-- the community fork's 1.0 specification, accepting every 0.x
+story the compilers of the world actually emit -- certified the
+strongest way an implementation can be: byte-identical against
+the reference engine's own transcripts.
+
+- **The story read at the door.** An `.aastory` is IFF -- form
+  AAVM, HEAD first -- and the reader verifies the header's
+  CRC-32 over the seven summed chunks before anything runs: a
+  story that lies about its checksum is refused by the numbers.
+  The optional IFID unwraps from its UUID dressing into
+  `--babel`, the census reads every chunk in `--decompose`, and
+  the META bibliography decodes through the story's own
+  character table -- which is how an author's Å survives the
+  trip.
+- **The speech.** WRIT's strings are Huffman-inspired
+  bitstreams walked by LANG's decoding tree, the escape in both
+  its historical shapes -- seven fixed bits before format 0.4, a
+  table-sized read after -- and the dictionary's words spell
+  through the same charset. String pointers shift home tiny,
+  short, and long.
+- **The engine.** A Prolog heart: unification with a trail,
+  choice and environment and stop frames on the main heap, the
+  aux stack and long-term storage with their serialization
+  formats, the input pipeline whole -- stop characters, the
+  word-endings decoder, the wordmaps -- and every opcode of the
+  instruction set dispatched, the runtime errors restarting at
+  the entry point with their numbers in R00, exactly as
+  specified.
+- **The certification.** Every battery the reference ships runs
+  in VΘXΔM's own test suite and matches the reference engine's
+  gold byte for byte at the same seed: aa-exercise (every
+  opcode, saves declared and all), *Miss Gosling's Last Case*
+  (a 351-command real-game walk), body_not_status (the 1.0
+  SET_BODY fork), and codepoints (the character set, the
+  keypress loop, the wrap buffer, the progress bars) -- with
+  *The Impossible Stairs* certified against its gold as a live
+  proof beside them. The dice are the reference's own linear
+  congruence, so a seeded VΘXΔM session and a seeded reference
+  session roll the same numbers forever.
+- **The faces.** The terminal is the default -- the certified
+  document discipline streamed live, the reference frontend's
+  own input drill -- and the wire carries the same certified
+  voice at width zero into one buffer window, the browser doing
+  the wrapping: `--glkote` serves it down the pipe, `--web`
+  puts it in a tab under the META title, and the desktop shell
+  plays it for free. The bibliography opens every face as the
+  doorway card.
+- **The savefile.** AASV written and revived: the story's own
+  HEAD copied byte for byte as the identity gate, the state
+  run-length encoded against INIT, the open divs re-entered on
+  revival. At the terminal a save asks for its name on the
+  spot; undo is aboard at every face, pruned at the reference's
+  own depth.
+
+The third machine's own footpaths, named: savefiles over the
+wire await the suspended file-wait the Z-Machine's saves ride;
+the status areas and LOOK's styling stay honestly unclaimed on
+every face, the reference terminal's own posture; the
+acceptance driver, the tracer, and the filmstrip do not speak
+`.aastory` yet; and the browser tab borrows the Glulx icon
+until the third machine earns its own mark.

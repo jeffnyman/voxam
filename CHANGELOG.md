@@ -1,3 +1,12 @@
+## v2.3.0 (2026-08-27)
+
+### Feat
+
+- **aamachine**: plays with the terminal and the wire as its faces, and the AASV savefile written and revived (#300)
+- **aamachine**: the engine with every opcode certified byte-identical against the reference on all five of its own test batteries (#299)
+- **aamachine**: WRIT's bitstreams walked through LANG's tree, the dictionary spelled, and string pointers shifted (#298)
+- **aamachine**: the third machine's stories are read and the AAVM form verified (#297)
+
 ## v2.2.0 (2026-08-27)
 
 ### Feat

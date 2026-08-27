@@ -4,7 +4,8 @@
 
 <p align="center">
   <em>A Specification-Accurate Z-Machine and Glulx Implementation</em><br />
-  <em>Early and Late Infocom + Modern Inform</em>
+  <em>Early and Late Infocom + Modern Inform</em><br />
+  <em>(+ Dialog w/ Å-machine + Arcturus)</em>
 </p>
 
 <p align="center">
@@ -34,6 +35,11 @@
 
 <p align="center">
   <a href="https://vscode.dev/github/jeffnyman/voxam"><img alt="Open with vscode" src="https://img.shields.io/static/v1?logo=visualstudiocode&label=&message=Open%20in%20Visual%20Studio%20Code&labelColor=2c2c32&color=007acc&logoColor=007acc"></a>
+  <br />
+</p>
+
+<p align="center">
+  <a href="#development"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions welcome"></a>
 </p>
 
 <p align="center">
@@ -42,19 +48,23 @@
 
 ---
 
-An interpreter for the Z-Machine and for Glulx, written in
-Python.
+An interpreter for the Z-Machine, for Glulx, and for the
+Å-machine, written in Python.
 
-The Z-Machine is the virtual machine Infocom designed in 1979 to run
-its text adventures, and which the interactive fiction community has
-used ever since. Voxam reads a compiled story file and executes it,
-with two guiding commitments: fidelity to the specifications --
-the [Z-Machine Standard](https://jeffnyman.github.io/z-machine-standard/)
-and the [Glulx](https://www.eblong.com/zarf/glulx/) and
-[Glk](https://www.eblong.com/zarf/glk/) specifications, every rule
-the interpreter enforces citing the section it came from -- and
-reproducibility, so that a recorded play session replays
-identically, forever.
+The Z-Machine is the virtual machine Infocom designed in 1979 to
+run its text adventures, and which the interactive fiction
+community has used ever since; Glulx is its modern successor, the
+target of today's Inform; and the Å-machine is what
+[Dialog](https://linusakesson.net/dialog/) compiles to, the
+newest of the three. VΘXΔM reads a compiled story file and
+executes it, with two guiding commitments: fidelity to the
+specifications (the
+[Z-Machine Standard](https://jeffnyman.github.io/z-machine-standard/),
+the [Glulx](https://www.eblong.com/zarf/glulx/) and
+[Glk](https://www.eblong.com/zarf/glk/), and the Å-machine's own,
+with every rule the interpreter enforces citing the section it
+came from) and reproducibility, so that a recorded play session
+replays identically, forever.
 
 VΘXΔM is developed against real games. The *Zork* trilogy,
 *Trinity*, *A Mind Forever Voyaging*, *The Hitchhiker's Guide to
@@ -71,8 +81,12 @@ pure keystrokes. Forty-four recordings verify those sessions
 end-to-end, their annotations doubling as an archaeology of where
 the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says
-"All tests passed." The full ledger lives in
-[STATUS.md](STATUS.md).
+"All tests passed." The Å-machine arrives certified harder still:
+every test battery its reference implementation ships replays
+under VΘXΔM byte-identical to the reference engine's own
+transcripts -- *Miss Gosling's Last Case* walked three hundred
+fifty-one commands to its finale among them. The full ledger
+lives in [STATUS.md](STATUS.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -80,8 +94,9 @@ them: *Adventure* answers at the terminal, and glulxercise says
 
 ## How to Play
 
-One command, several faces -- every face speaks both machines,
-and a story file is all any of them needs:
+One command, several faces: every face speaks the Z-Machine and
+Glulx, all but the pygame window speak the Å-machine too, and a
+story file is all any of them needs:
 
 - **At the terminal.** `voxam story.z5` -- with the `screen`
   extra installed, the painted display takes over: status line,
@@ -110,179 +125,34 @@ in [Playing stories](#playing-stories).
 
 ## Status
 
-Version `2.2`: the stage and the camera. Version 6 crosses the
-wire -- *Zork Zero*, *Arthur*, and *Shogun* play in a browser as
-one scaled canvas in the art's own 320 by 200, palettes baked
-true and the ship anchored in its margin while the text scrolls
-past -- and any recorded walk can now be photographed: `--shots`
-replays it at a real face and saves one frame per settled turn,
-at the pygame glass or through your own browser, while
-`--strip-diff` compares two filmstrips pixel by pixel with
-Voxam's own decoder. The road `2.1` left standing has been
-travelled.
+Version `2.3`: the third machine. VΘXΔM now plays the
+Å-machine -- the virtual machine [Dialog](https://linusakesson.net/dialog/)
+compiles to, Prolog heart and all -- at the terminal, over the
+GlkOte wire, in a browser tab, and in the desktop shell, with
+AASV savefiles written and revived and undo aboard everywhere.
+The claim is certified the strongest way an implementation can
+be: every test battery the reference implementation ships
+replays under VΘXΔM byte-identical to the reference engine's
+own transcripts, seeded dice included, from the opcode
+stress-test to a 351-command walk through a real mystery.
 
-The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
-handler, all eight story file versions play -- version 6
-illustrated at a pygame window, painted at a terminal, spoken
-aloud with the sound extra -- and everything is enforced in
-continuous integration rather than promised: a test suite at
-100% branch coverage, forty-four recorded playthroughs swept
-end-to-end, and the community's checkers held to their exact
-tallies, CZECH at four versions among them.
-
-The Glulx machine is `1.1`'s: every opcode the Glulx 3.1.3
-roster defines is dispatched -- the full Glk 0.7.6 dispatch layer
-behind the `glk` opcode, saves and undo in Quetzal, the
-allocation heap, the accelerated Inform veneer, IEEE-754 floats
-and doubles -- and the glulxercise checker certifies the whole of
-it in continuous integration: seventy sections, zero failures,
-"All tests passed." spoken through the same stdio session a
-player can pipe.
-
-The terminal glass and the grammar are `1.2`'s: a `.ulx` or
-`.gblorb` story plays on painted terminal glass -- the Glk window
-tree drawn whole, styles in terminal dress, timer events between
-keystrokes, and Glk sound through the same speaker the Z-Machine
-owns -- and the acceptance grammar spells every input any display
-can produce: raw keystrokes as the tokens Beyond Zork's menus
-always replayed through, and mouse clicks as `<click x y>`,
-recorded with their coordinates and replayed with the same.
-
-The third glass is `1.3`'s: `--graphics` opens a Glulx story in
-the pygame window, the same window every Z-Machine version plays
-in, one painted spine driving both Glk displays -- the window
-tree, buffers wrapped behind `[MORE]`, styles in the fitted
-faces, timers, and the Blorb's sound through the speaker.
-
-The senses are `1.4`'s: graphics windows as true pixel canvases,
-the gblorb's art drawn onto them scaled and clipped, the mouse
-landing in whichever armed grid or canvas it hit, hyperlinks in
-the reader's blue and selected by click -- and the acceptance
-grammar spelling every one of those inputs, recorded at the
-window and replayed anywhere.
-
-The treaty and the declaration are `1.5`'s: VΘXΔM claims Full
-Glulx, in the manner `1.0` claimed the Z-Machine -- glulxercise
-entire, the displays' claims all true where made, and an
-exclusion ledger of exactly two spec-sanctioned refusals with
-their reasons written down. And the Treaty of Babel is aboard:
-`--babel` reports any story's IFID by the treaty's own per-format
-rules, a blorb's iFiction record answers first with its
-bibliography beside it, and every game that can be named plays
-under its own name in the title bar -- modern games through their
-records, Infocom's whole catalog through a table of its 246 known
-releases.
-
-The protocol is `1.6`'s: VΘXΔM speaks GlkOte -- the display
-protocol of Lectrote and the modern web interpreters -- from the
-machine's side, the role RemGlk plays for the C interpreters. The
-machine learned to stand and wait: `glk_select` suspends instead
-of blocking, the host delivers the event, and execution steps on
-as though it never stopped. On that seam the protocol goes both
-ways: `--glkote` serves whole sessions as JSON lines on stdin and
-stdout -- the wire the desktop shell drives -- and `--web` puts
-the same conversation in a browser tab, the vendored GlkOte
-display served from inside the package, one POST per turn, the
-story's title on the tab and the machine's own icon beside it,
-the gblorb's art inlined in the updates themselves as `data:`
-urls -- any GlkOte display draws it with no Blorb of its own --
-and a page reload starting the story over.
-
-And the protocol faces speak
-[arc_image](https://github.com/8bitgames/arcturus), the picture
-band of Stefan Vogt's Arcturus games: a conformant z5 or z8 whose
-sidecar Blorb carries art plays with the band hung above the whole
-screen, the picture following the story scene by scene -- in the
-browser and the desktop shell alike, while every other face plays
-the same story honestly as text, exactly as the format promises.
-The private-use opcode range it rides in now skips unclaimed
-everywhere (§14.2), so any interpreter extension passes through
-VΘXΔM quietly.
-
-The protocol made whole is `1.7`'s: a game's ask for a save file
-suspends the machine mid-Glk-call -- a second kind of standing
-down, the call's own result parked for the player's answer -- and
-travels as the protocol's special input, so `save` in a browser
-tab writes a real Quetzal file beside the story; and the player's
-half-typed command rides every event, so a timer printing
-mid-word no longer eats it.
-
-New in `1.8`, the Z-Machine joins: the reads learned the same
-standing-down the selects learned -- the whole post-input tail
-parked, lines and keystrokes and even the §15 timer's interrupts
-delivered from outside -- and the §8 screen model feeds the same
-machine-neutral serializer the Glk tree feeds: the upper window
-and the status line travel as the protocol's grid, the lower
-window as its flowing buffer, the styles in protocol dress. So
-`--glkote` and `--web` now speak both machines: Zork I's inverse
-status bar updates one changed row at a time, Bronze plays in a
-browser tab wearing its own title, and the one refusal `1.8`
-left honest -- the Version 6 stage at the painted glasses --
-stood until `2.2` retired it.
-
-The desktop shell is `1.9`'s: a
-[Tauri](https://tauri.app/) webview wearing the same GlkOte
-display, driving `voxam --glkote` down a pipe -- native menus for
-opening and restarting, the Story menu claiming a §11.1.3
-platform and the Tandy bit, the Display menu dressing the page in
-type, size, ink, and measure, and every story that can be named
-wearing its Babel title on the bar. Its installers ride the
-GitHub release beside the wheel, three platforms, one version
-stamped everywhere. And the displays kept their honesty: the
-protocol grid wears its margins so status rows draw whole, the
-pygame glass presents on the frame's own cadence -- Zugzwang's
-chessboard, near a thousand writes a turn, snaps into place --
-and the browser tab wears the machine's own icon.
-
-And `2.0` completes the era. The Z-Machine's saves stand down
-the way its reads do, so a Zork saved in the browser or the
-shell is a real Quetzal on disk. The §10.5.2.1 terminating
-characters and §10.3's mouse ride the wire -- a function key
-ends a read, a click lands with real coordinates -- which makes
-*Beyond Zork* playable in a browser tab. Text buffers claim
-their pictures on the protocol faces, margins and flow breaks
-whole, under the display's own graphics grant -- *Sensory Jam*'s
-ornate drop cap renders in the shell, apology withdrawn -- and
-the Blorb's cover stands at the top of the story's text, so
-*Violet*'s writing-day art opens the session it belongs to.
-
-And `2.1` sings what `2.0` declared. Sound joins the wire in
-VΘXΔM's own dialect -- AIFF re-wrapped as WAVE and played by the
-page's own Web Audio, Glk channels with real fades, §9's
-end-of-sound routines fired by the display's finish reports --
-so *Sensory Jam*'s gong rings in a browser and *The Lurking
-Horror*'s dream chant swells through its crescendo there, on the
-Loop chunk's own say-so. The §8.3 colors ride as per-span ink
-with the window's own paper, one palette shared with the pygame
-glass, which is *Photopia* with its scenes bled to the edge; the
-quote box stands at the turn's high water, so its question gets
-asked; a display that lost its picture may ask for everything
-back with the refresh event, and gets it. Beside the wire,
-`--decompose` reads any resource file apart -- every chunk told
-in Voxam's own measurements, every resource freed as the file
-its bytes already are -- and the iFiction card greets the player
-the way WinFrotz's little window does, in the browser, the
-shell, and at the painted terminal's banner. It left one named
-road standing: the Version 6 stage at the painted glasses.
-
-New in `2.2`, the stage crosses the wire and brings a camera
-home. The dialect grew the words a §8.8 screen needs -- scaled
-canvases, placed text, sliding rectangles, an editor emplaced at
-the game's own cursor -- and the same StageModel the pygame
-glass paints from feeds them, pinned to the art's own coordinate
-space, the adaptive palettes baked into the pictures themselves.
-The repairs that followed ran deep: Enter had been silently dead
-on every wire keystroke read since `1.8`, a misaimed event could
-kill a session, and the model's text-flow scroll swept its own
-margins -- Shogun's ship erased by its scrolling text at every
-face, the pygame glass included -- each named, fixed, and
-tested. And the filmstrip turned the hunt into an instrument:
-driven walks photograph at the glass or through a headless
-browser, strips compare frame by frame, and a seeded walk
-reproduces to the pixel.
+The standing claims beneath it, each enforced in continuous
+integration rather than promised: the Z-Machine is complete --
+every opcode §14 defines, all eight story file versions, version
+6 illustrated -- and held to the community's checkers at their
+exact tallies; Full Glulx is declared, glulxercise entire, with
+an exclusion ledger of exactly two spec-sanctioned refusals;
+GlkOte is spoken from the machine's side, so the stories play
+at the terminal, the pygame window, the browser, the desktop
+shell, and down a stdio wire, sound and art and the Version 6
+stage included; the Treaty of Babel names every story that can
+be named; and a seeded session replays identically, forever --
+forty-four recorded playthroughs and a test suite at 100% branch
+coverage hold the whole of it.
 
 The full ledger -- what plays, what is certified, what remains --
-lives in [STATUS.md](STATUS.md).
+lives in [STATUS.md](STATUS.md), and the road here, told era by
+era, is [HISTORY.md](HISTORY.md).
 
 ## Installation
 
@@ -376,10 +246,31 @@ own prompt and writes the Quetzal file beside the story, where
 `--glkote` speaks the same protocol as JSON lines on stdin and
 stdout -- one update stanza out, one event stanza in -- which is
 the seam any GlkOte-speaking host drives down a pipe. Both faces
-speak both machines: a `.z3` through `.z8` plays beside a `.ulx`
-or `.gblorb`, status line and split windows in the protocol's own
-grid, and the Version 6 stage as one scaled canvas in the art's
-own coordinates.
+speak the elder machines whole: a `.z3` through `.z8` plays
+beside a `.ulx` or `.gblorb`, status line and split windows in
+the protocol's own grid, and the Version 6 stage as one scaled
+canvas in the art's own coordinates.
+
+Å-machine stories play the same way -- an `.aastory` is
+recognized by its own form and verified by its own checksum
+before it runs:
+
+```bash
+voxam path/to/story.aastory
+```
+
+The terminal is the third machine's home face, wrapped at your
+terminal's own width the way the reference frontends wrap;
+typing `save` asks for a filename on the spot and writes an
+AASV file any conforming interpreter can revive, `restore`
+reads one back with the story's own header as the identity
+gate, and undo is aboard without asking. `--web` and `--glkote`
+carry the same story to a browser tab or down the wire -- the
+desktop shell plays it through that same seam -- with the
+story's META bibliography opening the page as its card and its
+title riding the tab. The dice are the reference
+implementation's own, so a seeded VΘXΔM session and a seeded
+reference session agree forever.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.
@@ -429,7 +320,9 @@ where one is burned in, the human-readable legacy identities like
 `ZCODE-88-840726` from the header numbers otherwise -- and, when
 a blorb carries an iFiction record, the record's IFID first with
 its title, author, and headline beside it. Unlike the Z-Machine's
-own reports, this one speaks both machines:
+own reports, this one speaks all three machines -- an
+`.aastory`'s embedded IFID unwraps from the header where one is
+burned in:
 
 ```bash
 voxam --babel path/to/story.gblorb
@@ -440,7 +333,9 @@ record or the Infocom catalog knows plays under its own title, in
 the terminal's title bar and the pygame window's alike.
 
 And `--decompose` reads a resource file apart -- a `.zblorb`,
-`.gblorb`, `.blb`, or `.blorb`, packaged story or sidecar alike:
+`.gblorb`, `.blb`, or `.blorb`, packaged story or sidecar alike,
+and an `.aastory` census in the same dress, its header's claims
+and its dictionary's word count read from the chunks themselves:
 
 ```bash
 voxam --decompose story.zblorb
@@ -750,7 +645,11 @@ says where it broke, and strips compare face-to-same-face.
 
 ## Development
 
-Working on VΘXΔM itself needs
+Contributions are welcome -- an
+[issue](https://github.com/jeffnyman/voxam/issues) is the front
+door, whether it carries a bug, a question, or a pull request's
+opening thought, and everything below is the contributor's
+setup. Working on VΘXΔM itself needs
 [uv](https://docs.astral.sh/uv/) for dependency and environment
 management:
 
