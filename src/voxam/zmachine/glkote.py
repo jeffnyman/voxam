@@ -101,7 +101,10 @@ ZSCII_KEYS = {
     "down": chr(130),
     "left": chr(131),
     "right": chr(132),
-    "return": chr(13),
+    # Return spells as the newline ZSCII knows, not a raw carriage
+    # return -- chr(13) falls through every char_to_zscii branch
+    # and is refused, leaving Enter silently dead at the machine.
+    "return": "\n",
     "delete": chr(8),
     "escape": chr(27),
     "func1": chr(133),
@@ -885,20 +888,7 @@ class GlkOteFrontend(PlainFrontend):
             return PASS
 
         if kind == "line":
-            line = str(stanza.get("value", ""))
-            terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
-
-            # The machine never echoes: the display owes the typed
-            # line and its newline -- but only a return-ended read
-            # prints its return (§15 read). A terminator-ended
-            # line stays uncommitted, ready for the preloaded
-            # re-read Beyond Zork answers one with.
-            if not terminator:
-                self._echoed(line)
-
-            self._machine().deliver_line(line, terminator)
-
-            return ADVANCE
+            return self._lined(stanza)
 
         if kind == "char":
             return self._keyed(stanza)
@@ -925,6 +915,48 @@ class GlkOteFrontend(PlainFrontend):
 
         self._runs.append(("input", 0, line + "\n"))
 
+    def _lined(self, stanza: Stanza) -> str:
+        """A typed line to the machine, echoed first.
+
+        A line with no line read standing passes: a display can
+        misaim one event across the roster's swap -- a keystroke
+        landing in a field already replaced -- and a misaimed
+        delivery is the blocking loop's shrug, never a
+        session-fatal wiring fault.
+        """
+
+        if self._reading("line") is None:
+            return PASS
+
+        line = str(stanza.get("value", ""))
+        terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
+
+        # The machine never echoes: the display owes the typed
+        # line and its newline -- but only a return-ended read
+        # prints its return (§15 read). A terminator-ended line
+        # stays uncommitted, ready for the preloaded re-read
+        # Beyond Zork answers one with.
+        if not terminator:
+            self._echoed(line)
+
+        self._machine().deliver_line(line, terminator)
+
+        return ADVANCE
+
+    def _reading(self, wants: str) -> Reading | None:
+        """The standing read of this kind, or None.
+
+        The guard that keeps a misaimed delivery from reaching
+        the machine's loud wiring-fault refusals.
+        """
+
+        waiting = self._machine().waiting
+
+        if isinstance(waiting, Reading) and waiting.wants == wants:
+            return waiting
+
+        return None
+
     def _answered(self, stanza: Stanza) -> str:
         """The player's file name, or not, to the suspended ask.
 
@@ -935,6 +967,10 @@ class GlkOteFrontend(PlainFrontend):
         """
 
         if stanza.get("response") != "fileref_prompt":
+            return PASS
+
+        if not isinstance(self._machine().waiting, Filing):
+            # No file ask stands: the misaimed-event shrug.
             return PASS
 
         value = stanza.get("value")
@@ -985,6 +1021,12 @@ class GlkOteFrontend(PlainFrontend):
         if self._grid_ident is None or stanza.get("window") != self._grid_ident:
             return PASS
 
+        if not isinstance(self._machine().waiting, Reading):
+            # No read stands to hear a click: the misaimed-event
+            # shrug -- deliver_click's own False covers a standing
+            # read that cannot hear one.
+            return PASS
+
         typed = partials(stanza.get("partial")).get(_BUFFER, "")
         heard = self._machine().deliver_click(
             int(stanza.get("x", 0)) + 1, int(stanza.get("y", 0)) + 1, typed
@@ -993,7 +1035,14 @@ class GlkOteFrontend(PlainFrontend):
         return ADVANCE if heard else PASS
 
     def _keyed(self, stanza: Stanza) -> str:
-        """One keystroke to the machine, §3.8-spelled."""
+        """One keystroke to the machine, §3.8-spelled.
+
+        A keystroke with no key read standing passes -- the
+        misaimed-event shrug the line branch explains.
+        """
+
+        if self._reading("key") is None:
+            return PASS
 
         value = stanza.get("value", "")
 
@@ -1536,6 +1585,10 @@ class StageFrontend(GlkOteFrontend):
                     ),
                     cursor=(column - 1, line - 1),
                     cell=(self.font_width, self.font_height),
+                    # The editor writes in the window's own ink --
+                    # without it the field wears the browser's
+                    # default black, invisible on a dark stage.
+                    ink=_coloured(self._stage.foreground, self._minted, _INK_DEFAULT),
                     mouse=SINGLE_CLICK in waiting.terminators,
                 )
             else:
@@ -1593,6 +1646,11 @@ class StageFrontend(GlkOteFrontend):
         """
 
         if self._canvas_ident is None or stanza.get("window") != self._canvas_ident:
+            return PASS
+
+        if not isinstance(self._machine().waiting, Reading):
+            # No read stands to hear a click: the misaimed-event
+            # shrug, as at the grid.
             return PASS
 
         typed = partials(stanza.get("partial")).get(self._canvas_ident, "")

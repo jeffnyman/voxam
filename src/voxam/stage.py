@@ -207,6 +207,12 @@ class StageModel:
 
         return self._windows[self._selected].background
 
+    @property
+    def foreground(self) -> int:
+        """The selected window's §8.3.1 foreground colour code."""
+
+        return self._windows[self._selected].foreground
+
     # --- geometry, from units to the cell grid ---
 
     def _first_row(self, window: _Window) -> int:
@@ -901,21 +907,28 @@ class StageModel:
                 first_row + row_count - 1, column, self._blank(window.background)
             )
 
+        # Only the flowed region between the margins scrolls: the
+        # margins keep their art -- Shogun anchors its ship in a
+        # right margin while the text beside it scrolls fifty
+        # times, which is only possible if the reference
+        # interpreters left the margins unswept (§8.8.3.2.1).
+        flowed = self._flowed_width(window, column_count * self._font_width)
+
         self._paints.append(
             ShiftPaint(
                 window.y,
-                window.x,
+                window.x + window.left,
                 row_count * self._font_height,
-                column_count * self._font_width,
+                flowed,
                 self._font_height,
             )
         )
         self._paints.append(
             FillPaint(
                 window.y + (row_count - 1) * self._font_height,
-                window.x,
+                window.x + window.left,
                 self._font_height,
-                column_count * self._font_width,
+                flowed,
                 window.background,
             )
         )
@@ -932,24 +945,40 @@ class StageModel:
         for column in range(first_column, first_column + column_count):
             self._paint(first_row, column, self._blank(window.background))
 
+        # The downward twin keeps its margins too (§8.8.3.2.1).
+        flowed = self._flowed_width(window, column_count * self._font_width)
+
         self._paints.append(
             ShiftPaint(
                 window.y,
-                window.x,
+                window.x + window.left,
                 row_count * self._font_height,
-                column_count * self._font_width,
+                flowed,
                 -self._font_height,
             )
         )
         self._paints.append(
             FillPaint(
                 window.y,
-                window.x,
+                window.x + window.left,
                 self._font_height,
-                column_count * self._font_width,
+                flowed,
                 window.background,
             )
         )
+
+    def _flowed_width(self, window: _Window, painted: int) -> int:
+        """The scrolled region's width: between the margins, clipped.
+
+        A window without margins scrolls its whole painted width,
+        exactly as before; one with margins scrolls only where
+        text flows, leaving the margins' art anchored
+        (§8.8.3.2.1).
+        """
+
+        between = window.width - window.left - window.right
+
+        return max(min(between, painted), 0)
 
     def _blank_rows(self, first: int, last: int, background: int) -> None:
         """Blank whole screen rows to a background colour."""

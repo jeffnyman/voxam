@@ -851,7 +851,8 @@ function glkote_update(arg) {
     if (newinputwin) {
         const win = windowdic.get(newinputwin);
         if (win.inputel) {
-            win.inputel.focus();
+            /* VOXAM: scroll-free on a canvas. */
+            voxam_focus(win);
         }
     }
 
@@ -1600,6 +1601,36 @@ function accept_inputset(arg) {
             win.needscroll = true;
         }
 
+        /* VOXAM: the stage churns one reused field between char
+           and line duty, which stock reuse never faced. A reused
+           field must take the new duty's length cap -- a
+           lingering maxlength of one swallows every keystroke and
+           the prompt reads as dead -- and shed the old duty's
+           residue, though a field kept on the same duty holds its
+           value: a mid-typing regeneration must not eat the line.
+           Handlers rebind to the new duty too, or Enter submits
+           nothing. */
+        inputel.attr('maxlength', maxlen);
+        if (!newinputel && inputel.data('voxamduty') != argi.type) {
+            inputel.val('');
+            inputel.off('keypress keydown input');
+            if (argi.type == 'line') {
+                inputel.on('keypress', evhan_input_keypress);
+                inputel.on('keydown', evhan_input_keydown);
+                win.terminators = {};
+                if (argi.terminators) {
+                    for (let ix=0; ix<argi.terminators.length; ix++)
+                        win.terminators[argi.terminators[ix]] = true;
+                }
+            }
+            else {
+                inputel.on('keypress', evhan_input_char_keypress);
+                inputel.on('keydown', evhan_input_char_keydown);
+                inputel.on('input', evhan_input_char_input);
+            }
+        }
+        inputel.data('voxamduty', argi.type);
+
         if (win.type == 'grid') {
             const lineel = $('#'+dom_prefix+'win'+win.id+'_ln'+argi.ypos, dom_context);
             if (!lineel.length) {
@@ -1640,12 +1671,23 @@ function accept_inputset(arg) {
                 const cellheight = argi.cell[1] * scale;
                 const xpos = canpos.left + Math.round((argi.xpos || 0) * scale);
                 const ypos = canpos.top + Math.round((argi.ypos || 0) * scale);
+                /* The field wears the window's own ink: without it
+                   the browser's default black writes invisibly on
+                   a dark stage. The chrome stays the game's own --
+                   transparent ground, no border. */
+                const ink = argi.ink || '#ffffff';
                 inputel.css({ position: 'absolute',
                               left: xpos+'px', top: ypos+'px',
                               width: Math.round(maxlen * cellwidth)+'px',
                               height: Math.round(cellheight)+'px',
                               'font-size': Math.round(cellheight * 0.75)+'px',
-                              'font-family': 'monospace' });
+                              'font-family': 'monospace',
+                              'color': ink,
+                              'caret-color': ink,
+                              'background': 'transparent',
+                              'border': 'none',
+                              'outline': 'none',
+                              'padding': '0' });
             }
             else {
                 inputel.css({ position: 'absolute',
@@ -1826,7 +1868,7 @@ function readjust_paging_focus(canfocus) {
         if (newinputwin) {
             const win = windowdic.get(newinputwin);
             if (win.inputel) {
-                win.inputel.focus();
+                voxam_focus(win); /* VOXAM: scroll-free on a canvas. */
             }
         }
     }
@@ -2132,6 +2174,23 @@ function insert_text_detecting(el, val) {
 
     /* Fall-through case. Just add the text. */
     el.append(document.createTextNode(val));
+}
+
+/* VOXAM: focus a window's input without letting the browser
+   scroll it into view. Focusing an element inside the page's
+   overflow-hidden containers scrolls them -- which drags a stage
+   canvas sideways by a cell and clips its first column. A canvas
+   input focuses scroll-free and the frame's scroll is put back;
+   text windows keep the stock scroll-to-input courtesy.
+*/
+function voxam_focus(win) {
+    if (win.type == 'graphics') {
+        win.inputel.get(0).focus({ preventScroll: true });
+        win.frameel.scrollLeft(0);
+        win.frameel.scrollTop(0);
+        return;
+    }
+    win.inputel.focus();
 }
 
 /* VOXAM: how far the display magnifies a canvas's logical units.
@@ -2897,7 +2956,7 @@ function evhan_doc_keypress(ev) {
     if (!win.inputel)
         return;
 
-    win.inputel.focus();
+    voxam_focus(win); /* VOXAM: scroll-free on a canvas. */
 
     if (win.input.type == 'line') {
 
@@ -2967,7 +3026,7 @@ function evhan_window_mousedown(ev) {
            or the stage's menus go deaf to the arrow keys. */
         if (win.type == 'graphics') {
             const inputel = win.inputel;
-            defer_func(function() { inputel.focus(); });
+            defer_func(function() { voxam_focus(win); });
         }
     }
 

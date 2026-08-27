@@ -562,6 +562,7 @@ class Page:
         terminators: tuple[str, ...] = (),
         cursor: tuple[int, int] | None = None,
         cell: tuple[int, int] | None = None,
+        ink: str | None = None,
         hyperlink: bool = False,
         mouse: bool = False,
     ) -> None:
@@ -569,8 +570,11 @@ class Page:
 
         A cell is the stage dialect's word: the editor's cell size
         in the canvas's own logical units, so the display can
-        place and dress the field at the game's cursor. A stage's
-        line request names both its cursor and its cell.
+        place and dress the field at the game's cursor. An ink is
+        the editor's own text colour -- without one the field
+        writes in the browser's default, which on a dark stage is
+        invisible ink. A stage's line request names its cursor
+        and its cell.
 
         Raises:
             GlkOteError: For a terminator the protocol cannot
@@ -584,6 +588,9 @@ class Page:
 
         if cell is not None:
             entry["cell"] = list(cell)
+
+        if ink is not None:
+            entry["ink"] = ink
 
         if terminators:
             for name in terminators:
@@ -886,7 +893,7 @@ class Page:
 
                 raise GlkOteError(msg)
 
-            if "cell" in entry and held["type"] != "graphics":
+            if ("cell" in entry or "ink" in entry) and held["type"] != "graphics":
                 msg = f"window {ident} is no stage; only a canvas's editor has a cell"
 
                 raise GlkOteError(msg)
