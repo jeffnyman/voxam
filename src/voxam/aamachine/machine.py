@@ -23,10 +23,11 @@ with a seeded run of the community fork's engine.
 import time
 from collections.abc import Callable
 
+from voxam.aamachine import saves
 from voxam.aamachine.output import PlainVoice, Voice
 from voxam.aamachine.story import Story
 from voxam.aamachine.text import Speech
-from voxam.errors import AAMachineError
+from voxam.errors import AAMachineError, VoxamError
 
 # The unused-word stamp, handy for measuring peak memory
 # (Aa-machine: Runtime data).
@@ -207,21 +208,6 @@ class _Fault(Exception):  # noqa: N818 -- carries a tagged error code, not a Pyt
         super().__init__(f"runtime error {code - 0x4000}")
 
 
-# One captured game state: the initialized registers, the three
-# memory areas masked to their allocations, the general and
-# special registers, and the open divs (Aa-machine: Savefile).
-_State = tuple[
-    tuple[int, int, int],
-    tuple[int, ...],
-    tuple[int, ...],
-    tuple[int, ...],
-    tuple[int, ...],
-    tuple[int, int, int, int, int, int],
-    tuple[int, int, int, int, int, int],
-    tuple[int, ...],
-]
-
-
 class Machine:
     """One running Å-machine, speaking through a Voice.
 
@@ -253,7 +239,7 @@ class Machine:
     _n_span: int
     _n_link: int
     _dice: int
-    _undo: list[_State]
+    _undo: list[saves.State]
     _pruned: bool
 
     def __init__(self, story: Story, voice: Voice, seed: int | None = None) -> None:
@@ -1054,7 +1040,7 @@ class Machine:
             self._undo = []
             self._pruned = False
 
-    def _captured(self, landing: int) -> _State:
+    def _captured(self, landing: int) -> saves.State:
         """The whole game state, unallocated regions masked unused.
 
         The landing is the instruction address a restore will
@@ -1083,7 +1069,7 @@ class Machine:
             tuple(self._divs),
         )
 
-    def _restored(self, state: _State) -> None:
+    def _restored(self, state: saves.State) -> None:
         """The whole game state put back from a capture."""
 
         counted, ram, aux, heap, regs, flow, stacks, divs = state
@@ -2452,12 +2438,36 @@ class Machine:
         self._voice.reset()
 
     def _ext_restore(self) -> None:
-        """RESTORE: nothing to restore from yet; the savefile is a later rung."""
+        """RESTORE: revive a kept savefile (Aa-machine: RESTORE).
 
-        if self._voice.has_saves:
-            msg = "restoring a savefile is a later rung (Aa-machine: Savefile)"
+        A voice with no file, or a file that does not belong to
+        this story, is a failed restore: execution simply
+        continues, the spec's own shape. A revived state resumes
+        at the address its SAVE named, the output returned to its
+        base and the saved divs re-entered.
+        """
 
-            raise AAMachineError(msg)
+        if not self._voice.has_saves:
+            return
+
+        told = self._voice.restore()
+
+        if told is None:
+            return
+
+        try:
+            state = saves.revived(self._story, told)
+        except VoxamError:
+            return
+
+        self._restored(state)
+        self._voice.leave_all()
+        self._in_status = 0
+        self._n_span = 0
+        self._n_link = 0
+
+        for style in self._divs:
+            self._voice.enter_div(style)
 
     def _ext_undo(self) -> None:
         """UNDO: step back to the last kept moment (Aa-machine: UNDO)."""
@@ -2578,19 +2588,30 @@ class Machine:
             self._spc = max(self._spc, _NBSP)
 
     def _op_save(self, _op: int) -> None:
-        """SAVE: cancelled while the savefile is a later rung (Aa-machine: SAVE)."""
+        """SAVE: keep the whole state through the voice (Aa-machine: SAVE).
 
-        self._target()
+        A voice that keeps no files, or one whose keeping is
+        refused or cancelled, fails the instruction; success
+        continues past it, and a later restore lands at the CODE
+        operand (Aa-machine: Savefile).
+
+        Raises:
+            _Fault: For a save from inside a span or status area.
+            _Missed: When no savefile is kept.
+        """
+
+        landing = self._target()
 
         if self._in_status or self._n_span:
             raise _Fault(BAD_OUTPUT_STATE)
 
-        if self._voice.has_saves:
-            msg = "writing a savefile is a later rung (Aa-machine: Savefile)"
+        if not self._voice.has_saves:
+            raise _Missed
 
-            raise AAMachineError(msg)
+        told = saves.kept(self._story, self._captured(landing))
 
-        raise _Missed
+        if not self._voice.save(told):
+            raise _Missed
 
     def _op_save_undo(self, _op: int) -> None:
         """SAVE_UNDO: keep this moment in memory (Aa-machine: SAVE_UNDO)."""

@@ -41,6 +41,7 @@ from voxam.iff import chunk as iff_chunk
 from voxam.painter import ScreenFrontend, Terminal
 from voxam.png import SIGNATURE, Picture, encoded
 from voxam.speaker import Speaker, open_sounddevice_stream
+from voxam.web import Face
 
 
 def broken_story(tmp_path: Path, code: bytes, version: int = 3) -> Path:
@@ -2629,20 +2630,27 @@ def test_picture_file_sidecars_hang_or_decline(
     assert_that(capsys.readouterr().out).contains("picture file cannot be read")
 
 
-# An Å-machine story is recognized before it can play: the run
-# refuses with the road named, the census and the treaty read it
-# today, and --extract frees nothing yet, saying so.
+# An Å-machine story plays: the bare run takes the terminal face,
+# the census and the treaty read it, and --extract frees nothing
+# yet, saying so.
 def test_aamachine_stories_are_recognized(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], aastory: bytes
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    aastory: bytes,
 ) -> None:
     story = tmp_path / "cloak.aastory"
 
     story.write_bytes(aastory)
 
-    refused = main([str(story)])
+    played = []
+    monkeypatch.setattr(
+        "voxam.cli.played", lambda held, seed: played.append((held, seed))
+    )
 
-    assert_that(refused).is_equal_to(2)
-    assert_that(capsys.readouterr().out).contains("the third machine is the road")
+    assert_that(main([str(story), "--seed", "9"])).is_equal_to(0)
+    assert_that(played).is_length(1)
+    assert_that(played[0][1]).is_equal_to(9)
 
     census = main([str(story), "--decompose"])
 
@@ -2658,3 +2666,76 @@ def test_aamachine_stories_are_recognized(
 
     assert_that(told).is_equal_to(0)
     assert_that(capsys.readouterr().out).contains("A5AA4F02")
+
+
+# The Å-machine's faces route: the wire behind --glkote, the
+# browser behind --web with the META title as its caption, and
+# the port refusal spoken plainly.
+def test_aamachine_faces_route(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    aastory: bytes,
+) -> None:
+    story = tmp_path / "cloak.aastory"
+
+    story.write_bytes(aastory)
+    monkeypatch.setattr(
+        "voxam.cli.serve_aamachine", lambda *seats, **_knobs: bool(seats)
+    )
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).is_empty()
+
+    monkeypatch.setattr(
+        "voxam.cli.serve_aamachine", lambda *seats, **_knobs: not bool(seats)
+    )
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+
+    def burst(*_seats: object, **_knobs: object) -> bool:
+        raise OSError
+
+    monkeypatch.setattr("voxam.cli.serve_aamachine", burst)
+
+    assert_that(main([str(story), "--glkote"])).is_equal_to(2)
+
+    captions = []
+
+    def hosted(face: Face, port: int) -> int:
+        captions.append(face.caption)
+
+        return port - port
+
+    monkeypatch.setattr("voxam.cli.serve_web", hosted)
+
+    assert_that(main([str(story), "--web"])).is_equal_to(0)
+    assert_that(captions).is_equal_to(["Cloak"])
+
+    def unbound(_face: object, _port: int) -> int:
+        raise OSError("address in use")
+
+    monkeypatch.setattr("voxam.cli.serve_web", unbound)
+
+    assert_that(main([str(story), "--web"])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("address in use")
+
+
+# The session instruments the other machines carry are refused by
+# name for the third: the acceptance driver and the tracer are
+# later roads.
+def test_aamachine_refuses_the_instruments(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    aastory: bytes,
+) -> None:
+    story = tmp_path / "cloak.aastory"
+
+    story.write_bytes(aastory)
+
+    for extra in (
+        ["--record", str(tmp_path / "walk.accept")],
+        ["--trace", str(tmp_path / "trace.txt")],
+    ):
+        assert_that(main([str(story), *extra])).is_equal_to(2)
+        assert_that(capsys.readouterr().out).contains("later roads")

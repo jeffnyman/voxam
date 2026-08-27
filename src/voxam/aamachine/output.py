@@ -265,7 +265,8 @@ class PlainVoice:
             return
 
         self._flush()
-        count = min(count, self._width - self._x)
+        if self._width > 0:
+            count = min(count, self._width - self._x)
         self._told.append(" " * count)
         self._x += count
         self._newlines = 0

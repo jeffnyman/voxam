@@ -1,0 +1,87 @@
+Welcome to the Å-machine!
+
+This is a test suite designed to stress test the opcodes, and hopefully point
+out any bugs in a terp.
+
+This interpreter supports the following features:
+UNDO
+SAVEFILE
+QUIT
+
+Running tests:
+Choice backtrack: yes
+NOP: yes
+CONT SET: yes
+PROCEED: yes
+JMP: yes
+Multi-jump: yes
+Multi-query: yes
+Simple jump: yes
+Query: yes
+Tail call: yes
+Tail: yes
+Push ENV frame: yes
+Pop ENV frame: yes
+ENV pop proceed: yes
+Push CHO frame: yes
+Pop CHO frame: yes
+CHO pop push: yes
+Cut CHO frame: yes
+Get and set CHO frame: yes
+'() ASSIGN: yes
+Variable unification: yes
+Pair unification: yes
+Raw AUX push and pop: yes
+AUX push and pop: yes
+AUX pop check: yes
+AUX pop match: yes
+List splitting: yes
+Stoppable choice point: yes
+Store and load word: yes
+Store and load byte: yes
+Store and load value: yes
+Set and reset object flags: yes
+Unlink object field: yes
+Set object parent: yes
+Raw equality check: yes
+Bounded variable check: yes
+Empty list check: yes
+Number check: yes
+Pair check: yes
+Object check: yes
+Word check: yes
+Unrecognised word check: yes
+Unification check: yes
+(a > b) check: yes
+Equality check: yes
+Memory equality check: yes
+Object flag check: yes
+CWL check: yes
+Addition: yes
+Subtraction: yes
+Multiplication: yes
+Division: yes
+Division remainder: yes
+Random number generation: yes
+Number incrementation: yes
+Number decrementation: yes
+Raw incrementation: yes
+Raw decrementation: yes
+Displaying text: check below
+The (fixed) serial is 250101
+The quick brown fox jumps over the lazy dog,
+The dog thought the fox's exercise such a slog.
+While the fox trotted through the bog,
+The dog slept like a log.
+yes
+Persistent choicepoint environment: yes
+AUX list splitting: yes
+2-word comparison: yes
+Tail-call optimisation: 
+no (unsupported)
+This interpreter supports the following features:
+UNDO
+SAVEFILE
+QUIT
+
+Quitting the program...

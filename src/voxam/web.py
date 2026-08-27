@@ -19,6 +19,9 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib import resources as importlib_resources
 
+from voxam.aamachine.glkote import GlkOteFrontend as AAGlkOteFrontend
+from voxam.aamachine.machine import Machine as AAMachine
+from voxam.aamachine.story import Story as AAStory
 from voxam.blorb import PNG_ID
 from voxam.errors import VoxamError
 from voxam.glkote import Stanza
@@ -225,6 +228,49 @@ class ZSession(Session):
         self._machine.run()
 
         return self._frontend.render(exit=not self._machine.running)
+
+
+class AAMachineSession(Session):
+    """An Å-machine story behind the server, over the wire face."""
+
+    # The third machine borrows the Glulx mark until it earns its
+    # own -- a named road, not an oversight.
+    icon = "glulx.ico"
+
+    def __init__(
+        self, story: AAStory, resources: Resources, *, seed: int | None = None
+    ) -> None:
+        """Hold the story, ready to be born at the first init."""
+
+        super().__init__(resources, seed=seed)
+
+        self._story = story
+        self._frontend: AAGlkOteFrontend | None = None
+        self._machine: AAMachine | None = None
+
+    def _reborn(self, stanza: Stanza) -> Stanza:
+        self._frontend = AAGlkOteFrontend(self._story)
+
+        self._frontend.begin(stanza)
+
+        self._machine = AAMachine(self._story, self._frontend.voice, seed=self._seed)
+        self._frontend.waiting = self._machine.run()
+
+        return self._frontend.render(exit=self._frontend.waiting == "quit")
+
+    def _delivered(self, stanza: Stanza) -> Stanza:
+        if self._frontend is None or self._machine is None:
+            return self._unopened()
+
+        verdict = self._frontend.accept(self._machine, stanza)
+
+        if verdict == ADVANCE:
+            return self._frontend.render(exit=self._frontend.waiting == "quit")
+
+        if verdict == STAND:
+            return self._frontend.render()
+
+        return {"type": "pass"}
 
 
 class Face:
