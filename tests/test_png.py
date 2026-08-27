@@ -5,7 +5,7 @@ import pytest
 from assertpy import assert_that
 
 from voxam.errors import PNGError
-from voxam.png import SIGNATURE, decode, palette
+from voxam.png import SIGNATURE, Picture, decode, encoded, palette
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -322,3 +322,31 @@ def test_palette_overruns_are_refused() -> None:
 
     with pytest.raises(PNGError, match="beyond the 1-entry palette"):
         decode(picture_bytes(1, 1, 8, 3, raw, palette=palette))
+
+
+# The encoder is decode's write-side twin: plain truecolour rides
+# opaque, clear flags travel as zero alpha, and partial alpha
+# rides whole -- so what the wire carries decodes back to the very
+# pixels the gallery plotted. A fully-clear pixel's colour is the
+# one thing that does not survive, composed over black as decode
+# always composes what cannot show.
+def test_encoded_pictures_round_trip() -> None:
+    plain = Picture(2, 1, (((1, 2, 3), (4, 5, 6)),))
+    back = decode(encoded(plain))
+
+    assert_that((back.width, back.height)).is_equal_to((2, 1))
+    assert_that(back.rows).is_equal_to(plain.rows)
+    assert_that(back.clear).is_none()
+    assert_that(back.alpha).is_none()
+
+    holed = Picture(2, 1, (((9, 9, 9), (4, 5, 6)),), clear=((True, False),))
+    hollow = decode(encoded(holed))
+
+    assert_that(hollow.clear).is_equal_to(((True, False),))
+    assert_that(hollow.rows[0][1]).is_equal_to((4, 5, 6))
+
+    misty = Picture(1, 1, (((10, 20, 30),),), alpha=((128,),))
+    misted = decode(encoded(misty))
+
+    assert_that(misted.alpha).is_equal_to(((128,),))
+    assert_that(misted.rows[0][0]).is_equal_to((10, 20, 30))
