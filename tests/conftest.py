@@ -124,10 +124,11 @@ def _aastory(*, branded: bool) -> bytes:
         + bytes([1, 0xE5, 0xC5])
         + (0xC5).to_bytes(3, "big")
     )
+    summed = {b"LANG": lang, b"DICT": b"\x00\x00"}
     crc = 0
 
     for name in SUMMED:
-        crc = zlib.crc32(lang if name == b"LANG" else b"", crc)
+        crc = zlib.crc32(summed.get(name, b""), crc)
 
     head = (
         bytes([0, 5, 2, 0])
@@ -143,7 +144,7 @@ def _aastory(*, branded: bool) -> bytes:
     pieces = [iff_chunk(b"HEAD", head), iff_chunk(b"META", meta)]
 
     for name in SUMMED:
-        pieces.append(iff_chunk(name, lang if name == b"LANG" else b""))
+        pieces.append(iff_chunk(name, summed.get(name, b"")))
 
     return iff_chunk(b"FORM", b"AAVM" + b"".join(pieces))
 
