@@ -14,6 +14,7 @@ from assertpy import assert_that
 from voxam.blorb import Blorb
 from voxam.errors import GlkOteError, ZMachineScreenError
 from voxam.frontend import Status
+from voxam.gallery import Gallery
 from voxam.glkote import KEPT_PARAGRAPHS
 from voxam.glulx.glk.resources import Resources
 from voxam.iff import chunk
@@ -25,6 +26,7 @@ from voxam.zmachine.glkote import (
     GlkOteFrontend,
     StageFrontend,
     _named,
+    _plotted,
     fronted,
     serve,
 )
@@ -1303,8 +1305,15 @@ SAVED = bytes([0xBE, 0x00, 0xFF, 0x10, 0xBA])
 RESTORED = bytes([0xBE, 0x01, 0xFF, 0x10, 0xBA])
 
 
-def indexed_png(colours: tuple[tuple[int, int, int], ...]) -> bytes:
-    """A 2-by-1 indexed-colour PNG wearing the given palette."""
+def indexed_png(
+    colours: tuple[tuple[int, int, int], ...], alphas: bytes = b""
+) -> bytes:
+    """A 2-by-1 indexed-colour PNG wearing the given palette.
+
+    Any alphas ride as a tRNS chunk -- a zero makes that palette
+    entry's pixels fully transparent, the v6 chrome's see-through
+    holes.
+    """
 
     def piece(name: bytes, payload: bytes) -> bytes:
         return (
@@ -1314,15 +1323,19 @@ def indexed_png(colours: tuple[tuple[int, int, int], ...]) -> bytes:
             + zlib.crc32(name + payload).to_bytes(4, "big")
         )
 
-    return b"".join(
-        [
-            b"\x89PNG\r\n\x1a\n",
-            piece(b"IHDR", struct.pack(">IIBBBBB", 2, 1, 8, 3, 0, 0, 0)),
-            piece(b"PLTE", b"".join(bytes(colour) for colour in colours)),
-            piece(b"IDAT", zlib.compress(b"\x00\x00\x01")),
-            piece(b"IEND", b""),
-        ]
-    )
+    pieces = [
+        b"\x89PNG\r\n\x1a\n",
+        piece(b"IHDR", struct.pack(">IIBBBBB", 2, 1, 8, 3, 0, 0, 0)),
+        piece(b"PLTE", b"".join(bytes(colour) for colour in colours)),
+    ]
+
+    if alphas:
+        pieces.append(piece(b"tRNS", alphas))
+
+    pieces.append(piece(b"IDAT", zlib.compress(b"\x00\x00\x01")))
+    pieces.append(piece(b"IEND", b""))
+
+    return b"".join(pieces)
 
 
 def staged_resources() -> Resources:
@@ -1509,7 +1522,8 @@ def test_the_stage_renders_one_scaled_canvas() -> None:
 
 # The dress travels resolved: colours as the shared palette's CSS,
 # reverse video pre-swapped, bold and italic as flags -- and the
-# under-cursor sample resolves to the cursor cell's own paper.
+# under-cursor sample reads the painted stage, which here is the
+# opening curtain's black.
 def test_stage_text_wears_its_dress() -> None:
     frontend, machine = staged(bytes([0xBA]))
 
@@ -1540,7 +1554,7 @@ def test_stage_text_wears_its_dress() -> None:
     assert_that(texts[2]["fg"]).is_equal_to("#00cc00")
     assert_that(texts[2]["bg"]).is_equal_to("#cc0000")
     assert_that(texts[3]["text"]).is_equal_to("s")
-    assert_that(texts[3]["fg"]).is_equal_to("#ffffff")
+    assert_that(texts[3]["fg"]).is_equal_to("#000000")
     assert_that(texts[3]["bg"]).is_equal_to("#000000")
 
 
@@ -1768,7 +1782,7 @@ def adaptive_resources() -> Resources:
     """
 
     scene = indexed_png(((200, 0, 0), (0, 200, 0)))
-    stub = indexed_png(((1, 2, 3), (4, 5, 6)))
+    stub = indexed_png(((1, 2, 3), (4, 5, 6)), alphas=b"\x00")
     other = indexed_png(((0, 0, 200), (200, 200, 0)))
     apal = chunk(b"APal", (2).to_bytes(4, "big"))
     wrapped = [chunk(b"PNG ", art) for art in (scene, stub, other)]
@@ -1823,6 +1837,67 @@ def test_the_stage_chrome_wears_the_scene() -> None:
     told = [op for op in stage_ops(frontend.render()) if op["special"] == "image"]
 
     assert_that([op["image"] for op in told]).is_equal_to([1])
+
+
+# §8.3.1's under-cursor sample reads the painted stage itself:
+# over a plotted picture the art's own pixel answers, a chrome's
+# transparent hole deferring to the scene beneath, and the minted
+# colour dresses the following text -- how Zork Zero's status
+# text sits on its ribbons without a seam. One colour mints once.
+def test_the_stage_samples_its_own_paint() -> None:
+    frontend, machine = staged(READ_CHAR, resources=adaptive_resources())
+
+    frontend.draw_picture(1, 9, 17)
+    frontend.draw_picture(2, 9, 17)
+    frontend.set_cursor(9, 17)
+    frontend.set_colour(-1, -1)
+    frontend.write("s")
+    frontend.set_cursor(9, 17)
+    frontend.set_colour(-1, -1)
+    frontend.write("t")
+    machine.run()
+
+    ops = stage_ops(frontend.render())
+    sampled = [op for op in ops if op.get("text") in ("s", "t")]
+
+    assert_that(sampled).is_length(2)
+
+    for held in sampled:
+        assert_that(held["fg"]).is_equal_to("#c80000")
+        assert_that(held["bg"]).is_equal_to("#c80000")
+
+
+# The point sample walks the paint newest-first: a fill answers
+# its colour inside its rectangle and defers outside it, an image
+# without a gallery -- or naming art the gallery cannot decode --
+# is passed over, and paint never laid answers the default paper.
+def test_plotted_answers_the_top_paint() -> None:
+    fill = {
+        "special": "fill",
+        "x": 0,
+        "y": 0,
+        "width": 4,
+        "height": 4,
+        "color": "#123456",
+    }
+    dye = {"special": "setcolor", "color": "#ffffff"}
+    astray = {
+        "special": "image",
+        "image": 9,
+        "x": 0,
+        "y": 0,
+        "width": 4,
+        "height": 4,
+    }
+
+    assert_that(_plotted([], 0, 0, None)).is_equal_to("#000000")
+    assert_that(_plotted([fill, dye], 1, 1, None)).is_equal_to("#123456")
+    assert_that(_plotted([fill], 9, 9, None)).is_equal_to("#000000")
+    assert_that(_plotted([fill, astray], 1, 1, None)).is_equal_to("#123456")
+
+    gallery = Gallery({}, 0)
+
+    assert_that(_plotted([fill, astray], 1, 1, gallery)).is_equal_to("#123456")
 
 
 # A save asks for its file through the protocol's special input,
