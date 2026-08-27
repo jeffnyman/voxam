@@ -181,6 +181,6 @@ card; the AASV savefile is written and revived with the story's
 own header as its identity gate; and undo keeps the reference's
 own depth at every face.
 
-The story continues in the [README](README.md)'s Status, which
-always tells the current version; the ledger of what plays, what
-is certified, and what remains is [STATUS.md](STATUS.md).
+The story continues in [STATUS.md](STATUS.md), which always
+opens with the current release and keeps the ledger of what
+plays, what is certified, and what remains.
