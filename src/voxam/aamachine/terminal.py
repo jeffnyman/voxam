@@ -26,112 +26,14 @@ from collections.abc import Callable
 from typing import TextIO
 
 from voxam.aamachine.machine import Machine
-from voxam.aamachine.output import PlainVoice
+from voxam.aamachine.output import StyledVoice
 from voxam.aamachine.story import Story
 
 # The suffix a bare savefile name gains, the house courtesy.
 SUFFIX = ".aasave"
 
-# The named colors Dialog's style sheets actually use, as the
-# CSS basics a terminal can mix (Aa-machine: LOOK).
-_NAMED_COLORS = {
-    "black": (0, 0, 0),
-    "red": (205, 49, 49),
-    "green": (13, 188, 121),
-    "yellow": (229, 229, 16),
-    "blue": (36, 114, 200),
-    "magenta": (188, 63, 188),
-    "cyan": (17, 168, 205),
-    "white": (229, 229, 229),
-    "gray": (128, 128, 128),
-    "grey": (128, 128, 128),
-    "orange": (255, 165, 0),
-    "purple": (128, 0, 128),
-    "brown": (165, 42, 42),
-}
 
-# The deprecated SET_STYLE bits (Aa-machine: SET_STYLE).
-_BIT_REVERSE = 1
-_BIT_BOLD = 2
-_BIT_ITALIC = 4
-
-# The CSS color spellings a terminal can mix: #rrggbb, #rgb, and
-# rgb() with its three channels.
-_LONG_HEX = 7
-_SHORT_HEX = 4
-_CHANNELS = 3
-
-
-class _Dress:
-    """One style class's terminal-visible claims.
-
-    Bold and italic are tri-state: None inherits, and an explicit
-    font-style of normal turns italics off -- Miss Gosling's own
-    sheets say normal!important inside italic quotations.
-    """
-
-    def __init__(self, pairs: dict[str, str]) -> None:
-        self.bold: bool | None = None
-        self.italic: bool | None = None
-        self.ink = _tinted(pairs.get("color", ""))
-        self.paper = _tinted(pairs.get("background-color", ""))
-
-        weight = _plained(pairs.get("font-weight", ""))
-
-        if weight.startswith("bold"):
-            self.bold = True
-        elif weight == "normal":
-            self.bold = False
-
-        style = _plained(pairs.get("font-style", ""))
-
-        if style in ("italic", "oblique"):
-            self.italic = True
-        elif style == "normal":
-            self.italic = False
-
-
-def _plained(value: str) -> str:
-    """A CSS value with its !important insistence stripped."""
-
-    return value.replace("!important", "").strip().lower()
-
-
-def _tinted(value: str) -> "tuple[int, int, int] | None":
-    """A CSS color as RGB: names, #hex, and rgb() all mix."""
-
-    told = _plained(value)
-
-    if told in _NAMED_COLORS:
-        return _NAMED_COLORS[told]
-
-    if told.startswith("#") and len(told) == _LONG_HEX:
-        return (int(told[1:3], 16), int(told[3:5], 16), int(told[5:7], 16))
-
-    if told.startswith("#") and len(told) == _SHORT_HEX:
-        return (
-            int(told[1] * 2, 16),
-            int(told[2] * 2, 16),
-            int(told[3] * 2, 16),
-        )
-
-    if told.startswith("rgb(") and told.endswith(")"):
-        pieces = told[4:-1].split(",")
-
-        if len(pieces) == _CHANNELS:
-            try:
-                return (
-                    int(pieces[0].strip()),
-                    int(pieces[1].strip()),
-                    int(pieces[2].strip()),
-                )
-            except ValueError:
-                return None
-
-    return None
-
-
-class TerminalVoice(PlainVoice):
+class TerminalVoice(StyledVoice):
     """The plain voice with a terminal's file-keeping manners.
 
     Dressed, it also wears the LOOK chunk's styles as terminal
@@ -153,86 +55,14 @@ class TerminalVoice(PlainVoice):
     ) -> None:
         """Speak at a width, through a writer, asking by a prompt."""
 
-        super().__init__(story, width=width)
+        super().__init__(story, width)
 
         self._writer = writer
         self._asked = asked
         self._mark = 0
         self._dressed = dressed
-        self._wardrobe = [_Dress(pairs) for pairs in self._styles]
-        self._body: _Dress | None = None
-        self._worn: list[_Dress] = []
-        self._bits = 0
         self.has_styles = dressed
         self.has_color = dressed
-
-    def enter_span(self, style: int) -> None:
-        """Open a span, wearing its class's dress."""
-
-        self._worn.append(self._classed(style))
-        self._fitted()
-
-    def leave_span(self) -> None:
-        """Close the span, the dress beneath restored."""
-
-        if self._worn:
-            self._worn.pop()
-
-        self._fitted()
-
-    def enter_div(self, style: int) -> None:
-        """Open a div: the break as ever, then its class's dress."""
-
-        super().enter_div(style)
-        self._worn.append(self._classed(style))
-        self._fitted()
-
-    def leave_div(self, style: int) -> None:
-        """Close a div: the dress beneath first, then the break."""
-
-        if self._worn:
-            self._worn.pop()
-
-        self._fitted()
-        super().leave_div(style)
-
-    def set_body(self, style: int) -> None:
-        """Dress the document body; every later dress layers on it."""
-
-        self._body = self._classed(style)
-        self._fitted()
-
-    def set_style(self, bits: int) -> None:
-        """Turn on the deprecated style bits (Aa-machine: SET_STYLE)."""
-
-        self._bits |= bits
-        self._fitted()
-
-    def reset_style(self, bits: int) -> None:
-        """Turn off the deprecated style bits."""
-
-        self._bits &= ~bits
-        self._fitted()
-
-    def unstyle(self) -> None:
-        """Return to the default text style."""
-
-        self._bits = 0
-        self._fitted()
-
-    def leave_all(self) -> None:
-        """Return to the initial state, the spans' dresses dropped.
-
-        The machine clears its div ledger without a leave call per
-        div, so the whole stack drops here with it; the body dress
-        stays, being the document's rather than any division's.
-        """
-
-        super().leave_all()
-
-        self._worn = []
-        self._bits = 0
-        self._fitted()
 
     def undressed(self) -> None:
         """Take every attribute off, leaving the terminal clean."""
@@ -240,14 +70,6 @@ class TerminalVoice(PlainVoice):
         if self._dressed:
             self._flush()
             self._told.append("\x1b[0m")
-
-    def _classed(self, style: int) -> _Dress:
-        """One class's dress, a bare one for a class LOOK never named."""
-
-        if 0 <= style < len(self._wardrobe):
-            return self._wardrobe[style]
-
-        return _Dress({})
 
     def _fitted(self) -> None:
         """Land the current dress on the terminal, if one may land.
@@ -260,19 +82,7 @@ class TerminalVoice(PlainVoice):
         if not self._dressed or self._hidden:
             return
 
-        bold = bool(self._bits & _BIT_BOLD)
-        italic = bool(self._bits & _BIT_ITALIC)
-        ink = paper = None
-
-        for dress in (self._body, *self._worn):
-            if dress is None:
-                continue
-
-            bold = dress.bold if dress.bold is not None else bold
-            italic = dress.italic if dress.italic is not None else italic
-            ink = dress.ink if dress.ink is not None else ink
-            paper = dress.paper if dress.paper is not None else paper
-
+        bold, italic, reverse, ink, paper = self._wardrobe.folded()
         pieces = ["0"]
 
         if bold:
@@ -285,7 +95,7 @@ class TerminalVoice(PlainVoice):
         if italic:
             pieces.append("4")
 
-        if self._bits & _BIT_REVERSE:
+        if reverse:
             pieces.append("7")
 
         if ink is not None:

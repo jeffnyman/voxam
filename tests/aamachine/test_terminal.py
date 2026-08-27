@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 from assertpy import assert_that
 
+from voxam.aamachine.output import Dress, tinted
 from voxam.aamachine.story import Story
-from voxam.aamachine.terminal import TerminalVoice, _Dress, _tinted, played
+from voxam.aamachine.terminal import TerminalVoice, played
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -300,15 +301,15 @@ def test_the_honesty_gate_holds() -> None:
 # The color parser speaks hex short and long, rgb(), and shrugs
 # at what it cannot mix; the weight parser hears normal too.
 def test_the_color_and_weight_parsers() -> None:
-    assert_that(_tinted("#fff")).is_equal_to((255, 255, 255))
-    assert_that(_tinted("#a1b2c3")).is_equal_to((161, 178, 195))
-    assert_that(_tinted("rgb(1, 2, 3)")).is_equal_to((1, 2, 3))
-    assert_that(_tinted("rgb(bad)")).is_none()
-    assert_that(_tinted("rgb(1, 2, x)")).is_none()
-    assert_that(_tinted("linen")).is_none()
-    assert_that(_tinted("")).is_none()
+    assert_that(tinted("#fff")).is_equal_to((255, 255, 255))
+    assert_that(tinted("#a1b2c3")).is_equal_to((161, 178, 195))
+    assert_that(tinted("rgb(1, 2, 3)")).is_equal_to((1, 2, 3))
+    assert_that(tinted("rgb(bad)")).is_none()
+    assert_that(tinted("rgb(1, 2, x)")).is_none()
+    assert_that(tinted("linen")).is_none()
+    assert_that(tinted("")).is_none()
 
-    dress = _Dress({"font-weight": "normal", "font-style": "oblique"})
+    dress = Dress({"font-weight": "normal", "font-style": "oblique"})
 
     assert_that(dress.bold).is_false()
     assert_that(dress.italic).is_true()
