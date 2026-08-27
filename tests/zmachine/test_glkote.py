@@ -11,13 +11,22 @@ import pytest
 from assertpy import assert_that
 
 from voxam.blorb import Blorb
-from voxam.errors import GlkOteError
+from voxam.errors import GlkOteError, ZMachineScreenError
 from voxam.frontend import Status
 from voxam.glkote import KEPT_PARAGRAPHS
 from voxam.glulx.glk.resources import Resources
 from voxam.iff import chunk
 from voxam.screen import BOLD, FIXED_PITCH, ITALIC, REVERSE, ROMAN
-from voxam.zmachine.glkote import ADVANCE, PASS, STAND, GlkOteFrontend, _named, serve
+from voxam.zmachine.glkote import (
+    ADVANCE,
+    PASS,
+    STAND,
+    GlkOteFrontend,
+    StageFrontend,
+    _named,
+    fronted,
+    serve,
+)
 from voxam.zmachine.header import SCREEN_LINES
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -1279,3 +1288,478 @@ def test_a_session_serves_end_to_end() -> None:
 
     assert_that(wrongful).is_false()
     assert_that(spoken[-1]["message"]).contains("no key read suspended")
+
+
+STAGE_INIT = {
+    "type": "init",
+    "gen": 0,
+    "support": ["timer", "stage", "sound"],
+    "metrics": {"width": 1280, "height": 800},
+}
+
+# EXT save and EXT restore, each storing then quitting.
+SAVED = bytes([0xBE, 0x00, 0xFF, 0x10, 0xBA])
+RESTORED = bytes([0xBE, 0x01, 0xFF, 0x10, 0xBA])
+
+
+def staged_resources() -> Resources:
+    """A stage Blorb: a 64x48 PNG, a 24x16 Rect, Reso, release 9.
+
+    The Reso standard window is 640x400 -- roomier than the MCGA
+    default, proving the stage takes the art's own word -- and
+    picture 1 carries a standard ratio of 2, so its drawn size
+    doubles even on the standard window itself.
+    """
+
+    art = (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + (64).to_bytes(4, "big")
+        + (48).to_bytes(4, "big")
+    )
+    rect = (24).to_bytes(4, "big") + (16).to_bytes(4, "big")
+    reln = chunk(b"RelN", (9).to_bytes(2, "big"))
+    reso = chunk(
+        b"Reso",
+        b"".join(
+            value.to_bytes(4, "big")
+            for value in (640, 400, 640, 400, 640, 400, 1, 2, 1, 0, 0, 0, 0)
+        ),
+    )
+    ridx_size = 8 + 4 + 2 * 12
+    png_offset = 12 + ridx_size + len(reln) + len(reso)
+    rect_offset = png_offset + 8 + len(art)
+    index = (
+        (2).to_bytes(4, "big")
+        + b"Pict"
+        + (1).to_bytes(4, "big")
+        + png_offset.to_bytes(4, "big")
+        + b"Pict"
+        + (2).to_bytes(4, "big")
+        + rect_offset.to_bytes(4, "big")
+    )
+
+    return Resources(
+        Blorb.parse(
+            chunk(
+                b"FORM",
+                b"IFRS"
+                + chunk(b"RIdx", index)
+                + reln
+                + reso
+                + chunk(b"PNG ", art)
+                + chunk(b"Rect", rect),
+            )
+        )
+    )
+
+
+def staged(
+    code: bytes = AREAD,
+    resources: Resources | None = None,
+    words: dict[int, int] | None = None,
+) -> tuple[StageFrontend, Machine]:
+    """A stage face fronting a Version 6 machine at its main routine.
+
+    Version 6 boots by calling a packed main routine (§5.4), so
+    the code goes inside one at $100; the read buffers and a tiny
+    dictionary are planted as the two-window helper plants them.
+    """
+
+    frontend = StageFrontend(6, resources)
+
+    frontend.begin(STAGE_INIT)
+
+    data = bytearray(512)
+    data[0] = 6
+    data[0x04:0x06] = (0x01C0).to_bytes(2, "big")
+    data[0x06:0x08] = (0x0040).to_bytes(2, "big")
+    data[0x0C:0x0E] = (0x0080).to_bytes(2, "big")
+    data[0x0E:0x10] = (0x01C0).to_bytes(2, "big")
+    data[0x100] = 0x00
+    data[0x101 : 0x101 + len(code)] = code
+
+    for offset, value in (words or {}).items():
+        data[offset : offset + 2] = value.to_bytes(2, "big")
+
+    machine = Machine(Story(bytes(data)), frontend)
+    frontend.machine = machine
+
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+    machine.memory.write_word(0x08, DICTIONARY_BASE)
+
+    for offset, value in enumerate([2, ord(","), ord("."), 0, 0, 0]):
+        machine.memory.write_byte(DICTIONARY_BASE + offset, value)
+
+    return frontend, machine
+
+
+def stage_ops(update: dict[str, Any]) -> list[dict[str, Any]]:
+    """The canvas draw ops of an update."""
+
+    return [op for entry in update.get("content", []) for op in entry.get("draw", [])]
+
+
+# The stage opens at the art's own size: the Reso standard window
+# when the Blorb names one, MCGA's 320 by 200 without -- and a
+# display that never learned the dialect is refused at the door.
+def test_the_stage_opens_at_the_arts_own_size() -> None:
+    bare = StageFrontend(6)
+
+    assert_that(bare.has_stage).is_true()
+    assert_that(bare.has_colours).is_true()
+    assert_that(bare.has_pictures).is_false()
+    assert_that(bare.screen_columns).is_equal_to(40)
+    assert_that(bare.screen_lines).is_equal_to(25)
+    assert_that(bare.picture_data(1)).is_none()
+    assert_that(bare.picture_census()).is_equal_to((0, 0))
+
+    dressed = StageFrontend(6, staged_resources())
+
+    dressed.begin(STAGE_INIT)
+
+    assert_that(dressed.screen_columns).is_equal_to(80)
+    assert_that(dressed.screen_lines).is_equal_to(50)
+    assert_that(dressed.has_pictures).is_true()
+    assert_that(dressed.has_sounds).is_true()
+
+    with pytest.raises(GlkOteError, match="never learned the stage"):
+        StageFrontend(6).begin(INIT)
+
+
+# The factory picks the face by the screen model: the stage for
+# Version 6, the two-window picture for the rest.
+def test_fronted_picks_the_face() -> None:
+    assert_that(fronted(6)).is_instance_of(StageFrontend)
+
+    plain = fronted(5)
+
+    assert_that(plain).is_instance_of(GlkOteFrontend)
+    assert_that(isinstance(plain, StageFrontend)).is_false()
+
+
+# One scaled canvas carries the whole stage: the window entry
+# names the art's logical space under the display's box, the
+# opening curtain papers it, and the story's text lands as
+# placed, coalesced text ops in the §8.8 units.
+def test_the_stage_renders_one_scaled_canvas() -> None:
+    frontend, machine = staged(bytes([0xBA]))
+
+    frontend.write("Hi")
+    frontend.write_rectangle(["!!"])
+    machine.run()
+
+    update = frontend.render(exit=True)
+    window = update["windows"][0]
+
+    assert_that(window["type"]).is_equal_to("graphics")
+    assert_that(window["scaled"]).is_true()
+    assert_that(window["graphwidth"]).is_equal_to(320)
+    assert_that(window["graphheight"]).is_equal_to(200)
+    assert_that(window["width"]).is_equal_to(1280)
+    assert_that(window["height"]).is_equal_to(800)
+
+    ops = stage_ops(update)
+
+    assert_that(ops[0]).is_equal_to({"special": "setcolor", "color": "#000000"})
+    assert_that(ops[1]).is_equal_to(
+        {
+            "special": "fill",
+            "x": 0,
+            "y": 0,
+            "width": 320,
+            "height": 200,
+            "color": "#000000",
+        }
+    )
+    assert_that(ops[2]).is_equal_to(
+        {
+            "special": "text",
+            "x": 0,
+            "y": 0,
+            "text": "Hi!!",
+            "cell": [8, 8],
+            "fg": "#ffffff",
+            "bg": "#000000",
+        }
+    )
+
+
+# The dress travels resolved: colours as the shared palette's CSS,
+# reverse video pre-swapped, bold and italic as flags -- and the
+# under-cursor sample resolves to the cursor cell's own paper.
+def test_stage_text_wears_its_dress() -> None:
+    frontend, machine = staged(bytes([0xBA]))
+
+    frontend.set_style(BOLD)
+    frontend.write("B")
+    frontend.set_style(0)
+    frontend.set_style(ITALIC)
+    frontend.set_colour(3, 4)
+    frontend.write("i")
+    frontend.set_style(0)
+    frontend.set_style(REVERSE)
+    frontend.write("r")
+    frontend.set_style(0)
+    frontend.set_colour(-1, -1)
+    frontend.write("s")
+    machine.run()
+
+    ops = stage_ops(frontend.render(exit=True))
+    texts = [op for op in ops if op["special"] == "text"]
+
+    assert_that(texts[0]["text"]).is_equal_to("B")
+    assert_that(texts[0]["bold"]).is_true()
+    assert_that(texts[1]["text"]).is_equal_to("i")
+    assert_that(texts[1]["fg"]).is_equal_to("#cc0000")
+    assert_that(texts[1]["bg"]).is_equal_to("#00cc00")
+    assert_that(texts[1]["italic"]).is_true()
+    assert_that(texts[2]["text"]).is_equal_to("r")
+    assert_that(texts[2]["fg"]).is_equal_to("#00cc00")
+    assert_that(texts[2]["bg"]).is_equal_to("#cc0000")
+    assert_that(texts[3]["text"]).is_equal_to("s")
+    assert_that(texts[3]["fg"]).is_equal_to("#ffffff")
+    assert_that(texts[3]["bg"]).is_equal_to("#000000")
+
+
+# The eight-window geometry lands where the game placed it: a
+# placed window's text paints at its absolute units, the scroll
+# slides as a shift op, and the pixel-width erase-line fills.
+def test_the_stage_forwards_the_eight_window_ops() -> None:
+    frontend, machine = staged(bytes([0xBA]))
+
+    frontend.place_window(2, 41, 17, 64, 128)
+    frontend.set_window(2)
+    frontend.set_cursor(1, 1)
+    frontend.set_font(4)
+    frontend.set_buffering(False)
+    frontend.write("W")
+    frontend.erase_line(16)
+    frontend.scroll_window(2, 8)
+    frontend.set_margins(2, 0, 0)
+    frontend.set_line_count(2, -999)
+    frontend.split_window(0)
+    machine.run()
+
+    assert_that(frontend.cursor_position()).is_equal_to((1, 9))
+
+    ops = stage_ops(frontend.render(exit=True))
+    placed = next(op for op in ops if op["special"] == "text")
+    shift = next(op for op in ops if op["special"] == "shift")
+
+    assert_that(placed["text"]).is_equal_to("W")
+    assert_that(placed["x"]).is_equal_to(16)
+    assert_that(placed["y"]).is_equal_to(40)
+    assert_that(shift["rise"]).is_equal_to(8)
+    assert_that([op["width"] for op in ops if op["special"] == "fill"]).contains(16)
+
+    with pytest.raises(ZMachineScreenError, match="no line"):
+        frontend.show_status(Status("Here", 0, 0, time_game=False))
+
+
+# The pictures draw Reso-scaled at their unit positions, in the
+# turn's true order against the flowing text; a Rect placard has
+# a size for layout but no bytes, and an unknown number draws and
+# erases nothing at all.
+def test_the_stage_draws_its_pictures() -> None:
+    frontend, machine = staged(bytes([0xBA]), resources=staged_resources())
+
+    assert_that(frontend.picture_census()).is_equal_to((2, 9))
+    assert_that(frontend.picture_data(1)).is_equal_to((96, 128))
+    assert_that(frontend.picture_data(2)).is_equal_to((16, 24))
+    assert_that(frontend.picture_data(7)).is_none()
+
+    frontend.write("A")
+    frontend.draw_picture(1, 11, 21)
+    frontend.write("B")
+    frontend.draw_picture(2, 1, 1)
+    frontend.draw_picture(7, 1, 1)
+    frontend.erase_picture(1, 11, 21)
+    frontend.erase_picture(7, 1, 1)
+    machine.run()
+
+    ops = stage_ops(frontend.render(exit=True))
+    kinds = [op["special"] for op in ops if op["special"] != "setcolor"]
+    image = next(op for op in ops if op["special"] == "image")
+    papered = ops[-1]
+
+    assert_that(kinds).is_equal_to(["fill", "text", "image", "text", "fill"])
+    assert_that(image["image"]).is_equal_to(1)
+    assert_that(image["url"]).starts_with("data:image/png;base64,")
+    assert_that((image["x"], image["y"])).is_equal_to((20, 10))
+    assert_that((image["width"], image["height"])).is_equal_to((128, 96))
+    assert_that((papered["width"], papered["height"])).is_equal_to((128, 96))
+
+
+# A line read asks at the stage's own cursor with the editor's
+# cell, the table's nameable terminators offered and the click
+# armed when the table names it -- and the landed line echoes
+# onto the stage, though a terminator-ended one stays uncommitted.
+def test_the_stage_asks_and_echoes_the_line() -> None:
+    frontend, machine = staged(AREAD, words={0x2E: 0x01A0})
+
+    machine.memory.write_byte(0x01A0, 133)
+    machine.memory.write_byte(0x01A1, 254)
+    frontend.write("> ")
+    machine.run()
+
+    update = frontend.render()
+    entry = update["input"][0]
+
+    assert_that(entry["type"]).is_equal_to("line")
+    assert_that(entry["maxlen"]).is_equal_to(21)
+    assert_that(entry["xpos"]).is_equal_to(16)
+    assert_that(entry["ypos"]).is_equal_to(0)
+    assert_that(entry["cell"]).is_equal_to([8, 8])
+    assert_that(entry["terminators"]).is_equal_to(["func1"])
+    assert_that(entry["mouse"]).is_true()
+
+    verdict = frontend.accept({"type": "line", "gen": update["gen"], "value": "go"})
+
+    assert_that(verdict).is_equal_to(ADVANCE)
+
+    machine.run()
+
+    echoed = next(
+        op for op in stage_ops(frontend.render(exit=True)) if op["special"] == "text"
+    )
+
+    assert_that(echoed["text"]).is_equal_to("go")
+    assert_that(echoed["x"]).is_equal_to(16)
+
+    quiet, ended = staged(AREAD, words={0x2E: 0x01A0})
+
+    ended.memory.write_byte(0x01A0, 133)
+    ended.run()
+
+    asked = quiet.render()
+
+    quiet.accept(
+        {"type": "line", "gen": asked["gen"], "value": "held", "terminator": "func1"}
+    )
+    ended.run()
+
+    silent = stage_ops(quiet.render(exit=True))
+
+    assert_that([op for op in silent if op["special"] == "text"]).is_empty()
+
+
+# A keystroke read is an invisible focus target that hears clicks
+# the way it hears any key: the canvas's own click lands as the
+# §10.3 single-click code, one unit step over, while a click on
+# some other window -- or before any canvas stands -- passes.
+def test_the_stage_hears_keys_and_clicks() -> None:
+    unborn, _ = staged(READ_CHAR)
+
+    assert_that(
+        unborn.accept({"type": "mouse", "gen": 0, "window": 9, "x": 1, "y": 1})
+    ).is_equal_to(PASS)
+
+    frontend, machine = staged(READ_CHAR)
+
+    machine.run()
+
+    update = frontend.render()
+    canvas = update["windows"][0]["id"]
+
+    assert_that(update["input"][0]).is_equal_to(
+        {"id": canvas, "type": "char", "gen": 1, "mouse": True}
+    )
+
+    astray = {"type": "mouse", "gen": 1, "window": canvas + 9, "x": 1, "y": 1}
+
+    assert_that(frontend.accept(astray)).is_equal_to(PASS)
+
+    landed = {"type": "mouse", "gen": 1, "window": canvas, "x": 9, "y": 15}
+
+    assert_that(frontend.accept(landed)).is_equal_to(ADVANCE)
+
+    machine.run()
+
+    assert_that(machine.memory.read_word(0x80)).is_equal_to(254)
+
+
+# An arrange re-boxes the canvas without the machine hearing a
+# word -- the units never move -- and a redraw replays the journal:
+# everything since the last whole-stage fill, the scene papered
+# first, the pre-scene paints gone for good. A refresh replays it
+# with the windows resent.
+def test_the_stage_reshapes_and_replays() -> None:
+    frontend, machine = staged(READ_CHAR)
+
+    frontend.write("old")
+    machine.run()
+
+    first = frontend.render()
+
+    frontend.erase_window(-1)
+    frontend.write("new")
+
+    second = frontend.render()
+
+    assert_that(stage_ops(second)[0]["special"]).is_equal_to("fill")
+
+    reboxed = {
+        "type": "arrange",
+        "gen": second["gen"],
+        "metrics": {"width": 640, "height": 400},
+    }
+
+    assert_that(frontend.accept(reboxed)).is_equal_to(STAND)
+
+    resized = frontend.render()
+
+    assert_that(resized["windows"][0]["width"]).is_equal_to(640)
+    assert_that(resized["windows"][0]["graphwidth"]).is_equal_to(320)
+
+    redraw = {
+        "type": "redraw",
+        "gen": resized["gen"],
+        "window": first["windows"][0]["id"],
+    }
+
+    assert_that(frontend.accept(redraw)).is_equal_to(STAND)
+
+    replayed = stage_ops(frontend.render())
+
+    assert_that(replayed[0]["special"]).is_equal_to("setcolor")
+    assert_that([op.get("text") for op in replayed]).does_not_contain("old")
+    assert_that([op.get("text") for op in replayed]).contains("new")
+
+    assert_that(frontend.accept({"type": "refresh"})).is_equal_to(STAND)
+
+    told = frontend.render()
+
+    assert_that(told).contains_key("windows")
+    assert_that([op.get("text") for op in stage_ops(told)]).contains("new")
+
+
+# A save asks for its file through the protocol's special input,
+# a restore asks to read -- and the cancel is delivered like any
+# player answer.
+def test_the_stage_asks_for_its_file() -> None:
+    frontend, machine = staged(SAVED)
+
+    machine.run()
+
+    update = frontend.render()
+
+    assert_that(update["specialinput"]).is_equal_to(
+        {"type": "fileref_prompt", "filemode": "write", "filetype": "save"}
+    )
+
+    verdict = frontend.accept(
+        {"type": "specialresponse", "gen": update["gen"], "response": "fileref_prompt"}
+    )
+
+    assert_that(verdict).is_equal_to(ADVANCE)
+
+    reader, restoring = staged(RESTORED)
+
+    restoring.run()
+
+    asked = reader.render()
+
+    assert_that(asked["specialinput"]["filemode"]).is_equal_to("read")
