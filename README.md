@@ -110,12 +110,16 @@ in [Playing stories](#playing-stories).
 
 ## Status
 
-Version `2.1`: the wire sings. The declaration's residue ledger,
-worked through -- sound, colors, and the refresh event join the
-protocol dialect on both machines, the quote box stands, a
-resource file reads apart with `--decompose`, and the iFiction
-card greets the player at the door -- with the Version 6 stage
-now the one named road left anywhere.
+Version `2.2`: the stage and the camera. Version 6 crosses the
+wire -- *Zork Zero*, *Arthur*, and *Shogun* play in a browser as
+one scaled canvas in the art's own 320 by 200, palettes baked
+true and the ship anchored in its margin while the text scrolls
+past -- and any recorded walk can now be photographed: `--shots`
+replays it at a real face and saves one frame per settled turn,
+at the pygame glass or through your own browser, while
+`--strip-diff` compares two filmstrips pixel by pixel with
+Voxam's own decoder. The road `2.1` left standing has been
+travelled.
 
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
@@ -212,8 +216,9 @@ and the status line travel as the protocol's grid, the lower
 window as its flowing buffer, the styles in protocol dress. So
 `--glkote` and `--web` now speak both machines: Zork I's inverse
 status bar updates one changed row at a time, Bronze plays in a
-browser tab wearing its own title, and the one refusal left is
-honest -- the Version 6 stage stays at the painted glasses.
+browser tab wearing its own title, and the one refusal `1.8`
+left honest -- the Version 6 stage at the painted glasses --
+stood until `2.2` retired it.
 
 The desktop shell is `1.9`'s: a
 [Tauri](https://tauri.app/) webview wearing the same GlkOte
@@ -257,9 +262,24 @@ back with the refresh event, and gets it. Beside the wire,
 in Voxam's own measurements, every resource freed as the file
 its bytes already are -- and the iFiction card greets the player
 the way WinFrotz's little window does, in the browser, the
-shell, and at the painted terminal's banner. What remains is one
-named road: the Version 6 stage stays at the painted glasses,
-and it blocks no game the corpus plays.
+shell, and at the painted terminal's banner. It left one named
+road standing: the Version 6 stage at the painted glasses.
+
+New in `2.2`, the stage crosses the wire and brings a camera
+home. The dialect grew the words a §8.8 screen needs -- scaled
+canvases, placed text, sliding rectangles, an editor emplaced at
+the game's own cursor -- and the same StageModel the pygame
+glass paints from feeds them, pinned to the art's own coordinate
+space, the adaptive palettes baked into the pictures themselves.
+The repairs that followed ran deep: Enter had been silently dead
+on every wire keystroke read since `1.8`, a misaimed event could
+kill a session, and the model's text-flow scroll swept its own
+margins -- Shogun's ship erased by its scrolling text at every
+face, the pygame glass included -- each named, fixed, and
+tested. And the filmstrip turned the hunt into an instrument:
+driven walks photograph at the glass or through a headless
+browser, strips compare frame by frame, and a seeded walk
+reproduces to the pixel.
 
 The full ledger -- what plays, what is certified, what remains --
 lives in [STATUS.md](STATUS.md).
@@ -358,7 +378,8 @@ stdout -- one update stanza out, one event stanza in -- which is
 the seam any GlkOte-speaking host drives down a pipe. Both faces
 speak both machines: a `.z3` through `.z8` plays beside a `.ulx`
 or `.gblorb`, status line and split windows in the protocol's own
-grid -- only the Version 6 stage stays at the painted glasses.
+grid, and the Version 6 stage as one scaled canvas in the art's
+own coordinates.
 
 Add `--seed` to make the dice reproducible: the same seed and the
 same commands produce the same session, every time.
@@ -693,6 +714,39 @@ so no experiment can contaminate another.
 Probe scripts themselves are throwaways -- write one in a scratch
 file, find the answer, record the fix in the `.accept` annotations,
 and delete it. The harness is the part worth keeping.
+
+### The filmstrip
+
+Any recorded walk can be photographed. `--shots DIR` rides
+`--accept`: the script replays at the real pygame glass --
+driven, so no `[MORE]` waits on a player -- and every settled
+turn saves a numbered frame, the boot screen first and the final
+response last. Add `--browser` (a path, or bare to find one on
+this machine) and the same walk shoots the web display instead:
+the wire's own updates render through the shipped glkote.js in
+your browser's headless mode, one launch per frame, both
+machines welcome.
+
+```console
+voxam --accept bronze.accept --shots strips/before
+voxam --accept bronze.accept --shots strips/after --browser
+voxam --strip-diff strips/before strips/after
+```
+
+`--strip-diff` decodes every same-named frame with Voxam's own
+PNG reader and compares pixel by pixel: differing frames each
+get a line with a tally, frames only one strip holds are named,
+and the verdict says where the strips part. The exit code speaks
+RegTest's contract -- 0 identical, 1 parted -- so a regression
+sweep can gate on it: photograph the corpus before a change,
+photograph it after, and read only the frames that moved. A
+driven, seeded walk reproduces to the pixel, and a glass strip
+needs no screen at all: set `SDL_VIDEODRIVER=dummy` and the
+window photographs in memory. One honest caveat rode home with
+the feature: Version 6 games can read their presentation into
+their own randomness, so a walk recorded at one face may
+diverge at another -- the strip keeps every frame it earned and
+says where it broke, and strips compare face-to-same-face.
 
 ## Development
 
