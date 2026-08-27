@@ -1044,29 +1044,40 @@ function accept_one_window(arg) {
                     || 1;
             }
             win.scaleratio = current_devpixelratio / win.backpixelratio;
-            el.attr('width', win.graphwidth * win.scaleratio);
-            el.attr('height', win.graphheight * win.scaleratio);
-            el.css('width', (win.graphwidth + 'px'));
-            el.css('height', (win.graphheight + 'px'));
+            /* VOXAM: a 'scaled' canvas (the stage dialect) draws in
+               its own logical units and the display magnifies it to
+               the frame; a stock canvas scales by exactly one. */
+            win.voxamscale = voxam_canvas_scale(arg);
+            const effective = win.scaleratio * win.voxamscale;
+            el.attr('width', win.graphwidth * effective);
+            el.attr('height', win.graphheight * effective);
+            el.css('width', (win.graphwidth * win.voxamscale + 'px'));
+            el.css('height', (win.graphheight * win.voxamscale + 'px'));
             win.frameel.css('background-color', win.defcolor);
             if (ctx) {
-                /* Set scale to win.scaleratio */
-                ctx.setTransform(win.scaleratio, 0, 0, win.scaleratio, 0, 0);
+                /* Set scale to win.scaleratio (VOXAM: and the logical scale) */
+                ctx.setTransform(effective, 0, 0, effective, 0, 0);
             }
             win.frameel.append(el);
         }
         else {
-            if (win.graphwidth != arg.graphwidth || win.graphheight != arg.graphheight) {
+            /* VOXAM: a frame change rescales a 'scaled' canvas even
+               when its logical size held still. */
+            const newscale = voxam_canvas_scale(arg);
+            if (win.graphwidth != arg.graphwidth || win.graphheight != arg.graphheight
+                || newscale != win.voxamscale) {
                 win.graphwidth = arg.graphwidth;
                 win.graphheight = arg.graphheight;
-                el.attr('width', win.graphwidth * win.scaleratio);
-                el.attr('height', win.graphheight * win.scaleratio);
-                el.css('width', (win.graphwidth + 'px'));
-                el.css('height', (win.graphheight + 'px'));
+                win.voxamscale = newscale;
+                const effective = win.scaleratio * win.voxamscale;
+                el.attr('width', win.graphwidth * effective);
+                el.attr('height', win.graphheight * effective);
+                el.css('width', (win.graphwidth * win.voxamscale + 'px'));
+                el.css('height', (win.graphheight * win.voxamscale + 'px'));
                 /* Clear to the default color, as if for a "fill" command. */
                 const ctx = canvas_get_2dcontext(el);
                 if (ctx) {
-                    ctx.setTransform(win.scaleratio, 0, 0, win.scaleratio, 0, 0);
+                    ctx.setTransform(effective, 0, 0, effective, 0, 0);
                     ctx.fillStyle = win.defcolor;
                     ctx.fillRect(0, 0, win.graphwidth, win.graphheight);
                     ctx.fillStyle = '#000000';
@@ -1599,6 +1610,38 @@ function accept_inputset(arg) {
                 win.frameel.append(inputel);
         }
 
+        if (win.type == 'graphics') {
+            /* VOXAM: the stage dialect's editor. A line field sits at
+               the game's own cursor, in the canvas's logical units
+               scaled as the canvas is, sized by the request's cell; a
+               char request is a focus target alone, invisible, the
+               game having painted its own prompt. Stock GlkOte never
+               emplaces an input in a graphics window at all. */
+            const canel = $('#'+dom_prefix+'win'+win.id+'_canvas', dom_context);
+            const canpos = canel.position();
+            const scale = win.voxamscale || 1;
+            if (argi.type == 'line') {
+                const cellwidth = argi.cell[0] * scale;
+                const cellheight = argi.cell[1] * scale;
+                const xpos = canpos.left + Math.round((argi.xpos || 0) * scale);
+                const ypos = canpos.top + Math.round((argi.ypos || 0) * scale);
+                inputel.css({ position: 'absolute',
+                              left: xpos+'px', top: ypos+'px',
+                              width: Math.round(maxlen * cellwidth)+'px',
+                              height: Math.round(cellheight)+'px',
+                              'font-size': Math.round(cellheight * 0.75)+'px',
+                              'font-family': 'monospace' });
+            }
+            else {
+                inputel.css({ position: 'absolute',
+                              left: canpos.left+'px', top: canpos.top+'px',
+                              width: '1px', height: '1px',
+                              opacity: 0 });
+            }
+            if (newinputel)
+                win.frameel.append(inputel);
+        }
+
         if (win.type == 'buffer') {
             let cursel = $('#'+dom_prefix+'win'+win.id+'_cursor', dom_context);
             /* Check to make sure an InvisibleCursor exists on the last line.
@@ -2076,6 +2119,21 @@ function insert_text_detecting(el, val) {
     el.append(document.createTextNode(val));
 }
 
+/* VOXAM: how far the display magnifies a canvas's logical units.
+   A window entry wearing the stage dialect's 'scaled' flag names a
+   drawable size that is a logical space -- the §8.8 screen's own
+   units -- and the display fits it to the frame, aspect held by
+   the server's own box arithmetic. A stock canvas answers one.
+*/
+function voxam_canvas_scale(arg) {
+    if (!arg.scaled)
+        return 1;
+    const availwidth = arg.width - current_metrics.graphicsmarginx;
+    const availheight = arg.height - current_metrics.graphicsmarginy;
+    const scale = Math.min(availwidth / arg.graphwidth, availheight / arg.graphheight);
+    return (scale > 0) ? scale : 1;
+}
+
 /* Get the CanvasRenderingContext2D from a canvas element.
 */
 function canvas_get_2dcontext(canvasel) {
@@ -2192,6 +2250,55 @@ function perform_graphics_ops(loadedimg, loadedev) {
             loadedimg = null;
             /* Either way, continue with the queue. */
             break;
+        case 'text': {
+            /* VOXAM: the stage dialect's placed text. Each character
+               is centered in its own cell so the string lands exactly
+               on the §8.8 grid whatever the font's metrics say; the
+               cell background paints first, as a screen's would. */
+            const cellwidth = op.cell[0];
+            const cellheight = op.cell[1];
+            if (op.bg !== undefined) {
+                ctx.fillStyle = op.bg;
+                ctx.fillRect(op.x, op.y, cellwidth * op.text.length, cellheight);
+            }
+            ctx.fillStyle = (op.fg !== undefined) ? op.fg : '#000000';
+            let face = '';
+            if (op.italic)
+                face += 'italic ';
+            if (op.bold)
+                face += 'bold ';
+            ctx.font = face + cellheight + 'px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let ix=0; ix<op.text.length; ix++) {
+                ctx.fillText(op.text[ix],
+                    op.x + ix*cellwidth + cellwidth/2, op.y + cellheight/2);
+            }
+            ctx.fillStyle = '#000000';
+            break;
+        }
+        case 'shift': {
+            /* VOXAM: the stage dialect's sliding rectangle -- §8.8.3.6's
+               scroll as a canvas self-copy. The 2D context snapshots the
+               source before compositing, so an overlapping slide is safe;
+               the copy runs in device pixels, outside the logical
+               transform. The exposed strip arrives as its own fill. */
+            const effective = win.scaleratio * (win.voxamscale || 1);
+            const strip = op.height - Math.abs(op.rise);
+            if (strip > 0 && op.rise != 0) {
+                const sourcey = (op.rise > 0) ? op.y + op.rise : op.y;
+                const desty = (op.rise > 0) ? op.y : op.y - op.rise;
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.drawImage(el.get(0),
+                    op.x * effective, sourcey * effective,
+                    op.width * effective, strip * effective,
+                    op.x * effective, desty * effective,
+                    op.width * effective, strip * effective);
+                ctx.restore();
+            }
+            break;
+        }
         default:
             glkote_log('Unknown special entry in graphics content: ' + optype);
             break;
@@ -2296,9 +2403,11 @@ function send_response(type, win, val, val2) {
     else if (type == 'init') {
         res.metrics = val;
         /* VOXAM: 'sound' advertises the dialect voxam-audio.js
-           plays, and 'colors' the per-span ink this page renders;
-           stock GlkOte has neither word. */
-        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound', 'colors'];
+           plays, 'colors' the per-span ink this page renders, and
+           'stage' the scaled canvases with placed text, shifts,
+           and an emplaced editor that carry the Version 6 screen;
+           stock GlkOte has none of these words. */
+        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound', 'colors', 'stage'];
     }
     else if (type == 'arrange') {
         res.metrics = val;
@@ -2667,13 +2776,15 @@ function evhan_doc_pixelreschange() {
                 win.scaleratio = current_devpixelratio / win.backpixelratio;
                 //glkote_log('changed canvas to scale ' + win.scaleratio + ' (device ' + current_devpixelratio + ' / backstore ' + win.backpixelratio + ')');
                 const ctx = canvas_get_2dcontext(el);
-                el.attr('width', win.graphwidth * win.scaleratio);
-                el.attr('height', win.graphheight * win.scaleratio);
-                el.css('width', (win.graphwidth + 'px'));
-                el.css('height', (win.graphheight + 'px'));
+                /* VOXAM: the logical scale rides along. */
+                const effective = win.scaleratio * (win.voxamscale || 1);
+                el.attr('width', win.graphwidth * effective);
+                el.attr('height', win.graphheight * effective);
+                el.css('width', (win.graphwidth * (win.voxamscale || 1) + 'px'));
+                el.css('height', (win.graphheight * (win.voxamscale || 1) + 'px'));
                 if (ctx) {
-                    /* Set scale to win.scaleratio */
-                    ctx.setTransform(win.scaleratio, 0, 0, win.scaleratio, 0, 0);
+                    /* Set scale to win.scaleratio (VOXAM: and the logical scale) */
+                    ctx.setTransform(effective, 0, 0, effective, 0, 0);
                     ctx.fillStyle = win.defcolor;
                     ctx.fillRect(0, 0, win.graphwidth, win.graphheight);
                     ctx.fillStyle = '#000000';
@@ -2864,8 +2975,11 @@ function evhan_input_mouse_click(ev) {
         const canel = $('#'+dom_prefix+'win'+win.id+'_canvas', dom_context);
         if (canel.length) {
             const pos = canel.offset();
-            xpos = ev.clientX - pos.left;
-            ypos = ev.clientY - pos.top;
+            /* VOXAM: a scaled canvas hears clicks in its own
+               logical units, whatever the display magnified. */
+            const scale = win.voxamscale || 1;
+            xpos = Math.floor((ev.clientX - pos.left) / scale);
+            ypos = Math.floor((ev.clientY - pos.top) / scale);
         }
         if (xpos >= win.graphwidth)
             xpos = win.graphwidth-1;

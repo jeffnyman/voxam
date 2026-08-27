@@ -72,10 +72,18 @@ _KINDS = frozenset({"buffer", "grid", "graphics"})
 _FILE_MODES = frozenset({"read", "write", "readwrite", "writeappend"})
 _FILE_KINDS = frozenset({"data", "save", "transcript", "command"})
 
-# The drawing operations a graphics content entry may carry
-# (GlkOte: Graphics Window Updates).
-_SPECIALS = frozenset({"setcolor", "fill", "image"})
+# The drawing operations a graphics content entry may carry.
+# GlkOte names the first three (GlkOte: Graphics Window Updates);
+# text and shift are the stage dialect's own -- placed characters
+# and sliding rectangles, VΘXΔM's words for a §8.8 screen on a
+# canvas whose both wire ends are ours.
+_SPECIALS = frozenset({"setcolor", "fill", "image", "text", "shift"})
 _RECT = ("x", "y", "width", "height")
+
+# What the dialect's own operations must name: a text op places a
+# string of cells, a shift op slides a whole rectangle by a rise.
+_TEXT_FIELDS = ("x", "y", "text", "cell")
+_SHIFT_FIELDS = (*_RECT, "rise")
 
 # "Absent" and "null" mean different things to a timer field, so
 # absence needs a value of its own (GlkOte: The Timer Update).
@@ -150,6 +158,7 @@ class Page:
         gridsize: tuple[int, int] | None = None,
         graphsize: tuple[int, int] | None = None,
         bg: str | None = None,
+        scaled: bool = False,
     ) -> None:
         """Declare a window that stands visible this cycle.
 
@@ -160,12 +169,16 @@ class Page:
         window models already keep; a grid names its columns and
         rows, a graphics window its drawable size. A bg is the
         dialect's own word: the window's paper as a CSS colour,
-        absent when the display's own theme is the paper.
+        absent when the display's own theme is the paper. Scaled
+        is the stage dialect's word, for a graphics window alone:
+        the drawable size is a logical space -- §8.8's own units
+        -- and the display magnifies it to fill the box, rather
+        than showing it pixel for pixel.
 
         Raises:
             GlkOteError: For an unknown kind, a retired or
-                twice-declared id, or sizes that contradict the
-                kind.
+                twice-declared id, sizes that contradict the kind,
+                or a scaled window that is no graphics window.
         """
 
         if kind not in _KINDS:
@@ -214,6 +227,14 @@ class Page:
 
         if graphsize is not None:
             entry["graphwidth"], entry["graphheight"] = graphsize
+
+        if scaled:
+            if kind != "graphics":
+                msg = "only a graphics window draws in a scaled logical space"
+
+                raise GlkOteError(msg)
+
+            entry["scaled"] = True
 
         if bg is not None:
             entry["bg"] = bg
@@ -486,11 +507,16 @@ class Page:
 
         Operations accumulate across a cycle -- a turn's fills and
         images arrive as they happen -- and travel in order
-        (GlkOte: Graphics Window Updates).
+        (GlkOte: Graphics Window Updates). Text and shift are the
+        stage dialect's own words: a text op places a string of
+        dressed cells at a unit position, a shift op slides a
+        rectangle's pixels vertically -- GlkOte never grew either,
+        but both ends of this wire are ours.
 
         Raises:
             GlkOteError: For an operation the protocol does not
-                draw, or a fill with only part of a rectangle.
+                draw, a fill with only part of a rectangle, or a
+                dialect op missing a field it must name.
         """
 
         for op in ops:
@@ -511,6 +537,20 @@ class Page:
 
                 raise GlkOteError(msg)
 
+            if op["special"] == "text" and any(
+                field not in op for field in _TEXT_FIELDS
+            ):
+                msg = "a text op places its string in cells: x, y, text, cell"
+
+                raise GlkOteError(msg)
+
+            if op["special"] == "shift" and any(
+                field not in op for field in _SHIFT_FIELDS
+            ):
+                msg = "a shift op slides a whole rectangle by a rise"
+
+                raise GlkOteError(msg)
+
         self._draws.setdefault(ident, []).extend(ops)
 
     def line_input(  # noqa: PLR0913 -- the shape of an input field
@@ -521,10 +561,16 @@ class Page:
         initial: str = "",
         terminators: tuple[str, ...] = (),
         cursor: tuple[int, int] | None = None,
+        cell: tuple[int, int] | None = None,
         hyperlink: bool = False,
         mouse: bool = False,
     ) -> None:
         """Ask for a line of input in a window.
+
+        A cell is the stage dialect's word: the editor's cell size
+        in the canvas's own logical units, so the display can
+        place and dress the field at the game's cursor. A stage's
+        line request names both its cursor and its cell.
 
         Raises:
             GlkOteError: For a terminator the protocol cannot
@@ -535,6 +581,9 @@ class Page:
 
         if initial:
             entry["initial"] = initial
+
+        if cell is not None:
+            entry["cell"] = list(cell)
 
         if terminators:
             for name in terminators:
@@ -820,6 +869,25 @@ class Page:
 
             if held["type"] == "grid" and "type" in entry and "xpos" not in entry:
                 msg = f"grid window {ident} takes input at a cursor, and none came"
+
+                raise GlkOteError(msg)
+
+            # The stage dialect: a canvas's editor is placed and
+            # sized by the game, or it cannot be drawn.
+            if (
+                held["type"] == "graphics"
+                and entry.get("type") == "line"
+                and ("xpos" not in entry or "cell" not in entry)
+            ):
+                msg = (
+                    f"graphics window {ident} takes its editor at a "
+                    "placed cell, and none came"
+                )
+
+                raise GlkOteError(msg)
+
+            if "cell" in entry and held["type"] != "graphics":
+                msg = f"window {ident} is no stage; only a canvas's editor has a cell"
 
                 raise GlkOteError(msg)
 

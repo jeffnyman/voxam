@@ -547,6 +547,94 @@ def test_draw_ops_travel_in_order() -> None:
         page.draw(1, [{"special": "sparkle"}])
 
 
+# The stage dialect's own drawing words travel like any others: a
+# text op places its string of dressed cells, a shift op slides a
+# rectangle by a rise, and either missing a field it must name is
+# refused at once. A scaled window wears the flag on its entry,
+# and only a graphics window may.
+def test_stage_ops_travel_and_validate() -> None:
+    page = Page()
+
+    page.window(1, "graphics", 0, BOX, graphsize=(320, 200), scaled=True)
+    page.draw(
+        1,
+        [
+            {
+                "special": "text",
+                "x": 8,
+                "y": 16,
+                "text": "West of House",
+                "cell": [8, 8],
+                "fg": "#000000",
+                "bg": "#FFFFFF",
+            },
+            {
+                "special": "shift",
+                "x": 0,
+                "y": 0,
+                "width": 320,
+                "height": 200,
+                "rise": 8,
+            },
+        ],
+    )
+
+    update = page.update()
+
+    assert_that(update["windows"][0]["scaled"]).is_true()
+    assert_that(update["content"][0]["draw"]).is_length(2)
+
+    with pytest.raises(GlkOteError, match="places its string"):
+        page.draw(1, [{"special": "text", "x": 1, "y": 1, "text": "?"}])
+
+    with pytest.raises(GlkOteError, match="by a rise"):
+        page.draw(1, [{"special": "shift", "x": 0, "y": 0, "width": 8, "height": 8}])
+
+    with pytest.raises(GlkOteError, match="scaled logical space"):
+        Page().window(1, "grid", 0, TOP, gridsize=(80, 1), scaled=True)
+
+
+# The stage's editor is placed: a canvas line request names both
+# its cursor and its cell and travels with them, one missing
+# either is refused, and a cell anywhere but a canvas is refused
+# too -- a grid's display already knows its own cell.
+def test_the_stage_editor_is_placed() -> None:
+    page = Page()
+
+    page.window(1, "graphics", 0, BOX, graphsize=(320, 200), scaled=True)
+    page.line_input(1, 40, cursor=(8, 184), cell=(8, 8))
+
+    entry = page.update()["input"][0]
+
+    assert_that(entry["xpos"]).is_equal_to(8)
+    assert_that(entry["ypos"]).is_equal_to(184)
+    assert_that(entry["cell"]).is_equal_to([8, 8])
+
+    blind = Page()
+
+    blind.window(1, "graphics", 0, BOX, graphsize=(320, 200), scaled=True)
+    blind.line_input(1, 40, cell=(8, 8))
+
+    with pytest.raises(GlkOteError, match="placed cell"):
+        blind.update()
+
+    celless = Page()
+
+    celless.window(1, "graphics", 0, BOX, graphsize=(320, 200), scaled=True)
+    celless.line_input(1, 40, cursor=(8, 184))
+
+    with pytest.raises(GlkOteError, match="placed cell"):
+        celless.update()
+
+    grounded = Page()
+
+    grounded.window(1, "grid", 0, TOP, gridsize=(80, 1))
+    grounded.line_input(1, 40, cursor=(0, 0), cell=(8, 8))
+
+    with pytest.raises(GlkOteError, match="no stage"):
+        grounded.update()
+
+
 # The cycle's pieces must agree: content belongs to a declared
 # window of the right kind, buffers take no clicks, and grid input
 # names its cursor.
