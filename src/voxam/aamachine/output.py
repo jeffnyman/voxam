@@ -538,3 +538,273 @@ def styled(story: Story) -> tuple[dict[str, str], ...]:
         styles.append(dress)
 
     return tuple(styles)
+
+
+# The named colors Dialog's style sheets actually use, as the
+# CSS basics a display can mix (Aa-machine: LOOK).
+_NAMED_COLORS = {
+    "black": (0, 0, 0),
+    "red": (205, 49, 49),
+    "green": (13, 188, 121),
+    "yellow": (229, 229, 16),
+    "blue": (36, 114, 200),
+    "magenta": (188, 63, 188),
+    "cyan": (17, 168, 205),
+    "white": (229, 229, 229),
+    "gray": (128, 128, 128),
+    "grey": (128, 128, 128),
+    "orange": (255, 165, 0),
+    "purple": (128, 0, 128),
+    "brown": (165, 42, 42),
+}
+
+# The deprecated SET_STYLE bits (Aa-machine: SET_STYLE).
+_BIT_REVERSE = 1
+_BIT_BOLD = 2
+_BIT_ITALIC = 4
+
+# One folded outfit: bold, italic, reverse, ink, paper.
+Outfit = tuple[
+    bool, bool, bool, "tuple[int, int, int] | None", "tuple[int, int, int] | None"
+]
+
+# The CSS color spellings a display can mix: #rrggbb, #rgb, and
+# rgb() with its three channels.
+_LONG_HEX = 7
+_SHORT_HEX = 4
+_CHANNELS = 3
+
+
+class Dress:
+    """One style class's wearable claims (Aa-machine: LOOK).
+
+    Bold and italic are tri-state: None inherits, and an explicit
+    font-style of normal turns italics off -- Miss Gosling's own
+    sheets say normal!important inside italic quotations.
+    """
+
+    def __init__(self, pairs: dict[str, str]) -> None:
+        """Read one class's pairs for what a display can wear."""
+
+        self.bold: bool | None = None
+        self.italic: bool | None = None
+        self.ink = tinted(pairs.get("color", ""))
+        self.paper = tinted(pairs.get("background-color", ""))
+
+        weight = plained(pairs.get("font-weight", ""))
+
+        if weight.startswith("bold"):
+            self.bold = True
+        elif weight == "normal":
+            self.bold = False
+
+        style = plained(pairs.get("font-style", ""))
+
+        if style in ("italic", "oblique"):
+            self.italic = True
+        elif style == "normal":
+            self.italic = False
+
+
+class Wardrobe:
+    """The dress state a styled voice wears, face-neutrally.
+
+    The body dress lies beneath everything and survives leave_all,
+    being the document's rather than any division's; the worn
+    stack carries the open divs and spans; and the deprecated
+    SET_STYLE bits ride lowest of all. folded() tells the whole
+    outfit, for whichever attributes a face can render.
+    """
+
+    def __init__(self, styles: "tuple[dict[str, str], ...]") -> None:
+        """Cut one dress per LOOK class."""
+
+        self._classes = [Dress(pairs) for pairs in styles]
+        self._body: Dress | None = None
+        self._worn: list[Dress] = []
+        self._bits = 0
+
+    def classed(self, style: int) -> Dress:
+        """One class's dress, a bare one for a class LOOK never named."""
+
+        if 0 <= style < len(self._classes):
+            return self._classes[style]
+
+        return Dress({})
+
+    def entered(self, style: int) -> None:
+        """Wear a division's or span's dress."""
+
+        self._worn.append(self.classed(style))
+
+    def left(self) -> None:
+        """Drop the newest dress; an unworn leave stays calm."""
+
+        if self._worn:
+            self._worn.pop()
+
+    def bodied(self, style: int) -> None:
+        """Dress the document body; every later dress layers on it."""
+
+        self._body = self.classed(style)
+
+    def styled(self, bits: int) -> None:
+        """Turn on deprecated style bits (Aa-machine: SET_STYLE)."""
+
+        self._bits |= bits
+
+    def unstyled(self, bits: int) -> None:
+        """Turn off deprecated style bits."""
+
+        self._bits &= ~bits
+
+    def bared(self) -> None:
+        """Drop every deprecated style bit."""
+
+        self._bits = 0
+
+    def dropped(self) -> None:
+        """Drop the whole worn stack and the bits; the body stays."""
+
+        self._worn = []
+        self._bits = 0
+
+    def folded(self) -> Outfit:
+        """The outfit as worn: bold, italic, reverse, ink, paper."""
+
+        bold = bool(self._bits & _BIT_BOLD)
+        italic = bool(self._bits & _BIT_ITALIC)
+        ink = paper = None
+
+        for dress in (self._body, *self._worn):
+            if dress is None:
+                continue
+
+            bold = dress.bold if dress.bold is not None else bold
+            italic = dress.italic if dress.italic is not None else italic
+            ink = dress.ink if dress.ink is not None else ink
+            paper = dress.paper if dress.paper is not None else paper
+
+        return bold, italic, bool(self._bits & _BIT_REVERSE), ink, paper
+
+
+def plained(value: str) -> str:
+    """A CSS value with its !important insistence stripped."""
+
+    return value.replace("!important", "").strip().lower()
+
+
+def tinted(value: str) -> "tuple[int, int, int] | None":
+    """A CSS color as RGB: names, #hex, and rgb() all mix."""
+
+    told = plained(value)
+
+    if told in _NAMED_COLORS:
+        return _NAMED_COLORS[told]
+
+    if told.startswith("#") and len(told) == _LONG_HEX:
+        return (int(told[1:3], 16), int(told[3:5], 16), int(told[5:7], 16))
+
+    if told.startswith("#") and len(told) == _SHORT_HEX:
+        return (
+            int(told[1] * 2, 16),
+            int(told[2] * 2, 16),
+            int(told[3] * 2, 16),
+        )
+
+    if told.startswith("rgb(") and told.endswith(")"):
+        pieces = told[4:-1].split(",")
+
+        if len(pieces) == _CHANNELS:
+            try:
+                return (
+                    int(pieces[0].strip()),
+                    int(pieces[1].strip()),
+                    int(pieces[2].strip()),
+                )
+            except ValueError:
+                return None
+
+    return None
+
+
+class StyledVoice(PlainVoice):
+    """A plain voice that keeps a wardrobe, for faces that dress.
+
+    Every style call updates the wardrobe and then asks _fitted to
+    land the change however the face renders dress -- terminal
+    attributes, protocol styles, or nothing at all. The base
+    _fitted lands nothing, which is the plain posture.
+    """
+
+    def __init__(self, story: Story, width: int) -> None:
+        """Cut the wardrobe from the story's own LOOK sheet."""
+
+        super().__init__(story, width=width)
+
+        self._wardrobe = Wardrobe(self._styles)
+
+    def enter_span(self, style: int) -> None:
+        """Open a span, wearing its class's dress."""
+
+        self._wardrobe.entered(style)
+        self._fitted()
+
+    def leave_span(self) -> None:
+        """Close the span, the dress beneath restored."""
+
+        self._wardrobe.left()
+        self._fitted()
+
+    def enter_div(self, style: int) -> None:
+        """Open a div: the break as ever, then its class's dress."""
+
+        super().enter_div(style)
+        self._wardrobe.entered(style)
+        self._fitted()
+
+    def leave_div(self, style: int) -> None:
+        """Close a div: the dress beneath first, then the break."""
+
+        self._wardrobe.left()
+        self._fitted()
+        super().leave_div(style)
+
+    def set_body(self, style: int) -> None:
+        """Dress the document body; every later dress layers on it."""
+
+        self._wardrobe.bodied(style)
+        self._fitted()
+
+    def set_style(self, bits: int) -> None:
+        """Turn on the deprecated style bits (Aa-machine: SET_STYLE)."""
+
+        self._wardrobe.styled(bits)
+        self._fitted()
+
+    def reset_style(self, bits: int) -> None:
+        """Turn off the deprecated style bits."""
+
+        self._wardrobe.unstyled(bits)
+        self._fitted()
+
+    def unstyle(self) -> None:
+        """Return to the default text style."""
+
+        self._wardrobe.bared()
+        self._fitted()
+
+    def leave_all(self) -> None:
+        """Return to the initial state, the spans' dresses dropped.
+
+        The machine clears its div ledger without a leave call per
+        div, so the whole stack drops here with it; the body dress
+        stays, being the document's rather than any division's.
+        """
+
+        super().leave_all()
+        self._wardrobe.dropped()
+        self._fitted()
+
+    def _fitted(self) -> None:
+        """Land the current dress; the plain posture lands nothing."""

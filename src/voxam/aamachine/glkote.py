@@ -9,6 +9,15 @@ for a line, a key wait for a keystroke, and the story's META
 bibliography opens the page as the doorway card, the house
 courtesy every machine's face extends.
 
+The document travels dressed: the wardrobe's bold and italic
+ride the display's own stock styles -- subheader and emphasized,
+with alert for both at once, which the specification's bar
+permits to equal bold -- and the sheet's colors ride as per-span
+ink under the display's colors grant, the same dialect word the
+Z-Machine's §8.3 colors travel by. VM_INFO answers the styling
+question with yes on any display and the color question with the
+grant's own truth (Aa-machine: VM_INFO).
+
 Savefiles stay with the blocking faces for now: a save over the
 wire needs the suspended-file dance the Z-Machine's Filing wait
 performs, and that is a named road, not this rung.
@@ -18,7 +27,7 @@ import json
 from typing import TextIO
 
 from voxam.aamachine.machine import Machine
-from voxam.aamachine.output import PlainVoice
+from voxam.aamachine.output import Outfit, StyledVoice
 from voxam.aamachine.story import Story
 from voxam.errors import GlkOteError, VoxamError
 from voxam.glkote import (
@@ -56,6 +65,36 @@ _KEYS = {
 # Events that never carry a partial-input field.
 _NO_PARTIAL = frozenset({"init", "specialresponse", "refresh", "debuginput"})
 
+# The bare outfit every session opens in.
+_PLAIN: Outfit = (False, False, False, None, None)
+
+
+class WireVoice(StyledVoice):
+    """The wire's voice: the plain document, its dress marked.
+
+    The telling stays exactly the certified document at width
+    zero; each style change lands as a mark -- an offset into the
+    telling and the outfit worn from there -- and the face cuts
+    the drained text into styled runs along them. Styling is
+    always claimable on the wire, the display's stock styles
+    rendering bold and italic; color waits on the display's own
+    grant, which the face sets at begin.
+    """
+
+    has_styles = True
+
+    def __init__(self, story: Story) -> None:
+        """Speak at width zero; the display wraps."""
+
+        super().__init__(story, 0)
+
+        self.marks: list[tuple[int, Outfit]] = []
+
+    def _fitted(self) -> None:
+        """Mark the outfit change at the telling's current end."""
+
+        self.marks.append((len(self.told()), self._wardrobe.folded()))
+
 
 class GlkOteFrontend:
     """One Å-machine session's face on the wire.
@@ -77,12 +116,13 @@ class GlkOteFrontend:
 
         self._story = story
         self.page = Page()
-        self.voice = PlainVoice(story, width=0)
+        self.voice = WireVoice(story)
         self.waiting = ""
         self._mark = 0
         self._size = (0, 0)
         self._refresh = False
-        self._opening: list[TextRun] = _carded(story)
+        self._outfit: Outfit = _PLAIN
+        self._opening: list[TextRun | object] = _carded(story)
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -100,6 +140,12 @@ class GlkOteFrontend:
 
         self._size = (int(metrics["width"]), int(metrics.get("height", 0)))
 
+        # Color is the dialect's own word: per-span ink travels
+        # only to a display that says it renders it, the same
+        # grant the Z-Machine's colors ride (Aa-machine: VM_INFO).
+        support = stanza.get("support", [])
+        self.voice.has_color = isinstance(support, list) and "colors" in support
+
     def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
         """Compose everything told since the last update."""
 
@@ -109,8 +155,17 @@ class GlkOteFrontend:
         told = self.voice.told()
         runs: list[TextRun | object] = list(self._opening)
 
+        for at, outfit in self.voice.marks:
+            if at > self._mark:
+                runs.append(self._dressed(told[self._mark : at]))
+                self._mark = at
+
+            self._outfit = outfit
+
+        self.voice.marks.clear()
+
         if told[self._mark :]:
-            runs.append(("normal", 0, told[self._mark :]))
+            runs.append(self._dressed(told[self._mark :]))
 
         self._opening = []
         self._mark = len(told)
@@ -127,6 +182,33 @@ class GlkOteFrontend:
         refresh, self._refresh = self._refresh, False
 
         return self.page.update(exit=exit, refresh=refresh)
+
+    def _dressed(self, text: str) -> TextRun:
+        """One run of telling, worn as the current outfit.
+
+        Bold rides the display's subheader style and italic its
+        emphasized; both at once ride alert, which the stock
+        sheet renders bold -- the specification allows bold
+        italic to equal either (Aa-machine: VM_INFO). The sheet's
+        colors ride as the dialect's per-span ink, under the
+        display's own grant.
+        """
+
+        bold, italic, _, ink, paper = self._outfit
+
+        if bold and italic:
+            style = "alert"
+        elif bold:
+            style = "subheader"
+        elif italic:
+            style = "emphasized"
+        else:
+            style = "normal"
+
+        if self.voice.has_color and (ink is not None or paper is not None):
+            return (style, 0, text, (_css(ink), _css(paper)))
+
+        return (style, 0, text)
 
     def accept(self, machine: Machine, stanza: Stanza) -> str:  # noqa: PLR0911 -- one verdict per event kind
         """Translate one event; a delivery runs the machine on.
@@ -175,6 +257,15 @@ class GlkOteFrontend:
         return PASS
 
 
+def _css(tint: "tuple[int, int, int] | None") -> str | None:
+    """An RGB tint as the CSS the ink rides in, None riding whole."""
+
+    if tint is None:
+        return None
+
+    return f"rgb({tint[0]},{tint[1]},{tint[2]})"
+
+
 def _keyed(value: str) -> int | None:
     """A char event's value as a machine keypress, or None."""
 
@@ -184,7 +275,7 @@ def _keyed(value: str) -> int | None:
     return _KEYS.get(value)
 
 
-def _carded(story: Story) -> list[TextRun]:
+def _carded(story: Story) -> "list[TextRun | object]":
     """The META bibliography as the page's doorway card.
 
     The title stands as a header, the author beneath it, and the
@@ -193,7 +284,7 @@ def _carded(story: Story) -> list[TextRun]:
     (Aa-machine: META).
     """
 
-    runs: list[TextRun] = []
+    runs: list[TextRun | object] = []
     title = story.meta.get("title")
     author = story.meta.get("author")
     blurb = story.meta.get("blurb")

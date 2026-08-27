@@ -278,3 +278,117 @@ def test_an_event_before_init_is_unopened() -> None:
 
     assert_that(update["type"]).is_equal_to("error")
     assert_that(update["message"]).contains("opens with an init event")
+
+
+# -- the dress on the wire ---------------------------------------------
+
+
+def faced(name: str = "gosling", support: "list[str] | None" = None) -> GlkOteFrontend:
+    """A begun face over a vendored story, its grant chosen."""
+
+    face = GlkOteFrontend(storied(name))
+    face.begin(
+        {
+            "type": "init",
+            "gen": 0,
+            "metrics": {"width": 800, "height": 600},
+            "support": ["timer"] if support is None else support,
+        }
+    )
+
+    return face
+
+
+def runs_of(update: Stanza) -> list[Stanza]:
+    """Every buffer run in an update, flattened."""
+
+    told = []
+
+    for entry in update.get("content", []):
+        for paragraph in entry.get("text", []):
+            told.extend(paragraph.get("content", []))
+
+    return told
+
+
+# Bold rides subheader, italic emphasized, and both at once ride
+# alert, the stock sheet rendering it bold as the spec permits.
+def test_the_wire_wears_bold_and_italic() -> None:
+    face = faced()
+    face.voice.enter_span(10)
+    face.voice.say("clue")
+    face.voice.leave_span()
+    face.voice.enter_span(8)
+    face.voice.say("aside")
+    face.voice.enter_span(10)
+    face.voice.say("both")
+    face.voice.leave_span()
+    face.voice.leave_span()
+
+    told = runs_of(face.render())
+
+    assert_that(told).contains({"style": "subheader", "text": "clue"})
+    assert_that(told).contains({"style": "emphasized", "text": "aside"})
+    assert_that(told).contains({"style": "alert", "text": "both"})
+
+
+# Under the colors grant the sheet's ink and paper ride the runs;
+# without it the same spans travel dressed but uncolored, and the
+# voice answers VM_INFO's color question accordingly.
+def test_color_rides_only_under_the_grant() -> None:
+    granted = faced(support=["colors"])
+    granted.voice.enter_span(1)
+    granted.voice.say("warning")
+    granted.voice.leave_span()
+
+    told = runs_of(granted.render())
+
+    assert_that(granted.voice.has_color).is_true()
+    assert_that(told).contains(
+        {"style": "subheader", "text": "warning", "fg": "rgb(205,49,49)"}
+    )
+
+    plain = faced()
+    plain.voice.enter_span(1)
+    plain.voice.say("warning")
+    plain.voice.leave_span()
+
+    told = runs_of(plain.render())
+
+    assert_that(plain.voice.has_color).is_false()
+    assert_that(plain.voice.has_styles).is_true()
+    assert_that(told).contains({"style": "subheader", "text": "warning"})
+
+
+# The body dress layers beneath the whole document on the wire
+# too: green ink on black paper, in the emphasized style.
+def test_the_body_dresses_the_wire() -> None:
+    face = faced("body_not_status", support=["colors"])
+    face.voice.set_body(0)
+    face.voice.say("green words")
+
+    told = runs_of(face.render())
+
+    assert_that(told).contains(
+        {
+            "style": "emphasized",
+            "text": "green words",
+            "fg": "rgb(13,188,121)",
+            "bg": "rgb(0,0,0)",
+        }
+    )
+
+
+# A dressed session survives a refresh: the scrollback returns
+# with its styles still on.
+def test_a_refresh_keeps_the_dress() -> None:
+    face = faced()
+    face.voice.enter_span(10)
+    face.voice.say("kept")
+    face.voice.leave_span()
+    face.render()
+    face.accept(None, {"type": "refresh", "gen": 1})  # type: ignore[arg-type]
+
+    told = runs_of(face.render())
+
+    assert_that(told).contains({"style": "subheader", "text": "kept"})

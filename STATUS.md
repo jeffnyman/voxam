@@ -947,13 +947,21 @@ the reference engine's own transcripts.
   matches byte for byte, and VM_INFO answers the styling and
   color questions truthfully per stream -- which makes VΘXΔM,
   as far as we know, the first command-line Å-machine
-  interpreter to clear the specification's styling bar.
+  interpreter to clear the specification's styling bar. And the
+  wire wears the same wardrobe: one face-neutral dress state
+  feeds both renderings, the terminal's attributes and the
+  protocol's runs -- bold as the display's subheader, italic as
+  its emphasized, both at once as alert, exactly as the bar
+  permits -- with the sheet's colors riding as per-span ink
+  under the display's own colors grant, the same dialect word
+  the Z-Machine's §8.3 colors travel by. A refresh returns the
+  scrollback with its styles still on.
 
 The third machine's own footpaths, named: savefiles over the
 wire await the suspended file-wait the Z-Machine's saves ride;
-the status areas stay honestly unclaimed on every face, and
-LOOK's styling on the wire face, the browser's own CSS being a
-different road than the terminal's attributes; the acceptance
-driver, the tracer, and the filmstrip do not speak `.aastory`
-yet; and the browser tab borrows the Glulx icon until the third
-machine earns its own mark.
+the status areas stay honestly unclaimed on every face, and the
+author's whole sheet -- fonts, sizes, and margins as real CSS
+on the page -- is a richer wire road than the stock styles worn
+today; the acceptance driver, the tracer, and the filmstrip do
+not speak `.aastory` yet; and the browser tab borrows the Glulx
+icon until the third machine earns its own mark.
