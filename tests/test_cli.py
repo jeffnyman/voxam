@@ -30,6 +30,7 @@ from voxam.cli import (
     _titled,
     main,
 )
+from voxam.frontend import PlainFrontend
 from voxam.gallery import Gallery, Resolution
 from voxam.glass import Glass as PygameGlass
 from voxam.glulx.glk.glass import GlassFrontend as GlulxGlassFrontend
@@ -240,6 +241,94 @@ def refusing_story(tmp_path: Path) -> Path:
     path.write_bytes(bytes(data))
 
     return path
+
+
+# The filmstrip rides --accept at the real glass, driven: frame
+# zero is the boot screen, each turn photographs as the next
+# command types, and the closing frame carries the last response
+# -- with the strip's directory born as needed and its size said.
+def test_the_filmstrip_photographs_the_walk(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+    shots = tmp_path / "strip" / "deep"
+
+    class Photographed(PlainFrontend):
+        def __init__(self) -> None:
+            super().__init__(lambda _text: None)
+
+            self.frames: list[str] = []
+            self.driven = False
+
+        def snapshot(self, path: str) -> None:
+            self.frames.append(Path(path).name)
+
+    painted = Photographed()
+
+    def built(*_seats: object, **knobs: object) -> Photographed:
+        painted.driven = bool(knobs.get("driven"))
+
+        return painted
+
+    monkeypatch.setattr("voxam.cli._graphics_frontend", built)
+
+    exit_code = main(["--accept", str(script), "--shots", str(shots)])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(painted.driven).is_true()
+    assert_that(painted.frames).is_equal_to(["turn-0000.png", "turn-0001.png"])
+    assert_that(shots.is_dir()).is_true()
+    assert_that(capsys.readouterr().out).contains("2 frames")
+
+
+# The camera's refusals are loud, each with its reason: it rides
+# --accept alone, a Glulx walk waits for its own glass, a story
+# the loader cannot read is said, and a machine without the
+# graphics window cannot photograph anything.
+def test_the_filmstrip_refusals(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = reading_story(tmp_path)
+
+    alone = main([str(story), "--shots", str(tmp_path / "s")])
+
+    assert_that(alone).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("rides --accept")
+
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+
+    monkeypatch.setattr("voxam.cli._glulx_story", lambda _path: object())
+
+    roads = main(["--accept", str(script), "--shots", str(tmp_path / "s")])
+
+    assert_that(roads).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("the Glulx glass is a road")
+
+    monkeypatch.setattr("voxam.cli._glulx_story", lambda _path: None)
+
+    stub = tmp_path / "stub.z3"
+
+    stub.write_bytes(b"\x03" + bytes(9))
+
+    ghost = tmp_path / "ghost.accept"
+
+    ghost.write_text(f"! GAME={stub}\nlook\n", encoding="utf-8")
+
+    unread = main(["--accept", str(ghost), "--shots", str(tmp_path / "s")])
+
+    assert_that(unread).is_equal_to(2)
+
+    monkeypatch.setattr("voxam.cli._graphics_frontend", lambda *_a, **_k: None)
+
+    unglassed = main(["--accept", str(script), "--shots", str(tmp_path / "s")])
+
+    assert_that(unglassed).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("needs the graphics window")
 
 
 # The watch reads the conversation during --accept and points at the

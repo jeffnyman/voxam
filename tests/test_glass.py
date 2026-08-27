@@ -44,6 +44,7 @@ class StubGlass:
         self.timeouts: list[float | None] = []
         self.painted: list[tuple[object, ...]] = []
         self.presents = 0
+        self.snapshots: list[str] = []
         self.pictures: list[object] = []
         self.drawn: list[
             tuple[Sequence[Sequence[tuple[int, ...]]], int, int, tuple[int, int]]
@@ -106,6 +107,9 @@ class StubGlass:
 
     def present(self) -> None:
         self.presents += 1
+
+    def snapshot(self, path: str) -> None:
+        self.snapshots.append(path)
 
     def entitle(self, title: str) -> None:
         self.entitled.append(title)
@@ -1291,7 +1295,10 @@ def fake_pygame(
             flip=lambda: flips.append(1),
         ),
         font=types.SimpleNamespace(SysFont=sysfont),
-        event=types.SimpleNamespace(get=lambda: [queue.pop(0)] if queue else []),
+        event=types.SimpleNamespace(
+            get=lambda: [queue.pop(0)] if queue else [],
+            pump=lambda: None,
+        ),
         time=types.SimpleNamespace(get_ticks=get_ticks, wait=lambda _ms: None),
         Surface=FakeSurface,
         transform=types.SimpleNamespace(
@@ -1701,6 +1708,52 @@ def test_the_pygame_doorway_translates_keys(
 
     with pytest.raises(EOFError):
         glass.key(None)
+
+
+# A driven glass wires no [MORE] callbacks -- a walk has no player
+# to press the key -- while a played one keeps them. The snapshot
+# seam settles, presents, and hands the glass its path; a banded
+# glass photographs the whole window through its inner, band
+# included; and the pygame glass saves its surface, pumping the
+# event queue so a driven window stays alive between frames.
+def test_driven_glasses_never_pause_and_photograph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    driven = GraphicsFrontend(3, StubGlass(), driven=True)
+
+    assert_that(driven.model.more).is_none()
+
+    staged_front = GraphicsFrontend(6, StubGlass(), driven=True)
+
+    assert_that(staged_front.model.more).is_none()
+
+    played = GraphicsFrontend(3, StubGlass())
+
+    assert_that(played.model.more).is_not_none()
+
+    glass = StubGlass()
+    front = GraphicsFrontend(3, glass, driven=True)
+
+    front.snapshot("frame-0000.png")
+
+    assert_that(glass.snapshots).is_equal_to(["frame-0000.png"])
+
+    inner = StubGlass()
+    banded = _BandedGlass(inner, 2)
+
+    banded.snapshot("strip.png")
+
+    assert_that(inner.snapshots).is_equal_to(["strip.png"])
+
+    module = fake_pygame()
+
+    monkeypatch.setitem(sys.modules, "pygame", module)
+
+    window = open_pygame_glass()
+
+    window.snapshot("real.png")
+
+    assert_that(module.snapshots[-1][1]).is_equal_to("real.png")
 
 
 # With VOXAM_SNAPSHOT set, every present also saves the surface

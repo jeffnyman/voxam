@@ -192,6 +192,9 @@ class Glass(Protocol):
     def present(self) -> None:
         """Put the painted frame on screen."""
 
+    def snapshot(self, path: str) -> None:
+        """Save the window's pixels to a file -- the camera's seam."""
+
     def entitle(self, title: str) -> None:
         """Name the window, for a title bar that knows its game."""
 
@@ -356,6 +359,11 @@ class _BandedGlass:
     def present(self) -> None:
         self._inner.present()
 
+    def snapshot(self, path: str) -> None:
+        """The whole window, band included: the inner glass saves."""
+
+        self._inner.snapshot(path)
+
     def entitle(self, title: str) -> None:
         self._inner.entitle(title)
 
@@ -441,6 +449,7 @@ class GraphicsFrontend:
         arc: ArcResources | None = None,
         zoom: float | None = None,
         title: str | None = None,
+        driven: bool = False,
     ) -> None:
         """Wrap a window around a fresh screen model.
 
@@ -472,6 +481,10 @@ class GraphicsFrontend:
             title: What the window's title bar should say -- the
                 game's own name, when the catalog knows it; None
                 keeps the plain interpreter caption.
+            driven: Whether a script drives the session instead of
+                a player. A driven glass never pauses at [MORE] --
+                there is nobody to press a key, and the replay's
+                own pacing is the walk itself.
         """
 
         if glass is None:
@@ -559,7 +572,12 @@ class GraphicsFrontend:
         self._presented = 0.0
         self._owing = False
 
-        if self._stage is not None:
+        # A driven session leaves the [MORE] callbacks unwired:
+        # the models never pause when nothing is hung there, and
+        # a walk has no player to press the key.
+        if driven:
+            pass
+        elif self._stage is not None:
             self._stage.more = self._pause
         else:
             cast("ScreenModel", self._model).more = self._pause_cells
@@ -1295,6 +1313,17 @@ class GraphicsFrontend:
         if self._owing:
             self._present_now()
 
+    def snapshot(self, path: str) -> None:
+        """Photograph the window as it stands -- one filmstrip frame.
+
+        Pending paints settle and the frame presents first, so the
+        file shows exactly what a player would be seeing.
+        """
+
+        self._repaint()
+        self._glass.present()
+        self._glass.snapshot(path)
+
     def _repaint(self) -> None:
         """Carry the model's changes to the glass, then present.
 
@@ -1808,6 +1837,18 @@ class _PygameGlass:
 
         if self._snapshot:
             self._pygame.image.save(self._screen, self._snapshot)
+
+    def snapshot(self, path: str) -> None:
+        """Save the window's pixels -- the filmstrip camera's seam.
+
+        The VOXAM_SNAPSHOT witness saves on every present; this is
+        the deliberate cousin, one frame at a named path, pumping
+        the event queue so a driven window stays alive between
+        frames.
+        """
+
+        self._pygame.event.pump()
+        self._pygame.image.save(self._screen, path)
 
     def entitle(self, title: str) -> None:
         self._pygame.display.set_caption(title)
