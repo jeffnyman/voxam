@@ -49,7 +49,7 @@ def test_quit_halts_the_machine(code_machine: Callable[..., Machine]) -> None:
 # operands are consumed by their own types byte -- two small
 # constants for the first, none for the second -- and play steps
 # on to the store beyond, proving the walk stayed aligned. The
-# Standard's own table stays loud below 128.
+# Standard's own table stays loud below 30.
 def test_private_ext_opcodes_step_over(code_machine: Callable[..., Machine]) -> None:
     program = (
         bytes([0xBE, 0x80, 0x5F, 0x05, 0x09])  # EXT:128 (5, 9), draw_image-shaped
@@ -64,10 +64,39 @@ def test_private_ext_opcodes_step_over(code_machine: Callable[..., Machine]) -> 
     assert_that(machine.running).is_false()
     assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
 
-    unknown = code_machine(layout(bytes([0xBE, 0x7F, 0xFF, 0xBA])), version=5)
+    unknown = code_machine(layout(bytes([0xBE, 0x0E, 0xFF, 0xBA])), version=5)
 
     with pytest.raises(ZMachineInstructionError, match="not an opcode"):
         unknown.run()
+
+
+# An EXT opcode from the band reserved for future Standards is
+# simply ignored, with §14.2.1's warning sent somewhere off-screen:
+# stderr, once per opcode number, never the story's own stream --
+# so a looped future opcode says its piece exactly once and a
+# second number earns its own line.
+def test_reserved_ext_opcodes_warn_once_offscreen(
+    code_machine: Callable[..., Machine],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    program = (
+        bytes([0xBE, 0x1E, 0x5F, 0x05, 0x09])  # EXT:30 (5, 9), operands skipped
+        + bytes([0xBE, 0x1E, 0xFF])  # EXT:30 again: no second warning
+        + bytes([0xBE, 0x7F, 0xFF])  # EXT:127: its own warning
+        + bytes([0x0D, RESULT_VARIABLE, 0x2A])  # store g0 42
+        + bytes([0xBA])  # quit
+    )
+    machine = code_machine(layout(program), version=5)
+
+    machine.run()
+
+    told = capsys.readouterr()
+
+    assert_that(machine.memory.read_word(RESULT_ADDRESS)).is_equal_to(42)
+    assert_that(told.err.count("EXT:30 is reserved")).is_equal_to(1)
+    assert_that(told.err.count("EXT:127 is reserved")).is_equal_to(1)
+    assert_that(told.err).contains("§14.2.1")
+    assert_that(told.out).does_not_contain("EXT:30")
 
 
 # The arc_image band's opcode reaches its frontend: EXT:0x80's two

@@ -622,8 +622,13 @@ way, and the road mapped onto the interim releases:
   whole rows reserved from boot, the model and the header born
   re-based, and the band standing empty rather than coming down.
   Every unclaiming face plays the same story as text, and the
-  whole private EXT range now skips unclaimed (§14.2), as
-  Standard 1.1 asks.
+  whole ignorable EXT range now passes unclaimed as Standard 1.1
+  asks: the private band, 128 to 255, skips silently (§14.2),
+  and the band reserved for future Standards, 30 to 127, skips
+  with §14.2.1's own suggested warning sent off-screen to
+  stderr, once per opcode -- never the story's stream, so every
+  certified transcript holds. Below 30 an unknown number stays
+  the loud error §14.2 asks for.
 - **The saves stand down.** The Z machine's third wait: §15's
   save and restore suspend for their files the way the reads
   suspend for their lines, the ask travelling as the protocol's
