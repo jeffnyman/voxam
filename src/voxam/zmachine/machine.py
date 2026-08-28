@@ -8,6 +8,7 @@ the frontier of what remains to build.
 """
 
 import operator
+import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -647,6 +648,7 @@ class Machine:
         self._sound_since_input = False
         self._windows = self._fresh_windows()
         self._aimed: set[int] = set()
+        self._passed_reserved: set[int] = set()
 
         self._declare_capabilities()
         self._start_execution()
@@ -4500,6 +4502,27 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_ext_reserved(self, instruction: Instruction) -> None:
+        """Pass over a future Standard's EXT opcode, warning once (§14.2.1).
+
+        EXT:30 to EXT:127 are reserved for future versions of the
+        Standard: an unknown one here means the story speaks a
+        newer Standard than this interpreter. §14.2.1 asks that it
+        be simply ignored, perhaps with a warning somewhere
+        off-screen -- so the warning goes to stderr, never the
+        story's own stream, once per opcode number.
+        """
+
+        if instruction.opcode_number not in self._passed_reserved:
+            self._passed_reserved.add(instruction.opcode_number)
+            print(
+                f"voxam: EXT:{instruction.opcode_number} is reserved for a "
+                f"future Standard; passed unclaimed (§14.2.1)",
+                file=sys.stderr,
+            )
+
+        self._pc = instruction.next_address
+
     def _op_draw_image(self, instruction: Instruction) -> None:
         """Hang, replace, or clear the arc_image band (EXT:0x80).
 
@@ -4680,6 +4703,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
     "ext_private": Machine._op_ext_private,
+    "ext_reserved": Machine._op_ext_reserved,
     "draw_image": Machine._op_draw_image,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,

@@ -30,17 +30,23 @@ def test_scan_table_both_stores_and_branches() -> None:
     assert_that(opcode.branches).is_true()
 
 
-# Standard 1.1 reserves EXT 128-255 for private use and asks that
-# unknown ones be ignored (§14.2): the lookup answers a rider-less
-# no-op for the whole range. Below 128 is the Standard's own table,
-# where an unknown number stays the loud error it always was --
-# and 0x80 itself is the arc_image draw in Versions 5, 7, and 8,
-# while Version 6 keeps the number private.
+# Standard 1.1 reserves EXT 128-255 for private use (§14.2) and asks
+# that unknown extended opcodes from EXT:30 up be simply ignored
+# (§14.2.1): the private band answers the silent no-op, the band
+# reserved for future Standards answers the warning one, and below
+# 30 an unknown number stays the loud error §14.2 asks for -- while
+# 0x80 itself is the arc_image draw in Versions 5, 7, and 8, with
+# Version 6 keeping the number private.
 def test_private_ext_opcodes_pass_unclaimed() -> None:
     for number in (0x81, 0xC3, 0xFF):
         opcode = lookup(OpcodeKind.EXT, number, 5)
 
         assert_that(opcode).is_equal_to(Opcode("ext_private"))
+
+    for number in (0x1E, 0x40, 0x7F):
+        opcode = lookup(OpcodeKind.EXT, number, 5)
+
+        assert_that(opcode).is_equal_to(Opcode("ext_reserved"))
 
     for version in (5, 7, 8):
         assert_that(lookup(OpcodeKind.EXT, 0x80, version).name).is_equal_to(
@@ -50,7 +56,7 @@ def test_private_ext_opcodes_pass_unclaimed() -> None:
     assert_that(lookup(OpcodeKind.EXT, 0x80, 6)).is_equal_to(Opcode("ext_private"))
 
     with pytest.raises(ZMachineInstructionError, match="not an opcode"):
-        lookup(OpcodeKind.EXT, 0x7F, 5)
+        lookup(OpcodeKind.EXT, 0x0E, 5)
 
 
 def test_only_the_print_opcodes_carry_text() -> None:
