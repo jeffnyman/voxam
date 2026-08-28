@@ -1,4 +1,4 @@
-# VΘXΔM History
+# Voxam History
 
 The road, told era by era: what each release meant, in the order
 it was travelled. This is the narrative record -- the claims
@@ -46,7 +46,7 @@ the reader's blue and selected by click -- and the acceptance
 grammar spelling every one of those inputs, recorded at the
 window and replayed anywhere.
 
-The treaty and the declaration are `1.5`'s: VΘXΔM claims Full
+The treaty and the declaration are `1.5`'s: Voxam claims Full
 Glulx, in the manner `1.0` claimed the Z-Machine -- glulxercise
 entire, the displays' claims all true where made, and an
 exclusion ledger of exactly two spec-sanctioned refusals with
@@ -58,7 +58,7 @@ under its own name in the title bar -- modern games through their
 records, Infocom's whole catalog through a table of its 246 known
 releases.
 
-The protocol is `1.6`'s: VΘXΔM speaks GlkOte -- the display
+The protocol is `1.6`'s: Voxam speaks GlkOte -- the display
 protocol of Lectrote and the modern web interpreters -- from the
 machine's side, the role RemGlk plays for the C interpreters. The
 machine learned to stand and wait: `glk_select` suspends instead
@@ -82,7 +82,7 @@ browser and the desktop shell alike, while every other face plays
 the same story honestly as text, exactly as the format promises.
 The private-use opcode range it rides in now skips unclaimed
 everywhere (§14.2), so any interpreter extension passes through
-VΘXΔM quietly.
+Voxam quietly.
 
 The protocol made whole is `1.7`'s: a game's ask for a save file
 suspends the machine mid-Glk-call -- a second kind of standing
@@ -132,7 +132,7 @@ the Blorb's cover stands at the top of the story's text, so
 *Violet*'s writing-day art opens the session it belongs to.
 
 And `2.1` sings what `2.0` declared. Sound joins the wire in
-VΘXΔM's own dialect -- AIFF re-wrapped as WAVE and played by the
+Voxam's own dialect -- AIFF re-wrapped as WAVE and played by the
 page's own Web Audio, Glk channels with real fades, §9's
 end-of-sound routines fired by the display's finish reports --
 so *Sensory Jam*'s gong rings in a browser and *The Lurking
@@ -173,7 +173,7 @@ unification, twin heaps, choice points, the word-endings
 decoder -- run instruction for instruction as the specification
 writes it, runtime errors and all. The proof is the reference
 implementation's own test suite: every battery it ships,
-replayed under VΘXΔM, matches the reference engine's transcript
+replayed under Voxam, matches the reference engine's transcript
 byte for byte at the same seed -- the dice being the
 reference's own. *Cloak of Darkness* plays at the terminal, on
 the wire, and in a browser tab under its META bibliography's

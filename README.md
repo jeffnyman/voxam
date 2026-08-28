@@ -46,6 +46,10 @@
   If you find any of this useful, consider leaving a ⭐️ for the repo.
 </p>
 
+<p align="center">
+  <a href="#-the-name"><em>What does Voxam mean?</em></a>
+</p>
+
 ---
 
 An interpreter for the Z-Machine, for Glulx, and for the
@@ -69,7 +73,7 @@ interactive fiction:
   [Dialog](https://linusakesson.net/dialog/) programming
   language -- the newest of the three.
 
-VΘXΔM reads a compiled story file and executes it, with two
+Voxam reads a compiled story file and executes it, with two
 guiding commitments:
 
 - Fidelity to the specifications: the
@@ -82,7 +86,7 @@ guiding commitments:
 - Reproducibility, so that a recorded play session replays identically,
   forever.
 
-VΘXΔM is developed against real games. The *Zork* trilogy,
+Voxam is developed against real games. The *Zork* trilogy,
 *Trinity*, *A Mind Forever Voyaging*, *The Hitchhiker's Guide to
 the Galaxy*, and -- filed in triplicate, blood pressure rising --
 *Bureaucracy* have all been played to winning conclusions,
@@ -99,13 +103,15 @@ the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says
 "All tests passed." The Å-machine arrives certified harder still:
 every test battery its reference implementation ships replays
-under VΘXΔM byte-identical to the reference engine's own
+under Voxam byte-identical to the reference engine's own
 transcripts -- *Miss Gosling's Last Case* walked three hundred
 fifty-one commands to its finale among them.
 
 The full ledger -- the current release, what plays, what is
-certified, and what remains -- lives in [STATUS.md](STATUS.md),
-and the road here, told era by era, is [HISTORY.md](HISTORY.md).
+certified, and what remains -- lives in [STATUS.md](STATUS.md);
+the road here, told era by era, is [HISTORY.md](HISTORY.md);
+and the thinking underneath it all, principles and vocabulary
+alike, is [DESIGN.md](DESIGN.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -127,13 +133,13 @@ story file is all any of them needs:
 - **In a browser.** `voxam --web story.gblorb` -- a GlkOte tab
   on your own machine, art and covers inlined, saves written
   beside the story.
-- **As a desktop app.** Grab the VΘXΔM installer for your
+- **As a desktop app.** Grab the Voxam installer for your
   platform from the
   [latest release](https://github.com/jeffnyman/voxam/releases/latest)
   (Windows, macOS, Linux; unsigned, so expect the usual
   first-run nudge). The shell drives the `voxam` command, so
   install that first -- `pipx install voxam` or
-  `uvx install voxam` puts it on the PATH.
+  `uv tool install voxam` puts it on the PATH.
 - **On a wire.** `voxam --glkote story.z8` -- the whole session
   as JSON stanzas on stdin and stdout, the seam any
   GlkOte-speaking host drives down a pipe.
@@ -144,7 +150,7 @@ in [Playing stories](#playing-stories).
 
 ## Installation
 
-VΘXΔM requires Python 3.12 or later.
+Voxam requires Python 3.12 or later.
 
 ```bash
 pip install voxam
@@ -159,8 +165,13 @@ pipx install voxam
 If you're using uv managed Python:
 
 ```bash
-uvx install voxam
+uv tool install voxam
 ```
+
+And `uvx voxam story.z5` runs it without installing anything at
+all -- uv fetches the package to its cache, runs the command, and
+leaves your PATH untouched, which is the quickest possible way to
+try Voxam on a story file.
 
 The painted screen frontend rides in the `screen` extra, the
 pygame window in the `graphics` extra, and sampled-sound playback
@@ -178,19 +189,19 @@ uv tool install "voxam[screen,graphics,sound]"
 
 On Windows and macOS the sound extra is self-contained; on Linux,
 PortAudio comes from the distribution (`apt install libportaudio2`
-or the local equivalent). Without the extras, VΘXΔM plays as a
+or the local equivalent). Without the extras, Voxam plays as a
 plain text stream. Every game still works; the status line
 simply stays imaginary, and the sound games play in the conforming
 silence they were shipped to accept.
 
-VΘXΔM ships no story files. Bring your own: the
+Voxam ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts hundreds of freely
 available games, and story files you own from commercial collections
 work as-is.
 
 ## Playing stories
 
-Point VΘXΔM at a story file and play at the terminal:
+Point Voxam at a story file and play at the terminal:
 
 ```bash
 voxam path/to/story.z3
@@ -269,7 +280,7 @@ carry the same story to a browser tab or down the wire -- the
 desktop shell plays it through that same seam -- with the
 story's META bibliography opening the page as its card and its
 title riding the tab. The dice are the reference
-implementation's own, so a seeded VΘXΔM session and a seeded
+implementation's own, so a seeded Voxam session and a seeded
 reference session agree forever.
 
 Add `--seed` to make the dice reproducible: the same seed and the
@@ -341,7 +352,7 @@ and its dictionary's word count read from the chunks themselves:
 voxam --decompose story.zblorb
 ```
 
-Every chunk is listed in file order with whatever VΘXΔM's own
+Every chunk is listed in file order with whatever Voxam's own
 decoders can say about it: the packaged story's version, release,
 and serial read from its own header; each picture's pixel size
 with the Fspc cover credited; each AIFF's shape and duration with
@@ -395,7 +406,7 @@ voxam --accept recording.accept --trace session.trace
 ```
 
 A replayed recording makes the trace a *golden* one: when another
-interpreter disagrees with VΘXΔM about a story, the first
+interpreter disagrees with Voxam about a story, the first
 differing line of their traces is the bug. And when a session
 halts, the trace's last line is the instruction that halted it.
 The two halves agree with each other too: every address a session
@@ -406,7 +417,7 @@ third of its code.
 Typing `save` in a game writes a Quetzal file beside the story --
 `zork1.z3` saves to `zork1.sav` -- and `restore` reads it back.
 Quetzal is the standard interchange format, so saves travel between
-VΘXΔM and other interpreters.
+Voxam and other interpreters.
 
 The session files live beside the story the same way. Typing
 `script` in a game -- the command every Infocom manual documents
@@ -427,7 +438,7 @@ a session that never touches the streams leaves no files behind.
 `--interpreter` is not a costume. Infocom's Version 6 games carry
 genuine per-machine code paths, chosen at startup from the
 header's interpreter number, and the flag picks which 1989 machine
-VΘXΔM is pretending to be. Recommendations, earned from the games'
+Voxam is pretending to be. Recommendations, earned from the games'
 own source rather than folklore:
 
 - ***Shogun*: the default.** Its own `DISPLAY-BORDER` routine
@@ -532,7 +543,7 @@ under its own seed, across as many sittings as the game demands.
 
 ### RegTest scripts
 
-VΘXΔM also speaks [RegTest](https://eblong.com/zarf/plotex/regtest.html),
+Voxam also speaks [RegTest](https://eblong.com/zarf/plotex/regtest.html),
 Andrew Plotkin's public-domain regression-test format for
 interactive fiction -- and speaks it twice over. A RegTest script
 of named tests, commands, and per-turn checks runs through the
@@ -559,7 +570,7 @@ interpreters can offer RegTest at all.
 
 ### Refusal warnings
 
-During a replay, VΘXΔM listens for the parser's *refusal dialect* --
+During a replay, Voxam listens for the parser's *refusal dialect* --
 responses like "You can't see any statuette here!" or "You should
 close it first" that mean a recorded command did not do what it
 said. Each one is reported with the script line that drew it:
@@ -649,7 +660,10 @@ Contributions are welcome -- an
 [issue](https://github.com/jeffnyman/voxam/issues) is the front
 door, whether it carries a bug, a question, or a pull request's
 opening thought, and everything below is the contributor's
-setup. Working on VΘXΔM itself needs
+setup. The project's design principles, and the internal
+vocabulary the documents and commit messages lean on (the wire,
+the glass, the dress, and the rest), live in
+[DESIGN.md](DESIGN.md). Working on Voxam itself needs
 [uv](https://docs.astral.sh/uv/) for dependency and environment
 management:
 
@@ -674,7 +688,7 @@ All commands below assume that environment.
 
 ### The desktop shell
 
-The `desktop/` directory holds VΘXΔM's native shell: a
+The `desktop/` directory holds Voxam's native shell: a
 [Tauri](https://tauri.app/) webview wearing the same GlkOte
 display the browser face wears, driving a spawned
 `voxam --glkote` down a pipe. It is not part of the Python
@@ -806,7 +820,7 @@ uv run cz bump
 
 An `entharion` submodule holds the specifications and story files this
 project is developed against. These are not required as part of building
-and deploying VΘXΔM, but they help during development. VΘXΔM does not
+and deploying Voxam, but they help during development. Voxam does not
 depend on anything under `entharion/`. It is not needed to install the
 project and CI does not fetch it. Git leaves submodules empty unless
 asked, so a plain clone simply skips it.
@@ -869,7 +883,7 @@ submodule:
   dictionary) and `txd` (disassembler).
 - `reform6` — an Inform 6 based compiler for producing story files.
 
-Building them is optional. They are useful for comparing VΘXΔM's
+Building them is optional. They are useful for comparing Voxam's
 behavior against known-good implementations. All three need only a C
 compiler, `make`, and a Unix-like environment.
 
@@ -953,7 +967,7 @@ wsl ./entharion/vendor/frotz/dfrotz entharion/zcode-infocom/ballyhoo-r97-s851218
 <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-glow.png" alt="VΘXΔM">
 </p>
 
-The name VΘXΔM draws from two sources of inspiration:
+The name Voxam draws from two sources of inspiration:
 
 * From Latin, vox means "voice," evoking the idea of turning a player's command into action, like voice into magic.
 * In _Zork: Grand Inquisitor_, voxam was a spell meaning "to separate the energies of different magics." That maps well to the process of parsing, breaking down a command into meaningful parts, isolating intent from raw text.
