@@ -1,7 +1,7 @@
 [project]
 name = "voxam"
-version = "2.3.0"
-description = "An Interpreter for the Z-Machine and Glulx"
+version = "2.4.0"
+description = "An Interpreter for the Z-Machine, Glulx, and the Å-machine"
 readme = "README.md"
 authors = [
     { name = "Jeff Nyman", email = "jeffnyman@gmail.com" }
@@ -9,7 +9,16 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-keywords = ["z-machine", "interactive-fiction", "interpreter", "emulator", "infocom"]
+keywords = [
+    "z-machine",
+    "glulx",
+    "aa-machine",
+    "dialog",
+    "interactive-fiction",
+    "interpreter",
+    "emulator",
+    "infocom",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",

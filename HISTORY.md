@@ -181,6 +181,27 @@ card; the AASV savefile is written and revived with the story's
 own header as its identity gate; and undo keeps the reference's
 own depth at every face.
 
+And `2.4` is the first release that builds for somebody else.
+Dialog's own styling is worn at last, at the terminal and on
+the wire from one shared wardrobe, which as far as we know no
+other command-line Å-machine interpreter has done. The rest of
+it is a seam rather than a feature: every update the wire sends
+can carry a `voxam` block of plain session facts beside the
+windows it draws, where the player stands, the command the
+machine was actually handed, the score and the turns, and one
+bit that says an undo or a restore just broke the causal
+thread. Automappers and notebooks have always had to guess at
+those facts by reading the transcript, and guessing is where
+they break; an interpreter simply knows them. So the
+interpreter says them, and stops there: no graph, no layout, no
+compass-word parsing anywhere in the machines, because that
+work belongs to whatever face wants to do it. Voxam's own
+displays do not read the block yet. It is served before it is
+consumed on purpose, so that a map, a notebook, or a "go to the
+kitchen" that any game would obey can be written by anyone
+against a feed that was designed to be honest rather than
+clever.
+
 The story continues in [STATUS.md](STATUS.md), which always
 opens with the current release and keeps the ledger of what
 plays, what is certified, and what remains.
