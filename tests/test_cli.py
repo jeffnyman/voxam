@@ -16,6 +16,8 @@ from assertpy import assert_that
 from voxam.acceptance import Recorder
 from voxam.blorb import Blorb, Resource
 from voxam.cli import (
+    DEFAULT_THEME,
+    THEME_CHOICES,
     _entitle_terminal,
     _gallery,
     _glass_frontend,
@@ -32,6 +34,8 @@ from voxam.cli import (
 )
 from voxam.frontend import PlainFrontend
 from voxam.gallery import Gallery, Resolution
+from voxam.glass import DEFAULT_THEME as GLASS_DEFAULT_THEME
+from voxam.glass import GLASS_THEMES, GraphicsFrontend
 from voxam.glass import Glass as PygameGlass
 from voxam.glulx.glk.glass import GlassFrontend as GlulxGlassFrontend
 from voxam.glulx.glk.objects import KeyCode as GlkKeyCode
@@ -2466,6 +2470,37 @@ def test_graphics_play_runs_through_the_window(
 def test_zoom_takes_a_fraction(capsys: pytest.CaptureFixture[str]) -> None:
     assert_that(main(["--zoom", "1.5", "story.z6"])).is_equal_to(2)
     assert_that(capsys.readouterr().out).contains("fraction of the desktop")
+
+
+# --theme rides through _graphics_frontend to the window's paper;
+# without it the gentle dark stands.
+def test_theme_flag_reaches_the_graphics_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "voxam.glass.open_pygame_glass",
+        lambda _standard=None, _version=0, _zoom=None: WindowStub(""),
+    )
+
+    default = _graphics_frontend(5, None)
+    sepia = _graphics_frontend(5, None, theme="sepia")
+
+    assert_that(cast(GraphicsFrontend, default)._paper).is_equal_to((28, 28, 28))
+    assert_that(cast(GraphicsFrontend, sepia)._paper).is_equal_to((244, 236, 216))
+
+
+# An unknown theme is refused at the parser, before a window opens.
+def test_an_unknown_theme_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["--theme", "neon", "story.z5"])
+
+    assert_that(capsys.readouterr().err).contains("--theme")
+
+
+# The parser's theme list and the glass's own must not drift.
+def test_the_theme_choices_match_the_glass() -> None:
+    assert_that(set(THEME_CHOICES)).is_equal_to(set(GLASS_THEMES))
+    assert_that(DEFAULT_THEME).is_equal_to(GLASS_DEFAULT_THEME)
 
 
 # Without the pygame extra, the explicit flag earns a note and the

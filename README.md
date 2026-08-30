@@ -215,7 +215,9 @@ is what keeps recordings deterministic. And `--graphics` opens
 the pygame window, which is the home of the Version 6 games, and
 a fine roomy home for the earlier ones too. `--zoom` sets how much
 of the desktop it takes (0.85 by default; `--zoom 0` keeps the
-classic compact 80 by 24).
+classic compact 80 by 24). `--theme` sets its ink and paper --
+`dark` by default, or `paper`, `sepia`, or `classic` for the old
+pure white on black.
 
 Glulx stories play the same way: a `.ulx` file or a packaged
 `.gblorb` is recognized by its own magic, and at a real terminal
