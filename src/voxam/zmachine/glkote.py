@@ -238,6 +238,11 @@ class GlkOteFrontend(PlainFrontend):
         # A display that lost its picture asked for it whole; the
         # next render answers with everything.
         self._refresh_owed = False
+        # The sidecar seam: granted by the display's "voxam"
+        # token, carrying the last line this face delivered (PORT:
+        # What the sidecar carries).
+        self._speaks_voxam = False
+        self._last_command: str | None = None
 
     # -- the conversation's opening ----------------------------------------
 
@@ -254,6 +259,7 @@ class GlkOteFrontend(PlainFrontend):
 
         support = stanza.get("support", [])
         self.has_timed_input = "timer" in support
+        self._speaks_voxam = "voxam" in support
 
         # The band's claim is honest twice over: pictures must
         # actually hang behind the story, and the display must
@@ -721,7 +727,11 @@ class GlkOteFrontend(PlainFrontend):
 
         refresh, self._refresh_owed = self._refresh_owed, False
 
-        return self.page.update(exit=exit, refresh=refresh)
+        return self.page.update(
+            exit=exit,
+            refresh=refresh,
+            voxam=self._sidecar() if self._speaks_voxam else None,
+        )
 
     def _timed(self, waiting: Filing | Reading | None) -> None:
         """The timer field for the cycle, from the standing wait.
@@ -940,6 +950,7 @@ class GlkOteFrontend(PlainFrontend):
             self._echoed(line)
 
         self._machine().deliver_line(line, terminator)
+        self._last_command = line
 
         return ADVANCE
 
@@ -1091,6 +1102,40 @@ class GlkOteFrontend(PlainFrontend):
 
         return ADVANCE if machine.waiting is None else STAND
 
+    def _sidecar(self) -> Stanza:
+        """The voxam block: the deluxe features' dumb factual feed.
+
+        Location, score, and turns come from the machine's honest
+        bearings; the command is the last line this face delivered
+        -- the wire knows what it handed over -- and the
+        discontinuity bit reports an undo, restore, or restart
+        since the last update, read once and rested (PORT: What
+        the sidecar carries).
+        """
+
+        machine = self._machine()
+        bearings = machine.bearings()
+        block: Stanza = {}
+
+        if bearings.location is not None:
+            number, name = bearings.location
+            block["location"] = {"object": number, "name": name}
+
+        if bearings.score is not None:
+            block["score"] = bearings.score
+
+        if bearings.turns is not None:
+            block["turns"] = bearings.turns
+
+        if self._last_command is not None:
+            block["command"] = self._last_command
+
+        if machine.discontinuity:
+            machine.discontinuity = False
+            block["discontinuity"] = True
+
+        return block
+
     def _machine(self) -> Machine:
         """The machine this display fronts.
 
@@ -1228,6 +1273,7 @@ class StageFrontend(GlkOteFrontend):
             raise GlkOteError(msg)
 
         self.has_timed_input = "timer" in support
+        self._speaks_voxam = "voxam" in support
         self._speaks_sound = "sound" in support
         self.has_sounds = (
             self._speaks_sound
@@ -1599,7 +1645,11 @@ class StageFrontend(GlkOteFrontend):
         self._timed(waiting)
         self._sung()
 
-        return self.page.update(exit=exit, refresh=refresh)
+        return self.page.update(
+            exit=exit,
+            refresh=refresh,
+            voxam=self._sidecar() if self._speaks_voxam else None,
+        )
 
     def _journaled(self, ops: list[Stanza]) -> None:
         """Fold the cycle's ops into the repaint journal.

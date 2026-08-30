@@ -809,3 +809,37 @@ def test_exit_forces_a_real_update() -> None:
 # all -- no stray blank lines for a bibliography-less blorb.
 def test_an_empty_record_makes_no_card() -> None:
     assert_that(carded(IFiction())).is_empty()
+
+
+# The voxam sidecar rides a real update between the sounds and the
+# exit flag, granted by the caller alone; None leaves the stanza
+# untouched, and a cycle where nothing changed stays the pass --
+# the sidecar never forces an update (PORT: What the sidecar
+# carries).
+def test_the_voxam_block_rides_the_update() -> None:
+    page = Page()
+
+    page.window(1, "buffer", 0, (0, 0, 640, 400))
+
+    update = page.update(voxam={"command": "north"})
+
+    assert_that(update["voxam"]).is_equal_to({"command": "north"})
+    assert_that(list(update)[-1]).is_equal_to("voxam")
+
+    page.window(1, "buffer", 0, (0, 0, 640, 400))
+
+    assert_that(page.update(voxam={"command": "north"})).is_equal_to({"type": "pass"})
+
+    ended = Page()
+
+    ended.window(1, "buffer", 0, (0, 0, 640, 400))
+
+    told = ended.update(exit=True, voxam={})
+
+    assert_that(list(told)[-2:]).is_equal_to(["voxam", "exit"])
+
+    plain = Page()
+
+    plain.window(1, "buffer", 0, (0, 0, 640, 400))
+
+    assert_that("voxam" in plain.update()).is_false()
