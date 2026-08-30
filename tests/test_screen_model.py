@@ -756,3 +756,74 @@ def test_a_form_renders_as_a_golden_grid() -> None:
     )
 
     assert_that(screen.rendered()).is_equal_to(expected)
+
+
+# A terminal the player resizes mid-session reshapes the grid: the
+# old top-left corner is kept -- the status line and the upper
+# window stay put -- and every row comes back damaged for a full
+# repaint (§8.4).
+def test_resize_keeps_the_top_left_and_damages_everything() -> None:
+    screen = ScreenModel(columns=40, lines=HEIGHT, version=3)
+    screen.show_status(Status("West of House", 1, 2, time_game=False))
+    screen.write("adventure")
+    screen.sweep()
+
+    screen.resize(50, 10)
+
+    assert_that(screen.columns).is_equal_to(50)
+    assert_that(screen.lines).is_equal_to(10)
+    assert_that(screen.row_text(1)).contains("West of House")
+    assert_that(screen.row_text(1)).contains("Score: 1  Moves: 2")
+    assert_that(screen.row_text(HEIGHT)).is_equal_to("adventure")
+    assert_that(screen.sweep()).is_equal_to(list(range(1, 11)))
+
+
+# Growing the screen blanks the fresh margin, both the new columns
+# on old rows and the new rows entirely.
+def test_resize_blanks_the_new_margin() -> None:
+    screen = small(version=5)
+
+    screen.resize(30, 10)
+
+    assert_that(screen.cell(1, 25).character).is_equal_to(" ")
+    assert_that(screen.row_text(10)).is_equal_to("")
+
+
+# A resize to the size already held is a no-op: nothing moves and
+# no row is damaged.
+def test_resize_to_the_same_size_does_nothing() -> None:
+    screen = small(version=3)
+    screen.sweep()
+
+    screen.resize(WIDTH, HEIGHT)
+
+    assert_that(screen.sweep()).is_empty()
+
+
+# Shrinking pulls the split and both cursors back inside the new
+# bounds (§8.7.2.1).
+def test_resize_smaller_reins_in_the_split_and_cursors() -> None:
+    screen = small(version=5)
+    screen.split_window(4)
+    screen.set_window(UPPER)
+    screen.set_cursor(4, WIDTH - 1)
+
+    screen.resize(8, 3)
+
+    assert_that(screen.split).is_equal_to(3)
+
+    row, column = screen.get_cursor()
+
+    assert_that(row).is_less_than_or_equal_to(3)
+    assert_that(column).is_less_than_or_equal_to(8)
+
+
+# The screen never shrinks below a single cell, whatever a broken
+# terminal reports.
+def test_resize_floors_at_one_by_one() -> None:
+    screen = small(version=3)
+
+    screen.resize(0, -5)
+
+    assert_that(screen.columns).is_equal_to(1)
+    assert_that(screen.lines).is_equal_to(1)

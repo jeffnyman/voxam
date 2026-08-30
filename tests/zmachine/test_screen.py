@@ -699,3 +699,63 @@ def test_v6_erasure_polices_the_ninth_window() -> None:
 
     with pytest.raises(ZMachineScreenError, match="not one of the eight"):
         machine.run()
+
+
+class ResizableRecorder(ScreenRecorder):
+    """A screen recorder that also carries the resize callback.
+
+    The callback starts inert; the machine replaces it at boot, and
+    the tests below prove that by the header it re-stamps.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.on_resize: Callable[[], None] = lambda: None
+
+
+# A frontend resize re-stamps the §8.4 screen fields: from Version
+# 4 the line and column bytes, and from Version 5 the unit words
+# besides (§8.4, §11.1).
+def test_a_frontend_resize_restamps_the_screen_header() -> None:
+    frontend = ResizableRecorder()
+    machine = Machine(screen_story(b"", version=5), frontend, lambda: "")
+
+    frontend.screen_lines = 40
+    frontend.screen_columns = 132
+    frontend.on_resize()
+
+    memory = machine.memory
+
+    assert_that(memory.read_byte(0x20)).is_equal_to(40)
+    assert_that(memory.read_byte(0x21)).is_equal_to(132)
+    assert_that(memory.read_word(0x22)).is_equal_to(132)
+    assert_that(memory.read_word(0x24)).is_equal_to(40)
+
+
+# Version 4 has the line and column bytes but no unit words: the
+# resize moves the two bytes and leaves $22 alone.
+def test_a_version_4_resize_moves_only_the_size_bytes() -> None:
+    frontend = ResizableRecorder()
+    machine = Machine(screen_story(b"", version=4), frontend, lambda: "")
+
+    frontend.screen_lines = 40
+    frontend.screen_columns = 132
+    frontend.on_resize()
+
+    memory = machine.memory
+
+    assert_that(memory.read_byte(0x20)).is_equal_to(40)
+    assert_that(memory.read_byte(0x21)).is_equal_to(132)
+    assert_that(memory.read_word(0x22)).is_equal_to(0)
+
+
+# Before Version 4 there are no such fields, so the resize callback
+# is a quiet no-op -- the reshaped model carries the change alone.
+def test_a_frontend_resize_is_a_no_op_before_version_4() -> None:
+    frontend = ResizableRecorder()
+    machine = Machine(screen_story(b"", version=3), frontend, lambda: "")
+
+    frontend.screen_lines = 40
+    frontend.on_resize()
+
+    assert_that(machine.memory.read_byte(0x20)).is_equal_to(0)
