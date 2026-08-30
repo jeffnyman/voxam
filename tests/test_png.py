@@ -324,6 +324,62 @@ def test_palette_overruns_are_refused() -> None:
         decode(picture_bytes(1, 1, 8, 3, raw, palette=palette))
 
 
+# The encoder's stream is spelled by hand so its bytes are the
+# same on every build -- zlib-ng and madler zlib disagree, and the
+# wire these pictures ride is certified byte for byte -- so the
+# bytes themselves are pinned (RFC 1951).
+def test_encoded_bytes_never_vary() -> None:
+    plain = Picture(2, 1, (((1, 2, 3), (4, 5, 6)),))
+
+    assert_that(encoded(plain).hex()).is_equal_to(
+        "89504e470d0a1a0a0000000d49484452000000020000000108020000007b40"
+        "e8dd0000000f494441547801636064626661650300003f0016738177810000"
+        "000049454e44ae426082"
+    )
+
+    holed = Picture(2, 1, (((9, 9, 9), (4, 5, 6)),), clear=((True, False),))
+
+    assert_that(encoded(holed).hex()).is_equal_to(
+        "89504e470d0a1a0a0000000d4948445200000002000000010806000000f422"
+        "7f8a0000001149444154780163e0e4e464606165fb0f0001f0012a9e28c690"
+        "0000000049454e44ae426082"
+    )
+
+    misty = Picture(1, 1, (((10, 20, 30),),), alpha=((128,),))
+
+    assert_that(encoded(misty).hex()).is_equal_to(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15"
+        "c4890000000d49444154780163e012916b0000012500bd1c36baec00000000"
+        "49454e44ae426082"
+    )
+
+
+# The deflate matcher, walked whole and read back by real zlib: a
+# solid run spells itself through overlapping distance-one matches;
+# a repeating stripe matches at a distance wide enough to need
+# extra bits; and a picture whose opening pixels return only past
+# the window's reach must spell them fresh, never point that far
+# back (RFC 1951 3.2.3, 3.2.6).
+def test_the_deflate_matcher_round_trips() -> None:
+    def shaded(index: int) -> tuple[int, int, int]:
+        return ((index * 7) % 251, (index * 11) % 241, (index * 13) % 239)
+
+    solid = Picture(100, 1, (((7, 7, 7),) * 100,))
+    striped = Picture(64, 1, (tuple(shaded(index % 8) for index in range(64)),))
+    pixels = [shaded(index) for index in range(11200)]
+    pixels[-4:] = pixels[:4]
+    distant = Picture(11200, 1, (tuple(pixels),))
+
+    # Six distinct nine-bit literals close the stream exactly on a
+    # byte boundary: 3 + 8 + 9 * 6 + 7 bits, nothing left to pad.
+    aligned = Picture(2, 1, (((200, 201, 202), (203, 204, 205)),))
+
+    for picture in (solid, striped, distant, aligned):
+        back = decode(encoded(picture))
+
+        assert_that(back.rows).is_equal_to(picture.rows)
+
+
 # The encoder is decode's write-side twin: plain truecolour rides
 # opaque, clear flags travel as zero alpha, and partial alpha
 # rides whole -- so what the wire carries decodes back to the very

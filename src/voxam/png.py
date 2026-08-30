@@ -5,6 +5,11 @@ Resource Chunks), and a cover picture is worth showing before play
 -- but Voxam's core stays pure stdlib, so the decoding is done here
 by hand: chunk walking, zlib inflation, scanline unfiltering, and
 pixel extraction, following the PNG specification (ISO/IEC 15948).
+The encoder goes one step further and spells its own deflate
+stream: zlib's compressed bytes vary by the library behind it --
+madler zlib and zlib-ng disagree -- and the wire these pictures
+ride is certified byte for byte, so the encoded form must be the
+same on every build (RFC 1951).
 
 The scope is the census of every picture in the vendored Infocom
 resource files: palette images at bit depths 1 to 8, truecolour,
@@ -178,7 +183,8 @@ def encoded(picture: Picture) -> bytes:
     so the plotted pixels travel instead (Blorb: The Adaptive
     Palette Chunk). Truecolour when every pixel is opaque,
     truecolour with alpha when any is not; every scanline rides
-    unfiltered ahead of one zlib stream (PNG 9.2, 11.2.4 IDAT).
+    unfiltered ahead of one hand-spelled zlib stream, so the bytes
+    never vary by build (PNG 9.2, 11.2.4 IDAT; RFC 1951).
     """
 
     translucent = picture.clear is not None or picture.alpha is not None
@@ -204,7 +210,7 @@ def encoded(picture: Picture) -> bytes:
     return (
         SIGNATURE
         + _chunked(IHDR, header)
-        + _chunked(IDAT, zlib.compress(bytes(lines)))
+        + _chunked(IDAT, _deflated(bytes(lines)))
         + _chunked(IEND, b"")
     )
 
@@ -230,6 +236,263 @@ def _chunked(name: bytes, payload: bytes) -> bytes:
         + payload
         + zlib.crc32(name + payload).to_bytes(CRC_SIZE, "big")
     )
+
+
+# The deflate stream _deflated writes: matches no shorter than
+# three bytes and no longer than the format allows, found no
+# further back than the window reaches (RFC 1951 3.2.3).
+_WINDOW = 32768
+_LEAST_MATCH = 3
+_MOST_MATCH = 258
+_END_OF_BLOCK = 256
+
+# Each length symbol's first length and its extra bits, then each
+# distance symbol's first distance and its extra bits (RFC 1951
+# 3.2.5).
+_LENGTH_STARTS = (
+    *range(3, 11),
+    11,
+    13,
+    15,
+    17,
+    19,
+    23,
+    27,
+    31,
+    35,
+    43,
+    51,
+    59,
+    67,
+    83,
+    99,
+    115,
+    131,
+    163,
+    195,
+    227,
+    258,
+)
+_LENGTH_EXTRAS = (
+    *(0,) * 8,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3,
+    3,
+    3,
+    4,
+    4,
+    4,
+    4,
+    5,
+    5,
+    5,
+    5,
+    0,
+)
+_DISTANCE_STARTS = (
+    1,
+    2,
+    3,
+    4,
+    5,
+    7,
+    9,
+    13,
+    17,
+    25,
+    33,
+    49,
+    65,
+    97,
+    129,
+    193,
+    257,
+    385,
+    513,
+    769,
+    1025,
+    1537,
+    2049,
+    3073,
+    4097,
+    6145,
+    8193,
+    12289,
+    16385,
+    24577,
+)
+_DISTANCE_EXTRAS = (0, 0, 0, 0, *(n for n in range(1, 14) for _ in (0, 1)))
+
+
+class _Writer:
+    """Deflate's bitstream (RFC 1951 3.1.1).
+
+    Data elements ride least significant bit first; Huffman codes
+    ride most significant bit first, so code reverses them on the
+    way in.
+    """
+
+    def __init__(self) -> None:
+        self._bytes = bytearray()
+        self._held = 0
+        self._count = 0
+
+    def bits(self, value: int, width: int) -> None:
+        """Write width bits of value, least significant first."""
+
+        self._held |= value << self._count
+        self._count += width
+
+        while self._count >= 8:  # noqa: PLR2004 -- the byte, drained
+            self._bytes.append(self._held & 0xFF)
+            self._held >>= 8
+            self._count -= 8
+
+    def code(self, value: int, width: int) -> None:
+        """Write one Huffman code, most significant bit first."""
+
+        told = 0
+
+        for _ in range(width):
+            told = (told << 1) | (value & 1)
+            value >>= 1
+
+        self.bits(told, width)
+
+    def flushed(self) -> bytes:
+        """The stream, its last partial byte padded with zeros."""
+
+        if self._count:
+            self._bytes.append(self._held & 0xFF)
+            self._held = 0
+            self._count = 0
+
+        return bytes(self._bytes)
+
+
+def _deflated(data: bytes) -> bytes:
+    """A zlib stream whose bytes are the same on every build.
+
+    zlib.compress would be shorter to write and to read, but its
+    bytes are the backing library's own business -- zlib-ng and
+    madler zlib compress differently -- and these bytes are part
+    of the certified wire. So the stream is spelled by hand: the
+    zlib dress (RFC 1950) around one final deflate block under the
+    fixed Huffman codes, matches found greedily at the last place
+    the next three bytes stood (RFC 1951 3.2.6).
+    """
+
+    writer = _Writer()
+
+    writer.bits(1, 1)
+    writer.bits(1, 2)
+
+    table: dict[bytes, int] = {}
+    position = 0
+
+    while position < len(data):
+        length, start = _matched(data, position, table)
+
+        if length:
+            _length_coded(writer, length)
+            _distance_coded(writer, position - start)
+        else:
+            length = 1
+
+            _symbol(writer, data[position])
+
+        _remembered(data, position, length, table)
+
+        position += length
+
+    _symbol(writer, _END_OF_BLOCK)
+
+    return b"\x78\x01" + writer.flushed() + zlib.adler32(data).to_bytes(4, "big")
+
+
+def _matched(data: bytes, position: int, table: dict[bytes, int]) -> tuple[int, int]:
+    """The longest match at the last place these three bytes stood.
+
+    Zero for none: the tail too short to hold a match, bytes never
+    seen, or a stand beyond the window's reach. A match may run
+    into itself -- distance one, length many, is how a run spells
+    itself (RFC 1951 3.2.3).
+    """
+
+    if position + _LEAST_MATCH > len(data):
+        return 0, 0
+
+    prior = table.get(data[position : position + _LEAST_MATCH])
+
+    if prior is None or position - prior > _WINDOW:
+        return 0, 0
+
+    most = min(_MOST_MATCH, len(data) - position)
+    length = _LEAST_MATCH
+
+    while length < most and data[prior + length] == data[position + length]:
+        length += 1
+
+    return length, prior
+
+
+def _remembered(
+    data: bytes, position: int, length: int, table: dict[bytes, int]
+) -> None:
+    """Each covered position becomes its three bytes' last stand."""
+
+    for held in range(position, position + length):
+        if held + _LEAST_MATCH <= len(data):
+            table[data[held : held + _LEAST_MATCH]] = held
+
+
+def _symbol(writer: _Writer, symbol: int) -> None:
+    """One literal-or-length symbol, fixed codes (RFC 1951 3.2.6)."""
+
+    if symbol <= 143:  # noqa: PLR2004 -- the fixed code's own fences
+        writer.code(0x30 + symbol, 8)
+    elif symbol <= 255:  # noqa: PLR2004
+        writer.code(0x190 + symbol - 144, 9)
+    elif symbol <= 279:  # noqa: PLR2004
+        writer.code(symbol - 256, 7)
+    else:
+        writer.code(0xC0 + symbol - 280, 8)
+
+
+def _length_coded(writer: _Writer, length: int) -> None:
+    """A match length: its symbol, then its extra bits."""
+
+    told = len(_LENGTH_STARTS) - 1
+
+    while _LENGTH_STARTS[told] > length:
+        told -= 1
+
+    _symbol(writer, 257 + told)
+
+    if _LENGTH_EXTRAS[told]:
+        writer.bits(length - _LENGTH_STARTS[told], _LENGTH_EXTRAS[told])
+
+
+def _distance_coded(writer: _Writer, distance: int) -> None:
+    """A match distance: its five-bit code, then its extra bits."""
+
+    told = len(_DISTANCE_STARTS) - 1
+
+    while _DISTANCE_STARTS[told] > distance:
+        told -= 1
+
+    writer.code(told, 5)
+
+    if _DISTANCE_EXTRAS[told]:
+        writer.bits(distance - _DISTANCE_STARTS[told], _DISTANCE_EXTRAS[told])
 
 
 def palette(data: bytes) -> tuple[tuple[int, int, int], ...]:

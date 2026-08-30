@@ -8,6 +8,7 @@ the frontier of what remains to build.
 """
 
 import operator
+import sys
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from typing import NoReturn
 
 from voxam.errors import (
     MachineSuspended,
+    VoxamError,
     ZMachineArithmeticError,
     ZMachineInstructionError,
     ZMachineMemoryError,
@@ -417,6 +419,27 @@ def _remainder(left: int, right: int) -> int:
     return left - _quotient(left, right) * right
 
 
+@dataclass(frozen=True)
+class Bearings:
+    """The sidecar's honest facts (§8.2).
+
+    Where the player stands and how the tally reads, None where a
+    machine cannot honestly say (PORT: What the sidecar carries).
+
+    Attributes:
+        location: The object the first global names and its short
+            name, or None when the global names no decodable
+            object.
+        score: The second global, signed -- None in a time game,
+            whose globals are the clock.
+        turns: The third global -- None in a time game.
+    """
+
+    location: tuple[int, str] | None
+    score: int | None
+    turns: int | None
+
+
 class Reading:
     """One suspended read: what the machine stands waiting for.
 
@@ -647,6 +670,12 @@ class Machine:
         self._sound_since_input = False
         self._windows = self._fresh_windows()
         self._aimed: set[int] = set()
+        self._passed_reserved: set[int] = set()
+        # The sidecar's one honest bit: this state of play does
+        # not follow causally from the last command -- an undo, a
+        # restore, or a restart intervened. The wire face reads it
+        # once and rests it (PORT: What the sidecar carries).
+        self.discontinuity = False
 
         self._declare_capabilities()
         self._start_execution()
@@ -806,6 +835,7 @@ class Machine:
         self._memory.restore_dynamic(snapshot.dynamic_memory)
         self._memory.write_word(FLAGS_2, flags2)
         self._calls.restore(snapshot.frames)
+        self.discontinuity = True
         self._pc = snapshot.pc
         self._declare_capabilities()
 
@@ -1894,6 +1924,8 @@ class Machine:
         (stream selection, memory redirection) returns to its boot
         state.
         """
+
+        self.discontinuity = True
 
         flags2 = self._memory.read_word(FLAGS_2)
         pristine = self._story.data[: self._story.header.static_memory_base]
@@ -3019,6 +3051,45 @@ class Machine:
             self._memory.write_byte(coded + offset, value)
 
         self._pc = instruction.next_address
+
+    def bearings(self) -> Bearings:
+        """The wire sidecar's honest §8.2 facts, gathered gently.
+
+        The location is the object the first global names with its
+        short name -- guaranteed through Version 3 (§8.2.2) and
+        Inform convention after -- so a value naming no decodable
+        object simply answers None rather than a halt: the sidecar
+        is a courtesy feed, never a gate. The score and turns are
+        the next two globals, score games only: a time game's
+        globals are the clock (§8.2.3), which is no score at all.
+        """
+
+        location = None
+
+        try:
+            number = self._variables.read(FIRST_GLOBAL)
+
+            if number:
+                text, _ = decode_string(
+                    self._memory, self._objects.short_name_address(number)
+                )
+                location = (number, text)
+        except VoxamError:
+            location = None
+
+        # The clock bit exists only where the status line does
+        # (§8.2.3.2); later versions read as score games.
+        if (
+            self._memory.header.version <= STATUS_FLAGS_VERSION
+            and self._memory.header.time_game
+        ):
+            return Bearings(location=location, score=None, turns=None)
+
+        return Bearings(
+            location=location,
+            score=signed(self._variables.read(FIRST_GLOBAL + 1)),
+            turns=self._variables.read(FIRST_GLOBAL + 2),
+        )
 
     def _status(self) -> Status:
         """Assemble what the status line shows (§8.2).
@@ -4500,6 +4571,27 @@ class Machine:
 
         self._pc = instruction.next_address
 
+    def _op_ext_reserved(self, instruction: Instruction) -> None:
+        """Pass over a future Standard's EXT opcode, warning once (§14.2.1).
+
+        EXT:30 to EXT:127 are reserved for future versions of the
+        Standard: an unknown one here means the story speaks a
+        newer Standard than this interpreter. §14.2.1 asks that it
+        be simply ignored, perhaps with a warning somewhere
+        off-screen -- so the warning goes to stderr, never the
+        story's own stream, once per opcode number.
+        """
+
+        if instruction.opcode_number not in self._passed_reserved:
+            self._passed_reserved.add(instruction.opcode_number)
+            print(
+                f"voxam: EXT:{instruction.opcode_number} is reserved for a "
+                f"future Standard; passed unclaimed (§14.2.1)",
+                file=sys.stderr,
+            )
+
+        self._pc = instruction.next_address
+
     def _op_draw_image(self, instruction: Instruction) -> None:
         """Hang, replace, or clear the arc_image band (EXT:0x80).
 
@@ -4680,6 +4772,7 @@ _HANDLERS: dict[str, Callable[[Machine, Instruction], None]] = {
     "new_line": Machine._op_new_line,
     "nop": Machine._op_nop,
     "ext_private": Machine._op_ext_private,
+    "ext_reserved": Machine._op_ext_reserved,
     "draw_image": Machine._op_draw_image,
     "picture_data": Machine._op_picture_data,
     "picture_table": Machine._op_picture_quiet,

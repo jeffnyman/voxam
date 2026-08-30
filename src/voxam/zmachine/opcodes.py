@@ -48,13 +48,19 @@ class Opcode:
     has_text: bool = False
 
 
-# Standard 1.1 reserves EXT opcodes 128-255 for private use (§14.2):
-# unknown ones decode as this rider-less no-op instead of raising, so
-# an extension a game carries for some other interpreter passes
-# through quietly. Below 128 is the Standard's own table, where an
-# unknown number stays the loud error it always was.
+# Standard 1.1 reserves EXT opcodes 128-255 for private use (§14.2)
+# and asks that unknown extended opcodes from EXT:30 up be simply
+# ignored, perhaps with a warning somewhere off-screen (§14.2.1). So
+# the private band decodes as a silent rider-less no-op -- a game
+# carrying an extension for some other interpreter passes through
+# quietly -- and the band reserved for future Standards, 30 through
+# 127, decodes as its own no-op whose handler warns off-screen as it
+# passes. Below 30 is the Standard's own table, where an unknown
+# number stays the loud error §14.2 asks for.
 PRIVATE_EXT_FLOOR = 0x80
+RESERVED_EXT_FLOOR = 0x1E
 _PRIVATE_EXT = Opcode("ext_private")
+_RESERVED_EXT = Opcode("ext_reserved")
 
 # A table entry: the first and last version defining the opcode, and
 # the opcode itself. A number maps to a tuple of entries because some
@@ -289,6 +295,12 @@ def lookup(kind: OpcodeKind, number: int, version: int) -> Opcode:
         # the instruction skips whole; by the same convention no
         # store or branch rider is assumed to follow.
         return _PRIVATE_EXT
+
+    if kind is OpcodeKind.EXT and number >= RESERVED_EXT_FLOOR:
+        # EXT:30 to EXT:127 belong to future Standards, and §14.2.1
+        # asks that the unknown ones be simply ignored too -- the
+        # handler adds the warning the section suggests, off-screen.
+        return _RESERVED_EXT
 
     msg = f"{kind.value}:{number} is not an opcode in version {version} (§14)"
 

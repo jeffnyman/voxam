@@ -1458,3 +1458,40 @@ def test_a_wrongful_event_is_loud(image: Callable[..., bytes]) -> None:
     assert_that(clean).is_false()
     assert_that(stanzas[-1]["type"]).is_equal_to("error")
     assert_that(stanzas[-1]["message"]).contains("not expecting")
+
+
+# The sidecar rides when the display says the "voxam" token: Glulx
+# has no location or score globals to read, so the block carries
+# the wire's own facts alone -- the delivered line and the
+# discontinuity bit, read once and rested (PORT: What the sidecar
+# carries).
+def test_the_sidecar_rides_when_granted(image: Callable[..., bytes]) -> None:
+    frontend = opened(support=["voxam"])
+    library = Glk(frontend)
+    machine = Machine(Story(image(code=AWAITS_KEY)), glk=library)
+
+    frontend.machine = machine
+
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the root window opened")
+
+    library.glk_request_line_event(window, [0] * 8, 0)
+
+    first = frontend.render()
+
+    assert_that(first["voxam"]).is_equal_to({})
+
+    event = frontend.accept(
+        {"type": "line", "gen": first["gen"], "window": 1, "value": "go"}
+    )
+
+    assert_that(event).is_not_none()
+
+    machine.discontinuity = True
+
+    update = frontend.render()
+
+    assert_that(update["voxam"]).is_equal_to({"command": "go", "discontinuity": True})
+    assert_that(machine.discontinuity).is_false()
