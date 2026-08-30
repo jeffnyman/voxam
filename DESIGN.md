@@ -16,7 +16,11 @@ section it came from, in the code itself: a Z-Machine behavior
 names its section of the Standard, a Glk call names its chapter,
 an Å-machine opcode names its heading in the reference
 specification. When Voxam and another interpreter disagree, the
-citation is where the argument starts, and usually where it ends.
+citation is where the argument starts, and usually where it
+ends. The one family of citations that names no published
+specification is the wire's own extensions, which no
+specification covers; the last section here explains where those
+are written down instead.
 
 **Loud beats wrong.** When Voxam can't do something correctly,
 it says so, by name, and stops. It doesn't guess, half-work, or
@@ -130,6 +134,13 @@ the architecture actually has.
 - **the dialect**: Voxam's own extensions to stock GlkOte,
   spoken only to displays that declare support for them: sound
   channels, per-span ink, and the stage's words.
+- **the sidecar**: the `voxam` block riding beside the windows
+  in an update: plain facts about the session (where the player
+  stands, the command the machine was handed, the score and
+  turns, and whether an undo or a restore just broke the causal
+  thread) offered to a display that asks for them by name. A
+  dumb factual feed, never a picture: everything clever a face
+  might build on it is the face's own work.
 - **the stage**: Version 6's §8.8 screen crossing the wire as a
   single scaled canvas in the art's own coordinates, with placed
   text, sliding rectangles, and an input editor emplaced at the
@@ -199,3 +210,26 @@ the architecture actually has.
 - **refusal**: Voxam declining to do something, loudly and by
   name, with the reason and usually the road. The opposite of a
   silent failure, and treated in this project as a feature.
+
+## The port, and the one citation with no specification
+
+[voxam-rs](https://github.com/jeffnyman/voxam-rs) is a Rust port
+of this implementation, and the relationship is deliberately
+one-directional: the Python Voxam is the reference. Every seeded
+session recorded here is expected to replay byte-identically
+there, and the port proves it with parity sweeps rather than
+with assertions of similarity.
+
+That has one visible consequence in this codebase. Citations in
+the code normally name a public specification (`§8.2`, `Glulx:
+The Random Number Generator`, `Blorb: The Adaptive Palette
+Chunk`), but a handful read `PORT: What the sidecar carries`.
+Those name a section of
+[PORT.md](https://github.com/jeffnyman/voxam-rs/blob/main/PORT.md),
+the port's own design document, and they mark the one thing no
+published specification covers: Voxam's extensions to the
+GlkOte protocol, designed once and written down where both
+implementations can be held to them. Where the citation
+convention normally says "this behavior is not mine to invent,"
+a `PORT:` citation says "this behavior is ours, and here is
+where we wrote it down so it cannot drift."

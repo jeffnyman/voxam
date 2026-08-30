@@ -1,3 +1,16 @@
+## v2.4.0 (2026-08-30)
+
+### Feat
+
+- **glkote**: design the voxam sidecar into the wire (#310)
+- **png**: spell the encoder's deflate stream by hand, the same bytes on every build (#309)
+- **aamachine**: the wire wears the wardrobe; styles in the browser interface (#304)
+- **aamachine**: the LOOK styles worn at the terminal; bold, italics as the debugger's own underlines, and the sheet's colors, honest per stream (#303)
+
+### Fix
+
+- **zmachine**: the reserved EXT band passes unclaimed; §14.2.1's ignore range honored from 30, with its suggested warning off-screen on stderr (#308)
+
 ## v2.3.0 (2026-08-27)
 
 ### Feat

@@ -8,28 +8,37 @@ nothing below is promised, only enforced.
 
 ## The current release
 
-Version `2.3`: the third machine. Voxam now plays the
-Å-machine -- the virtual machine [Dialog](https://linusakesson.net/dialog/)
-compiles to, Prolog heart and all -- at the terminal, over the
-GlkOte wire, in a browser tab, and in the desktop shell, with
-AASV savefiles written and revived and undo aboard everywhere.
-The claim is certified the strongest way an implementation can
-be: every test battery the reference implementation ships
-replays under Voxam byte-identical to the reference engine's
-own transcripts, seeded dice included, from the opcode
-stress-test to a 351-command walk through a real mystery.
+Version `2.4`: the sidecar, and the third machine dressed.
+Every update the wire sends can now carry a `voxam` block beside
+the windows it draws: where the player stands, the command that
+moved them, the score and the turn count, and one honest bit
+saying this state of play does not follow from the last command,
+because an undo, a restore, or a restart intervened. It is a
+dumb factual feed and nothing more, granted only by a display
+that asks for it by name, and it never forces an update into
+being; the graph, the layout, and the drawing belong to whatever
+face wants to build a map or a notebook on those facts. Beside
+it, Dialog's own styling is finally worn: the LOOK chunk's bold,
+italics, and colors at a real terminal and on the wire alike,
+which makes Voxam, as far as we know, the first command-line
+Å-machine interpreter to clear the specification's styling bar.
 
 The standing claims beneath it, each enforced in continuous
 integration rather than promised: the Z-Machine is complete --
 every opcode §14 defines, all eight story file versions, version
 6 illustrated -- and held to the community's checkers at their
 exact tallies; Full Glulx is declared, glulxercise entire, with
-an exclusion ledger of exactly two spec-sanctioned refusals;
-GlkOte is spoken from the machine's side, so the stories play
-at the terminal, the pygame window, the browser, the desktop
-shell, and down a stdio wire, sound and art and the Version 6
-stage included; the Treaty of Babel names every story that can
-be named; and a seeded session replays identically, forever --
+an exclusion ledger of exactly two spec-sanctioned refusals; the
+Å-machine is certified the strongest way an implementation can
+be, every test battery its reference implementation ships
+replaying under Voxam byte-identical to the reference engine's
+own transcripts, seeded dice included, from the opcode
+stress-test to a 351-command walk through a real mystery; GlkOte
+is spoken from the machine's side, so the stories play at the
+terminal, the pygame window, the browser, the desktop shell, and
+down a stdio wire, sound and art and the Version 6 stage
+included; the Treaty of Babel names every story that can be
+named; and a seeded session replays identically, forever --
 forty-four recorded playthroughs and a test suite at 100% branch
 coverage hold the whole of it.
 
@@ -884,7 +893,7 @@ signed installers that remain a certificate rather than a
 branch. None of it blocks a game the corpus plays, and
 forty-four recordings hold the whole claim to replay.
 
-## The Å-machine: 2.3
+## The Å-machine: 2.3, dressed in 2.4
 
 The third machine. Dialog compiles to the Å-machine the way
 Inform compiles to Glulx, and Voxam now carries the whole of it
@@ -970,3 +979,80 @@ on the page -- is a richer wire road than the stock styles worn
 today; the acceptance driver, the tracer, and the filmstrip do
 not speak `.aastory` yet; and the browser tab borrows the Glulx
 icon until the third machine earns its own mark.
+
+## The sidecar: 2.4
+
+Automapping, a notebook, a "go to the kitchen" that any game
+would obey: every one of those features has been built before,
+and every one of them has been built by a face reading the
+transcript and guessing. Guessing is where they break. A face
+cannot tell a real move from a printed flashback, cannot tell
+that an undo just unwound the last three rooms, and cannot know
+that the command the machine actually received was not the one
+the player typed. But the interpreter knows all three without
+guessing at anything, because they are simply facts about the
+session it is running.
+
+So the wire grew a sidecar: a `voxam` block riding beside the
+windows in an ordinary update, carrying those facts and nothing
+else. Every ounce of intelligence stays in the face. Voxam's own
+displays do not read the block yet: it is designed and served
+before it is consumed, so that anyone's face can be written
+against it. The schema it serves is specified in
+[PORT.md](https://github.com/jeffnyman/voxam-rs/blob/main/PORT.md),
+in the sibling Rust port that keeps this implementation as its
+reference.
+
+- **Granted, never assumed.** The block travels only to a
+  display that names `voxam` in its own init support list,
+  exactly as the sound, color, and stage words of the dialect
+  travel. An ungranted session carries no block at all, and a
+  granted one never has an update forced into being for its
+  sake: a cycle where nothing changed is still the pass. The
+  courtesy feed cannot become a gate.
+- **Location, honestly or not at all.** The Z-Machine reads the
+  §8.2 globals its status line reads: the first global's object
+  and that object's short name, the score, and the turn count.
+  A time game's globals are the clock, so its score and turns
+  simply do not travel rather than travelling as nonsense, and
+  a global naming no decodable object answers with no location
+  rather than halting the session over a courtesy. Glulx and
+  the Å-machine have no fixed globals to read at all, so
+  theirs are the fields the wire itself owns.
+- **The command as delivered.** The wire layer knows the exact
+  line it handed the machine, scripted and replayed input
+  included, which is better evidence than any face-side memory
+  of what was typed into a box.
+- **The discontinuity bit.** Undo, restore, and restart each
+  raise it in the machine, and the face's composer reads it
+  once and rests it. One honest bit spares every consumer the
+  transcript-grepping heuristics the earlier automappers
+  needed, and it is what keeps a mapper from drawing a phantom
+  edge across time travel.
+- **The boundary, deliberately.** No direction parsing and no
+  graph state anywhere in the machines. Reading a typed command
+  for its compass word is an English-only, typed-input-only
+  heuristic: a fine choice for a face, a poisonous assumption
+  in a core. Rooms are identified by object number, not by
+  printed name, which is the property that makes a maze
+  mappable at all.
+
+One more thing hardened underneath the release. The wire's own
+pictures are re-encoded when an adaptive palette has to be baked
+in, and `zlib.compress` does not promise the same bytes on every
+build: madler zlib and zlib-ng disagree, so a filmstrip
+photographed on one machine could differ from the same walk
+photographed on another for no reason the story knew about.
+The encoder now spells its own deflate stream by hand (RFC 1951)
+beside the reader that was already hand-written, so the bytes
+are the bytes, everywhere, forever.
+
+The sidecar's own footpaths, named: no Voxam face consumes the
+block yet, so the map, the notebook, and the verified fast
+travel that motivated it remain designs rather than claims;
+Glulx and the Å-machine carry no location, because neither
+format has one an interpreter could honestly read, so a face
+wanting rooms from them will have to earn them some other way;
+and a persisted map, if one is ever kept, is meant to
+key by IFID and live beside the story as an ordinary file, the
+way the saves do.

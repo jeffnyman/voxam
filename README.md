@@ -262,6 +262,20 @@ beside a `.ulx` or `.gblorb`, status line and split windows in
 the protocol's own grid, and the Version 6 stage as one scaled
 canvas in the art's own coordinates.
 
+A display that asks for it by name gets one thing stock GlkOte
+does not carry: a `voxam` block riding beside the windows, with
+the plain facts of the session in it. Where the player stands
+(the room's object and its printed name), the command the
+machine was actually handed, the score and the turn count, and
+one bit that says an undo, a restore, or a restart just broke
+the causal thread. It is a feed for the features every display
+has had to guess at by reading the transcript (a map, a
+notebook, a "take me back to the kitchen"), and it does the
+knowing, not the drawing: no graph, no layout, and no
+compass-word parsing lives inside Voxam. A display that never
+asks for the block never sees it, and no update is ever sent
+into being for its sake.
+
 Å-machine stories play the same way: an `.aastory` is
 recognized by its own form and verified by its own checksum
 before it runs:
@@ -279,7 +293,14 @@ gate, and undo is aboard without asking. `--web` and `--glkote`
 carry the same story to a browser tab or down the wire -- the
 desktop shell plays it through that same seam -- with the
 story's META bibliography opening the page as its card and its
-title riding the tab. The dice are the reference
+title riding the tab. The story also wears what its author
+dressed it in: the LOOK sheet's bold, its italics (drawn as
+underlines, the way Dialog's own debugger draws them), and its
+colors as truecolor ink and paper, worn at a real terminal and,
+under the display's own colors grant, on the wire as well. A
+pipe still gets plain text, because a pipe is not a terminal
+and Voxam answers the styling questions honestly per stream.
+The dice are the reference
 implementation's own, so a seeded Voxam session and a seeded
 reference session agree forever.
 
@@ -747,6 +768,21 @@ and restore learned the same standing-down the reads learned,
 asking for their files through the protocol's special input, so
 a Zork saved in the shell is a real Quetzal on disk, restored
 through the same picker.
+
+### The Rust port
+
+[voxam-rs](https://github.com/jeffnyman/voxam-rs) is a port of
+this interpreter to Rust, kept in its own repository, and this
+implementation is its reference: every seeded session recorded
+here is expected to replay byte-identically there, and the
+port's parity sweeps prove it rather than assert it. The port
+carries `PORT.md`, its design document, which is also where
+Voxam's own extensions to the GlkOte protocol are specified.
+That is why a few citations in this codebase read
+`PORT: What the sidecar carries` where the rest name a published
+specification: the wire's extensions belong to no standard, so
+they are written down once, in the one place both
+implementations can be held to.
 
 ### Project conventions
 
