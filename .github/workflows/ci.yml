@@ -123,17 +123,31 @@ jobs:
       # every section, and the certification asserts the exact
       # tally -- 70 sections passed, no failures, and the closing
       # verdict spoken -- through the same stdio session a player
-      # would use. The seed is pinned: the random section does
-      # statistical checks, and an honest unseeded stream fails
-      # them by pure chance every few dozen runs -- which twice
-      # read as a phantom regression on a green change.
+      # would use.
+      #
+      # --seed 777 pins every section that draws on the session
+      # stream, but RandomTest reseeds from real entropy itself
+      # (`@setrandom 0`) and then checks the histogram against wide
+      # but finite bounds -- it prints its own warning that it
+      # "may, very occasionally, fail through sheer bad luck." So
+      # the battery is retried: a real regression fails every
+      # attempt, one unlucky histogram does not. True determinism
+      # for RandomTest is issue #316.
       - name: Glulxercise, the whole battery
         run: |
-          out="$(echo all | uv run voxam --seed 777 entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
-          echo "$out" | tail -3
-          test "$(echo "$out" | grep -c '^Passed\.$')" -eq 70
-          echo "$out" | grep -q "All tests passed."
-          ! echo "$out" | grep -q "FAILED"
+          for attempt in 1 2 3; do
+            out="$(echo all | uv run voxam --seed 777 entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
+            if [ "$(echo "$out" | grep -c '^Passed\.$')" -eq 70 ] \
+              && echo "$out" | grep -q "All tests passed." \
+              && ! echo "$out" | grep -q "FAILED"; then
+              echo "$out" | tail -3
+              exit 0
+            fi
+            echo "::warning::glulxercise attempt $attempt did not certify"
+            echo "$out" | tail -5
+          done
+          echo "::error::glulxercise did not certify in 3 attempts"
+          exit 1
 
   build:
     name: Build distribution
