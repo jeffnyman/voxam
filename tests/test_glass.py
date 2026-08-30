@@ -164,11 +164,16 @@ class MeddlingGlass(StubGlass):
 
 
 def windowed(
-    version: int = 5, keys: list[str | None] | None = None
+    version: int = 5,
+    keys: list[str | None] | None = None,
+    theme: str = "classic",
 ) -> tuple[GraphicsFrontend, StubGlass]:
+    # The mechanics tests pin "classic" so ink and paper stay the
+    # plain WHITE and BLACK they assert; the default theme and the
+    # rest have their own tests below.
     glass = StubGlass(keys)
 
-    return GraphicsFrontend(version, glass=glass), glass
+    return GraphicsFrontend(version, glass=glass, theme=theme), glass
 
 
 def runs_containing(glass: StubGlass, text: str) -> list[tuple[object, ...]]:
@@ -448,6 +453,73 @@ def test_font_3_runs_keep_their_characters_and_go_graphics() -> None:
 
     assert_that(text).is_equal_to("({")
     assert_that(graphics).is_true()
+    assert_that(ink).is_equal_to(WHITE)
+    assert_that(paper).is_equal_to(BLACK)
+
+
+# The home look is the gentle dark: an untouched glass sets its
+# text in soft grey on charcoal, not the pure white on black that
+# glares (#319).
+def test_the_default_theme_softens_the_glass() -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(5, glass=glass)
+
+    frontend.write("plain")
+
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "plain")[0]
+
+    assert_that(ink).is_equal_to((214, 214, 214))
+    assert_that(paper).is_equal_to((28, 28, 28))
+
+
+# Each theme is a whole dressing of the default ink and paper.
+def test_a_theme_dresses_the_default_ink_and_paper() -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(5, glass=glass, theme="sepia")
+
+    frontend.write("aged")
+
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "aged")[0]
+
+    assert_that(ink).is_equal_to((67, 56, 42))
+    assert_that(paper).is_equal_to((244, 236, 216))
+
+
+# Codes 9 and 2 -- "white" and "black" -- follow the theme, so a
+# game resetting to them looks no harsher than one that left the
+# colours alone; the other six stay their true values (§8.3.3).
+def test_white_and_black_follow_the_theme() -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(5, glass=glass, theme="dark")
+
+    frontend.set_colour(9, 2)
+    frontend.write("reset")
+
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "reset")[0]
+
+    assert_that(ink).is_equal_to((214, 214, 214))
+    assert_that(paper).is_equal_to((28, 28, 28))
+
+    frontend.set_colour(3, 4)
+    frontend.write("leaf")
+
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "leaf")[0]
+
+    assert_that(ink).is_equal_to((204, 0, 0))
+    assert_that(paper).is_equal_to((0, 204, 0))
+
+
+# The "classic" theme is the old look kept whole: pure white on
+# black, codes 9 and 2 included.
+def test_classic_keeps_pure_white_on_black() -> None:
+    glass = StubGlass()
+    frontend = GraphicsFrontend(5, glass=glass, theme="classic")
+
+    frontend.set_colour(9, 2)
+    frontend.write("pure")
+
+    (_, _, _, ink, paper, _, _, _) = runs_containing(glass, "pure")[0]
+
     assert_that(ink).is_equal_to(WHITE)
     assert_that(paper).is_equal_to(BLACK)
 

@@ -75,12 +75,36 @@ Appearance = tuple[
     str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool, bool]
 ]
 
-# The §8.3.1 colour codes as RGB, code 1 being the interpreter's
-# default ink and paper: white on black, the machine's home look.
-# The greys at 10-12 are the Version 6 additions, their values
-# scaled from the spec's own true-colour equivalents.
-INK_DEFAULT = (255, 255, 255)
-PAPER_DEFAULT = (0, 0, 0)
+# The default ink and paper the pixel glass wears -- what §8.3.1's
+# codes 0 and 1 resolve to, and (through the theme) the pair a game
+# asking for plain white on black is given. Four dressings: "dark"
+# is the home look, gentle where pure white on black glares;
+# "classic" keeps the old pure values for anyone who wants them.
+GLASS_THEMES: dict[str, tuple[tuple[int, int, int], tuple[int, int, int]]] = {
+    "dark": ((214, 214, 214), (28, 28, 28)),
+    "paper": ((0, 0, 0), (255, 255, 255)),
+    "sepia": ((67, 56, 42), (244, 236, 216)),
+    "classic": ((255, 255, 255), (0, 0, 0)),
+}
+DEFAULT_THEME = "dark"
+
+# The default ink and paper as bare names, for the Glulx GLK glass
+# next door, which imports them for its own default text and wears
+# the same home look -- though --theme does not reach it yet.
+INK_DEFAULT, PAPER_DEFAULT = GLASS_THEMES[DEFAULT_THEME]
+
+# §8.3.1's "white" (9) and "black" (2): on a real glass these are
+# the interpreter's own approximation (§8.3.3), so a game resetting
+# to them wears the theme's ink and paper rather than snapping to
+# values a themed screen never otherwise shows. The greys at 10-12
+# keep the spec's own true-colour equivalents, scaled.
+WHITE_CODE = 9
+BLACK_CODE = 2
+
+# The frame around what the screen never owns: letterbox bars
+# behind a full-window picture, the arc band's reserved region.
+# Black whatever the theme -- the universal "this is a border".
+LETTERBOX = (0, 0, 0)
 
 # The present's own cadence: a burst of writes -- Zugzwang redrawing
 # its chessboard is nearly a thousand, each once buying its own flip
@@ -450,6 +474,7 @@ class GraphicsFrontend:
         zoom: float | None = None,
         title: str | None = None,
         driven: bool = False,
+        theme: str = DEFAULT_THEME,
     ) -> None:
         """Wrap a window around a fresh screen model.
 
@@ -485,6 +510,9 @@ class GraphicsFrontend:
                 a player. A driven glass never pauses at [MORE] --
                 there is nobody to press a key, and the replay's
                 own pacing is the walk itself.
+            theme: The window's default ink and paper, one of
+                GLASS_THEMES. "dark" is the home look; "classic"
+                keeps the old pure white on black.
         """
 
         if glass is None:
@@ -562,10 +590,18 @@ class GraphicsFrontend:
         self._caret: tuple[int, int] | None = None
         self._typing = False
         self._prompt = ""
+        # The chosen dressing: the ink and paper §8.3.1's codes 0
+        # and 1 resolve to, and the fallback for any code the book
+        # does not hold.
+        self._ink, self._paper = GLASS_THEMES[theme]
         # The frontend's colour book: the §8.3.1 codes, joined by
         # a dynamic code (16 and up, §8.3.5.2) for every colour
-        # ever sampled off the glass by colour -1.
+        # ever sampled off the glass by colour -1. Codes 9 and 2
+        # follow the theme, so a game's reset to white on black
+        # wears the same dress the untouched default does (§8.3.3).
         self._colours: dict[int, tuple[int, int, int]] = dict(COLOUR_VALUES)
+        self._colours[WHITE_CODE] = self._ink
+        self._colours[BLACK_CODE] = self._paper
         self._sampled: dict[tuple[int, int, int], int] = {}
         # The presentation ledger: when the glass last flipped, and
         # whether painted rows still await a flip of their own.
@@ -716,8 +752,8 @@ class GraphicsFrontend:
         """
 
         stage = cast("StageModel", self._stage)
-        ink = self._colours.get(foreground, INK_DEFAULT)
-        paper = self._colours.get(background, PAPER_DEFAULT)
+        ink = self._colours.get(foreground, self._ink)
+        paper = self._colours.get(background, self._paper)
 
         self._repaint()
         self._glass.text(
@@ -762,7 +798,7 @@ class GraphicsFrontend:
                         italic,
                         graphics,
                     ),
-                ) = _appearance(covered, self._colours)
+                ) = _appearance(covered, self._colours, self._ink, self._paper)
 
                 self._glass.text(
                     line,
@@ -1023,7 +1059,7 @@ class GraphicsFrontend:
             return
 
         height, width = size
-        paper = self._colours.get(self._model.background, PAPER_DEFAULT)
+        paper = self._colours.get(self._model.background, self._paper)
 
         self._glass.draw(((paper,),), line, column, (width, height))
 
@@ -1222,7 +1258,7 @@ class GraphicsFrontend:
                 1,
                 self.screen_lines * self.font_height,
                 self.screen_columns * self.font_width,
-                PAPER_DEFAULT,
+                self._paper,
             )
             self._present_now()
 
@@ -1378,7 +1414,7 @@ class GraphicsFrontend:
         column = min(column, model.columns)
 
         _character, (ink, _paper, _bold, _italic, _graphics) = _appearance(
-            model.cell(row, column), self._colours
+            model.cell(row, column), self._colours, self._ink, self._paper
         )
 
         self._glass.fill(
@@ -1422,7 +1458,7 @@ class GraphicsFrontend:
         row, column = model.cursor
         column = min(column, max(model.columns - len(MORE_PROMPT) + 1, 1))
         _character, (ink, paper, _bold, _italic, _graphics) = _appearance(
-            model.cell(row, column), self._colours
+            model.cell(row, column), self._colours, self._ink, self._paper
         )
 
         self._glass.paint(
@@ -1471,7 +1507,7 @@ class GraphicsFrontend:
 
         if isinstance(paint, TextPaint):
             character, (ink, paper, bold, italic, graphics) = _appearance(
-                paint.cell, self._colours
+                paint.cell, self._colours, self._ink, self._paper
             )
 
             self._glass.text(
@@ -1490,7 +1526,7 @@ class GraphicsFrontend:
                 paint.column,
                 paint.height,
                 paint.width,
-                self._colours.get(paint.background, PAPER_DEFAULT),
+                self._colours.get(paint.background, self._paper),
             )
         else:
             self._glass.shift(
@@ -1508,7 +1544,9 @@ class GraphicsFrontend:
         """
 
         cells: list[Appearance] = [
-            _appearance(self._model.cell(row, column), self._colours)
+            _appearance(
+                self._model.cell(row, column), self._colours, self._ink, self._paper
+            )
             for column in range(1, self._model.columns + 1)
         ]
         shadow = self._shadow.get(row, [None] * self._model.columns)
@@ -1548,19 +1586,23 @@ class GraphicsFrontend:
 def _appearance(
     cell: Cell,
     colours: dict[int, tuple[int, int, int]],
+    ink_default: tuple[int, int, int],
+    paper_default: tuple[int, int, int],
 ) -> tuple[str, tuple[tuple[int, int, int], tuple[int, int, int], bool, bool, bool]]:
     """One cell's character and dress, reverse video pre-swapped.
 
-    Cells in the §16 character graphics font keep their raw
-    character and mark the dress graphics: the glass draws the
-    spec's own bitmaps for them, so no Unicode stand-in is asked
-    to approximate a pixel, and the reverse twins at 123 to 126
-    arrive as the inverted bitmaps the spec drew for them.
+    Codes the book does not hold -- 0 and 1 above all -- resolve to
+    the theme's own ink and paper. Cells in the §16 character
+    graphics font keep their raw character and mark the dress
+    graphics: the glass draws the spec's own bitmaps for them, so
+    no Unicode stand-in is asked to approximate a pixel, and the
+    reverse twins at 123 to 126 arrive as the inverted bitmaps the
+    spec drew for them.
     """
 
     style = cell.style
-    ink = colours.get(cell.foreground, INK_DEFAULT)
-    paper = colours.get(cell.background, PAPER_DEFAULT)
+    ink = colours.get(cell.foreground, ink_default)
+    paper = colours.get(cell.background, paper_default)
 
     if style & REVERSE:
         ink, paper = paper, ink
@@ -1971,7 +2013,7 @@ class _PygameGlass:
         scale = max(1, min(bounds[0] // width, bounds[1] // height))
         scaled = module.transform.scale(surface, (width * scale, height * scale))
 
-        screen.fill(PAPER_DEFAULT)
+        screen.fill(LETTERBOX)
         screen.blit(
             scaled,
             (

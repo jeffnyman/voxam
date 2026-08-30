@@ -85,6 +85,12 @@ RECORDED_SEED_CEILING = 100_000
 # Where the browser face listens unless --port says otherwise.
 WEB_PORT = 8080
 
+# The graphics window's --theme choices, named here so the parser
+# needs no eager import of the optional glass. voxam.glass holds
+# their actual ink and paper, and a test keeps the two in step.
+THEME_CHOICES = ("classic", "dark", "paper", "sepia")
+DEFAULT_THEME = "dark"
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the Voxam command line.
@@ -254,6 +260,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the desktop fraction the graphics window fills (0 keeps "
         "the classic compact size)",
     )
+    parser.add_argument(
+        "--theme",
+        choices=THEME_CHOICES,
+        default=DEFAULT_THEME,
+        help="the graphics window's ink and paper (default: %(default)s)",
+    )
     arguments = parser.parse_args(argv)
 
     if not arguments.glkote:
@@ -305,6 +317,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             resources=arguments.resources,
             pixels=arguments.pixels,
             zoom=arguments.zoom or None,
+            theme=arguments.theme,
             trace=arguments.trace,
         )
     )
@@ -964,6 +977,7 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
         resources=arguments.resources,
         pixels=arguments.pixels,
         zoom=arguments.zoom or None,
+        theme=arguments.theme,
         recorder=recorder,
         trace=arguments.trace,
     )
@@ -1303,6 +1317,7 @@ def _graphics_frontend(  # noqa: PLR0913 -- one seat per optional collaborator
     *,
     title: str | None = None,
     driven: bool = False,
+    theme: str = DEFAULT_THEME,
 ) -> "GraphicsFrontend | None":
     """A pygame window, when the graphics extra allows.
 
@@ -1337,6 +1352,7 @@ def _graphics_frontend(  # noqa: PLR0913 -- one seat per optional collaborator
             zoom=zoom,
             title=title,
             driven=driven,
+            theme=theme,
         )
     except ImportError:
         print(
@@ -2155,6 +2171,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
     resources: Path | None = None,
     pixels: bool = False,
     zoom: float | None = None,
+    theme: str = DEFAULT_THEME,
     recorder: Recorder | None = None,
     trace: Path | None = None,
     click_source: Callable[[], tuple[int, int] | None] | None = None,
@@ -2231,7 +2248,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
 
     if frontend is None and graphics:
         painted = _graphics_frontend(
-            header.version, blorb, zoom, story_path, title=caption
+            header.version, blorb, zoom, story_path, title=caption, theme=theme
         )
 
     if frontend is None and painted is None and screen:
