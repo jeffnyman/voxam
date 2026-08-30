@@ -273,6 +273,11 @@ class Machine:
         self._sought = _sought(self._dict)
         self.running = True
 
+        # The sidecar's one honest bit: an undo, restore, or
+        # restart broke the causal thread; the wire face reads it
+        # once and rests it (PORT: What the sidecar carries).
+        self.discontinuity = False
+
         self._reinit()
         self._reset(0, clear_undo=True)
         self._held = self._captured(1)
@@ -2432,6 +2437,8 @@ class Machine:
     def _ext_restart(self) -> None:
         """RESTART: the whole game state reborn (Aa-machine: RESTART)."""
 
+        self.discontinuity = True
+
         self._cleared_divs()
         self._reset(0, clear_undo=True)
         self._restored(self._held)
@@ -2460,6 +2467,8 @@ class Machine:
         except VoxamError:
             return
 
+        self.discontinuity = True
+
         self._restored(state)
         self._voice.leave_all()
         self._in_status = 0
@@ -2473,6 +2482,8 @@ class Machine:
         """UNDO: step back to the last kept moment (Aa-machine: UNDO)."""
 
         if self._undo:
+            self.discontinuity = True
+
             self._cleared_divs()
             self._restored(self._undo.pop())
         elif not self._pruned:

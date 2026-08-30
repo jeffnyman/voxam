@@ -193,6 +193,10 @@ class Machine:
         self.string_table = 0
         self.pc = 0
         self._running = True
+        # The sidecar's one honest bit: an undo, restore, or
+        # restart broke the causal thread; the wire face reads it
+        # once and rests it (PORT: What the sidecar carries).
+        self.discontinuity = False
         # The generator is deliberately not reseeded by restart:
         # it is no part of saved state either (Glulx: The Random
         # Number Generator).
@@ -878,6 +882,8 @@ class Machine:
         result = serial.restore(self, self._saved_stream(args[0]))
 
         if result == serial.SUCCEEDED:
+            self.discontinuity = True
+
             self._pop_stub(RESTORED)
         else:
             self._store(args[1], result)
@@ -897,6 +903,8 @@ class Machine:
         result = serial.restore_undo(self)
 
         if result == serial.SUCCEEDED:
+            self.discontinuity = True
+
             self._pop_stub(RESTORED)
         else:
             self._store(args[0], result)
@@ -1006,6 +1014,7 @@ class Machine:
         self._running = False
 
     def _op_restart(self, _args: list[Any]) -> None:
+        self.discontinuity = True
         self.restart()
 
     def _op_debugtrap(self, args: list[Any]) -> None:
