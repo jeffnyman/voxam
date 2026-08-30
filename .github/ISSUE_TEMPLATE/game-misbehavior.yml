@@ -1,6 +1,5 @@
 name: Game misbehavior
-description:
-  A story file plays wrong -- wrong text, a crash, a hang, a screen
+description: A story file plays wrong -- wrong text, a crash, a hang, a screen
   drawn badly. VΘXΔM's own tools make these reports reproducible.
 labels: ["bug"]
 body:
@@ -27,6 +26,7 @@ body:
       label: The frontend
       description: Where were you playing when it happened?
       options:
+        - Desktop (the Tauri app)
         - Terminal (the painted screen)
         - Pygame window (--graphics)
         - Plain stream (--plain)
