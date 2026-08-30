@@ -147,6 +147,25 @@ def test_the_page_wears_the_story_name() -> None:
     assert_that(unnamed.decode("utf-8")).contains("<title>Voxam</title>")
 
 
+# The page carries its own theme picker: a plain select of the
+# four inks, an html attribute the CSS keys off, a dark palette
+# behind prefers-color-scheme, and the pre-paint script that reads
+# the saved choice before the first frame.
+def test_the_page_carries_a_theme_picker() -> None:
+    _, _, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+
+    assert_that(page).contains('<html lang="en" data-theme="system">')
+    assert_that(page).contains('<select id="theme">')
+
+    for ink in ("system", "paper", "sepia", "dark"):
+        assert_that(page).contains(f'value="{ink}"')
+
+    assert_that(page).contains("@media (prefers-color-scheme: dark)")
+    assert_that(page).contains('localStorage.getItem("voxam-theme")')
+    assert_that(page).contains('localStorage.setItem("voxam-theme"')
+
+
 # The display's own files serve under their names and types; the
 # license rides in the package but is nobody's fetch, and unknown
 # roads answer 404.

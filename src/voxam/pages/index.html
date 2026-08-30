@@ -1,15 +1,82 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="system">
 <head>
 <meta charset="utf-8">
 <title>VOXAM_TITLE</title>
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="glkote.css" type="text/css">
+<script type="text/javascript">
+/* Set the ink before the first paint, so a chosen theme never
+   flashes the default first. The rest of the picker wiring waits
+   for the body; this one line cannot. */
+try {
+  var VOXAM_SAVED = localStorage.getItem("voxam-theme");
+  document.documentElement.setAttribute(
+    "data-theme",
+    VOXAM_SAVED === "paper" || VOXAM_SAVED === "sepia" || VOXAM_SAVED === "dark"
+      ? VOXAM_SAVED
+      : "system"
+  );
+} catch (e) {
+  /* Private mode, blocked storage: the default ink stands. */
+}
+</script>
 <style type="text/css">
+/* The inks. "paper" is the default and what a light system wears
+   under "system"; a dark system swaps in the dark palette unless
+   a theme was picked outright. Each ink is a whole dress -- page,
+   window, the reverse video §8.7 sends as user1, and the status
+   grid's own inverse bar. */
+:root {
+  --page: #444;
+  --paper: #fff;
+  --ink: #000;
+  --band: #333;
+  --band-ink: #fff;
+  --grid: #333;
+  --grid-ink: #fff;
+  --quote: #fff0c0;
+  --link: #1a5fb4;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --page: #111;
+    --paper: #1c1c1c;
+    --ink: #d6d6d6;
+    --band: #d6d6d6;
+    --band-ink: #1c1c1c;
+    --grid: #000;
+    --grid-ink: #d6d6d6;
+    --quote: #ffffff14;
+    --link: #8ab4f8;
+  }
+}
+html[data-theme="dark"] {
+  --page: #111;
+  --paper: #1c1c1c;
+  --ink: #d6d6d6;
+  --band: #d6d6d6;
+  --band-ink: #1c1c1c;
+  --grid: #000;
+  --grid-ink: #d6d6d6;
+  --quote: #ffffff14;
+  --link: #8ab4f8;
+}
+html[data-theme="sepia"] {
+  --page: #2f2921;
+  --paper: #f4ecd8;
+  --ink: #43382a;
+  --band: #43382a;
+  --band-ink: #f4ecd8;
+  --grid: #43382a;
+  --grid-ink: #f4ecd8;
+  --quote: #0000000f;
+  --link: #7a5326;
+}
 html, body {
   margin: 0;
   height: 100%;
-  background: #444;
+  background: var(--page);
 }
 #gameport {
   position: absolute;
@@ -20,21 +87,97 @@ html, body {
   max-width: 900px;
   top: 0;
   bottom: 0;
-  background: white;
+  background: var(--paper);
+  color: var(--ink);
 }
-/* The Z-Machine's reverse video (§8.7) travels as user1, and its
-   status grid wears the classic inverse bar. */
+/* GlkOte's own stylesheet paints windows a hardcoded cream; the
+   theme's paper wins here. */
+.WindowFrame {
+  background: var(--paper);
+}
+.GraphicsWindow canvas {
+  background-color: var(--paper);
+}
+/* The Z-Machine's reverse video (§8.7) travels as user1; the
+   status grid wears its own inverse bar, and reverse video inside
+   the grid swaps that bar right back. */
 .Style_user1 {
-  background: #333;
-  color: #fff;
+  background: var(--band);
+  color: var(--band-ink);
 }
 .GridWindow {
-  background: #333;
-  color: #fff;
+  background: var(--grid);
+  color: var(--grid-ink);
 }
 .GridWindow .Style_user1 {
-  background: #fff;
-  color: #333;
+  background: var(--grid-ink);
+  color: var(--grid);
+}
+.Style_blockquote {
+  background: var(--quote);
+}
+.Style_input {
+  color: inherit;
+}
+.BufferWindow a,
+.GridWindow a {
+  color: var(--link);
+}
+/* The theme picker: dressed as a small status-bar chip -- the
+   reverse-video colours the interface already wears, the grid's
+   own monospace -- so it reads as furniture, not an OS control.
+   Bottom-right, clear of the score and the input prompt, and
+   faint until it is wanted. */
+#theme-pick {
+  position: fixed;
+  bottom: 8px;
+  right: 10px;
+  z-index: 20;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+#theme-pick:hover,
+#theme-pick:focus-within {
+  opacity: 1;
+}
+#theme-pick::after {
+  content: "\25be";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 10px;
+  color: var(--band-ink);
+}
+#theme-pick select {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family:
+    monaco,
+    "andale mono",
+    "lucida console",
+    courier,
+    monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--band-ink);
+  background: var(--band);
+  border: 0;
+  border-radius: 3px;
+  padding: 3px 22px 3px 9px;
+  cursor: pointer;
+}
+#theme-pick select:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 </style>
 <script src="jquery-1.12.4.min.js" type="text/javascript"></script>
@@ -69,6 +212,15 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </script>
 </head>
 <body onload="GlkOte.init();">
+<label id="theme-pick">
+<span class="sr-only">Theme</span>
+<select id="theme">
+<option value="system">System</option>
+<option value="paper">Paper</option>
+<option value="sepia">Sepia</option>
+<option value="dark">Dark</option>
+</select>
+</label>
 <div id="gameport">
 <div id="windowport">
 <noscript><p>You must have Javascript turned on to play.</p></noscript>
@@ -79,5 +231,25 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </div>
 <div id="errorpane" style="display:none;"><div id="errorcontent">...</div></div>
 </div>
+<script type="text/javascript">
+/* The picker follows the head script: it shows what is already
+   worn and writes any change back to storage, where the head
+   script reads it next visit. */
+(function() {
+  var pick = document.getElementById("theme");
+
+  pick.value = document.documentElement.getAttribute("data-theme");
+
+  pick.addEventListener("change", function() {
+    document.documentElement.setAttribute("data-theme", pick.value);
+
+    try {
+      localStorage.setItem("voxam-theme", pick.value);
+    } catch (e) {
+      /* A choice that cannot be kept still dresses this session. */
+    }
+  });
+})();
+</script>
 </body>
 </html>
