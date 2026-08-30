@@ -873,3 +873,65 @@ def test_cursor_position_reads_the_model() -> None:
     frontend.set_cursor(2, 5)
 
     assert_that(frontend.cursor_position()).is_equal_to((2, 5))
+
+
+# A terminal slow to report its size -- iTerm2 mid-launch -- leaves
+# the model at the fallback; the size read before the first paint
+# reshapes it to the truth (§8.4).
+def test_clear_takes_the_terminal_at_its_current_size() -> None:
+    frontend, _out = painted(version=3)
+    frontend._terminal.width = 25
+    frontend._terminal.height = 5
+
+    frontend.clear()
+
+    assert_that(frontend.model.columns).is_equal_to(25)
+    assert_that(frontend.model.lines).is_equal_to(5)
+
+
+# A resize noticed on a write reshapes the model before the row is
+# painted.
+def test_a_resize_before_a_write_reshapes_the_model() -> None:
+    frontend, _out = painted(version=3)
+    frontend._terminal.width = 44
+    frontend._terminal.height = 10
+
+    frontend.write("resized")
+
+    assert_that(frontend.model.columns).is_equal_to(44)
+    assert_that(frontend.model.lines).is_equal_to(10)
+
+
+# A window resized while the player thinks at a prompt is caught on
+# the idle heartbeat: the model reshapes, the screen repaints, and
+# the on_resize hook fires for the header.
+def test_a_resize_between_keystrokes_reshapes_and_repaints() -> None:
+    terminal = StubTerminal([StubKey(""), StubKey("n")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    frontend.idle = lambda: None
+    resizes: list[int] = []
+    frontend.on_resize = lambda: resizes.append(1)
+
+    terminal.width = 50
+    terminal.height = 12
+
+    assert_that(frontend.read_key()).is_equal_to("n")
+    assert_that(frontend.model.columns).is_equal_to(50)
+    assert_that(frontend.model.lines).is_equal_to(12)
+    assert_that(resizes).is_length(1)
+    assert_that("".join(out)).contains("<@0,0>")
+
+
+# A timed line read reshapes on its own heartbeat too, so Border
+# Zone's clock keeps ticking against a right-sized screen.
+def test_a_resize_during_a_timed_read_reshapes_too() -> None:
+    terminal = StubTerminal([StubKey(""), *typing("wait")])
+    out: list[str] = []
+    frontend = ScreenFrontend(5, terminal=terminal, out=out.append)
+    frontend.idle = lambda: None
+
+    terminal.width = 60
+
+    assert_that(frontend.read_line_until(9.0)).is_equal_to("wait")
+    assert_that(frontend.model.columns).is_equal_to(60)

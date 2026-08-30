@@ -678,6 +678,14 @@ class Machine:
         self.discontinuity = False
 
         self._declare_capabilities()
+
+        # A painted terminal can change size mid-session; when it
+        # does it calls back, so the §8.4 screen fields keep the
+        # truth. Frontends that never resize never set this, and
+        # nothing before Version 4 has the fields to keep.
+        if hasattr(self._frontend, "on_resize"):
+            self._frontend.on_resize = self._refresh_screen_fields
+
         self._start_execution()
 
     def _start_execution(self) -> None:
@@ -793,6 +801,34 @@ class Machine:
                     # re-stamped here after restart and restore,
                     # as the contract asks (arc_image: part A).
                     header.declare_pictures(available=self._frontend.has_arc_images)
+
+    def _refresh_screen_fields(self) -> None:
+        """Re-stamp the §8.4 screen size after a frontend resize.
+
+        The painted terminal calls this when the player resizes the
+        window. Only the size and unit fields move -- the
+        interpreter identity and the capability bits the boot set
+        do not. Before Version 4 there are no such fields, and a
+        resize is felt only in the freshly reshaped screen model.
+        """
+
+        header = self._memory.header
+
+        if header.version < SCREEN_FIELDS_VERSION:
+            return
+
+        header.declare_screen_size(
+            lines=self._frontend.screen_lines,
+            columns=self._frontend.screen_columns,
+        )
+
+        if header.version >= FONT_FIELDS_VERSION:
+            font_width, font_height = self._unit_metrics()
+
+            header.declare_screen_units(
+                width=self._frontend.screen_columns * font_width,
+                height=self._frontend.screen_lines * font_height,
+            )
 
     def snapshot(self) -> Snapshot:
         """Capture the entire state of play (§6.1, §6.1.1).

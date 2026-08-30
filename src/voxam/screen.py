@@ -368,6 +368,60 @@ class ScreenModel:
         self._grid[row - 1][column - 1] = cell
         self._damage.add(row)
 
+    def resize(self, columns: int, lines: int) -> None:
+        """Reshape the grid to a new screen size (§8.4).
+
+        A terminal the player resizes mid-session lands here -- and
+        so does the first honest size, when the frontend booted
+        against a terminal too slow to report one. The overlap of
+        the old grid is kept, top left aligned, so the status line
+        and the upper window stay where they were; the fresh margin
+        blanks in the current background. The split and both cursors
+        are drawn back inside the new bounds, and every row is left
+        damaged so the painter redraws the whole screen. A size that
+        did not actually change does nothing.
+        """
+
+        columns = max(1, columns)
+        lines = max(1, lines)
+
+        if columns == self._columns and lines == self._lines:
+            return
+
+        self._flush()
+
+        old = self._grid
+        blank = self._blank_cell()
+        self._grid = [
+            [
+                old[row][column] if row < len(old) and column < len(old[row]) else blank
+                for column in range(columns)
+            ]
+            for row in range(lines)
+        ]
+
+        self._columns = columns
+        self._lines = lines
+        self._split = max(0, min(self._split, lines - self._upper_top() + 1))
+
+        reach = max(1, lines - self._upper_top() + 1)
+        upper_row, upper_column = self._upper_cursor
+        self._upper_cursor = (
+            min(max(upper_row, 1), reach),
+            min(max(upper_column, 1), columns),
+        )
+
+        floor = min(self._lower_top(), lines)
+        lower_row, lower_column = self._lower_cursor
+        self._lower_cursor = (
+            min(max(lower_row, floor), lines),
+            min(max(lower_column, 1), columns),
+        )
+
+        self._scroll_due = False
+        self._fed = 0
+        self._damage = set(range(1, lines + 1))
+
     def split_window(self, height: int) -> None:
         """Resize the upper window to the given height (§8.7.2.1).
 

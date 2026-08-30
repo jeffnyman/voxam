@@ -344,8 +344,15 @@ class ScreenFrontend:
         # session once a machine exists: called on each heartbeat
         # of an infinite wait. None waits the old blocking way.
         self.idle: Callable[[], None] | None = None
+        # The size read here is a starting guess: a terminal slow
+        # to answer -- iTerm2 mid-launch, a webview shell -- leaves
+        # it at the fallback. _sync_terminal_size re-reads it before
+        # the first paint and on every idle beat, reshaping the
+        # model and, through on_resize, the §8.4 header when it
+        # moves. Set by the machine; None leaves the header be.
         self.screen_columns = terminal.width or FALLBACK_COLUMNS
         self.screen_lines = terminal.height or FALLBACK_LINES
+        self.on_resize: Callable[[], None] | None = None
         self._model = ScreenModel(
             columns=self.screen_columns, lines=self.screen_lines, version=version
         )
@@ -555,11 +562,12 @@ class ScreenFrontend:
 
         Without an idle callback this is a plain blocking read.
         With one, the wait is chopped into heartbeats: each expiry
-        lets the machine attend to background work -- an ended
-        sound's routine (§9.4.4) -- before listening again. One
-        heartbeat's answer comes back as it is; None still means
-        "nothing usable yet", and every caller already waits that
-        out.
+        lets the terminal be re-measured -- a window resized while
+        the player thinks at a prompt redraws within the beat --
+        and the machine attend to background work, an ended sound's
+        routine (§9.4.4), before listening again. One heartbeat's
+        answer comes back as it is; None still means "nothing
+        usable yet", and every caller already waits that out.
         """
 
         if self.idle is None:
@@ -568,6 +576,9 @@ class ScreenFrontend:
         key = self._translated_key(IDLE_HEARTBEAT)
 
         if key is None:
+            if self._sync_terminal_size():
+                self._repaint()
+
             self.idle()
 
         return key
@@ -650,6 +661,9 @@ class ScreenFrontend:
             key = self._translated_key(wait)
 
             if key is None and self.idle is not None:
+                if self._sync_terminal_size():
+                    self._repaint()
+
                 self.idle()
 
             return key
@@ -822,11 +836,38 @@ class ScreenFrontend:
         of the picture for the same reason.
         """
 
+        self._sync_terminal_size()
+
         for row in range(1, self._model.lines + 1):
             self._paint_row(row)
 
+    def _sync_terminal_size(self) -> bool:
+        """Match the model to the terminal's current size (§8.4).
+
+        A dimension the terminal reports as 0 is one it is not
+        answering yet, so it is left as it stands rather than
+        snapped to a guess. Returns whether anything moved.
+        """
+
+        columns = self._terminal.width or self.screen_columns
+        lines = self._terminal.height or self.screen_lines
+
+        if columns == self.screen_columns and lines == self.screen_lines:
+            return False
+
+        self.screen_columns = columns
+        self.screen_lines = lines
+        self._model.resize(columns, lines)
+
+        if self.on_resize is not None:
+            self.on_resize()
+
+        return True
+
     def _repaint(self) -> None:
         """Redraw every damaged row, then park the cursor."""
+
+        self._sync_terminal_size()
 
         for row in self._model.sweep():
             self._paint_row(row)
