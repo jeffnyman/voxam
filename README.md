@@ -743,9 +743,13 @@ rebuild (`npx tauri build`, or `cargo build --release` inside
 installed shell shows -- a stale embed looks exactly like your
 change not working.
 
-The shell finds `voxam` on the PATH -- `uv tool install voxam` or
-`pipx install voxam` puts it there -- and says so plainly when it
-cannot. Open a story from the landing page or the File menu --
+The shell drives the `voxam` command -- `uv tool install voxam` or
+`pipx install voxam` puts it in place. It looks on the PATH first,
+then in the bin dirs those installers use (`~/.local/bin` and the
+rest), then asks your login shell to resolve it, since an app
+launched from the Dock or Finder never inherits a terminal's
+PATH. Set `VOXAM_BIN` to an explicit path to skip the search. It
+says so plainly when nothing turns up. Open a story from the landing page or the File menu --
 the picker starts at the stories' own home, a pinned folder or
 the last story's, so a save elsewhere never drags it away;
 File > Restart Story starts it over, exactly as a reload does in

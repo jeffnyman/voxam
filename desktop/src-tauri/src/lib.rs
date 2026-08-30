@@ -8,23 +8,175 @@
 //! writes, prints pre-wire refusals as bare `voxam: ...` text,
 //! and exits 0 on game over or EOF, 2 on a fault.
 
+use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::{json, Value};
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Wry};
 
-/// The friendly failure when voxam is not on PATH: the shell
-/// finds voxam, it does not bundle it (yet -- a named road).
-const NOT_FOUND: &str = "voxam is not on this machine's PATH.\n\n\
-    Install it with:\n\n    uv tool install voxam\n\n\
-    (or pipx install voxam, or pip install voxam). If it was\n\
-    installed moments ago, sign out and back in so the PATH\n\
-    refreshes for desktop apps.";
+/// The friendly failure when voxam cannot be found: the shell
+/// finds voxam, it does not bundle it (yet -- a named road). By
+/// the time this shows, `voxam_bin` has already tried the known
+/// install dirs and the login shell's own PATH, so the honest
+/// remaining advice is to install it or point straight at it.
+const NOT_FOUND: &str = "Voxam can't find the voxam command.\n\n\
+    Install it with one of:\n\n    \
+    uv tool install voxam\n    pipx install voxam\n    pip install voxam\n\n\
+    If voxam is already installed and runs in a terminal, this\n\
+    app was launched without your shell's PATH. Set VOXAM_BIN to\n\
+    its full path -- what `which voxam` prints in a terminal --\n\
+    or start the app from that terminal instead.";
+
+/// The `voxam` executable the shell drives, resolved once.
+///
+/// A desktop app launched from Finder, the Dock, or a menu is
+/// started by the OS session manager, not a shell, so it never
+/// sees the PATH a shell's rc files build -- only the spare system
+/// PATH. `uv tool install voxam` and `pipx install voxam` write to
+/// `~/.local/bin`, which is not on that spare PATH, so a bare
+/// `Command::new("voxam")` reports "not found" for nearly everyone
+/// who installed it the documented way, while it runs fine in a
+/// terminal. So the lookup goes wider: `VOXAM_BIN` wins outright,
+/// then the bare name (a terminal launch, and Windows, where the
+/// user PATH does reach GUI apps), then the bin dirs the Python
+/// installers are known to use, then the user's login shell asked
+/// to resolve it with its own full PATH.
+fn voxam_bin() -> &'static OsString {
+    static RESOLVED: OnceLock<OsString> = OnceLock::new();
+
+    RESOLVED.get_or_init(|| {
+        if let Some(pinned) = std::env::var_os("VOXAM_BIN") {
+            if !pinned.is_empty() {
+                return pinned;
+            }
+        }
+
+        if runs(OsStr::new("voxam")) {
+            return "voxam".into();
+        }
+
+        known_dirs()
+            .into_iter()
+            .map(|dir| dir.join(VOXAM_EXE))
+            .find(|cand| runs(cand.as_os_str()))
+            .map(PathBuf::into_os_string)
+            .or_else(from_login_shell)
+            .unwrap_or_else(|| "voxam".into())
+    })
+}
+
+#[cfg(windows)]
+const VOXAM_EXE: &str = "voxam.exe";
+#[cfg(not(windows))]
+const VOXAM_EXE: &str = "voxam";
+
+/// Whether `<bin> --version` actually launches and exits clean --
+/// the cheapest honest proof that a path is the runnable voxam.
+fn runs(bin: &OsStr) -> bool {
+    let mut probe = Command::new(bin);
+
+    probe
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        probe.creation_flags(0x0800_0000);
+    }
+
+    probe
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+/// The bin directories `uv tool`, `pipx`, and `pip` install into,
+/// honoring the env vars each reads to relocate its own, most
+/// likely first. Absent dirs and duplicates are harmless: `runs`
+/// is the real filter.
+fn known_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut push = |dir: PathBuf| {
+        if !dir.as_os_str().is_empty() && !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    };
+
+    for key in [
+        "VOXAM_BIN_DIR",
+        "UV_TOOL_BIN_DIR",
+        "PIPX_BIN_DIR",
+        "XDG_BIN_HOME",
+    ] {
+        if let Some(dir) = std::env::var_os(key) {
+            push(PathBuf::from(dir));
+        }
+    }
+
+    if let Some(home) = home_dir() {
+        push(home.join(".local").join("bin"));
+
+        // pip's `--user` scheme on macOS: ~/Library/Python/3.x/bin.
+        if let Ok(entries) = std::fs::read_dir(home.join("Library").join("Python")) {
+            for entry in entries.flatten() {
+                push(entry.path().join("bin"));
+            }
+        }
+    }
+
+    for fixed in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+        push(PathBuf::from(fixed));
+    }
+
+    dirs
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+}
+
+/// The user's login shell asked to resolve `voxam` with its own
+/// full PATH -- the rc files sourced, the way a terminal sees it.
+/// A last resort: it costs a shell spawn, and a login shell that
+/// hangs on `-c` is already broken for the user everywhere else.
+#[cfg(not(windows))]
+fn from_login_shell() -> Option<OsString> {
+    let shell = std::env::var_os("SHELL").unwrap_or_else(|| "/bin/sh".into());
+
+    let output = Command::new(shell)
+        .args(["-lic", "command -v voxam"])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+
+    // `command -v` prints an absolute path for an executable; any
+    // other line is rc-file noise. Validate before trusting it.
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('/'))
+        .map(PathBuf::from)
+        .find(|cand| runs(cand.as_os_str()))
+        .map(PathBuf::into_os_string)
+}
+
+#[cfg(windows)]
+fn from_login_shell() -> Option<OsString> {
+    None
+}
 
 /// The screen's share the window opens at, as the pygame glass
 /// takes it: 0.85 of the desktop, centered.
@@ -313,7 +465,7 @@ fn titled(story: &Path) -> String {
         .map(|stem| stem.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Voxam".to_string());
 
-    let mut command = Command::new("voxam");
+    let mut command = Command::new(voxam_bin());
 
     command
         .arg("--babel")
@@ -379,7 +531,7 @@ async fn start_session(app: AppHandle, state: State<'_, Shell>) -> Result<u64, S
 
     let id = state.minted.fetch_add(1, Ordering::SeqCst) + 1;
 
-    let mut command = Command::new("voxam");
+    let mut command = Command::new(voxam_bin());
 
     // PYTHONUTF8 matters: voxam reconfigures its stdout to UTF-8
     // but not its stdin, and a Windows pipe would otherwise hand

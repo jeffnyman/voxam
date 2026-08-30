@@ -592,8 +592,10 @@ way, and the road mapped onto the interim releases:
   a Tauri webview wearing the same GlkOte display, driving a
   spawned `voxam --glkote` down a pipe -- a `desktop/` sibling
   the wheel never packages and the Python gate never sees. The
-  shell finds `voxam` on the PATH and says so plainly when it
-  cannot; a session's events wear a minted id so a restart's
+  shell finds `voxam` on the PATH, in the installers' bin dirs, or
+  through the login shell -- a Dock launch carries no terminal
+  PATH -- and says so plainly when it cannot; a session's events
+  wear a minted id so a restart's
   fresh page ignores a dead session's last words; and the ends
   are honest -- the pipe's EOF is the machine's goodbye, the
   shell's own bar announces it (the vendored GlkOte ignores the
