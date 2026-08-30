@@ -1,4 +1,4 @@
-# VΘXΔM Status
+# Voxam Status
 
 The claims ledger: what plays, what is certified, and what
 remains. The short version lives in the [README](README.md), and
@@ -8,14 +8,14 @@ nothing below is promised, only enforced.
 
 ## The current release
 
-Version `2.3`: the third machine. VΘXΔM now plays the
+Version `2.3`: the third machine. Voxam now plays the
 Å-machine -- the virtual machine [Dialog](https://linusakesson.net/dialog/)
 compiles to, Prolog heart and all -- at the terminal, over the
 GlkOte wire, in a browser tab, and in the desktop shell, with
 AASV savefiles written and revived and undo aboard everywhere.
 The claim is certified the strongest way an implementation can
 be: every test battery the reference implementation ships
-replays under VΘXΔM byte-identical to the reference engine's
+replays under Voxam byte-identical to the reference engine's
 own transcripts, seeded dice included, from the opcode
 stress-test to a 351-command walk through a real mystery.
 
@@ -35,11 +35,11 @@ coverage hold the whole of it.
 
 ## The played-games ledger
 
-VΘXΔM is developed against real games. The *Zork* trilogy,
+Voxam is developed against real games. The *Zork* trilogy,
 *Cutthroats*, *Deadline*, *Seastalker*, *Trinity*, *A Mind Forever
 Voyaging*, *The Hitchhiker's Guide to the Galaxy*, and -- filed in
 triplicate, blood pressure rising -- *Bureaucracy* have all been
-played to winning conclusions under VΘXΔM, several across multiple
+played to winning conclusions under Voxam, several across multiple
 releases and several to perfect scores, alongside modern classics
 from *Colossal Cave* to the IF Comp winner *All Roads*. The
 Version 6 era has opened: *Arthur: The Quest for Excalibur* plays
@@ -141,7 +141,7 @@ format, auxiliary files cover the games that save fragments of
 themselves, UNDO is multi-level, and an acceptance-script harness
 records, replays, and probes whole playthroughs.
 
-At a real terminal, VΘXΔM paints the screen: the blessed frontend
+At a real terminal, Voxam paints the screen: the blessed frontend
 (an optional extra, named for both its temperament and the
 [blessed](https://pypi.org/project/blessed/) package behind it)
 renders the §8 screen model live -- a reverse-video status line
@@ -180,7 +180,7 @@ between a pure screen model -- a grid of attributed cells held to
 what changed, so the screen is as testable as the machine beneath
 it.
 
-VΘXΔM reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
+Voxam reads [Blorb](https://jeffnyman.github.io/z-machine-standard/blorb.html)
 resource files as well: a `.zblorb` packaged story boots directly,
 and a sidecar `.blb` found beside a story by name announces its
 pictures and sounds at the banner. The era before Blorb is
@@ -201,8 +201,8 @@ declares sixel graphics also reports its cell size, so the art
 magnifies to the glass as it actually measures, and one that
 never learned sixel quietly gets the half-block painting instead
 of escape garbage. Art is a courtesy, never a gate: a
-cover VΘXΔM cannot draw earns a note and the story plays on. And
-VΘXΔM can claim any classic machine identity (`--interpreter
+cover Voxam cannot draw earns a note and the story plays on. And
+Voxam can claim any classic machine identity (`--interpreter
 amiga`, or the legendary Tandy bit via `--tandy`), which some
 early games answer with altered text and *Beyond Zork* answers
 with its whole screen-model personality (§11.1.3, §16).
@@ -263,7 +263,7 @@ declares none -- *The Lurking Horror* and *Sherlock* were both
 shipped to accept exactly that -- because a replay must land on
 the same bytes everywhere, speakers or no speakers.
 
-VΘXΔM is verified against the community's interpreter test suites:
+Voxam is verified against the community's interpreter test suites:
 CZECH (versions 3, 4, 5, and 8 -- the last certifying the modern
 Inform format, held to its exact tallies in continuous
 integration), Praxix -- its Standard 1.1 section included --
@@ -306,7 +306,7 @@ search opcodes serve Inform's tables, the thirteen accelerated
 veneer functions replace their interpreted originals
 bit-for-bit, and IEEE-754 floats and doubles arrive with their
 word-order asymmetry and NaN-propagation rulings carried
-faithfully. As everywhere in VΘXΔM, behavior argues by citation:
+faithfully. As everywhere in Voxam, behavior argues by citation:
 (Glulx: The Header) names a section of the specification the way
 §1.1 names one of the Z-Machine Standard.
 
@@ -426,7 +426,7 @@ Thief.
 
 ### Full Glulx: the declaration
 
-VΘXΔM claims Full Glulx, in the manner 1.0 claimed the
+Voxam claims Full Glulx, in the manner 1.0 claimed the
 Z-Machine. The machine claim is glulxercise's: all seventy
 sections pass with zero failures, held to the exact tally in
 continuous integration. The display claims are all true where
@@ -495,7 +495,7 @@ on as though it never stopped. The exception that carries the
 wait is named for no one machine, because the contract is not
 Glulx's alone.
 
-On that seam VΘXΔM speaks GlkOte -- the JSON display protocol of
+On that seam Voxam speaks GlkOte -- the JSON display protocol of
 Lectrote and the modern web interpreters -- from the machine's
 side, the role RemGlk plays for the C interpreters. The speaking
 is machine-neutral by construction: a Page holds everything the
@@ -609,7 +609,7 @@ way, and the road mapped onto the interim releases:
   thousand writes snaps into place instead of smearing; and the
   browser tab wears the machine's own icon beside the story's
   Babel title.
-- **The band hangs.** VΘXΔM speaks arc_image, the picture band of
+- **The band hangs.** Voxam speaks arc_image, the picture band of
   the Arcturus games (contract version 1.6, windowed profile): a
   conformant z5 or z8 with a sidecar of art plays illustrated --
   EXT:0x80 reaches a claiming display, Flags 1's picture bit
@@ -622,8 +622,13 @@ way, and the road mapped onto the interim releases:
   whole rows reserved from boot, the model and the header born
   re-based, and the band standing empty rather than coming down.
   Every unclaiming face plays the same story as text, and the
-  whole private EXT range now skips unclaimed (§14.2), as
-  Standard 1.1 asks.
+  whole ignorable EXT range now passes unclaimed as Standard 1.1
+  asks: the private band, 128 to 255, skips silently (§14.2),
+  and the band reserved for future Standards, 30 to 127, skips
+  with §14.2.1's own suggested warning sent off-screen to
+  stderr, once per opcode -- never the story's stream, so every
+  certified transcript holds. Below 30 an unknown number stays
+  the loud error §14.2 asks for.
 - **The saves stand down.** The Z machine's third wait: §15's
   save and restore suspend for their files the way the reads
   suspend for their lines, the ask travelling as the protocol's
@@ -882,7 +887,7 @@ forty-four recordings hold the whole claim to replay.
 ## The Å-machine: 2.3
 
 The third machine. Dialog compiles to the Å-machine the way
-Inform compiles to Glulx, and VΘXΔM now carries the whole of it
+Inform compiles to Glulx, and Voxam now carries the whole of it
 -- the community fork's 1.0 specification, accepting every 0.x
 story the compilers of the world actually emit -- certified the
 strongest way an implementation can be: byte-identical against
@@ -912,7 +917,7 @@ the reference engine's own transcripts.
   the entry point with their numbers in R00, exactly as
   specified.
 - **The certification.** Every battery the reference ships runs
-  in VΘXΔM's own test suite and matches the reference engine's
+  in Voxam's own test suite and matches the reference engine's
   gold byte for byte at the same seed: aa-exercise (every
   opcode, saves declared and all), *Miss Gosling's Last Case*
   (a 351-command real-game walk), body_not_status (the 1.0
@@ -920,7 +925,7 @@ the reference engine's own transcripts.
   keypress loop, the wrap buffer, the progress bars) -- with
   *The Impossible Stairs* certified against its gold as a live
   proof beside them. The dice are the reference's own linear
-  congruence, so a seeded VΘXΔM session and a seeded reference
+  congruence, so a seeded Voxam session and a seeded reference
   session roll the same numbers forever.
 - **The faces.** The terminal is the default -- the certified
   document discipline streamed live, the reference frontend's
@@ -945,7 +950,7 @@ the reference engine's own transcripts.
   composing beside the classes. The honesty gate is the stream
   itself: a pipe stays plain, every certified transcript still
   matches byte for byte, and VM_INFO answers the styling and
-  color questions truthfully per stream -- which makes VΘXΔM,
+  color questions truthfully per stream -- which makes Voxam,
   as far as we know, the first command-line Å-machine
   interpreter to clear the specification's styling bar. And the
   wire wears the same wardrobe: one face-neutral dress state

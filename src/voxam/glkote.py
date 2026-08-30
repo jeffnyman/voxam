@@ -749,8 +749,14 @@ class Page:
         *,
         exit: bool = False,  # noqa: A002 -- the field's name
         refresh: bool = False,
+        voxam: Stanza | None = None,
     ) -> Stanza:
         """Assemble the cycle into an update stanza, or the pass.
+
+        A voxam block -- the sidecar's dumb factual feed, granted
+        by the display's own "voxam" support token -- rides every
+        real update, never forcing one: a cycle where nothing
+        changed stays the pass (PORT: What the sidecar carries).
 
         A refresh assembles the whole picture instead: the display
         lost its state, so every window travels, buffers replay
@@ -821,6 +827,9 @@ class Page:
         if self._sounds:
             stanza["sounds"] = self._sounds
             self._sounds = []
+
+        if voxam is not None:
+            stanza["voxam"] = voxam
 
         if exit:
             stanza["exit"] = True

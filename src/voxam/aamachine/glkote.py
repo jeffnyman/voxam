@@ -123,6 +123,13 @@ class GlkOteFrontend:
         self._refresh = False
         self._outfit: Outfit = _PLAIN
         self._opening: list[TextRun | object] = _carded(story)
+        # The sidecar seam: granted by the display's "voxam"
+        # token; the serving loop attaches the machine so the
+        # discontinuity bit can be read (PORT: What the sidecar
+        # carries).
+        self.machine: Machine | None = None
+        self._speaks_voxam = False
+        self._last_command: str | None = None
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -145,6 +152,7 @@ class GlkOteFrontend:
         # grant the Z-Machine's colors ride (Aa-machine: VM_INFO).
         support = stanza.get("support", [])
         self.voice.has_color = isinstance(support, list) and "colors" in support
+        self._speaks_voxam = isinstance(support, list) and "voxam" in support
 
     def render(self, *, exit: bool = False) -> Stanza:  # noqa: A002 -- the field's name
         """Compose everything told since the last update."""
@@ -181,7 +189,31 @@ class GlkOteFrontend:
 
         refresh, self._refresh = self._refresh, False
 
-        return self.page.update(exit=exit, refresh=refresh)
+        return self.page.update(
+            exit=exit,
+            refresh=refresh,
+            voxam=self._sidecar() if self._speaks_voxam else None,
+        )
+
+    def _sidecar(self) -> Stanza:
+        """The voxam block, the Å-machine's honest share of it.
+
+        The Å-machine keeps no location or score registers the
+        wire could read, so only the wire's own facts travel: the
+        last delivered line and the discontinuity bit, read once
+        and rested (PORT: What the sidecar carries).
+        """
+
+        block: Stanza = {}
+
+        if self._last_command is not None:
+            block["command"] = self._last_command
+
+        if self.machine is not None and self.machine.discontinuity:
+            self.machine.discontinuity = False
+            block["discontinuity"] = True
+
+        return block
 
     def _dressed(self, text: str) -> TextRun:
         """One run of telling, worn as the current outfit.
@@ -241,6 +273,7 @@ class GlkOteFrontend:
         if kind == "line" and self.waiting == "line":
             self.voice.prompted()
             self.waiting = machine.deliver_line(str(stanza.get("value", "")))
+            self._last_command = str(stanza.get("value", ""))
 
             return ADVANCE
 
@@ -340,6 +373,7 @@ def serve(
         face.begin(opening)
 
         machine = Machine(story, face.voice, seed=seed)
+        face.machine = machine
         face.waiting = machine.run()
 
         while True:

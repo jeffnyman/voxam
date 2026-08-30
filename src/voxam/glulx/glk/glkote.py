@@ -374,6 +374,13 @@ class GlkOteFrontend(Frontend):
         self._sound_ops: list[Stanza] = []
         self._channel_idents: dict[SoundChannel, int] = {}
         self._next_channel = 1
+        # The sidecar seam: granted by the display's "voxam"
+        # token; the serving loop attaches the machine so the
+        # discontinuity bit can be read (PORT: What the sidecar
+        # carries).
+        self.machine: Machine | None = None
+        self._speaks_voxam = False
+        self._last_command: str | None = None
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -390,6 +397,7 @@ class GlkOteFrontend(Frontend):
 
         support = stanza.get("support", [])
         self.timer_input = "timer" in support
+        self._speaks_voxam = "voxam" in support
         self.graphics = "graphicswin" in support
         self.buffer_images = "graphics" in support
         self.hyperlink_input = "hyperlinks" in support
@@ -837,7 +845,11 @@ class GlkOteFrontend(Frontend):
 
         refresh, self._refresh_owed = self._refresh_owed, False
 
-        return self.page.update(exit=exit, refresh=refresh)
+        return self.page.update(
+            exit=exit,
+            refresh=refresh,
+            voxam=self._sidecar() if self._speaks_voxam else None,
+        )
 
     def _filemode(self, fmode: int) -> str:
         """A Glk file mode as the protocol's name for it.
@@ -898,6 +910,7 @@ class GlkOteFrontend(Frontend):
 
         if kind == "line":
             terminator = TERMINATOR_CODES.get(str(stanza.get("terminator")), 0)
+            self._last_command = str(stanza.get("value", ""))
 
             return self._library().deliver_line(
                 self._window(stanza), str(stanza.get("value", "")), terminator
@@ -1012,6 +1025,26 @@ class GlkOteFrontend(Frontend):
 
         return window, KEY_CODES.get(str(value), KeyCode.UNKNOWN)
 
+    def _sidecar(self) -> Stanza:
+        """The voxam block, Glulx's honest share of it.
+
+        Glulx has no fixed location or score globals to read, so
+        only the wire's own facts travel: the last delivered line
+        and the discontinuity bit, read once and rested (PORT:
+        What the sidecar carries).
+        """
+
+        block: Stanza = {}
+
+        if self._last_command is not None:
+            block["command"] = self._last_command
+
+        if self.machine is not None and self.machine.discontinuity:
+            self.machine.discontinuity = False
+            block["discontinuity"] = True
+
+        return block
+
     def _library(self) -> Glk:
         """The attached library.
 
@@ -1062,6 +1095,8 @@ def serve(
             raise GlkOteError(msg)
 
         frontend.begin(opening)
+
+        frontend.machine = machine
 
         while True:
             machine.run()

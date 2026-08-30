@@ -392,3 +392,46 @@ def test_a_refresh_keeps_the_dress() -> None:
     told = runs_of(face.render())
 
     assert_that(told).contains({"style": "subheader", "text": "kept"})
+
+
+# The sidecar rides when the display says the "voxam" token: the
+# first update carries the empty block -- the feed alive, nothing
+# yet to tell -- and once a line lands the block carries it (PORT:
+# What the sidecar carries).
+def test_the_sidecar_rides_when_granted() -> None:
+    events = [
+        {**INIT, "support": [*INIT["support"], "voxam"]},
+        {"type": "line", "gen": 1, "window": 1, "value": "west"},
+    ]
+    reader = io.StringIO("".join(json.dumps(event) + "\n" for event in events))
+    writer = io.StringIO()
+
+    assert_that(serve(storied(), reader, writer, seed=7)).is_true()
+
+    updates = [json.loads(line) for line in writer.getvalue().splitlines()]
+
+    assert_that(updates[0]["voxam"]).is_equal_to({})
+    assert_that(updates[1]["voxam"]).is_equal_to({"command": "west"})
+
+
+# The discontinuity bit is read once and rested; ungranted, the
+# update carries no block at all.
+def test_the_sidecar_rests_the_discontinuity() -> None:
+    face = fronted(storied())
+
+    face.begin({**INIT, "support": ["voxam"]})
+
+    machine = Machine(storied(), face.voice, seed=7)
+    face.machine = machine
+    machine.discontinuity = True
+
+    update = face.render()
+
+    assert_that(update["voxam"]).is_equal_to({"discontinuity": True})
+    assert_that(machine.discontinuity).is_false()
+
+    plain = fronted(storied())
+
+    plain.begin(INIT)
+
+    assert_that("voxam" in plain.render()).is_false()

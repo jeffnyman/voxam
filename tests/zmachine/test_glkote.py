@@ -1997,3 +1997,111 @@ def test_the_stage_asks_for_its_file() -> None:
     asked = reader.render()
 
     assert_that(asked["specialinput"]["filemode"]).is_equal_to("read")
+
+
+# The sidecar rides when the display says the "voxam" token: the
+# machine's honest bearings -- a zeroed story tallies score and
+# turns with no location to name -- and, once a line lands, the
+# very command the wire delivered (PORT: What the sidecar
+# carries). Ungranted, the update carries no block at all.
+def test_the_sidecar_rides_when_granted(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine)
+
+    frontend.begin({**INIT, "support": ["timer", "voxam"]})
+    machine.run()
+
+    update = frontend.render()
+
+    assert_that(update["voxam"]).is_equal_to({"score": 0, "turns": 0})
+
+    frontend.accept({"type": "line", "gen": update["gen"], "value": "go north"})
+    machine.run()
+
+    told = frontend.render(exit=True)
+
+    assert_that(told["voxam"]["command"]).is_equal_to("go north")
+
+    bare, quiet = opened(code_machine)
+
+    quiet.run()
+
+    assert_that("voxam" in bare.render()).is_false()
+
+
+# The bearings name the location honestly: a planted object table
+# answers the first global's object and short name, an unreadable
+# object answers None rather than a halt, and the discontinuity
+# bit is read once and rested (PORT: What the sidecar carries).
+def test_the_sidecar_tells_location_and_discontinuity(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine, READ_CHAR)
+
+    frontend.begin({**INIT, "support": ["voxam"]})
+
+    # The boot-cached object table sits at address 0: Version 5
+    # defaults span 126 bytes, so object 1's entry begins at $7E
+    # with its property pointer at $8A, and the properties at
+    # $1A0 open with a one-word short name spelling "abc".
+    machine.memory.write_word(0x100, 1)
+    machine.memory.write_word(0x8A, 0x1A0)
+    machine.memory.write_byte(0x1A0, 1)
+    machine.memory.write_word(0x1A1, 0x98E8)
+
+    machine.discontinuity = True
+    machine.run()
+
+    update = frontend.render()
+    block = update["voxam"]
+
+    assert_that(block["location"]).is_equal_to({"object": 1, "name": "abc"})
+    assert_that(block["discontinuity"]).is_true()
+
+    frontend.accept({"type": "char", "gen": update["gen"], "value": "x"})
+    machine.run()
+
+    assert_that("discontinuity" in frontend.render(exit=True)["voxam"]).is_false()
+
+    # An object past every table answers None, gently.
+    machine.memory.write_word(0x100, 500)
+
+    assert_that(machine.bearings().location).is_none()
+
+
+# A time game's globals are the clock, no score at all: the
+# bearings stay honestly silent about them (§8.2.3).
+def test_a_time_games_tally_stays_honest(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine, READ_CHAR, version=3)
+
+    machine.memory.write_byte(0x01, 0x02)
+
+    bearings = machine.bearings()
+
+    assert_that(bearings.score).is_none()
+    assert_that(bearings.turns).is_none()
+
+    # Through the face, the block honestly carries neither.
+    block = frontend._sidecar()
+
+    assert_that("score" in block).is_false()
+    assert_that("turns" in block).is_false()
+
+
+# The stage face speaks the sidecar too: the same token, the same
+# honest block, over the scaled canvas.
+def test_the_stage_speaks_the_sidecar_too() -> None:
+    frontend, machine = staged(READ_CHAR)
+
+    frontend.begin({**STAGE_INIT, "support": ["timer", "stage", "sound", "voxam"]})
+
+    machine.discontinuity = True
+    machine.run()
+
+    block = frontend.render()["voxam"]
+
+    assert_that(block["score"]).is_zero()
+    assert_that(block["discontinuity"]).is_true()
