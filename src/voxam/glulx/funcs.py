@@ -53,8 +53,16 @@ class FunctionHeader(NamedTuple):
     code_addr: int
 
 
-def read_function_header(memory: Memory, addr: int) -> FunctionHeader:
+def read_function_header(
+    memory: Memory, addr: int, headers: "dict[int, FunctionHeader] | None" = None
+) -> FunctionHeader:
     """Read the type byte and locals-format list at an address.
+
+    A header below RAMSTART cannot change, so a caller that offers
+    somewhere to keep one gets the same object back on every later
+    call to the same function (Glulx: The Memory Map). A header
+    reaching into RAM is read afresh every time, since the story
+    may have written over it.
 
     Raises:
         GlulxFunctionError: For a type byte that is no function --
@@ -64,6 +72,13 @@ def read_function_header(memory: Memory, addr: int) -> FunctionHeader:
         GlulxMemoryError: For a header running off the map.
     """
 
+    if headers is not None:
+        held = headers.get(addr)
+
+        if held is not None:
+            return held
+
+    funcaddr = addr
     functype = memory.read_byte(addr)
 
     if functype not in (STACK_ARGUMENTS, LOCAL_ARGUMENTS):
@@ -102,24 +117,37 @@ def read_function_header(memory: Memory, addr: int) -> FunctionHeader:
 
         entries.append(LocalsFormat(size, count))
 
-    return FunctionHeader(functype, tuple(entries), addr)
+    header = FunctionHeader(functype, tuple(entries), addr)
+
+    # The header runs from funcaddr up to the code it names, so
+    # that is the span which has to sit in memory the story cannot
+    # write before it is worth keeping.
+    if headers is not None and addr <= memory.ramstart:
+        headers[funcaddr] = header
+
+    return header
 
 
 def push_call_frame(
-    memory: Memory, stack: Stack, funcaddr: int, args: list[int]
+    memory: Memory,
+    stack: Stack,
+    funcaddr: int,
+    args: list[int],
+    headers: "dict[int, FunctionHeader] | None" = None,
 ) -> int:
     """Enter the function at an address; the new PC comes back.
 
     The arguments arrive in call order -- args[0] first -- and are
     seated as the function's type directs (Glulx: Calling and
-    Returning).
+    Returning). Headers, when offered, are kept; see
+    read_function_header.
 
     Raises:
         GlulxFunctionError: For an address that is no function.
         GlulxStackError: For a frame the stack cannot hold.
     """
 
-    header = read_function_header(memory, funcaddr)
+    header = read_function_header(memory, funcaddr, headers)
 
     stack.push_frame(header.locals_format)
 

@@ -210,6 +210,9 @@ class Machine:
         # See _shaped; the story cannot write there, so nothing
         # ever falls out of date (Glulx: The Memory Map).
         self._shapes: dict[int, _Shape] = {}
+        # And one entry per function address below RAMSTART, for
+        # the same reason and on the same terms (see funcs).
+        self._headers: dict[int, funcs.FunctionHeader] = {}
         # The sidecar's one honest bit: an undo, restore, or
         # restart broke the causal thread; the wire face reads it
         # once and rests it (PORT: What the sidecar carries).
@@ -245,7 +248,7 @@ class Machine:
         self.string_table = self._story.decoding_table
         self._running = True
         self.pc = funcs.push_call_frame(
-            self.memory, self.stack, self._story.start_function, []
+            self.memory, self.stack, self._story.start_function, [], self._headers
         )
 
     def step(self) -> None:
@@ -468,7 +471,9 @@ class Machine:
 
             return
 
-        self.pc = funcs.push_call_frame(self.memory, self.stack, addr, args)
+        self.pc = funcs.push_call_frame(
+            self.memory, self.stack, addr, args, self._headers
+        )
 
     def _bit_address(self, base: int, index: int) -> tuple[int, int]:
         """A bit number resolved to its byte address and bit within.
