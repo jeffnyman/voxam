@@ -541,3 +541,18 @@ def test_the_page_carries_a_working_light() -> None:
 
     assert_that(accept).contains("voxamWorking(true)")
     assert_that(accept.count("voxamWorking(false)")).is_equal_to(2)
+
+
+# A form control takes its colour from the browser's own stylesheet,
+# not from the page around it, so the field the player types into
+# stays black however the story is dressed -- unreadable on a dark
+# ink. Both halves of the typed line have to be asked for: the field
+# while it is being typed, and the echo once the machine has it.
+def test_the_typed_line_wears_the_story_ink() -> None:
+    _, _, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+
+    for rule in (".Input", ".Style_input"):
+        dressed = page.split(f"\n{rule} {{")[1].split("}")[0]
+
+        assert_that(dressed).contains("color: inherit")
