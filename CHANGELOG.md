@@ -1,3 +1,9 @@
+## v2.6.1 (2026-08-31)
+
+### Fix
+
+- **cli**: the painted faces ask for blessed by name, not for the module that hides it (#337)
+
 ## v2.6.0 (2026-08-31)
 
 ### Feat
