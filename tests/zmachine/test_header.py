@@ -516,3 +516,20 @@ def test_mouse_and_menu_requests_clear_when_refused() -> None:
     header.declare_menus(available=False)
 
     assert_that(int.from_bytes(header.data[0x10:0x12], "big")).is_zero()
+
+
+# The §8.4 size fields are a byte each, and the §8.4.3 unit fields a
+# word each, so a screen larger than a field can hold is claimed at
+# that field's ceiling rather than overflowing it. A display whose
+# metrics name no character size measures itself in cells one unit
+# wide (GlkOte: The Metrics Object) and offers exactly that.
+def test_a_screen_past_the_fields_is_claimed_at_their_ceiling() -> None:
+    header = Header(bytearray(synthetic_header(version=5)))
+
+    header.declare_screen_size(lines=400, columns=1000)
+    header.declare_screen_units(width=100_000, height=90_000)
+
+    assert_that(header.data[0x20]).is_equal_to(255)
+    assert_that(header.data[0x21]).is_equal_to(255)
+    assert_that(header.data[0x22:0x24]).is_equal_to(b"\xff\xff")
+    assert_that(header.data[0x24:0x26]).is_equal_to(b"\xff\xff")

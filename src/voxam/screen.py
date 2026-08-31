@@ -111,6 +111,13 @@ class ScreenModel:
         self._pending: list[Cell] = []
         self._scroll_due = False
         self._damage: set[int] = set()
+        # The last §8.2 status line drawn, kept so a resize can
+        # redraw it at the new width. Before Version 4 the line is
+        # the interpreter's own, redrawn at each read, so a screen
+        # that changes size between reads would otherwise sit with
+        # the score stranded at the old column until the player
+        # typed something. Version 4 on never draws one here.
+        self._status: Status | None = None
         # [MORE] paging is interpreter courtesy: a frontend that
         # wants a pause before a screenful of unread text scrolls
         # away hangs a callback here, and the model counts the
@@ -378,8 +385,11 @@ class ScreenModel:
         and the upper window stay where they were; the fresh margin
         blanks in the current background. The split and both cursors
         are drawn back inside the new bounds, and every row is left
-        damaged so the painter redraws the whole screen. A size that
-        did not actually change does nothing.
+        damaged so the painter redraws the whole screen. A §8.2
+        status line already standing is drawn again at the new
+        width, since the interpreter owns that row and would not
+        otherwise touch it until the next read. A size that did not
+        actually change does nothing.
         """
 
         columns = max(1, columns)
@@ -421,6 +431,9 @@ class ScreenModel:
         self._scroll_due = False
         self._fed = 0
         self._damage = set(range(1, lines + 1))
+
+        if self._status is not None:
+            self.show_status(self._status)
 
     def split_window(self, height: int) -> None:
         """Resize the upper window to the given height (§8.7.2.1).
@@ -806,6 +819,7 @@ class ScreenModel:
             Cell(character, REVERSE) for character in line[: self._columns]
         ]
         self._damage.add(1)
+        self._status = status
 
     def sweep(self) -> list[int]:
         """The rows changed since the last sweep, in screen order.

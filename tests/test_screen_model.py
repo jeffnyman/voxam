@@ -827,3 +827,27 @@ def test_resize_floors_at_one_by_one() -> None:
 
     assert_that(screen.columns).is_equal_to(1)
     assert_that(screen.lines).is_equal_to(1)
+
+
+# The §8.2 status line is the interpreter's own row, drawn afresh at
+# each read -- so a screen resized between reads would otherwise sit
+# with its score stranded at the column the old width put it in. A
+# resize draws the standing line again, fitted to the new width.
+def test_a_resize_redraws_the_standing_status_line() -> None:
+    model = ScreenModel(columns=40, lines=HEIGHT, version=3)
+
+    model.show_status(Status("West of House", 0, 1, time_game=False))
+
+    assert_that(model.row_text(1)).ends_with("Score: 0  Moves: 1")
+
+    # Narrow enough that §8.2.2.2's ellipsis rule applies again,
+    # which it could not do from the row as it already stood.
+    model.resize(30, HEIGHT)
+
+    assert_that(model.row_text(1)).starts_with(" West o...")
+    assert_that(model.row_text(1)).ends_with("Score: 0  Moves: 1")
+
+    model.resize(60, HEIGHT)
+
+    assert_that(model.row_text(1)).is_length(59)
+    assert_that(model.row_text(1)).ends_with("Score: 0  Moves: 1")
