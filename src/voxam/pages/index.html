@@ -150,6 +150,60 @@ html, body {
 .GridWindow a {
   color: var(--link);
 }
+/* The working light. The wire's burst model sends nothing back
+   until the machine reaches its next wait, so a story that thinks
+   for a long time leaves the page perfectly still, which reads as
+   a dead interpreter rather than a busy one -- Dead Cities spends
+   over a minute of real work opening itself. Almost every turn
+   settles in milliseconds, though, so the chip waits before it
+   appears: only a story that is genuinely thinking earns it. */
+#working {
+  position: fixed;
+  bottom: 8px;
+  left: 10px;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  gap: 7px;
+  font-family:
+    monaco,
+    "andale mono",
+    "lucida console",
+    courier,
+    monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--bar-ink);
+  background: var(--bar);
+  border-radius: 3px;
+  padding: 3px 10px;
+}
+#working[data-shown] {
+  display: flex;
+}
+#working::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: working-pulse 1.1s ease-in-out infinite;
+}
+@keyframes working-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #working::before {
+    animation: none;
+    opacity: 0.7;
+  }
+}
 /* The theme picker: dressed as a small status-bar chip -- the
    reverse-video colours the interface already wears, the grid's
    own monospace -- so it reads as furniture, not an OS control.
@@ -219,8 +273,38 @@ html, body {
    asks. Sounds ride the update the same way, in VOXAM's own
    dialect, played by voxam-audio.js -- whose finished plays come
    back through the same POST every other event takes. */
+/* The working light, raised while the machine has the turn. The
+   delay is the whole point: an ordinary turn answers long before
+   it expires, so the chip never flashes, and a story that really
+   is thinking gets to say so instead of looking dead. */
+var VOXAM_WORKING_DELAY = 600;
+var VOXAM_WORKING_TIMER = null;
+
+function voxamWorking(thinking) {
+  var chip = document.getElementById("working");
+
+  if (thinking) {
+    if (VOXAM_WORKING_TIMER === null) {
+      VOXAM_WORKING_TIMER = setTimeout(function() {
+        if (chip) chip.setAttribute("data-shown", "");
+      }, VOXAM_WORKING_DELAY);
+    }
+
+    return;
+  }
+
+  if (VOXAM_WORKING_TIMER !== null) {
+    clearTimeout(VOXAM_WORKING_TIMER);
+    VOXAM_WORKING_TIMER = null;
+  }
+
+  if (chip) chip.removeAttribute("data-shown");
+}
+
 var Game = {
   accept: function(event) {
+    voxamWorking(true);
+
     fetch("/event", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -228,9 +312,11 @@ var Game = {
     }).then(function(response) {
       return response.json();
     }).then(function(update) {
+      voxamWorking(false);
       VoxamAudio.update(update);
       GlkOte.update(update);
     }).catch(function(fault) {
+      voxamWorking(false);
       GlkOte.error("The session was lost: " + fault);
     });
   }
@@ -239,6 +325,7 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </script>
 </head>
 <body onload="GlkOte.init();">
+<div id="working" role="status" aria-live="polite">working</div>
 <label id="theme-pick">
 <span class="sr-only">Theme</span>
 <select id="theme">
