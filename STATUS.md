@@ -8,20 +8,29 @@ nothing below is promised, only enforced.
 
 ## The current release
 
-Version `2.4`: the sidecar, and the third machine dressed.
-Every update the wire sends can now carry a `voxam` block beside
-the windows it draws: where the player stands, the command that
-moved them, the score and the turn count, and one honest bit
-saying this state of play does not follow from the last command,
-because an undo, a restore, or a restart intervened. It is a
-dumb factual feed and nothing more, granted only by a display
-that asks for it by name, and it never forces an update into
-being; the graph, the layout, and the drawing belong to whatever
-face wants to build a map or a notebook on those facts. Beside
-it, Dialog's own styling is finally worn: the LOOK chunk's bold,
-italics, and colors at a real terminal and on the wire alike,
-which makes Voxam, as far as we know, the first command-line
-Å-machine interpreter to clear the specification's styling bar.
+Version `2.5`: the faces take the light, and the window, they
+are given. The pixel window wears a theme and opens in a gentle
+dark rather than 1979's white on black, with paper, sepia, and
+the old classic a flag away; the browser tab wears one too,
+following the reader's own system preference until a picker in
+the corner says otherwise, and remembering that answer for next
+time. Beneath the dress, three things that had been assuming
+where they should have been reading: the painted terminal now
+follows the window it is handed rather than the one it booted
+against, the wire's screen model follows the display's font size
+so that changing size mid-story neither strands the status
+line's score past the right edge nor kills the session outright,
+and `--seed` keeps its word through a story's own reseed to
+entropy.
+
+That last one is the single place Voxam knowingly answers a
+story with something other than what its specification asks for.
+It applies only under an explicit `--seed`, which already
+overrides the same rule at game start; a session without the
+flag reaches real entropy exactly as before. The reason is
+written down beside the code, in the [README](README.md), and in
+[DESIGN.md](DESIGN.md), because the alternative was a flag that
+lied.
 
 The standing claims beneath it, each enforced in continuous
 integration rather than promised: the Z-Machine is complete --
@@ -1058,3 +1067,66 @@ wanting rooms from them will have to earn them some other way;
 and a persisted map, if one is ever kept, is meant to
 key by IFID and live beside the story as an ordinary file, the
 way the saves do.
+
+## The faces dressed, and the seed kept: 2.5
+
+An interpreter has no business deciding that a story must be
+read in white on black, and for most of Voxam's life the pixel
+window decided exactly that. Now it does not:
+
+- **Four themes at the pixel window.** `--theme` picks `dark`
+  (the new default), `paper`, `sepia`, or `classic`, which is
+  the old white on black kept by name for anyone who wants it.
+  A theme is a whole dress, not a background swap: the ink and
+  paper it names are what §8.3's "default" colours resolve to,
+  so a game that resets to its own defaults lands on the
+  theme's pair rather than snapping back to a look the screen
+  never otherwise shows.
+- **A picker in the browser tab.** The page follows
+  `prefers-color-scheme` until a reader chooses, so a dark
+  desktop gets a dark story with nothing asked of anyone; the
+  chip in the corner offers System, Paper, Sepia, and Dark, and
+  the choice is remembered and applied before the first paint,
+  so a chosen theme never flashes the other one on the way in.
+- **The named footpath.** `--theme` reaches the Z-Machine's
+  pixel window; the Glulx Glk glass beside it wears the same
+  default dark but does not read the flag yet.
+
+The rest of the release is faces that had been trusting instead
+of reading, each caught by a real session:
+
+- **The painted terminal follows its window.** It had been
+  drawing against the size it booted with, so a terminal resized
+  mid-story, or one too slow to answer at startup, was painted
+  for a screen that was not there. It now re-measures and
+  reshapes, and from Version 4 the §8.4 header fields are
+  re-stamped with it.
+- **The wire's screen model follows the display.** The Z face
+  re-measured on an `arrange` but never told the model behind
+  it, so the desktop shell's Display menu could push the §8.2
+  status line's score past the right edge of a narrowed grid.
+  Worse in the other direction: a smaller font widens the grid,
+  and the renderer reached for cells the model did not have,
+  which ended the session outright. Both were the one gap.
+  Reported by a player, which is a first worth recording.
+- **The `--seed` promise, kept to the end.** A story may ask to
+  reseed itself from genuine entropy (`random 0` in the
+  Z-Machine, `@setrandom 0` in Glulx) and in an ordinary session
+  it gets exactly that. Under an explicit `--seed` the new dice
+  are drawn off the seeded stream instead, so the whole run
+  stays a function of the one seed given. This is the knowing
+  deviation named above, and it is narrow by construction: the
+  flag already overrides the same rule at game start, and
+  without this the flag made a promise the interpreter quietly
+  broke the moment a story asked. It also made a checker
+  honest: glulxercise's random battery reseeds itself, and at a
+  pinned seed the whole run is now byte-identical, so the retry
+  loop that had been standing in for determinism in continuous
+  integration is gone.
+
+And the shell finds its interpreter. It looks on the PATH, then
+in the bin directories the installers use, then asks the login
+shell, since an app launched from the Dock or the Start menu
+inherits no terminal's PATH; `VOXAM_BIN` names one outright, and
+when nothing turns up it says so in words rather than failing
+blank.

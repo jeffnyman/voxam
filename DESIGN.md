@@ -172,6 +172,13 @@ the architecture actually has.
 - **ink and paper**: foreground and background color, the
   Z-Machine Standard's own words for them, used across all three
   machines.
+- **theme**: the ink and paper a face opens in, and what a
+  story's own "default" colors resolve to while it is worn. A
+  theme is chosen by the reader, never by the story: the pixel
+  window takes one from `--theme`, the browser tab from the
+  system's preference or its own picker. It dresses what the
+  story left unsaid, and never overrides a color the story
+  actually asked for.
 - **voice**: the Å-machine's output subsystem, and **the
   telling** is what a voice has said so far. The plain voice is
   certified word for word against the reference implementation's

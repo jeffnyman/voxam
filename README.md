@@ -145,8 +145,9 @@ story file is all any of them needs:
   window: the illustrated home of the Version 6 games, Glulx's
   canvases and mouse, and a fine roomy home for everything else.
 - **In a browser.** `voxam --web story.gblorb` -- a GlkOte tab
-  on your own machine, art and covers inlined, saves written
-  beside the story.
+  on your own machine, in your system's own light or whichever
+  you pick, art and covers inlined, saves written beside the
+  story.
 - **As a desktop app.** Grab the Voxam installer for your
   platform from the
   [latest release](https://github.com/jeffnyman/voxam/releases/latest)
@@ -266,7 +267,12 @@ voxam --web path/to/story.gblorb
 
 The story's title rides on the tab, its art is served straight
 from the gblorb, each turn is one HTTP exchange, and reloading
-the page starts the story over; `--port` moves it off 8080.
+the page starts the story over; `--port` moves it off 8080. The
+page arrives in whichever light your system already prefers, and
+the chip in the corner offers System, Paper, Sepia, and Dark
+outright; the choice is remembered, and applied before the first
+paint, so a chosen theme never flashes the other one on its way
+in.
 Typing `save` in the tab asks for a name through the display's
 own prompt and writes the Quetzal file beside the story, where
 `restore` -- and every other interpreter -- can find it. And
