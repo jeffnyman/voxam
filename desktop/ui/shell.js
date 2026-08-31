@@ -53,6 +53,35 @@ var PROMPTED = {
   data: { name: "Data files", extensions: ["glkdata", "dat"] }
 };
 
+/* The working light, raised while the machine has the turn and
+   lowered by whatever comes back. The delay is the whole point:
+   an ordinary turn answers long before it expires, so the chip
+   never flashes, and a story that really is thinking gets to say
+   so rather than looking dead. */
+var WORKING_DELAY = 600;
+var workingTimer = null;
+
+function working(thinking) {
+  var chip = document.getElementById("working");
+
+  if (thinking) {
+    if (workingTimer === null) {
+      workingTimer = setTimeout(function() {
+        if (chip) chip.setAttribute("data-shown", "");
+      }, WORKING_DELAY);
+    }
+
+    return;
+  }
+
+  if (workingTimer !== null) {
+    clearTimeout(workingTimer);
+    workingTimer = null;
+  }
+
+  if (chip) chip.removeAttribute("data-shown");
+}
+
 var Game = {
   /* Every GlkOte event becomes one line down the pipe. Rejections
      are swallowed: glkote.js hardcodes timer support, and a timer
@@ -60,6 +89,7 @@ var Game = {
      arrive inline as data: urls in the updates themselves, so the
      shell owes no Blorb interface and no picture road. */
   accept: function(event) {
+    working(true);
     invoke("send_stanza", { line: JSON.stringify(event) }).catch(function() {});
   },
   Dialog: {
@@ -146,6 +176,9 @@ function deliver(kind, payload) {
   /* A dead session's last words: the reload that replaced it
      attached fresh listeners before its pumps wound down. */
   if (payload.id !== sessionId) return;
+
+  /* Whatever arrived, the machine has stopped thinking. */
+  working(false);
 
   if (kind === "stanza") {
     /* Sounds ride the update in VOXAM's own dialect; the audio

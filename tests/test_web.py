@@ -519,3 +519,25 @@ def test_every_ink_names_a_bar_apart_from_its_paper() -> None:
     for held in inks:
         assert_that(held["bar"]).is_not_equal_to(held["paper"])
         assert_that(held["bar-ink"]).is_not_equal_to(held["ink"])
+
+
+# The burst model sends nothing back until the machine reaches its
+# next wait, so a story that thinks for a long time leaves the page
+# perfectly still -- Dead Cities spends over a minute opening
+# itself, and a still page reads as a dead interpreter. The chip
+# says otherwise, but only after a delay, so an ordinary turn never
+# flashes it.
+def test_the_page_carries_a_working_light() -> None:
+    _, _, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+
+    assert_that(page).contains('<div id="working" role="status" aria-live="polite">')
+    assert_that(page).contains("#working[data-shown]")
+    assert_that(page).contains("prefers-reduced-motion")
+
+    # Raised when the turn goes out, lowered by both the answer and
+    # the failure: a fault must never leave it burning.
+    accept = page.split("accept: function(event) {")[1].split("};")[0]
+
+    assert_that(accept).contains("voxamWorking(true)")
+    assert_that(accept.count("voxamWorking(false)")).is_equal_to(2)
