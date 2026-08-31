@@ -535,6 +535,12 @@ def test_the_page_carries_a_working_light() -> None:
     assert_that(page).contains("#working[data-shown]")
     assert_that(page).contains("prefers-reduced-motion")
 
+    # The seconds are hidden from assistive technology: the chip
+    # announces itself once, and a number ticking every second
+    # would otherwise say it again and again.
+    assert_that(page).contains('<span id="working-for" aria-hidden="true">')
+    assert_that(page).contains("setInterval(tell, 1000)")
+
     # Raised when the turn goes out, lowered by both the answer and
     # the failure: a fault must never leave it burning.
     accept = page.split("accept: function(event) {")[1].split("};")[0]
@@ -556,3 +562,15 @@ def test_the_typed_line_wears_the_story_ink() -> None:
         dressed = page.split(f"\n{rule} {{")[1].split("}")[0]
 
         assert_that(dressed).contains("color: inherit")
+
+
+# Both timers have to be put out, not just the one that showed the
+# chip: a turn that answers while the seconds are running would
+# otherwise leave them counting over a finished session.
+def test_the_working_light_stops_counting() -> None:
+    _, _, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+    lowered = page.split("function voxamWorking(thinking) {")[1].split("var Game")[0]
+
+    assert_that(lowered).contains("clearTimeout(VOXAM_WORKING_TIMER)")
+    assert_that(lowered).contains("clearInterval(VOXAM_WORKING_TICK)")

@@ -184,12 +184,19 @@ html, body {
     "lucida console",
     courier,
     monospace;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.03em;
   color: var(--bar-ink);
   background: var(--bar);
-  border-radius: 3px;
-  padding: 3px 10px;
+  border-radius: 4px;
+  padding: 6px 12px;
+}
+/* The seconds, once there are enough of them to be worth saying.
+   A number that moves is proof of life in a way a still chip is
+   not: it tells a reader whether to wait or to walk away. */
+#working-for {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 #working[data-shown] {
   display: flex;
@@ -227,7 +234,7 @@ html, body {
   bottom: 8px;
   right: 10px;
   z-index: 20;
-  opacity: 0.4;
+  opacity: 0.7;
   transition: opacity 0.15s ease;
 }
 #theme-pick:hover,
@@ -241,7 +248,7 @@ html, body {
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--band-ink);
 }
 #theme-pick select {
@@ -253,13 +260,13 @@ html, body {
     "lucida console",
     courier,
     monospace;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.03em;
   color: var(--band-ink);
   background: var(--band);
   border: 0;
-  border-radius: 3px;
-  padding: 3px 22px 3px 9px;
+  border-radius: 4px;
+  padding: 6px 26px 6px 12px;
   cursor: pointer;
 }
 #theme-pick select:focus-visible {
@@ -292,14 +299,25 @@ html, body {
    is thinking gets to say so instead of looking dead. */
 var VOXAM_WORKING_DELAY = 600;
 var VOXAM_WORKING_TIMER = null;
+var VOXAM_WORKING_TICK = null;
 
 function voxamWorking(thinking) {
   var chip = document.getElementById("working");
+  var counter = document.getElementById("working-for");
+  var began = Date.now();
+
+  function tell() {
+    if (counter) {
+      counter.textContent = " " + Math.round((Date.now() - began) / 1000) + "s";
+    }
+  }
 
   if (thinking) {
     if (VOXAM_WORKING_TIMER === null) {
       VOXAM_WORKING_TIMER = setTimeout(function() {
         if (chip) chip.setAttribute("data-shown", "");
+        tell();
+        VOXAM_WORKING_TICK = setInterval(tell, 1000);
       }, VOXAM_WORKING_DELAY);
     }
 
@@ -311,7 +329,13 @@ function voxamWorking(thinking) {
     VOXAM_WORKING_TIMER = null;
   }
 
+  if (VOXAM_WORKING_TICK !== null) {
+    clearInterval(VOXAM_WORKING_TICK);
+    VOXAM_WORKING_TICK = null;
+  }
+
   if (chip) chip.removeAttribute("data-shown");
+  if (counter) counter.textContent = "";
 }
 
 var Game = {
@@ -338,7 +362,7 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </script>
 </head>
 <body onload="GlkOte.init();">
-<div id="working" role="status" aria-live="polite">working</div>
+<div id="working" role="status" aria-live="polite">working<span id="working-for" aria-hidden="true"></span></div>
 <label id="theme-pick">
 <span class="sr-only">Theme</span>
 <select id="theme">
