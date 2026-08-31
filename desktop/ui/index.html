@@ -38,9 +38,20 @@ html, body {
   color: inherit;
   background: transparent;
 }
-/* The inks, each a whole dress: page, story, and the grid with
-   its inverse -- the Z-Machine's reverse video (§8.7) travels as
-   user1, wearing the classic bar in every ink. */
+/* The inks, each a whole dress: page, story, the reverse video
+   §8.7 sends as user1, and the §8.2 status bar.
+
+   The bar names its own pair rather than inverting the story's.
+   Deriving it by inversion looks right until the upper window is
+   itself dressed as the story's inverse: the status line is
+   reverse video from end to end, so it inverts a second time and
+   lands back on the story's own colours -- which is how the sepia
+   bar came to be pixel-for-pixel identical to the prose beneath
+   it. So each ink chooses its bar, the way WinFrotz chooses white
+   on blue, and the grid simply wears the story's paper, because
+   an upper window is part of the same screen. These inks are the
+   browser face's own, in src/voxam/pages/index.html: the two
+   files are written separately and have to move together. */
 body.theme-paper {
   background: #444;
 }
@@ -53,12 +64,12 @@ body.theme-paper .Style_user1 {
   color: #fff;
 }
 body.theme-paper .GridWindow {
-  background: #333;
-  color: #fff;
+  background: white;
+  color: black;
 }
 body.theme-paper .GridWindow .Style_user1 {
-  background: #fff;
-  color: #333;
+  background: #2b2b2b;
+  color: #f2f2f2;
 }
 body.theme-sepia {
   background: #2f2921;
@@ -72,12 +83,12 @@ body.theme-sepia .Style_user1 {
   color: #f4ecd8;
 }
 body.theme-sepia .GridWindow {
-  background: #43382a;
-  color: #f4ecd8;
-}
-body.theme-sepia .GridWindow .Style_user1 {
   background: #f4ecd8;
   color: #43382a;
+}
+body.theme-sepia .GridWindow .Style_user1 {
+  background: #43382a;
+  color: #f4ecd8;
 }
 body.theme-dark {
   background: #111;
@@ -91,12 +102,34 @@ body.theme-dark .Style_user1 {
   color: #1c1c1c;
 }
 body.theme-dark .GridWindow {
-  background: #000;
+  background: #1c1c1c;
   color: #d6d6d6;
 }
 body.theme-dark .GridWindow .Style_user1 {
-  background: #d6d6d6;
-  color: #000;
+  background: #a8a8a8;
+  color: #141414;
+}
+/* The DOS Infocom look, which WinFrotz still opens in: white on a
+   deep blue, and the status bar its exact inverse. The one ink
+   here that is a period piece rather than a reading preference. */
+body.theme-frotz {
+  background: #000042;
+}
+body.theme-frotz #gameport {
+  background: #000084;
+  color: #fff;
+}
+body.theme-frotz .Style_user1 {
+  background: #fff;
+  color: #000084;
+}
+body.theme-frotz .GridWindow {
+  background: #000084;
+  color: #fff;
+}
+body.theme-frotz .GridWindow .Style_user1 {
+  background: #fff;
+  color: #000084;
 }
 /* The landing overlay covers the gameport but never hides it:
    GlkOte must measure real geometry the moment it initializes. */
