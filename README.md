@@ -186,7 +186,12 @@ uv tool install voxam
 And `uvx voxam story.z5` runs it without installing anything at
 all -- uv fetches the package to its cache, runs the command, and
 leaves your PATH untouched, which is the quickest possible way to
-try Voxam on a story file.
+try Voxam on a story file. That gets you the plain text stream;
+for the painted terminal, ask uvx for the extra by name:
+
+```bash
+uvx --from "voxam[screen]" voxam story.z5
+```
 
 The painted screen frontend rides in the `screen` extra, the
 pygame window in the `graphics` extra, and sampled-sound playback

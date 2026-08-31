@@ -1100,7 +1100,7 @@ def test_a_terminal_selects_the_glulx_glass(
 
     assert_that(_terminal_frontend()).is_instance_of(TerminalFrontend)
 
-    monkeypatch.setitem(sys.modules, "voxam.glulx.glk.terminal", None)
+    monkeypatch.setitem(sys.modules, "blessed", None)
 
     assert_that(_terminal_frontend()).is_none()
 
@@ -1752,15 +1752,38 @@ def test_a_terminal_selects_the_screen_frontend(
     assert_that(_screen_frontend(3)).is_instance_of(ScreenFrontend)
 
 
-# Without the blessed extra the import fails and the plain stream
-# carries on: the screen is optional, the game is not.
+# Without the blessed extra the plain stream carries on: the screen
+# is optional, the game is not. The extra is hidden by its own name
+# here, which is the condition a player actually meets. Hiding
+# voxam.painter instead proved nothing: that module imports blessed
+# inside its constructor, so it loads fine without the extra, and
+# the crash a bare `pip install voxam` produced at a real terminal
+# went unnoticed behind a test that passed.
 def test_a_missing_extra_falls_back_to_plain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-    monkeypatch.setitem(sys.modules, "voxam.painter", None)
+    monkeypatch.setitem(sys.modules, "blessed", None)
 
     assert_that(_screen_frontend(3)).is_none()
+
+
+# And the whole way through, which is the path a player actually
+# walks: a bare install at a real terminal plays the story as a
+# plain stream rather than dying on the extra it never asked for.
+def test_a_bare_install_plays_at_a_real_terminal(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("look\n"))
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setitem(sys.modules, "blessed", None)
+
+    exit_code = main([str(reading_story(tmp_path))])
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("Traceback")
 
 
 # --plain keeps the stream frontend even where a screen would do.

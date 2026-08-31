@@ -1447,11 +1447,18 @@ def _screen_frontend(
         return None
 
     try:
-        # Imported here because the blessed extra is optional: the
-        # plain stream must keep working without it.
-        from voxam.painter import ScreenFrontend  # noqa: PLC0415
+        # The extra itself, asked for by name. Not voxam.painter:
+        # that module imports blessed inside the constructor, so it
+        # loads perfectly well without the extra and cannot report
+        # its absence. Guarding the module instead of the package
+        # let the constructor raise ModuleNotFoundError into the
+        # open, which is what a bare `pip install voxam` did at a
+        # real terminal.
+        import blessed  # noqa: F401, PLC0415
     except ImportError:
         return None
+
+    from voxam.painter import ScreenFrontend  # noqa: PLC0415
 
     return ScreenFrontend(version, speaker=_speaker(blorb))
 
@@ -1982,11 +1989,14 @@ def _terminal_frontend(
         return None
 
     try:
-        # Imported here because the blessed extra is optional: the
-        # stdio display must keep working without it.
-        from voxam.glulx.glk.terminal import TerminalFrontend  # noqa: PLC0415
+        # The extra itself, by name: the display module imports
+        # blessed inside its constructor, so it loads without the
+        # extra and cannot report its absence. See _screen_frontend.
+        import blessed  # noqa: F401, PLC0415
     except ImportError:
         return None
+
+    from voxam.glulx.glk.terminal import TerminalFrontend  # noqa: PLC0415
 
     on_line = on_key = None
 
