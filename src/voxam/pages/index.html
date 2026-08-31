@@ -143,8 +143,21 @@ html, body {
 .Style_blockquote {
   background: var(--quote);
 }
+/* The echoed line, once the machine has it: the display's own
+   stylesheet dresses it a dark maroon, which is one ink's idea of
+   emphasis and no other's. */
 .Style_input {
   color: inherit;
+}
+/* And the field the player is still typing into. A form control
+   does not inherit its colour from the page the way text does --
+   browsers dress it from their own stylesheet instead, which is
+   black whatever the story is wearing. So it is asked for
+   explicitly, or a dark ink is typed into blind. The caret
+   follows the colour, so it is answered by the same line. */
+.Input {
+  color: inherit;
+  background: transparent;
 }
 .BufferWindow a,
 .GridWindow a {
