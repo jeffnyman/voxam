@@ -2,11 +2,12 @@
 
 How Voxam is built, why it is built that way, and what its words
 mean. The [README](README.md) says what Voxam does,
-[STATUS.md](STATUS.md) says what is enforced, and
-[HISTORY.md](HISTORY.md) tells the road. This document explains
-the thinking that runs underneath all three, and the internal
-vocabulary those documents use without any sort of apology, but
-also without any sort of explanation.
+[STATUS.md](STATUS.md) says what is enforced,
+[HISTORY.md](HISTORY.md) tells the road, and
+[CONTRIBUTING.md](CONTRIBUTING.md) is how to work on it. This
+document explains the thinking that runs underneath all of them,
+and the internal vocabulary those documents use without any sort
+of apology, but also without any sort of explanation.
 
 ## The principles
 
