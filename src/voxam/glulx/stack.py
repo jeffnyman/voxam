@@ -23,6 +23,8 @@ check glulxe skips with a note that a strict interpreter probably
 should make. Voxam is that strict interpreter.
 """
 
+import struct
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import NamedTuple
@@ -51,6 +53,20 @@ FRAME_HEADER_SIZE = 8
 FORMAT_ENTRY_SIZE = 2
 LOCAL_TYPES = (BYTE_WIDTH, SHORT_WIDTH, WORD_WIDTH)
 LOCAL_COUNT_LIMIT = 255
+
+# Big-endian access, prepared once. int.from_bytes on a slice,
+# and to_bytes into one, each build a throwaway bytes object per
+# access; these do not. On the reads this stack does tens of
+# millions of times in a session that is measured at roughly a
+# third of the work for the same answer.
+_WORD = struct.Struct(">I")
+_SHORT = struct.Struct(">H")
+# Typed here rather than at each call: unpack_from is Any-returning
+# in the stubs, and a cast at every read would cost what this saves.
+_read_word: Callable[[bytearray, int], tuple[int]] = _WORD.unpack_from
+_write_word: Callable[[bytearray, int, int], None] = _WORD.pack_into
+_read_short: Callable[[bytearray, int], tuple[int]] = _SHORT.unpack_from
+_write_short: Callable[[bytearray, int, int], None] = _SHORT.pack_into
 
 SHORT_ALIGN_MASK = 0b1
 WORD_ALIGN_MASK = 0b11
@@ -245,7 +261,7 @@ class Stack:
         ):
             raise GlulxStackError(_refused(position, SHORT_WIDTH, self._size))
 
-        return int.from_bytes(self._data[position : position + SHORT_WIDTH], "big")
+        return _read_short(self._data, position)[0]
 
     def read_word(self, position: int) -> int:
         """Read a big-endian word at a multiple of four.
@@ -262,7 +278,7 @@ class Stack:
         ):
             raise GlulxStackError(_refused(position, WORD_WIDTH, self._size))
 
-        return int.from_bytes(self._data[position : position + WORD_WIDTH], "big")
+        return _read_word(self._data, position)[0]
 
     def read(self, position: int, width: int) -> int:
         """Read at a local's width: 1, 2, or 4 bytes.
@@ -307,9 +323,7 @@ class Stack:
         ):
             raise GlulxStackError(_refused(position, SHORT_WIDTH, self._size))
 
-        self._data[position : position + SHORT_WIDTH] = (value & SHORT_MASK).to_bytes(
-            SHORT_WIDTH, "big"
-        )
+        _write_short(self._data, position, value & SHORT_MASK)
 
     def write_word(self, position: int, value: int) -> None:
         """Write a big-endian word at a multiple of four, masked.
@@ -326,9 +340,7 @@ class Stack:
         ):
             raise GlulxStackError(_refused(position, WORD_WIDTH, self._size))
 
-        self._data[position : position + WORD_WIDTH] = (value & WORD_MASK).to_bytes(
-            WORD_WIDTH, "big"
-        )
+        _write_word(self._data, position, value & WORD_MASK)
 
     def write(self, position: int, width: int, value: int) -> None:
         """Write at a local's width: 1, 2, or 4 bytes.
@@ -357,9 +369,7 @@ class Stack:
 
             raise GlulxStackError(msg)
 
-        self._data[self.sp : self.sp + WORD_WIDTH] = (value & WORD_MASK).to_bytes(
-            WORD_WIDTH, "big"
-        )
+        _write_word(self._data, self.sp, value & WORD_MASK)
         self.sp += WORD_WIDTH
 
     def pop(self) -> int:
@@ -381,7 +391,7 @@ class Stack:
 
         self.sp -= WORD_WIDTH
 
-        return int.from_bytes(self._data[self.sp : self.sp + WORD_WIDTH], "big")
+        return _read_word(self._data, self.sp)[0]
 
     def peek(self, depth: int = 0) -> int:
         """Read a value without popping; depth 0 is the topmost.
@@ -401,7 +411,7 @@ class Stack:
 
             raise GlulxStackError(msg)
 
-        return int.from_bytes(self._data[position : position + WORD_WIDTH], "big")
+        return _read_word(self._data, position)[0]
 
     @property
     def count(self) -> int:
@@ -584,15 +594,28 @@ class Stack:
         The offset is what the locals addressing modes and a call
         stub's DestType 2 both carry.
 
+        The segment test is spelled out here, and the word case
+        goes straight to its accessor, because this is among the
+        machine's most-run lines: the roundabout way was a property
+        call, a checking call, and a dispatch on width before any
+        byte was read. A reference that fails the test hands off to
+        _refuse_local, which owns the wording of the refusal.
+
         Raises:
             GlulxStackError: For a reference outside the locals
                 segment -- the spec's "must not point outside"
                 made a real check -- or off its alignment.
         """
 
-        self._require_local(offset, width)
+        if offset < 0 or offset > self.valstackbase - self.localsbase - width:
+            self._refuse_local(offset)
 
-        return self.read(self.localsbase + offset, width)
+        position = self.localsbase + offset
+
+        if width == WORD_WIDTH:
+            return self.read_word(position)
+
+        return self.read(position, width)
 
     def set_local(self, offset: int, value: int, width: int = WORD_WIDTH) -> None:
         """Write a local by its offset from localsbase, masked.
@@ -602,31 +625,42 @@ class Stack:
                 segment or off its alignment.
         """
 
-        self._require_local(offset, width)
-        self.write(self.localsbase + offset, width, value)
+        if offset < 0 or offset > self.valstackbase - self.localsbase - width:
+            self._refuse_local(offset)
 
-    def _require_local(self, offset: int, width: int) -> None:
-        """Hold a local reference inside the locals segment.
+        position = self.localsbase + offset
 
-        The reference glulxe skips this, noting that "a strict
-        mode interpreter probably should" check; the spec says a
-        local reference "must not point outside the range of the
-        current function's locals segment", and an unchecked one
-        reads the frame header or a neighboring frame -- silent
-        corruption instead of a diagnosable fault.
+        if width == WORD_WIDTH:
+            self.write_word(position, value)
+        else:
+            self.write(position, width, value)
+
+    def _refuse_local(self, offset: int) -> None:
+        """Refuse a local reference outside the locals segment.
+
+        The reference glulxe skips this check, noting that "a
+        strict mode interpreter probably should" make it; the spec
+        says a local reference "must not point outside the range of
+        the current function's locals segment", and an unchecked
+        one reads the frame header or a neighbouring frame --
+        silent corruption instead of a diagnosable fault.
+
+        The test itself is at the two call sites, where it is run
+        tens of millions of times a session and cannot afford a
+        call. This owns the wording, and is reached only once the
+        test has already failed.
 
         Raises:
-            GlulxStackError: For an offset outside the segment.
+            GlulxStackError: Always; that is what it is for.
         """
 
-        if offset < 0 or offset > self.locals_length - width:
-            msg = (
-                f"a local reference at offset {offset} points outside "
-                f"the current function's locals segment "
-                f"(Glulx: The Call Frame)"
-            )
+        msg = (
+            f"a local reference at offset {offset} points outside "
+            f"the current function's locals segment "
+            f"(Glulx: The Call Frame)"
+        )
 
-            raise GlulxStackError(msg)
+        raise GlulxStackError(msg)
 
 
 def _aligned(value: int, alignment: int) -> int:
