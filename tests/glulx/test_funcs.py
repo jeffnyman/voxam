@@ -145,3 +145,43 @@ def test_arguments_collect_from_stack_or_memory(
 
     with pytest.raises(GlulxFunctionError, match="sign bit"):
         pop_arguments(stack, 0x8000_0001, memory)
+
+
+# A header below RAMSTART cannot change, so a caller that offers
+# somewhere to keep one gets the same object back every time. The
+# span that has to be safe runs from the function's address to the
+# code it names, which is what the boundary is tested against.
+def test_a_header_in_rom_is_kept(image: Callable[..., bytes]) -> None:
+    planted = bytes([0xC1, 0x04, 0x02, 0x00, 0x00])
+    memory = Memory(Story(image(code=planted)))
+    headers: dict[int, FunctionHeader] = {}
+    rom = 0x48
+
+    assert_that(rom).is_less_than(memory.ramstart)
+
+    first = read_function_header(memory, rom, headers)
+    second = read_function_header(memory, rom, headers)
+
+    assert_that(list(headers)).is_equal_to([rom])
+    assert_that(second).is_same_as(first)
+
+
+# Above RAMSTART the story may write over its own function headers,
+# so nothing there is kept and every call reads what is there now.
+def test_a_header_in_ram_is_read_afresh(image: Callable[..., bytes]) -> None:
+    memory, _ = rig(image, bytes([0xC1, 0x04, 0x02, 0x00, 0x00]))
+    headers: dict[int, FunctionHeader] = {}
+
+    assert_that(FUNC).is_greater_than(memory.ramstart)
+
+    first = read_function_header(memory, FUNC, headers)
+
+    assert_that(headers).is_empty()
+
+    memory.write_run(FUNC, bytes([0xC0, 0x01, 0x03, 0x00, 0x00]))
+
+    second = read_function_header(memory, FUNC, headers)
+
+    assert_that(first.locals_format).is_equal_to((LocalsFormat(4, 2),))
+    assert_that(second.locals_format).is_equal_to((LocalsFormat(1, 3),))
+    assert_that(second.functype).is_equal_to(0xC0)
