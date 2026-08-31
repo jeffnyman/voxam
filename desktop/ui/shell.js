@@ -60,14 +60,25 @@ var PROMPTED = {
    so rather than looking dead. */
 var WORKING_DELAY = 600;
 var workingTimer = null;
+var workingTick = null;
 
 function working(thinking) {
   var chip = document.getElementById("working");
+  var counter = document.getElementById("working-for");
+  var began = Date.now();
+
+  function tell() {
+    if (counter) {
+      counter.textContent = " " + Math.round((Date.now() - began) / 1000) + "s";
+    }
+  }
 
   if (thinking) {
     if (workingTimer === null) {
       workingTimer = setTimeout(function() {
         if (chip) chip.setAttribute("data-shown", "");
+        tell();
+        workingTick = setInterval(tell, 1000);
       }, WORKING_DELAY);
     }
 
@@ -79,7 +90,13 @@ function working(thinking) {
     workingTimer = null;
   }
 
+  if (workingTick !== null) {
+    clearInterval(workingTick);
+    workingTick = null;
+  }
+
   if (chip) chip.removeAttribute("data-shown");
+  if (counter) counter.textContent = "";
 }
 
 var Game = {

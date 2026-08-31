@@ -146,12 +146,19 @@ body.theme-frotz .GridWindow .Style_user1 {
   display: none;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.03em;
-  border-radius: 3px;
-  padding: 3px 10px;
+  border-radius: 4px;
+  padding: 6px 12px;
   background: #2b2b2b;
   color: #f2f2f2;
+}
+/* The seconds, once there are enough of them to be worth saying.
+   A number that moves is proof of life in a way a still chip is
+   not: it tells a reader whether to wait or to walk away. */
+#working-for {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 body.theme-sepia #working {
   background: #43382a;
@@ -216,11 +223,16 @@ body.theme-frotz #working {
 #landing p {
   margin: 0;
 }
-#landing button {
-  font-size: 1.1em;
-  padding: 0.5em 1.5em;
-  margin-top: 1em;
+#landing button,
+#endedbar button {
+  font-size: 1.05em;
+  font-family: inherit;
+  padding: 0.55em 1.6em;
+  border-radius: 4px;
   cursor: pointer;
+}
+#landing button {
+  margin-top: 1em;
 }
 #landing .note {
   max-width: 34em;
@@ -245,7 +257,6 @@ body.theme-frotz #working {
 }
 #endedbar button {
   margin-left: 1em;
-  cursor: pointer;
 }
 </style>
 <script src="jquery-1.12.4.min.js" type="text/javascript"></script>
@@ -270,7 +281,7 @@ body.theme-frotz #working {
 <button id="open">Open a Story&hellip;</button>
 <div class="note" id="note"></div>
 </div>
-<div id="working" role="status" aria-live="polite">working</div>
+<div id="working" role="status" aria-live="polite">working<span id="working-for" aria-hidden="true"></span></div>
 <div id="endedbar">The story has ended.<button id="reopen">Open another&hellip;</button></div>
 </body>
 </html>
