@@ -1,3 +1,22 @@
+## v2.6.0 (2026-08-31)
+
+### Feat
+
+- **faces**: the working light counts the seconds, and the furniture gets legible (#335)
+- **instruments**: --benchmark, so an optimization has a number to move (#330)
+- **faces**: a working light, so a thinking machine stops looking like a dead one (#329)
+
+### Fix
+
+- **web**: the typed line wears the story's ink, not the browser's (#334)
+- **web**: every ink names its own status bar, and Frotz joins them (#327)
+
+### Perf
+
+- **glulx**: keep a function's header, which its own bytes settle (#333)
+- **glulx**: flatten the stack's hot paths, another 25% off a Glulx session (#332)
+- **glulx**: cache the fixed half of an instruction, 60% off the decode path (#331)
+
 ## v2.5.0 (2026-08-31)
 
 ### Feat

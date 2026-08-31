@@ -95,6 +95,18 @@ PNGs, writes its own savefiles, and serves its own pages. The
 extras (`screen`, `graphics`, `sound`) buy presentation, never
 correctness, and everything works without them.
 
+That choice has a price, and it is a speed. An interpreter in
+Python runs a few hundred thousand virtual instructions a second
+where one in C runs a hundred million, so a story whose opening
+asks for tens of millions of them takes a noticeable while to
+arrive. The work worth doing against that is the work of not
+repeating oneself -- what a story's own read-only memory settles
+is read once and kept -- and that has been done. What is left is
+the interpreter's own decode and dispatch loop, which is the
+floor this choice sets. [STATUS.md](STATUS.md) states the pace
+as a number, because a price named is a decision and a price
+unnamed looks like an oversight.
+
 ## The lexicon
 
 Voxam's documents and commit messages use my house vocabulary.
