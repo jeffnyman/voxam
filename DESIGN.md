@@ -41,7 +41,13 @@ exposed; it's a commitment the whole architecture serves. The
 dice are seedable in every machine (the Å-machine's are the
 reference implementation's own stream, so even cross-interpreter
 comparisons hold), and every recorded playthrough is expected to
-replay byte for byte until the end of time.
+replay byte for byte until the end of time. This is the one
+principle allowed to outrank fidelity, and it outranks it exactly
+once: a story asking to reseed itself from entropy is answered
+off the seeded stream when, and only when, the operator passed
+`--seed`. The flag already overrides that same rule at game
+start, so the alternative is not a purer reading of the
+specification but a flag that lies.
 
 **Certification over promise.** Claims are enforced in continuous
 integration or they are not made. The community's own checkers

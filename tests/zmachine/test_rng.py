@@ -1,3 +1,4 @@
+import pytest
 from assertpy import assert_that
 
 from voxam.zmachine.rng import Randomizer
@@ -85,3 +86,79 @@ def test_randomize_leaves_the_predictable_state() -> None:
 
     for _ in range(10):
         assert_that(rng.roll(4)).is_between(1, 4)
+
+
+# Issue #316: random 0 returns to the random state, "seeded as randomly
+# as possible" (§2.4), and does -- but in a session the operator seeded,
+# honoring that would break the promise --seed makes. So a seeded
+# session re-randomizes off its own stream: two twins that re-randomize
+# together stay twins, and the run remains a function of the one seed.
+def test_a_seeded_session_survives_a_return_to_the_random_state() -> None:
+    first = Randomizer(seed=1137)
+    second = Randomizer(seed=1137)
+
+    first.roll(6)
+    second.roll(6)
+
+    first.randomize()
+    second.randomize()
+
+    run = [first.roll(100) for _ in range(5)]
+
+    assert_that([second.roll(100) for _ in range(5)]).is_equal_to(run)
+
+    # The rising sequence never touches the stream, so a story that
+    # seeds low and then re-randomizes still lands somewhere fixed.
+    third = Randomizer(seed=1137)
+    fourth = Randomizer(seed=1137)
+
+    third.seed(3)
+    third.roll(10)
+    third.randomize()
+
+    fourth.seed(3)
+    fourth.roll(10)
+    fourth.randomize()
+
+    assert_that([third.roll(100) for _ in range(5)]).is_equal_to(
+        [fourth.roll(100) for _ in range(5)]
+    )
+
+    # A differently seeded session is still a different session.
+    other = Randomizer(seed=1138)
+
+    other.roll(6)
+    other.randomize()
+
+    assert_that([other.roll(100) for _ in range(5)]).is_not_equal_to(run)
+
+
+# With no --seed there is nothing to keep faith with, so random 0
+# reaches the operating system's entropy as §2.4 asks -- and a seeded
+# session never reaches it at all.
+def test_the_entropy_path_is_the_unseeded_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "voxam.zmachine.rng.os.urandom", lambda size: b"\x05\x06\x07\x08"[:size]
+    )
+
+    first = Randomizer()
+    second = Randomizer()
+
+    first.roll(6)
+    first.roll(6)
+
+    first.randomize()
+    second.randomize()
+
+    # Both landed on the same entropy, wherever their streams stood:
+    # a re-randomize off the stream could not have converged them.
+    assert_that(first.roll(100)).is_equal_to(second.roll(100))
+
+    def refuse(size: int) -> bytes:
+        pytest.fail(f"a seeded session asked for {size} bytes of entropy")
+
+    monkeypatch.setattr("voxam.zmachine.rng.os.urandom", refuse)
+
+    Randomizer(seed=1137).randomize()
