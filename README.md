@@ -327,6 +327,18 @@ same commands produce the same session, every time.
 voxam --seed 1137 path/to/story.z3
 ```
 
+That promise holds even when the story reseeds itself. A game may
+ask for genuine unpredictability mid-session (`random 0` in the
+Z-Machine, `@setrandom 0` in Glulx), and in an ordinary session it
+gets exactly that, from the operating system's own entropy. Under
+an explicit `--seed`, the new dice are drawn off the seeded stream
+instead, so the whole run stays a function of the one seed given.
+It is the only place Voxam knowingly answers a story with
+something other than what the specification asks for, and it is
+narrow on purpose: `--seed` already overrides the same rule at
+game start, a session without the flag is untouched, and without
+it the flag would make a promise the interpreter quietly broke.
+
 Blorb resources ride along automatically: a `.zblorb` story boots
 from its package, and a like-named `.blb` beside a story file is
 found on its own and, if the names differ, then `--resources` names

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+import pytest
 from assertpy import assert_that
 
 from voxam.glulx.machine import Machine
@@ -79,3 +80,68 @@ def test_the_random_opcode_rolls_its_three_ranges(
     rolled(seeded, bytes([0x81, 0x11, 0x21, 0x30, 0x39]))
 
     assert_that(rolled(drifted, full)).is_equal_to(rolled(seeded, full))
+
+
+# Issue #316: setrandom 0 asks for genuine unpredictability, and gets
+# it -- but in a session the operator seeded, honoring that ask would
+# break the promise --seed makes. So a seeded session reseeds off its
+# own stream: two twins that reseed together stay twins, and the whole
+# run remains a function of the one seed given.
+def test_a_seeded_session_survives_a_reseed_to_entropy() -> None:
+    first = Randomizer(7)
+    second = Randomizer(7)
+
+    first.word()
+    second.word()
+
+    first.seed(0)
+    second.seed(0)
+
+    run = [first.word() for _ in range(5)]
+
+    assert_that([second.word() for _ in range(5)]).is_equal_to(run)
+
+    # Successive reseeds still move the stream on, so a story asking
+    # twice does not get the same dice twice.
+    first.seed(0)
+
+    assert_that(first.word()).is_not_equal_to(run[0])
+
+    # And a differently seeded session is still a different session.
+    other = Randomizer(8)
+
+    other.word()
+    other.seed(0)
+
+    assert_that(other.word()).is_not_equal_to(run[0])
+
+
+# With no --seed there is nothing to keep faith with, so the zero case
+# reaches the operating system's entropy the specification asks for --
+# and a seeded session never reaches it at all.
+def test_the_entropy_path_is_the_unseeded_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "voxam.glulx.rng.os.urandom", lambda size: b"\x05\x06\x07\x08"[:size]
+    )
+
+    first = Randomizer()
+    second = Randomizer()
+
+    first.word()
+    first.word()
+
+    first.seed(0)
+    second.seed(0)
+
+    # Both landed on the same entropy, wherever their streams stood:
+    # a reseed off the stream could not have converged them.
+    assert_that(first.word()).is_equal_to(second.word())
+
+    def refuse(size: int) -> bytes:
+        pytest.fail(f"a seeded session asked for {size} bytes of entropy")
+
+    monkeypatch.setattr("voxam.glulx.rng.os.urandom", refuse)
+
+    Randomizer(7).seed(0)

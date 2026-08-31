@@ -125,29 +125,23 @@ jobs:
       # verdict spoken -- through the same stdio session a player
       # would use.
       #
-      # --seed 777 pins every section that draws on the session
-      # stream, but RandomTest reseeds from real entropy itself
-      # (`@setrandom 0`) and then checks the histogram against wide
-      # but finite bounds -- it prints its own warning that it
-      # "may, very occasionally, fail through sheer bad luck." So
-      # the battery is retried: a real regression fails every
-      # attempt, one unlucky histogram does not. True determinism
-      # for RandomTest is issue #316.
+      # --seed 777 pins the whole battery, RandomTest included.
+      # That section reseeds to entropy itself (`@setrandom 0`)
+      # and then checks its histogram against wide but finite
+      # bounds, warning in its own words that it "may, very
+      # occasionally, fail through sheer bad luck" -- which twice
+      # read as a phantom regression on a green change. Under an
+      # explicit --seed the reseed now draws off the seeded stream
+      # instead (#316), so the run is byte-identical every time and
+      # the retry loop that stood here is no longer earning its
+      # keep.
       - name: Glulxercise, the whole battery
         run: |
-          for attempt in 1 2 3; do
-            out="$(echo all | uv run voxam --seed 777 entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
-            if [ "$(echo "$out" | grep -c '^Passed\.$')" -eq 70 ] \
-              && echo "$out" | grep -q "All tests passed." \
-              && ! echo "$out" | grep -q "FAILED"; then
-              echo "$out" | tail -3
-              exit 0
-            fi
-            echo "::warning::glulxercise attempt $attempt did not certify"
-            echo "$out" | tail -5
-          done
-          echo "::error::glulxercise did not certify in 3 attempts"
-          exit 1
+          out="$(echo all | uv run voxam --seed 777 entharion/glulx-checkers/glulxercise-r13-s241202.ulx)"
+          echo "$out" | tail -3
+          test "$(echo "$out" | grep -c '^Passed\.$')" -eq 70
+          echo "$out" | grep -q "All tests passed."
+          ! echo "$out" | grep -q "FAILED"
 
   build:
     name: Build distribution

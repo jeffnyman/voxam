@@ -61,6 +61,10 @@ class Randomizer:
                 None means true entropy.
         """
 
+        # Whether the operator asked for a reproducible session,
+        # which is what decides where a later reseed-to-entropy
+        # draws its state from. See seed().
+        self._seeded = seed is not None
         self._state = _entropy() if seed is None else _mixed(seed)
 
     def word(self) -> int:
@@ -88,7 +92,26 @@ class Randomizer:
         """Reseed the stream -- setrandom's work.
 
         A seed of zero asks for genuine unpredictability (Glulx:
-        The Random Number Generator).
+        The Random Number Generator), and gets it in an ordinary
+        session.
+
+        In a session the operator seeded, it draws its new state off
+        the seeded stream instead. This is a deliberate deviation,
+        and a narrow one: `--seed` already overrides the same rule at
+        game start, where the generator is likewise meant to be
+        unpredictable, so honoring the flag here only makes it mean
+        at turn five hundred what it meant at turn one. Without it a
+        story that reseeds silently breaks the flag's whole promise,
+        and no recording that reaches such a story could ever replay.
+        A session given no seed reaches the entropy below, as always.
         """
 
-        self._state = _entropy() if value == 0 else _mixed(value)
+        if value != 0:
+            self._state = _mixed(value)
+        elif self._seeded:
+            # Off the stream itself: no counter to keep, successive
+            # reseeds still differ, and the whole run stays a
+            # function of the one seed the operator gave.
+            self._state = _mixed(self.word())
+        else:
+            self._state = _entropy()

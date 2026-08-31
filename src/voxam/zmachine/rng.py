@@ -70,6 +70,10 @@ class Randomizer:
                 entropy.
         """
 
+        # Whether the operator asked for a reproducible session,
+        # which is what decides where a later return to the random
+        # state draws from. See randomize().
+        self._seeded = seed is not None
         self._state = _entropy() if seed is None else _mixed(seed)
         self._sequence_limit: int | None = None
         self._sequence_at = 0
@@ -112,11 +116,26 @@ class Randomizer:
         """Return to the random state, seeded as randomly as possible.
 
         The random opcode with a range of 0 asks for exactly this
-        (§15 random).
+        (§15 random), and gets it in an ordinary session.
+
+        In a session the operator seeded, the new state comes off the
+        seeded stream instead. This is a deliberate deviation, and a
+        narrow one: §2.4 puts the generator in the random state at
+        game start too, which `--seed` already overrides, so honoring
+        the flag here only makes it mean at turn five hundred what it
+        meant at turn one. Without it a story that reseeds silently
+        breaks the flag's whole promise, and no recording that
+        reaches such a story could ever replay. A session given no
+        seed reaches the entropy below, as always.
         """
 
         self._sequence_limit = None
-        self._state = _entropy()
+        # Off the stream itself: no counter to keep, successive
+        # returns still differ, and the whole run stays a function of
+        # the one seed the operator gave. _next() advances the
+        # xorshift even from the rising sequence, whose own counter
+        # never touched it.
+        self._state = _mixed(self._next()) if self._seeded else _entropy()
 
     def _next(self) -> int:
         """Advance the xorshift32 stream one step."""
