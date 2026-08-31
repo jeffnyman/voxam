@@ -248,7 +248,12 @@ const DISPLAY_GROUPS: [DisplayGroup; 4] = [
     (
         "Ink",
         "theme",
-        &[("Paper", "paper"), ("Sepia", "sepia"), ("Dark", "dark")],
+        &[
+            ("Paper", "paper"),
+            ("Sepia", "sepia"),
+            ("Dark", "dark"),
+            ("Frotz", "frotz"),
+        ],
     ),
     (
         "Measure",

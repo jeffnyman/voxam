@@ -1,6 +1,7 @@
 """The browser face: one session served over HTTP, turn by turn."""
 
 import json
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -158,12 +159,26 @@ def test_the_page_carries_a_theme_picker() -> None:
     assert_that(page).contains('<html lang="en" data-theme="system">')
     assert_that(page).contains('<select id="theme">')
 
-    for ink in ("system", "paper", "sepia", "dark"):
+    for ink in ("system", "paper", "sepia", "dark", "frotz"):
         assert_that(page).contains(f'value="{ink}"')
 
     assert_that(page).contains("@media (prefers-color-scheme: dark)")
     assert_that(page).contains('localStorage.getItem("voxam-theme")')
     assert_that(page).contains('localStorage.setItem("voxam-theme"')
+
+    # The pre-paint script keeps its own roster of the inks it will
+    # honour, and a new option that never reached it would be read
+    # back as "system" on every reload but the one that set it.
+    roster = re.findall(r"var VOXAM_INKS = \[([^\]]*)\]", page)
+
+    assert_that(roster).is_length(1)
+    assert_that(sorted(re.findall(r'"([a-z]+)"', roster[0]))).is_equal_to(
+        sorted(
+            ink
+            for ink in re.findall(r'<option value="([a-z]+)"', page)
+            if ink != "system"
+        )
+    )
 
 
 # The display's own files serve under their names and types; the
@@ -482,3 +497,25 @@ def test_serving_ends_cleanly(
 
     assert_that(serve_web(faced(), 0)).is_equal_to(0)
     assert_that(stopped.closed).is_true()
+
+
+# The sepia status bar had been pixel-for-pixel the prose beneath
+# it, and the paper bar's text was lighter than the story's own.
+# The §8.2 line is reverse video from end to end, so an upper
+# window dressed as the story's inverse inverted it a second time
+# and landed back where it started. Every ink now names its own
+# bar, and this holds every one of them apart from its paper.
+def test_every_ink_names_a_bar_apart_from_its_paper() -> None:
+    _, _, payload = faced().respond("GET", "/", b"")
+    page = payload.decode("utf-8")
+
+    inks = [
+        dict(re.findall(r"--([a-z-]+):\s*([^;]+);", block))
+        for block in re.findall(r"\{([^{}]*--paper:[^{}]*)\}", page)
+    ]
+
+    assert_that(inks).is_length(5)
+
+    for held in inks:
+        assert_that(held["bar"]).is_not_equal_to(held["paper"])
+        assert_that(held["bar-ink"]).is_not_equal_to(held["ink"])

@@ -9,13 +9,12 @@
 /* Set the ink before the first paint, so a chosen theme never
    flashes the default first. The rest of the picker wiring waits
    for the body; this one line cannot. */
+var VOXAM_INKS = ["paper", "sepia", "dark", "frotz"];
 try {
   var VOXAM_SAVED = localStorage.getItem("voxam-theme");
   document.documentElement.setAttribute(
     "data-theme",
-    VOXAM_SAVED === "paper" || VOXAM_SAVED === "sepia" || VOXAM_SAVED === "dark"
-      ? VOXAM_SAVED
-      : "system"
+    VOXAM_INKS.indexOf(VOXAM_SAVED) >= 0 ? VOXAM_SAVED : "system"
   );
 } catch (e) {
   /* Private mode, blocked storage: the default ink stands. */
@@ -25,16 +24,27 @@ try {
 /* The inks. "paper" is the default and what a light system wears
    under "system"; a dark system swaps in the dark palette unless
    a theme was picked outright. Each ink is a whole dress -- page,
-   window, the reverse video §8.7 sends as user1, and the status
-   grid's own inverse bar. */
+   window, the reverse video §8.7 sends as user1, and the §8.2
+   status bar.
+
+   The bar names its own pair rather than inverting the story's.
+   Deriving it by inversion looks right until the upper window is
+   itself dressed as the story's inverse: the status line is
+   reverse video from end to end, so it inverts a second time and
+   lands back on the story's own colours -- which is how the sepia
+   bar came to be pixel-for-pixel identical to the prose beneath
+   it. So --bar and --bar-ink are chosen per ink, the way WinFrotz
+   chooses white on blue, and the grid itself simply wears the
+   story's paper, because an upper window is part of the same
+   screen. */
 :root {
   --page: #444;
   --paper: #fff;
   --ink: #000;
   --band: #333;
   --band-ink: #fff;
-  --grid: #333;
-  --grid-ink: #fff;
+  --bar: #2b2b2b;
+  --bar-ink: #f2f2f2;
   --quote: #fff0c0;
   --link: #1a5fb4;
 }
@@ -45,8 +55,8 @@ try {
     --ink: #d6d6d6;
     --band: #d6d6d6;
     --band-ink: #1c1c1c;
-    --grid: #000;
-    --grid-ink: #d6d6d6;
+    --bar: #a8a8a8;
+    --bar-ink: #141414;
     --quote: #ffffff14;
     --link: #8ab4f8;
   }
@@ -57,8 +67,8 @@ html[data-theme="dark"] {
   --ink: #d6d6d6;
   --band: #d6d6d6;
   --band-ink: #1c1c1c;
-  --grid: #000;
-  --grid-ink: #d6d6d6;
+  --bar: #a8a8a8;
+  --bar-ink: #141414;
   --quote: #ffffff14;
   --link: #8ab4f8;
 }
@@ -68,10 +78,24 @@ html[data-theme="sepia"] {
   --ink: #43382a;
   --band: #43382a;
   --band-ink: #f4ecd8;
-  --grid: #43382a;
-  --grid-ink: #f4ecd8;
+  --bar: #43382a;
+  --bar-ink: #f4ecd8;
   --quote: #0000000f;
   --link: #7a5326;
+}
+/* The DOS Infocom look, which WinFrotz still opens in: white on a
+   deep blue, and the status bar its exact inverse. The one ink
+   here that is a period piece rather than a reading preference. */
+html[data-theme="frotz"] {
+  --page: #000042;
+  --paper: #000084;
+  --ink: #fff;
+  --band: #fff;
+  --band-ink: #000084;
+  --bar: #fff;
+  --bar-ink: #000084;
+  --quote: #ffffff1f;
+  --link: #7ec8ff;
 }
 html, body {
   margin: 0;
@@ -98,20 +122,23 @@ html, body {
 .GraphicsWindow canvas {
   background-color: var(--paper);
 }
-/* The Z-Machine's reverse video (§8.7) travels as user1; the
-   status grid wears its own inverse bar, and reverse video inside
-   the grid swaps that bar right back. */
+/* The Z-Machine's reverse video (§8.7) travels as user1. In the
+   buffer it inverts the story, as reverse video should. The grid
+   wears the story's own paper, so a Version 4 game writing plain
+   text into its upper window looks like the screen it is part of,
+   and the §8.2 status line -- reverse video from end to end --
+   lands on the ink's chosen bar instead of inverting twice. */
 .Style_user1 {
   background: var(--band);
   color: var(--band-ink);
 }
 .GridWindow {
-  background: var(--grid);
-  color: var(--grid-ink);
+  background: var(--paper);
+  color: var(--ink);
 }
 .GridWindow .Style_user1 {
-  background: var(--grid-ink);
-  color: var(--grid);
+  background: var(--bar);
+  color: var(--bar-ink);
 }
 .Style_blockquote {
   background: var(--quote);
@@ -219,6 +246,7 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 <option value="paper">Paper</option>
 <option value="sepia">Sepia</option>
 <option value="dark">Dark</option>
+<option value="frotz">Frotz</option>
 </select>
 </label>
 <div id="gameport">

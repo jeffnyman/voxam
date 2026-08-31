@@ -1085,12 +1085,31 @@ window decided exactly that. Now it does not:
 - **A picker in the browser tab.** The page follows
   `prefers-color-scheme` until a reader chooses, so a dark
   desktop gets a dark story with nothing asked of anyone; the
-  chip in the corner offers System, Paper, Sepia, and Dark, and
-  the choice is remembered and applied before the first paint,
-  so a chosen theme never flashes the other one on the way in.
+  chip in the corner offers System, Paper, Sepia, Dark, and
+  Frotz, and the choice is remembered and applied before the
+  first paint, so a chosen ink never flashes the other one on
+  the way in. The desktop shell's Display menu offers the same
+  inks, in its own native list.
+- **Frotz, the period piece.** The DOS Infocom look WinFrotz
+  still opens in: white on a deep blue, with the status bar its
+  exact inverse. The one ink here that is a piece of the
+  format's history rather than a reading preference.
+- **The status bar names its own pair.** On the protocol faces
+  it had been derived by inversion, which looks right until the
+  upper window is itself dressed as the story's inverse: §8.2's
+  line is reverse video from end to end, so it inverted a second
+  time and landed back on the story's own colours. In sepia the
+  bar was pixel-for-pixel the prose beneath it; in paper its
+  text was lighter than the story's own. Every ink now chooses
+  its bar, the way WinFrotz chooses white on blue, and the grid
+  itself wears the story's paper, because an upper window is
+  part of the same screen. A test holds every ink's bar apart
+  from its paper, so no future ink can quietly collapse again.
 - **The named footpath.** `--theme` reaches the Z-Machine's
   pixel window; the Glulx Glk glass beside it wears the same
-  default dark but does not read the flag yet.
+  default dark but does not read the flag yet. The pixel window
+  never had the double inversion, since its reverse video swaps
+  the theme's own ink and paper exactly once.
 
 The rest of the release is faces that had been trusting instead
 of reading, each caught by a real session:

@@ -269,10 +269,14 @@ The story's title rides on the tab, its art is served straight
 from the gblorb, each turn is one HTTP exchange, and reloading
 the page starts the story over; `--port` moves it off 8080. The
 page arrives in whichever light your system already prefers, and
-the chip in the corner offers System, Paper, Sepia, and Dark
-outright; the choice is remembered, and applied before the first
-paint, so a chosen theme never flashes the other one on its way
-in.
+the chip in the corner offers System, Paper, Sepia, Dark, and
+Frotz, which is the DOS Infocom look WinFrotz still opens in:
+white on deep blue, with the status bar its exact inverse. The
+choice is remembered, and applied before the first paint, so a
+chosen ink never flashes the other one on its way in. Each ink
+names its own status bar rather than deriving one by inverting
+the story, which is what keeps §8.2's line legible on a light
+page instead of dissolving into the prose beneath it.
 Typing `save` in the tab asks for a name through the display's
 own prompt and writes the Quetzal file beside the story, where
 `restore` -- and every other interpreter -- can find it. And
@@ -515,8 +519,8 @@ legendary Tandy bit; a changed claim restarts the open story on
 the spot, since the identity belongs to the booting machine --
 and a Glulx story simply ignores it. The Display menu dresses the
 page -- the story's type and size, the ink it is set in (paper,
-sepia, or dark), and the measure of its column -- applied live,
-remembered across sessions. The gblorb's art draws in the shell
+sepia, dark, or frotz), and the measure of its column -- applied
+live, remembered across sessions. The gblorb's art draws in the shell
 exactly as in the browser, the pictures riding the updates
 themselves. And a Glulx story's `save` opens a real save dialog
 -- the desktop's own power, since the picker and the interpreter
