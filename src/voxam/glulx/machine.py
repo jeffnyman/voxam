@@ -45,8 +45,9 @@ from voxam.glulx.operand import (
     TWO_BYTE_OPCODE_BASE,
     TWO_BYTE_OPCODE_LIMIT,
     StoreTarget,
-    decode_operands,
     operands,
+    resolve,
+    shape,
     sign_extend,
     store,
 )
@@ -155,6 +156,12 @@ def _remainder(a: int, b: int) -> int:
     return -rest if x < 0 else rest
 
 
+# One instruction's fixed half: the handler its opcode names, its
+# operands' shapes, the width the indirect modes move, and the
+# address the instruction ends at.
+_Shape = tuple[Any, tuple[tuple[int, object], ...], int, int]
+
+
 class Machine:
     """A Glulx virtual machine, booted and ready to step.
 
@@ -198,6 +205,11 @@ class Machine:
         # Counted in run()'s loop rather than in step(), so the
         # hot path pays one local add and nothing more.
         self.instructions = 0
+        # One entry per instruction address below RAMSTART, holding
+        # everything about that instruction that its bytes settle.
+        # See _shaped; the story cannot write there, so nothing
+        # ever falls out of date (Glulx: The Memory Map).
+        self._shapes: dict[int, _Shape] = {}
         # The sidecar's one honest bit: an undo, restore, or
         # restart broke the causal thread; the wire face reads it
         # once and rests it (PORT: What the sidecar carries).
@@ -239,10 +251,13 @@ class Machine:
     def step(self) -> None:
         """Fetch, decode, and execute a single instruction.
 
-        The opcode read is spelled out here rather than calling
-        the operand module's decoder: this runs once per
-        instruction, and so does the single combined lookup that
-        yields signature and handler together.
+        An instruction below RAMSTART cannot change, so neither can
+        its opcode, its handler, its operands' addressing modes, or
+        the address it ends at (Glulx: The Memory Map). All of that
+        is read once and kept, and every later visit does the one
+        thing that is not fixed: fetching what the operands stand
+        for. Code above RAMSTART is read afresh every time, since
+        the story may write over it.
 
         Raises:
             GlulxInstructionError: For an opcode number the spec
@@ -253,8 +268,42 @@ class Machine:
             VoxamError: On any rule the instruction breaks.
         """
 
-        memory = self.memory
         pc = self.pc
+        held = self._shapes.get(pc)
+
+        if held is None:
+            held = self._shaped(pc)
+
+        handler, items, width, after = held
+        # Resolved before the pc moves, so an operand that refuses
+        # -- an empty stack, a local outside the frame -- leaves the
+        # machine standing at the instruction that asked.
+        args = resolve(self.memory, self.stack, items, width)
+        self.pc = after
+
+        try:
+            handler(self, args)
+        except GlulxSessionEnd:
+            # glk_exit, or input no display can ever answer: the
+            # session ends the way quit ends it.
+            self._running = False
+
+    def _shaped(self, pc: int) -> "_Shape":
+        """Read one instruction's fixed half, keeping it if it can be.
+
+        Kept only when the whole instruction lies below RAMSTART,
+        which is the memory the story can never write (Glulx: The
+        Memory Map). An instruction that reaches into RAM is shaped
+        again on every visit, so a story that writes its own code
+        still runs the code it wrote.
+
+        Raises:
+            GlulxInstructionError: For an opcode number the spec
+                does not define.
+            GlulxMemoryError: For an instruction off the map.
+        """
+
+        memory = self.memory
 
         if pc >= memory.endmem:
             msg = f"execution ran off the memory map at ${pc:x} (Glulx: The Memory Map)"
@@ -265,13 +314,13 @@ class Machine:
 
         if first < ONE_BYTE_OPCODE_LIMIT:
             opcode = first
-            pc += 1
+            at = pc + 1
         elif first < TWO_BYTE_OPCODE_LIMIT:
             opcode = memory.read_short(pc) - TWO_BYTE_OPCODE_BASE
-            pc += 2
+            at = pc + 2
         else:
             opcode = memory.read_word(pc) - FOUR_BYTE_OPCODE_BASE
-            pc += 4
+            at = pc + 4
 
         entry = _DISPATCH.get(opcode)
 
@@ -287,15 +336,13 @@ class Machine:
             raise GlulxInstructionError(msg)
 
         oplist, handler = entry
-        args, pc = decode_operands(memory, self.stack, pc, oplist)
-        self.pc = pc
+        items, after = shape(memory, at, oplist)
+        held = (handler, items, oplist.arg_size, after)
 
-        try:
-            handler(self, args)
-        except GlulxSessionEnd:
-            # glk_exit, or input no display can ever answer: the
-            # session ends the way quit ends it.
-            self._running = False
+        if after <= memory.ramstart:
+            self._shapes[pc] = held
+
+        return held
 
     def run(self, limit: int | None = None) -> int:
         """Execute until the story quits; the step count comes back.

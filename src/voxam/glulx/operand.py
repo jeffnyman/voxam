@@ -122,6 +122,14 @@ PUSH = StoreTarget(DestType.STACK, 0)
 # Hoisted: the decoder tests this once per operand.
 _LOAD = Form.LOAD
 
+# What an operand's value costs to produce, once its addressing
+# mode is known. A shape names one of these per operand, and only
+# the first needs nothing but the payload already in hand.
+FIXED = 0
+FROM_STACK = 1
+FROM_MEMORY = 2
+FROM_LOCAL = 3
+
 
 def decode_opcode(memory: Memory, pc: int) -> tuple[int, int]:
     """Read the opcode number at pc.
@@ -144,52 +152,49 @@ def decode_opcode(memory: Memory, pc: int) -> tuple[int, int]:
     return memory.read_word(pc) - FOUR_BYTE_OPCODE_BASE, pc + 4
 
 
-def decode_operands(  # noqa: PLR0912, PLR0915 -- the hot loop stays whole
+def shape(  # noqa: PLR0912, PLR0915 -- the mode table stays whole
     memory: Memory,
-    stack: Stack,
     pc: int,
     oplist: OperandList,
-) -> tuple[list[int | StoreTarget], int]:
-    """Decode one instruction's operands, left to right.
+) -> tuple[tuple[tuple[int, object], ...], int]:
+    """Decode one instruction's addressing modes, without reading.
 
-    Load operands come back as plain unsigned integers, store
-    operands as StoreTargets; the caller tells them apart by the
-    same OperandList it passed in. The branching is deliberately
-    written out flat rather than factored into helpers: this loop
-    runs once per instruction executed, and each call boundary
-    removed here was measured to matter in the prior art this
-    machine is adopted from.
+    An operand's mode, its width, and the address or constant it
+    names all live in the instruction itself, so they are fixed for
+    as long as those bytes are. What is not fixed is the value a
+    mode fetches: a stack pop, a local, a word of memory. So this
+    reads the shape and stops there, naming each operand as either
+    a value already known or one of the three fetches.
+
+    Store operands are wholly known here: their destination is the
+    mode and the address, and neither depends on anything that runs
+    (Glulx: Call Stubs).
 
     Returns:
-        The decoded operands and the address just past them.
+        One (kind, payload) pair per operand, and the address just
+        past the operand data.
 
     Raises:
         GlulxInstructionError: For an addressing mode the spec
             does not define, or a constant mode on a store
             operand (Glulx: Instruction Format).
         GlulxMemoryError: For operand data running off the map.
-        GlulxStackError: For a stack mode popping an empty stack,
-            or a locals mode outside the frame's segment.
     """
 
     forms = oplist.forms
     count = len(forms)
-    width = oplist.arg_size
     read_short = memory.read_short
     read_word = memory.read_word
-    # Single-byte reads dominate -- mode nibbles and byte operands
-    # -- so they index the backing store with the bounds test
-    # inline; the pc is never negative, having come from masked
-    # arithmetic.
     data = memory.data
     endmem = memory.endmem
+    ramstart = memory.ramstart
 
     # The mode nibbles come first, packed two per byte, then the
     # operand data; both are read in step, from two cursors.
     modeaddr = pc
     pc += (count + 1) // 2
 
-    args: list[int | StoreTarget] = []
+    items: list[tuple[int, object]] = []
     modeval = 0
 
     for index in range(count):
@@ -209,57 +214,61 @@ def decode_operands(  # noqa: PLR0912, PLR0915 -- the hot loop stays whole
         if forms[index] is _LOAD:
             if group == CONSTANT_GROUP:
                 if size == 0:
-                    value = 0
+                    items.append((FIXED, 0))
                 elif size == 1:
                     if pc >= endmem:
                         raise GlulxMemoryError(_off_the_map(pc))
 
-                    value = sign_extend(data[pc], BYTE_BITS)
+                    items.append((FIXED, sign_extend(data[pc], BYTE_BITS)))
                     pc += 1
                 elif size == 2:  # noqa: PLR2004 -- the width code itself
-                    value = sign_extend(read_short(pc), SHORT_BITS)
+                    items.append((FIXED, sign_extend(read_short(pc), SHORT_BITS)))
                     pc += 2
                 else:
-                    value = read_word(pc)
+                    items.append((FIXED, read_word(pc)))
                     pc += 4
-            elif size == 0:
+
+                continue
+
+            if size == 0:
                 if mode != STACK_MODE:
                     raise GlulxInstructionError(_unknown_mode(mode, "load"))
 
-                value = stack.pop()
+                items.append((FROM_STACK, 0))
+
+                continue
+
+            if size == 1:
+                if pc >= endmem:
+                    raise GlulxMemoryError(_off_the_map(pc))
+
+                addr = data[pc]
+                pc += 1
+            elif size == 2:  # noqa: PLR2004 -- the width code itself
+                addr = read_short(pc)
+                pc += 2
             else:
-                if size == 1:
-                    if pc >= endmem:
-                        raise GlulxMemoryError(_off_the_map(pc))
+                addr = read_word(pc)
+                pc += 4
 
-                    addr = data[pc]
-                    pc += 1
-                elif size == 2:  # noqa: PLR2004 -- the width code itself
-                    addr = read_short(pc)
-                    pc += 2
-                else:
-                    addr = read_word(pc)
-                    pc += 4
-
-                if group == MEMORY_GROUP:
-                    value = memory.read(addr, width)
-                elif group == LOCAL_GROUP:
-                    value = stack.get_local(addr, width)
-                else:
-                    # Address addition truncates to 32 bits, so a
-                    # RAM offset near 0xFFFFFFFF wraps around below
-                    # RAMSTART (Glulx: Instruction Format).
-                    value = memory.read((addr + memory.ramstart) & WORD_MASK, width)
-
-            args.append(value)
+            if group == MEMORY_GROUP:
+                items.append((FROM_MEMORY, addr))
+            elif group == LOCAL_GROUP:
+                items.append((FROM_LOCAL, addr))
+            else:
+                # Address addition truncates to 32 bits, so a RAM
+                # offset near 0xFFFFFFFF wraps around below
+                # RAMSTART (Glulx: Instruction Format). RAMSTART
+                # never moves, so the sum is settled here.
+                items.append((FROM_MEMORY, (addr + ramstart) & WORD_MASK))
 
             continue
 
         if size == 0:
             if mode == 0:
-                args.append(DISCARD)
+                items.append((FIXED, DISCARD))
             elif mode == STACK_MODE:
-                args.append(PUSH)
+                items.append((FIXED, PUSH))
             else:
                 raise GlulxInstructionError(_unknown_mode(mode, "store"))
 
@@ -287,18 +296,84 @@ def decode_operands(  # noqa: PLR0912, PLR0915 -- the hot loop stays whole
             pc += 4
 
         if group == MEMORY_GROUP:
-            args.append(StoreTarget(DestType.MEMORY, addr))
+            items.append((FIXED, StoreTarget(DestType.MEMORY, addr)))
         elif group == LOCAL_GROUP:
             # DestType 2 is relative to localsbase, not an absolute
             # stack position, so the offset stores as decoded
             # (Glulx: Call Stubs).
-            args.append(StoreTarget(DestType.LOCAL, addr))
+            items.append((FIXED, StoreTarget(DestType.LOCAL, addr)))
         else:
-            args.append(
-                StoreTarget(DestType.MEMORY, (addr + memory.ramstart) & WORD_MASK)
+            items.append(
+                (FIXED, StoreTarget(DestType.MEMORY, (addr + ramstart) & WORD_MASK))
             )
 
-    return args, pc
+    return tuple(items), pc
+
+
+def resolve(
+    memory: Memory,
+    stack: Stack,
+    items: tuple[tuple[int, object], ...],
+    width: int,
+) -> list[int | StoreTarget]:
+    """Fetch what a shape's operands stand for, left to right.
+
+    The order matters: a stack-mode operand pops as its turn comes,
+    which is the order the shape was read in (Glulx: Instruction
+    Format).
+
+    Raises:
+        GlulxStackError: For a stack mode popping an empty stack,
+            or a locals mode outside the frame's segment.
+    """
+
+    args: list[int | StoreTarget] = []
+
+    for kind, payload in items:
+        if kind == FIXED:
+            args.append(payload)  # type: ignore[arg-type]
+        elif kind == FROM_MEMORY:
+            args.append(memory.read(payload, width))  # type: ignore[arg-type]
+        elif kind == FROM_LOCAL:
+            args.append(stack.get_local(payload, width))  # type: ignore[arg-type]
+        else:
+            args.append(stack.pop())
+
+    return args
+
+
+def decode_operands(
+    memory: Memory,
+    stack: Stack,
+    pc: int,
+    oplist: OperandList,
+) -> tuple[list[int | StoreTarget], int]:
+    """Decode one instruction's operands, left to right.
+
+    Load operands come back as plain unsigned integers, store
+    operands as StoreTargets; the caller tells them apart by the
+    same OperandList it passed in. The shape and the fetch are
+    separate passes because the shape cannot change while the code
+    it was read from cannot: the machine caches it and calls
+    resolve alone. This whole-instruction path stays for code that
+    may move under the machine, and for anyone decoding a single
+    instruction on its own.
+
+    Returns:
+        The decoded operands and the address just past them.
+
+    Raises:
+        GlulxInstructionError: For an addressing mode the spec
+            does not define, or a constant mode on a store
+            operand (Glulx: Instruction Format).
+        GlulxMemoryError: For operand data running off the map.
+        GlulxStackError: For a stack mode popping an empty stack,
+            or a locals mode outside the frame's segment.
+    """
+
+    items, after = shape(memory, pc, oplist)
+
+    return resolve(memory, stack, items, oplist.arg_size), after
 
 
 def store(
