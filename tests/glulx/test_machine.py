@@ -710,3 +710,38 @@ def test_a_misplaced_terminator_stub_is_loud(image: Callable[..., bytes]) -> Non
 
     with pytest.raises(GlulxInstructionError, match="string-terminator"):
         machine._pop_stub(1)
+
+
+# An instruction below RAMSTART cannot change, so its shape is read
+# once and kept. Above RAMSTART the story may write over its own
+# code, so nothing there is ever kept and every visit reads the
+# bytes that are actually here now.
+def test_code_above_ramstart_is_read_afresh(image: Callable[..., bytes]) -> None:
+    machine = Machine(Story(image(code=IDLE)))
+    planted = 0x180
+
+    assert_that(planted).is_greater_than(machine.memory.ramstart)
+
+    # copy #5 -> $140, then the same instruction carrying #9.
+    for constant, expected in ((0x05, 5), (0x09, 9)):
+        machine.memory.write_run(
+            planted, bytes([0x40, 0x71, constant, 0x00, 0x00, 0x01, 0x40])
+        )
+        machine.pc = planted
+
+        machine.step()
+
+        assert_that(machine.memory.read_word(0x140)).is_equal_to(expected)
+
+    assert_that(planted in machine._shapes).is_false()
+
+
+# The same instruction in ROM is kept, and the keeping is what the
+# second visit spends nothing on.
+def test_code_below_ramstart_is_kept(image: Callable[..., bytes]) -> None:
+    machine = Machine(Story(image(code=IDLE)))
+
+    machine.step()
+
+    assert_that(machine._shapes).is_not_empty()
+    assert_that(max(machine._shapes)).is_less_than(machine.memory.ramstart)
