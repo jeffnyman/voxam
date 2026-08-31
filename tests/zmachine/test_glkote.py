@@ -30,20 +30,22 @@ from voxam.zmachine.glkote import (
     fronted,
     serve,
 )
-from voxam.zmachine.header import SCREEN_LINES
+from voxam.zmachine.header import SCREEN_COLUMNS, SCREEN_LINES
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
+
+METRICS: dict[str, Any] = {
+    "width": 800,
+    "height": 480,
+    "gridcharwidth": 10,
+    "gridcharheight": 20,
+}
 
 INIT = {
     "type": "init",
     "gen": 0,
     "support": ["timer"],
-    "metrics": {
-        "width": 800,
-        "height": 480,
-        "gridcharwidth": 10,
-        "gridcharheight": 20,
-    },
+    "metrics": METRICS,
 }
 
 TEXT_BUFFER = 0x120
@@ -2105,3 +2107,88 @@ def test_the_stage_speaks_the_sidecar_too() -> None:
 
     assert_that(block["score"]).is_zero()
     assert_that(block["discontinuity"]).is_true()
+
+
+def arranged(frontend: GlkOteFrontend, cell_width: int) -> dict[str, Any]:
+    """An arrange in the same box, its grid cells a new width."""
+
+    return {
+        "type": "arrange",
+        "gen": frontend.page.gen,
+        "metrics": {**METRICS, "gridcharwidth": cell_width},
+    }
+
+
+def status_row(frontend: GlkOteFrontend) -> str:
+    """The grid's first row, one render's worth."""
+
+    lines = frontend.render()["content"][-1]["lines"]
+
+    return "".join(run["text"] for run in lines[0]["content"])
+
+
+# Issue #322: a display can change its own font size mid-session --
+# the desktop shell's Display menu does exactly that, live -- so an
+# arrange re-measures the grid and the screen model follows it. Left
+# at the size it booted against, the model composes the §8.2 status
+# line for a screen that is no longer there: on a narrowed grid the
+# score is stranded off the right edge, and a widened one reaches
+# for cells the model's rows do not have.
+def test_an_arrange_resizes_the_screen_model(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, _ = opened(code_machine, version=3)
+
+    frontend.show_status(Status("West of House", 0, 1, time_game=False))
+
+    booted = status_row(frontend)
+
+    assert_that(booted).is_length(80)
+    assert_that(booted).ends_with("Score: 0  Moves: 1 ")
+
+    # A bigger font: the same box, holding fewer cells.
+    frontend.accept(arranged(frontend, 13))
+
+    narrowed = status_row(frontend)
+
+    assert_that(frontend.screen_columns).is_equal_to(61)
+    assert_that(narrowed).is_length(61)
+    assert_that(narrowed).starts_with(" West of House")
+    assert_that(narrowed).ends_with("Score: 0  Moves: 1 ")
+
+    # And a smaller one, which used to reach past the row.
+    frontend.accept(arranged(frontend, 8))
+
+    widened = status_row(frontend)
+
+    assert_that(frontend.screen_columns).is_equal_to(100)
+    assert_that(widened).is_length(100)
+    assert_that(widened).ends_with("Score: 0  Moves: 1 ")
+
+
+# The §8.4 screen fields follow the same arrange, through the
+# callback the machine hangs on the frontend at boot: a Version 5
+# story asking how wide its screen is gets the size the display
+# just gave, not the one it booted against.
+def test_an_arrange_restamps_the_screen_header(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, machine = opened(code_machine, version=5)
+
+    assert_that(machine.memory.read_byte(SCREEN_COLUMNS)).is_equal_to(80)
+
+    frontend.accept(arranged(frontend, 13))
+
+    assert_that(machine.memory.read_byte(SCREEN_COLUMNS)).is_equal_to(61)
+    assert_that(machine.memory.read_byte(SCREEN_LINES)).is_equal_to(24)
+
+
+# An arrange arriving before any machine stands behind the display
+# still reshapes the model; there is simply no header to re-stamp.
+def test_an_arrange_with_no_machine_reshapes_all_the_same() -> None:
+    bare = GlkOteFrontend(3)
+
+    bare.begin(INIT)
+
+    assert_that(bare.accept(arranged(bare, 13))).is_equal_to(STAND)
+    assert_that(bare.screen_columns).is_equal_to(61)

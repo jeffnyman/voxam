@@ -115,6 +115,14 @@ SCREEN_COLUMNS = 0x21
 SCREEN_FIELDS_VERSION = 4
 INFINITE_LINES = 255
 
+# What the size fields themselves can hold. A display measuring
+# itself in cells one unit wide -- the fallback when its metrics
+# name no character size (GlkOte: The Metrics Object) -- offers
+# more columns than a byte has room for, so the claim is capped at
+# the field's own ceiling rather than overflowing it.
+BYTE_CEILING = 255
+WORD_CEILING = 0xFFFF
+
 # Field locations from the table in §11.1.
 RELEASE = 0x02
 HIGH_MEMORY_BASE = 0x04
@@ -509,7 +517,10 @@ class Header:
         """Record the screen size in lines and characters (§8.4).
 
         255 lines means "infinite": the claim of a stream that never
-        pages.
+        pages. Both fields are single bytes, so a screen larger than
+        either can hold is claimed at 255, the most the byte can
+        honestly say -- a display measuring itself in cells one unit
+        wide can offer more columns than the field has room for.
 
         Raises:
             ZMachineHeaderError: Before Version 4, where the fields
@@ -519,8 +530,8 @@ class Header:
         self._require_screen_fields()
 
         live = self._live()
-        live[SCREEN_LINES] = lines
-        live[SCREEN_COLUMNS] = columns
+        live[SCREEN_LINES] = min(lines, BYTE_CEILING)
+        live[SCREEN_COLUMNS] = min(columns, BYTE_CEILING)
 
     def declare_presentation(
         self, *, bold: bool, italic: bool, fixed_pitch: bool, timed_input: bool
@@ -705,9 +716,14 @@ class Header:
 
             raise ZMachineHeaderError(msg)
 
+        # Word fields, capped the way the byte fields above are.
         live = self._live()
-        live[SCREEN_WIDTH_UNITS : SCREEN_WIDTH_UNITS + 2] = width.to_bytes(2, "big")
-        live[SCREEN_HEIGHT_UNITS : SCREEN_HEIGHT_UNITS + 2] = height.to_bytes(2, "big")
+        live[SCREEN_WIDTH_UNITS : SCREEN_WIDTH_UNITS + 2] = min(
+            width, WORD_CEILING
+        ).to_bytes(2, "big")
+        live[SCREEN_HEIGHT_UNITS : SCREEN_HEIGHT_UNITS + 2] = min(
+            height, WORD_CEILING
+        ).to_bytes(2, "big")
 
     def declare_colours(
         self, *, available: bool, foreground: int, background: int

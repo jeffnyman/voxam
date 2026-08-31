@@ -39,7 +39,7 @@ is refused loudly at the door.
 
 import json
 from base64 import b64encode
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Final, TextIO
 
 from voxam.babel import ifiction
@@ -210,6 +210,12 @@ class GlkOteFrontend(PlainFrontend):
         self._runs: list[tuple[str, int, str] | object] = []
         self._cleared = False
         self._style = 0
+        # An arrange re-measures the display mid-session -- the
+        # shell's Display menu changing the font size is one, with
+        # the same box holding fewer or more cells -- and the model
+        # follows it. Set by the machine, which re-stamps the §8.4
+        # header fields through it; None leaves the header be.
+        self.on_resize: Callable[[], None] | None = None
         self._size = (0, 0)
         self._cell = (1.0, 1.0)
         self._margins = (0.0, 0.0)
@@ -993,10 +999,16 @@ class GlkOteFrontend(PlainFrontend):
     def _reshaped(self, kind: str, stanza: Stanza) -> str:
         """An arrange or redraw: the picture re-shapes or re-paints.
 
-        An arrange re-measures -- the next reload boots a machine
-        at the new size (§8.4), while a hanging band re-shapes now
-        and its rows-below claim follows. A redraw re-feeds the
-        band whole (GlkOte: Redraw Events); without one there is
+        An arrange re-measures, and the screen model follows it to
+        the new size: the display's own font size can move mid-
+        session, and a model left at the size it booted against
+        composes the §8.2 status line for a screen that is no
+        longer there -- the score stranded off the right edge of a
+        narrowed grid, and a widened one reaching past the row it
+        has. The §8.4 header fields follow too, through the
+        machine's own callback. A hanging band re-shapes now and
+        its rows-below claim follows. A redraw re-feeds the band
+        whole (GlkOte: Redraw Events); without one there is
         nothing here to redraw.
         """
 
@@ -1009,6 +1021,10 @@ class GlkOteFrontend(PlainFrontend):
             return STAND
 
         self._measure(stanza)
+        self._model.resize(self.screen_columns, self.screen_lines)
+
+        if self.on_resize is not None:
+            self.on_resize()
 
         if self._band is not None:
             self._band_dirty = True
