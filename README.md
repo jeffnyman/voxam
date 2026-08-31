@@ -687,6 +687,30 @@ The warning points at the moment it happened, which turns the most
 common recording bug from an archaeology expedition into a one-line
 fix.
 
+### Measuring the machine
+
+`--benchmark` rides any session and reports the machine's own pace
+when it ends:
+
+```bash
+voxam --accept acceptance/zork1-r88-s840726.accept --benchmark
+```
+
+```text
+voxam: 312,349 instructions in 0.5s (585,872 per second)
+```
+
+The instruction count comes first because it is the honest half: a
+seeded session executes exactly the same instructions every time,
+on every machine, so two runs are comparable even when the seconds
+are not. The seconds and the rate are what an optimization has to
+move. A recording makes the fixed workload the measurement needs,
+so the corpus doubles as the bench.
+
+It rides the Z-Machine and Glulx at the blocking faces. The
+Å-machine refuses it by name, alongside the acceptance driver and
+the tracer, and the wire faces are a later road.
+
 ### Probing a recording
 
 When a recording goes wrong -- a death that survives every retry, a

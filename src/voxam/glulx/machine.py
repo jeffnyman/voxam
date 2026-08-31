@@ -193,6 +193,11 @@ class Machine:
         self.string_table = 0
         self.pc = 0
         self._running = True
+        # Instructions executed across the whole session, kept
+        # so an instrument can measure the machine's own pace.
+        # Counted in run()'s loop rather than in step(), so the
+        # hot path pays one local add and nothing more.
+        self.instructions = 0
         # The sidecar's one honest bit: an undo, restore, or
         # restart broke the causal thread; the wire face reads it
         # once and rests it (PORT: What the sidecar carries).
@@ -322,9 +327,13 @@ class Machine:
             except MachineSuspended:
                 # The suspending instruction completed, so it
                 # counts; the machine stands down where it is.
+                self.instructions += steps + 1
+
                 return steps + 1
 
             steps += 1
+
+        self.instructions += steps
 
         return steps
 
