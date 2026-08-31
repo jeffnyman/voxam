@@ -40,6 +40,7 @@ from voxam.glass import Glass as PygameGlass
 from voxam.glulx.glk.glass import GlassFrontend as GlulxGlassFrontend
 from voxam.glulx.glk.objects import KeyCode as GlkKeyCode
 from voxam.glulx.glk.terminal import TerminalFrontend
+from voxam.glulx.story import CHECKSUM_AT as GLULX_CHECKSUM
 from voxam.iff import Chunk, chunk, write_form
 from voxam.iff import chunk as iff_chunk
 from voxam.painter import ScreenFrontend, Terminal
@@ -65,6 +66,36 @@ def broken_story(tmp_path: Path, code: bytes, version: int = 3) -> Path:
 # $58 and an empty dictionary at $5a. The Version 4 variant serves
 # frontends that would otherwise draw a status line from garbage
 # globals (§8.2.2.1).
+def quiet_glulx_story(tmp_path: Path) -> Path:
+    """A checksummed Glulx image whose start function just quits."""
+
+    data = bytearray(0x200)
+    data[0:4] = b"Glul"
+    data[4:8] = (0x0003_0102).to_bytes(4, "big")
+    data[8:12] = (0x100).to_bytes(4, "big")
+    data[12:16] = (0x200).to_bytes(4, "big")
+    data[16:20] = (0x300).to_bytes(4, "big")
+    data[20:24] = (0x100).to_bytes(4, "big")
+    data[24:28] = (0x48).to_bytes(4, "big")
+    data[28:32] = (0x54).to_bytes(4, "big")
+    # The start function at $48: a stack-args frame, then quit.
+    data[0x48:0x4D] = bytes([0xC0, 0x00, 0x00, 0x81, 0x20])
+    data[GLULX_CHECKSUM : GLULX_CHECKSUM + 4] = (
+        sum(
+            int.from_bytes(data[at : at + 4], "big")
+            for at in range(0, len(data), 4)
+            if at != GLULX_CHECKSUM
+        )
+        % (1 << 32)
+    ).to_bytes(4, "big")
+
+    path = tmp_path / "quiet.ulx"
+
+    path.write_bytes(bytes(data))
+
+    return path
+
+
 def reading_story(tmp_path: Path, version: int = 3) -> Path:
     data = bytearray(96)
     data[0] = version
@@ -2781,3 +2812,74 @@ def test_aamachine_refuses_the_instruments(
     ):
         assert_that(main([str(story), *extra])).is_equal_to(2)
         assert_that(capsys.readouterr().out).contains("later roads")
+
+
+# --benchmark rides a session and reports the machine's own pace
+# when it ends: the instruction count first, because a seeded
+# session executes exactly the same instructions every time and is
+# therefore comparable run to run, and the seconds and the rate
+# after it, which are the machine's and not the story's.
+def test_a_session_reports_its_pace(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = reading_story(tmp_path)
+    script = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+
+    exit_code = main(["--accept", str(script), "--benchmark"])
+    spoken = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(spoken).contains("instructions in")
+    assert_that(spoken).contains("per second)")
+
+    # The same script twice runs the same instructions: the count
+    # is the half of the report that does not drift.
+    main(["--accept", str(script), "--benchmark"])
+    again = capsys.readouterr().out
+
+    counted = spoken.split("voxam: ")[-1].split(" instructions")[0]
+
+    assert_that(again).contains(f"voxam: {counted} instructions")
+    assert_that(int(counted.replace(",", ""))).is_greater_than(0)
+
+
+# The Glulx arm reports the same way, and reports from the finally,
+# so even a story that faults on its way out still says how far its
+# machine got. This one quits immediately: the pace of nothing much
+# is still a pace.
+def test_a_glulx_session_reports_its_pace(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code = main([str(quiet_glulx_story(tmp_path)), "--plain", "--benchmark"])
+    spoken = capsys.readouterr().out
+
+    assert_that(exit_code).is_equal_to(0)
+    assert_that(spoken).contains("instructions in")
+    assert_that(spoken).contains("per second)")
+
+
+# The Å-machine carries none of the session instruments yet, and
+# says so by name rather than reporting a pace it never measured.
+def test_the_third_machine_refuses_the_benchmark(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["--benchmark", "tests/fixtures/gosling.aastory"])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains(
+        "the acceptance driver, the tracer, and the benchmark are later roads"
+    )
+
+
+# The wire faces speak for the whole session, so the benchmark
+# joins the flags they refuse by name rather than measuring
+# nothing and saying nothing.
+def test_the_wire_refuses_the_benchmark(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    story = reading_story(tmp_path)
+
+    exit_code = main([str(story), "--glkote", "--benchmark"])
+
+    assert_that(exit_code).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("--benchmark cannot join it")

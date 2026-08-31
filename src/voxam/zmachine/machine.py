@@ -676,6 +676,11 @@ class Machine:
         # restore, or a restart intervened. The wire face reads it
         # once and rests it (PORT: What the sidecar carries).
         self.discontinuity = False
+        # Instructions executed across the whole session, kept
+        # so an instrument can measure the machine's own pace.
+        # Counted in run()'s loop rather than in step(), so the
+        # hot path pays one local add and nothing more.
+        self.instructions = 0
 
         self._declare_capabilities()
 
@@ -921,6 +926,8 @@ class Machine:
 
             raise ZMachineInstructionError(msg)
 
+        steps = 0
+
         while self._running:
             self.poll_sound()
 
@@ -929,8 +936,15 @@ class Machine:
             except MachineSuspended:
                 # The read parked its finish and the pc still names
                 # the read itself: the host delivers, the tail
-                # moves past it, and run continues from there.
+                # moves past it, and run continues from there. The
+                # suspending instruction completed, so it counts.
+                self.instructions += steps + 1
+
                 return
+
+            steps += 1
+
+        self.instructions += steps
 
     def deliver_line(self, line: str, terminator: int = 0) -> None:
         """Complete a suspended line read with the player's text.

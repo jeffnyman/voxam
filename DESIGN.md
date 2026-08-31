@@ -199,6 +199,13 @@ the architecture actually has.
   face, one frame per settled turn, at the pygame glass or
   through a headless browser. A **strip diff** compares two
   filmstrips pixel by pixel with Voxam's own decoder.
+- **the benchmark**: a session asked to report its own pace,
+  through `--benchmark`. The instruction count leads, because a
+  seeded session executes exactly the same instructions every
+  time and is therefore comparable run to run; the seconds and
+  the rate follow, and are the machine's, not the story's. A
+  recording makes the fixed workload, so the corpus doubles as
+  the bench.
 - **the probe**: replaying a recording up to a chosen turn and
   examining the machine's state there, the instrument for
   answering "what was true when it broke."

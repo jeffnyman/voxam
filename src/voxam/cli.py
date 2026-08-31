@@ -3,6 +3,7 @@
 import argparse
 import secrets
 import sys
+import time
 from collections.abc import Callable, Sequence
 from importlib import metadata
 from pathlib import Path
@@ -84,6 +85,10 @@ RECORDED_SEED_CEILING = 100_000
 
 # Where the browser face listens unless --port says otherwise.
 WEB_PORT = 8080
+
+# The floor --benchmark divides by, so a session that ends before
+# the clock can measure it reports a huge rate rather than raising.
+_SHORTEST_RUN = 1e-9
 
 # The graphics window's --theme choices, named here so the parser
 # needs no eager import of the optional glass. voxam.glass holds
@@ -204,6 +209,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="with --decompose: export the resources, right here or to a directory",
     )
     parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="report the machine's own pace when the session ends",
+    )
+    parser.add_argument(
         "--trace",
         type=Path,
         help="write every executed instruction to this file, listing-style",
@@ -319,6 +329,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             zoom=arguments.zoom or None,
             theme=arguments.theme,
             trace=arguments.trace,
+            benchmark=arguments.benchmark,
         )
     )
 
@@ -453,6 +464,7 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
     web: bool,
     port: int,
     screen: bool = True,
+    benchmark: bool = False,
 ) -> int:
     """Run one Å-machine story over a face.
 
@@ -460,17 +472,22 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
     own shape, certified against their transcripts -- with the
     GlkOte wire and the browser behind their usual flags. The
     session instruments the other machines carry are refused by
-    name rather than half-working: the acceptance driver and the
-    tracer are the third machine's later roads.
+    name rather than half-working: the acceptance driver, the
+    tracer, and the benchmark are the third machine's later roads.
     """
 
-    if recorder is not None or input_source is not None or trace is not None:
+    if (
+        recorder is not None
+        or input_source is not None
+        or trace is not None
+        or benchmark
+    ):
         if recorder is not None:
             recorder.close()
 
         print(
             "voxam: the Å-machine plays live for now -- the acceptance "
-            "driver and the tracer are later roads"
+            "driver, the tracer, and the benchmark are later roads"
         )
 
         return EXIT_UNUSABLE
@@ -743,6 +760,7 @@ def _scripted_session(
             trace=arguments.trace,
             shots=arguments.shots,
             browser=arguments.browser,
+            benchmark=arguments.benchmark,
         )
 
     return None
@@ -862,6 +880,7 @@ def _glkote_refusal(arguments: argparse.Namespace) -> str | None:
         ("--regtest", arguments.regtest is not None),
         ("--resume", arguments.resume is not None),
         ("--trace", arguments.trace is not None),
+        ("--benchmark", arguments.benchmark),
     ):
         if held:
             return f"{face} speaks for the whole session; {named} cannot join it"
@@ -994,6 +1013,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
     trace: Path | None = None,
     shots: Path | None = None,
     browser: str | None = None,
+    benchmark: bool = False,
 ) -> int:
     """Replay an acceptance script; --seed beats the script's seed.
 
@@ -1079,6 +1099,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         code = _run_glulx(
             script.game,
             glulx,
+            benchmark=benchmark,
             seed=seed,
             resources=None,
             recorder=None,
@@ -1106,6 +1127,7 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         painted if painted is not None else PlainFrontend(tee),
         identity=identity,
         trace=trace,
+        benchmark=benchmark,
         click_source=lambda: next(positions, None),
     )
     watch.finish()
@@ -1726,6 +1748,25 @@ def _serve_z_web(
         return EXIT_UNUSABLE
 
 
+def _paced(instructions: int, started: float) -> None:
+    """Report the machine's own pace, when --benchmark asked.
+
+    The instruction count leads because it is the honest half: a
+    seeded session executes exactly the same instructions every
+    time, on every machine, so two runs are comparable even when
+    the seconds are not. The seconds are here because they are
+    what a player feels, and the rate is the number an
+    optimization has to move.
+    """
+
+    elapsed = max(time.monotonic() - started, _SHORTEST_RUN)
+
+    print(
+        f"\nvoxam: {instructions:,} instructions in {elapsed:.1f}s "
+        f"({instructions / elapsed:,.0f} per second)"
+    )
+
+
 def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
     story_path: Path,
     story: GlulxStory,
@@ -1744,6 +1785,7 @@ def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
     web: bool = False,
     port: int = WEB_PORT,
     zoom: float | None = None,
+    benchmark: bool = False,
 ) -> int:
     """Run a Glulx story over a display.
 
@@ -1834,6 +1876,7 @@ def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
 
     library = Glk(frontend, resources=GlkResources(blorb))
     machine = GlulxMachine(story, seed=seed, glk=library)
+    started = time.monotonic()
 
     try:
         machine.run()
@@ -1842,6 +1885,11 @@ def _run_glulx(  # noqa: PLR0912, PLR0913 -- one knob per session seam
 
         return EXIT_UNUSABLE
     finally:
+        # Reported from the finally, so a session that ended badly
+        # still says how far the machine got.
+        if benchmark:
+            _paced(machine.instructions, started)
+
         if painted is not None:
             # A looping sound would otherwise play on past quit:
             # the session ends, the speaker falls silent with it.
@@ -2174,6 +2222,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
     theme: str = DEFAULT_THEME,
     recorder: Recorder | None = None,
     trace: Path | None = None,
+    benchmark: bool = False,
     click_source: Callable[[], tuple[int, int] | None] | None = None,
 ) -> int:
     """Load and run one story, mapping outcomes to exit codes.
@@ -2207,6 +2256,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
                 web=web,
                 port=port,
                 zoom=zoom,
+                benchmark=benchmark,
             )
 
         if _aamachine_story(story_path):
@@ -2219,6 +2269,7 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
                 glkote=glkote,
                 web=web,
                 port=port,
+                benchmark=benchmark,
                 screen=screen,
             )
 
@@ -2294,6 +2345,12 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
     # asks.
     scribe = FileScribe(story_path.with_suffix(".scr"), story_path.with_suffix(".cmd"))
 
+    # Declared before the try so the finally can report on a
+    # machine that never finished booting, or say nothing at all
+    # when one never existed.
+    machine: Machine | None = None
+    started = time.monotonic()
+
     try:
         machine = Machine(
             story,
@@ -2325,6 +2382,11 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
 
         return EXIT_UNUSABLE
     finally:
+        # Reported from the finally, so a session that ended badly
+        # still says how far the machine got.
+        if benchmark and machine is not None:
+            _paced(machine.instructions, started)
+
         if painted is not None:
             # A looping sound would otherwise play on past quit:
             # the session ends, the speaker falls silent with it.

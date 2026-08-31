@@ -253,6 +253,11 @@ class Machine:
         self._story = story
         self._voice = voice
         self._seed = seed
+        # Instructions executed across the whole session, kept
+        # so an instrument can measure the machine's own pace.
+        # Counted in run()'s loop rather than per dispatch, so the
+        # hot path pays one local add and nothing more.
+        self.instructions = 0
         self._speech = Speech(story)
         self._major = story.version[0]
         self._code = story.summed(b"CODE").payload
@@ -294,12 +299,15 @@ class Machine:
                 carry, or a failure with no choice frame standing.
         """
 
+        steps = 0
+
         while True:
             try:
                 if delivered is not None:
                     answered, delivered = delivered, None
                     self._store(self._fetched(), answered)
 
+                steps += 1
                 op = self._fetched()
                 handler = _OPS.get(op)
 
@@ -314,6 +322,8 @@ class Machine:
                 told = handler(self, op)
 
                 if told is not None:
+                    self.instructions += steps
+
                     return told
             except _Missed:
                 delivered = None
