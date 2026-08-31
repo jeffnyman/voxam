@@ -1,3 +1,17 @@
+## v2.5.0 (2026-08-31)
+
+### Feat
+
+- **web**: a theme picker for the browser face, prefers-color-scheme by default (#321)
+- **glass**: the pixel window wears a theme, gentle dark by default (#320)
+
+### Fix
+
+- **rng**: a seeded session keeps its seed through a reseed to entropy (#325)
+- **screen**: the wire's screen model follows the display's font size (#324)
+- **screen**: the painted terminal follows the window it is given, not the one it booted against (#318)
+- **desktop**: the shell finds voxam off the PATH (#315)
+
 ## v2.4.0 (2026-08-30)
 
 ### Feat

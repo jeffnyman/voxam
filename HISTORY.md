@@ -202,6 +202,29 @@ kitchen" that any game would obey can be written by anyone
 against a feed that was designed to be honest rather than
 clever.
 
+And `2.5` is the release where the faces stop assuming. The
+pixel window wears a theme, opening in a gentle dark instead of
+1979's white on black, with paper, sepia, and the old classic a
+flag away; the browser tab follows the reader's own system
+preference until a picker says otherwise, and remembers the
+answer. A theme is a whole dress rather than a background swap:
+the ink and paper it names are what the §8.3 defaults resolve
+to, so a game resetting to its own colours lands on the theme's
+pair. Underneath the dress, three places where a face had been
+trusting instead of reading: the painted terminal now follows
+the window it is handed rather than the one it booted against;
+the wire's screen model follows the display's font size, which
+was pushing a status line's score off the edge of a narrowed
+grid and, going the other way, ending the session outright; and
+`--seed` keeps its word through a story's own reseed to entropy,
+which is the one place Voxam knowingly answers a story with
+something other than what its specification asks for, written
+down with the argument that carried it. That last also made a
+checker honest, since glulxercise's random battery reseeds
+itself, and a pinned seed now runs it byte-identically. Small
+release, and the first one shaped in part by a bug a player
+filed.
+
 The story continues in [STATUS.md](STATUS.md), which always
 opens with the current release and keeps the ledger of what
 plays, what is certified, and what remains.
