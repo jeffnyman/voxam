@@ -267,7 +267,10 @@ voxam --web path/to/story.gblorb
 
 The story's title rides on the tab, its art is served straight
 from the gblorb, each turn is one HTTP exchange, and reloading
-the page starts the story over; `--port` moves it off 8080. The
+the page starts the story over; `--port` moves it off 8080. A
+turn that takes long enough to be worth mentioning raises a
+working light that counts the seconds, so a page still thinking
+is never mistaken for one that has died. The
 page arrives in whichever light your system already prefers, and
 the chip in the corner offers System, Paper, Sepia, Dark, and
 Frotz, which is the DOS Infocom look WinFrotz still opens in:

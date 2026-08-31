@@ -225,6 +225,38 @@ itself, and a pinned seed now runs it byte-identically. Small
 release, and the first one shaped in part by a bug a player
 filed.
 
+And `2.6` is the release a player asked for without meaning
+to. One opened a heavy Glulx story in a browser tab, pressed a
+key, and watched nothing happen for a minute and a quarter --
+which is indistinguishable, from the outside, from an
+interpreter that has died. It had not. That story's opening
+asks for thirty-one million instructions, and a pure-Python
+machine was answering them at four hundred thousand a second
+behind a page that showed no sign of life.
+
+Both halves are answered now. The machine stopped repeating work
+its own memory had already settled: an instruction below
+RAMSTART cannot change, so its opcode, its handler, its
+operands' modes and its ending address are read once and kept,
+and so is a function's header; the stack stopped building bytes
+only to discard them, and a local read stopped being four calls
+deep. That is twice the pace `2.5` ran at, on identical
+instruction counts, with every seeded session byte-identical
+either side of it. And no face stays quiet while it works: a
+light appears once a turn has taken long enough to be worth
+mentioning, and then counts the seconds, because a number that
+moves is proof of life where a still page is not.
+
+The rest of the release is the same face learning to be read:
+the line a player types wears the story's ink rather than the
+browser's black, each ink names its own status bar instead of
+deriving one by inverting twice, and the DOS Infocom blue that
+WinFrotz still opens in joined the wardrobe. What the era did
+not do is hide where it ends. Voxam is standard-library Python
+on purpose, and that buys correctness which installs with
+nothing; the price is a pace, and the pace is now written down
+where it can be held to rather than discovered.
+
 The story continues in [STATUS.md](STATUS.md), which always
 opens with the current release and keeps the ledger of what
 plays, what is certified, and what remains.

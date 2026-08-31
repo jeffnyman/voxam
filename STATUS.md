@@ -8,29 +8,35 @@ nothing below is promised, only enforced.
 
 ## The current release
 
-Version `2.5`: the faces take the light, and the window, they
-are given. The pixel window wears a theme and opens in a gentle
-dark rather than 1979's white on black, with paper, sepia, and
-the old classic a flag away; the browser tab wears one too,
-following the reader's own system preference until a picker in
-the corner says otherwise, and remembering that answer for next
-time. Beneath the dress, three things that had been assuming
-where they should have been reading: the painted terminal now
-follows the window it is handed rather than the one it booted
-against, the wire's screen model follows the display's font size
-so that changing size mid-story neither strands the status
-line's score past the right edge nor kills the session outright,
-and `--seed` keeps its word through a story's own reseed to
-entropy.
+Version `2.6`: twice as fast, and honest about the wait. A
+player opened a heavy Glulx story in a browser tab, pressed a
+key, and watched nothing happen for over a minute. Nothing was
+broken: the story's opening asks for thirty-one million
+instructions, and a pure-Python interpreter took seventy-seven
+seconds to answer them while the page sat perfectly still. Both
+halves of that are now addressed. The machine no longer repeats
+work its own memory had already settled, which halved the wait,
+and no face stays silent while it thinks.
 
-That last one is the single place Voxam knowingly answers a
-story with something other than what its specification asks for.
-It applies only under an explicit `--seed`, which already
-overrides the same rule at game start; a session without the
-flag reaches real entropy exactly as before. The reason is
-written down beside the code, in the [README](README.md), and in
-[DESIGN.md](DESIGN.md), because the alternative was a flag that
-lied.
+The speed came from keeping what cannot change. An instruction
+below RAMSTART is fixed, so its opcode, its handler, its
+operands' addressing modes, and the address it ends at are read
+once and kept; so is a function's header, on the same terms. The
+stack stopped building bytes only to discard them, and a local
+read stopped being four calls deep. Together that is roughly
+780,000 Glulx instructions a second where `2.5` managed 390,000,
+on identical instruction counts, with every seeded session
+byte-identical before and after. Where it stops, and why, is
+under **The pace** below.
+
+Beside it, the browser face learned to say what it is doing: a
+working light that appears only once a turn has taken long
+enough to be worth mentioning, and then counts the seconds, so a
+still page is never mistaken for a dead one again. The same face
+stopped typing in the browser's black on a dark story's ground,
+gave every ink its own status bar rather than deriving one by
+inverting twice, and added the DOS Infocom blue that WinFrotz
+still opens in.
 
 The standing claims beneath it, each enforced in continuous
 integration rather than promised: the Z-Machine is complete --
@@ -1149,3 +1155,66 @@ shell, since an app launched from the Dock or the Start menu
 inherits no terminal's PATH; `VOXAM_BIN` names one outright, and
 when nothing turns up it says so in words rather than failing
 blank.
+
+## The pace: 2.6
+
+An interpreter written in pure Python has a speed, and it is
+worth stating rather than leaving for a player to discover with a
+story that takes a minute to open.
+
+Voxam runs roughly **780,000 Glulx instructions a second**, twice
+what `2.5` managed. `--benchmark` reports it for any session, and
+because a seeded session executes exactly the same instructions
+every time, two runs are comparable even when their seconds are
+not:
+
+```bash
+voxam --accept acceptance/advent-r5-s961209-glulx.accept --benchmark
+```
+
+Four things bought that doubling, and all four are the same idea:
+stop doing work whose answer was already settled.
+
+- **The instruction shape is kept.** Below RAMSTART the story
+  cannot write, so an instruction's opcode, its handler, its
+  operands' addressing modes, and the address it ends at cannot
+  change (Glulx: The Memory Map). They are read once. Every later
+  visit does only the part that is not fixed: fetching what the
+  operands stand for.
+- **The function header is kept**, on the same terms and behind
+  the same boundary.
+- **The stack stopped building bytes to throw away.**
+  `int.from_bytes` on a slice constructs an object per access
+  purely to discard it; a prepared accessor does not, at about a
+  third of the work.
+- **A local read stopped being four calls deep.** It was a
+  property, a check, and a dispatch on width before a byte was
+  read.
+
+Code above RAMSTART is read afresh every time, in both caches, so
+a story that writes its own code runs the code it wrote. Nothing
+is checked less than before, and every recording in the corpus
+replays to the same tally it did in `2.5`.
+
+**Where it stops.** After all four, no single thing dominates:
+decoding operands is about 12% of a session and dispatching them
+about 11%, and everything else is under 6%. Those top two are the
+interpreter's own loop, which no amount of tidying removes. What
+remains that is even thinkable is worth a few percent; a
+different dispatch architecture would be a rewrite rather than a
+repair. Neither turns a thirty-second opening into an instant
+one, which would need roughly seven times.
+
+That ceiling is not a defect. It is the price of the choice
+[DESIGN.md](DESIGN.md) makes on purpose: the machines, the
+formats, and the wire are standard-library Python, so what is
+being paid for is correctness that installs with nothing and
+runs anywhere. The price is the pace above, and a story whose
+opening needs thirty-one million instructions takes half a
+minute to arrive.
+
+**The named footpath.** *Dead Cities* is by a wide margin the
+heaviest thing Voxam plays, and would make a good permanent
+guard against a performance regression; it stays out of the
+corpus for now because it would add half a minute to every
+sweep, and `--benchmark` catches the same regressions for less.
