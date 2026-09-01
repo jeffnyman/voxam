@@ -417,8 +417,9 @@ def test_a_closed_window_ends_the_session() -> None:
     assert_that(glass.frames).is_not_empty()
 
 
-# Left to itself the face opens a real window, which is the only
-# line in it that a test cannot let run.
+# Left to itself the face opens a real window wearing the third
+# machine's own badge, which is the only line in it that a test
+# cannot let run.
 def test_a_bare_call_opens_a_real_window(monkeypatch: pytest.MonkeyPatch) -> None:
     glass = StubGlass()
     opened: list[object] = []
@@ -433,4 +434,4 @@ def test_a_bare_call_opens_a_real_window(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("voxam.aamachine.glass.open_pygame_glass", opening)
     played(storied(), seed=7, zoom=0.5)
 
-    assert_that(opened).is_equal_to([(None, 0, 0.5)])
+    assert_that(opened).is_equal_to([(None, "aamachine", 0.5)])

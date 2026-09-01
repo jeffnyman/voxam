@@ -984,7 +984,12 @@ the reference engine's own transcripts.
   the wrapping: `--glkote` serves it down the pipe, `--web`
   puts it in a tab under the META title, and the desktop shell
   plays it for free. The bibliography opens every face as the
-  doorway card.
+  doorway card, and the window and the browser tab both wear the
+  third machine's own mark now: an Å over a D, drawn in the same
+  idiom the z badges are, for the machine and for the language
+  that compiles to it. An Arcturus story wears no such thing on
+  purpose, because it is a Z-Machine story file and the numbered
+  badge it already gets is the true one.
 - **The savefile.** AASV written and revived: the story's own
   HEAD copied byte for byte as the identity gate, the state
   run-length encoded against INIT, the open divs re-entered on
@@ -1021,10 +1026,8 @@ author's whole sheet -- fonts, sizes, and margins as real CSS
 on the page -- is a richer wire road than the stock styles worn
 today; the window refuses links and embedded resources honestly
 rather than half-drawing them, which is where its next work is;
-the acceptance driver, the tracer, and the filmstrip do not
-speak `.aastory` yet; and the browser tab borrows the Glulx
-icon while the window opens with no badge at all, until the
-third machine earns a mark of its own.
+and the acceptance driver, the tracer, and the filmstrip do not
+speak `.aastory` yet.
 
 ## The sidecar: 2.4
 

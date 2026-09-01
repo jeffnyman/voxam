@@ -235,9 +235,7 @@ class ZSession(Session):
 class AAMachineSession(Session):
     """An Å-machine story behind the server, over the wire face."""
 
-    # The third machine borrows the Glulx mark until it earns its
-    # own -- a named road, not an oversight.
-    icon = "glulx.ico"
+    icon = "aamachine.ico"
 
     def __init__(
         self, story: AAStory, resources: Resources, *, seed: int | None = None
