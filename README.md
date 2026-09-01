@@ -97,7 +97,7 @@ reach perfect scores with their sounds heard aloud; *Arthur*,
 *Shogun*, and *Zork Zero* render their art in a real graphics
 window; and even *Journey* -- Infocom's finale, a game with no
 command line at all -- replays through its opening chapter as
-pure keystrokes. Forty-four recordings verify those sessions
+pure keystrokes. Forty-five recordings verify those sessions
 end-to-end, their annotations doubling as an archaeology of where
 the games' published walkthroughs go wrong. And now Glulx joins
 them: *Adventure* answers at the terminal, and glulxercise says

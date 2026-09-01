@@ -54,7 +54,7 @@ terminal, the pygame window, the browser, the desktop shell, and
 down a stdio wire, sound and art and the Version 6 stage
 included; the Treaty of Babel names every story that can be
 named; and a seeded session replays identically, forever --
-forty-four recorded playthroughs and a test suite at 100% branch
+forty-five recorded playthroughs and a test suite at 100% branch
 coverage hold the whole of it.
 
 ## The played-games ledger
@@ -121,8 +121,14 @@ over the wire, its savefile written and revived mid-hook; and
 Daniel Stelzer's *Miss Gosling's Last Case* walks three hundred
 fifty-one commands deep, the whole mystery to its finale, with
 the transcript matching the reference engine's own byte for
-byte at the same seed. The oldest Zork on the record earns a
-footnote of its own: Release 2's walk now calls the
+byte at the same seed. And Zork speaks German: a rare translated
+Infocom beta is walked from the mailbox into the house entirely
+in its own language, umlauts and all, which is a §3.8.5 test in
+disguise -- ZSCII is not ASCII, and a word like *öffne* only
+reaches the parser if the interpreter encodes its extra
+characters the way the story's own table says.
+The oldest Zork on the record earns a footnote of its own:
+Release 2's walk now calls the
 coal-to-diamond machine by its true name, *pdp10*, after the DEC
 machine Infocom's compiler ran on. That word only parses in an
 interpreter that encodes dictionary words the way §3.7.1 says
@@ -130,7 +136,7 @@ Versions 1 and 2 must, locking the shift across a run rather
 than shifting twice; Frotz and Bocfel both answer "I don't know
 the word 'pdp10'". One word in a three-hundred-move walk, and it
 holds a rule of the Standard upright.
-Forty-four recordings verify those sessions end-to-end with the
+Forty-five recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
 an archaeology of where the games' published walkthroughs go wrong.
@@ -142,7 +148,7 @@ Full Z-Machine Support -- since `1.0`, no longer a goal but a
 claim. Every opcode §14 defines has a handler, all eight story
 file versions play, and everything below is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, forty-four recorded playthroughs swept
+100% branch coverage, forty-five recorded playthroughs swept
 end-to-end, and the community's own checkers held to their exact
 tallies. The short list that remains is under **Not yet**.
 
@@ -485,7 +491,7 @@ spec-sanctioned refusals with their reasons written down:
 Everything else in the Glk 0.7.6 and Glulx 3.1.3 specifications
 that a blocking display can express is expressed, and enforced
 the way every Voxam claim is enforced: 100% branch coverage,
-forty-four recordings swept end-to-end, the checkers held to
+forty-five recordings swept end-to-end, the checkers held to
 their
 tallies.
 
@@ -735,7 +741,7 @@ way, and the road mapped onto the interim releases:
   claim on the arrow keys -- and signed installers, which are a
   certificate and an enrollment rather than a branch (macOS
   Gatekeeper and SmartScreen warn on the unsigned ones). None of
-  it blocks a game the corpus plays, and forty-four recordings
+  it blocks a game the corpus plays, and forty-five recordings
   hold the whole claim to replay.
 
 ### Beyond the declaration: 2.1
@@ -916,7 +922,7 @@ files on the wire, a period bitmap font for the stage's text,
 the blocking editor's own claim on the arrow keys, and the
 signed installers that remain a certificate rather than a
 branch. None of it blocks a game the corpus plays, and
-forty-four recordings hold the whole claim to replay.
+forty-five recordings hold the whole claim to replay.
 
 ## The Å-machine: 2.3, dressed in 2.4
 

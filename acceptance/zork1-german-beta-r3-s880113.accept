@@ -1,0 +1,46 @@
+! SEED=3
+! GAME=../entharion/zcode-infocom/zork1-german-beta-r3-s880113.z5
+
+# Zork I in German, beta release 3 / serial 880113 -- a rare
+# translated Infocom build, and the only story in this corpus whose
+# vocabulary needs characters the ASCII table does not have.
+#
+# WHY THIS EXISTS (Standard 3.8.5)
+#
+# ZSCII is not ASCII. Codes 155 to 251 are the "extra characters",
+# and what each one means is the story's own business: a story may
+# carry a Unicode translation table saying so, and one that does not
+# falls back to the default table the Standard prints. A German
+# story leans on that table for every umlaut and every sharp s.
+#
+# So "öffne" -- open -- is not a decorative flourish here. To match
+# it against the dictionary the interpreter must turn that o-umlaut
+# into its extra-character code, look the word up in that encoding,
+# and hand the parser something the story recognizes. Get the table
+# wrong, or fall back to ASCII, and the story answers that it does
+# not know the word. This walk opens a mailbox, reads what is in it,
+# walks around the house, opens the window, and climbs in -- all in
+# German, with the umlaut carrying two of the commands.
+#
+# WHAT THIS DOES NOT PROVE
+#
+# It does not guard the painted terminal on Windows, where non-ASCII
+# input is still unreachable (issue #342): the console hands a byte
+# read only the first byte of a multibyte character, so the umlaut
+# never arrives to be encoded. A recording feeds its commands
+# through the acceptance driver, not the keyboard, so this script
+# would replay perfectly green on a face that cannot type a single
+# one of these words. The encoding is what is under test here. The
+# keyboard is a separate problem and needs a separate answer.
+
+öffne briefkasten
+lies zettel
+
+norden
+osten
+öffne fenster
+westen
+
+nimm sack
+öffne sack
+inventar

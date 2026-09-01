@@ -11,7 +11,7 @@ handler, all eight story file versions play -- version 6
 illustrated at a pygame window, painted at a terminal, spoken
 aloud with the sound extra -- and everything is enforced in
 continuous integration rather than promised: a test suite at
-100% branch coverage, forty-four recorded playthroughs swept
+100% branch coverage, forty-five recorded playthroughs swept
 end-to-end, and the community's checkers held to their exact
 tallies, CZECH at four versions among them.
 
