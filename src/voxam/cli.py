@@ -460,7 +460,7 @@ def _aamachine_story(story_path: Path) -> bool:
     return opening[:4] == IFF_FORM and opening[8:12] == AAM_FORM
 
 
-def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
+def _run_aamachine(  # noqa: PLR0913, PLR0911 -- one knob per seam, one exit per face
     story_path: Path,
     *,
     seed: int | None,
@@ -471,16 +471,20 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
     web: bool,
     port: int,
     screen: bool = True,
+    graphics: bool = False,
+    zoom: float | None = None,
+    theme: str = DEFAULT_THEME,
     benchmark: bool = False,
 ) -> int:
     """Run one Å-machine story over a face.
 
     The terminal is the default face -- the reference frontends'
     own shape, certified against their transcripts -- with the
-    GlkOte wire and the browser behind their usual flags. The
-    session instruments the other machines carry are refused by
-    name rather than half-working: the acceptance driver, the
-    tracer, and the benchmark are the third machine's later roads.
+    GlkOte wire, the browser, and the pixel window behind their
+    usual flags. The session instruments the other machines carry
+    are refused by name rather than half-working: the acceptance
+    driver, the tracer, and the benchmark are the third machine's
+    later roads.
     """
 
     if (
@@ -521,6 +525,27 @@ def _run_aamachine(  # noqa: PLR0913 -- one knob per session seam
             return EXIT_UNUSABLE
 
         return EXIT_OK if served else EXIT_UNUSABLE
+
+    if graphics:
+        try:
+            # Imported here because the graphics extra is optional,
+            # and because voxam.glass stays out of the eager import
+            # graph of a session that never opens a window.
+            from voxam.aamachine.glass import played as played_at_glass  # noqa: PLC0415
+            from voxam.glass import open_pygame_glass  # noqa: PLC0415
+
+            # No badge: the third machine has no icon of its own
+            # yet, where a Z-Machine story wears its numbered one.
+            pane = open_pygame_glass(None, 0, zoom)
+        except ImportError:
+            print(
+                "voxam: the graphics window needs the pygame-ce extra "
+                "(voxam[graphics]); staying with the terminal\n"
+            )
+        else:
+            played_at_glass(story, seed=seed, glass=pane, theme=theme)
+
+            return EXIT_OK
 
     played(story, seed=seed, dressed=None if screen else False)
 
@@ -2288,6 +2313,9 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
                 port=port,
                 benchmark=benchmark,
                 screen=screen,
+                graphics=graphics,
+                zoom=zoom,
+                theme=theme,
             )
 
         story, blorb = _load_story(story_path, resources)
