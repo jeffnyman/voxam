@@ -132,6 +132,64 @@ def keystroke(terminal: Keyboard, timeout: float | None = None) -> object:
         return ""
 
 
+def widened(terminal: object) -> object:
+    """Let a Windows console hand over whole characters.
+
+    A console whose input code page is UTF-8 returns a byte-oriented
+    read only the FIRST byte of a multibyte character: a pasted
+    o-umlaut arrives as its lead byte alone, and the continuation
+    byte is simply gone. No decoder can recover what was never
+    delivered, so German, French, and every other story leaning on
+    §3.8.5's extra characters is untypable at the painted terminal.
+
+    The wide console read has no such defect: it returns a character,
+    whatever code page the console is set to. The display library
+    already carries that path and takes it on consoles too old for
+    virtual-terminal input; a modern console takes the byte read
+    instead, which is the one that loses the byte.
+
+    Everywhere else the terminal is handed back untouched: no other
+    platform has the defect, and none should pay for the workaround.
+    """
+
+    if sys.platform != "win32":
+        return terminal
+
+    import msvcrt  # noqa: PLC0415 -- Windows only, imported where used
+
+    return reading_wide(terminal, msvcrt.getwch)
+
+
+def reading_wide(terminal: object, getwch: Callable[[], str]) -> object:
+    """Bind a whole-character read over the library's byte one.
+
+    Kept apart from the platform test above so the read itself can
+    be exercised anywhere, on a console that exists only in a test.
+    The two lead bytes are the CRT's own announcement of a special
+    key, and the second call collects the key it announces -- the
+    same pair the display library reads on its own wide path.
+    """
+
+    def getch(decode_latin1: bool = False) -> str:  # noqa: ARG001
+        """One whole character, special keys announced as the CRT does.
+
+        The latin-1 flag is the library's hint for legacy mouse
+        coordinates on the byte path, ignored here for the reason the
+        library ignores it on its own wide path: a character arrives
+        already decoded, so there is nothing left to decode.
+        """
+
+        first = getwch()
+
+        return first + getwch() if first in ("\x00", "\xe0") else first
+
+    # Bound over the library's own, which is the narrowest way to
+    # reach a defect living one call below anything it exposes.
+    terminal.getch = getch  # type: ignore[attr-defined]
+
+    return terminal
+
+
 class Frontend(Protocol):
     """The presentation seam between the machine and the player (§8).
 

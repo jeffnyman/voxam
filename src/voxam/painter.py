@@ -22,7 +22,7 @@ from time import monotonic
 from typing import Protocol, cast
 
 from voxam.editor import EXPIRED, LineEditor, read_line_edited
-from voxam.frontend import GRAPHICS_FONT, Status, keystroke
+from voxam.frontend import GRAPHICS_FONT, Status, keystroke, widened
 from voxam.png import Picture
 from voxam.screen import (
     BOLD,
@@ -332,7 +332,7 @@ class ScreenFrontend:
             # only building a real terminal needs blessed itself.
             import blessed  # noqa: PLC0415
 
-            terminal = cast("Terminal", blessed.Terminal())
+            terminal = cast("Terminal", widened(blessed.Terminal()))
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write

@@ -16,7 +16,7 @@ spine, as part of the layout but not yet part of the window.
 import sys
 from typing import TYPE_CHECKING, cast
 
-from voxam.frontend import keystroke
+from voxam.frontend import keystroke, widened
 from voxam.glulx.glk.objects import KeyCode
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, Terminal
@@ -83,7 +83,7 @@ class TerminalFrontend(PaintedFrontend):
             # the stdio display must keep working without it.
             import blessed  # noqa: PLC0415
 
-            terminal = cast("Terminal", blessed.Terminal())
+            terminal = cast("Terminal", widened(blessed.Terminal()))
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write
