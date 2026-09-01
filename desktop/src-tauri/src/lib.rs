@@ -26,7 +26,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Wry};
 /// remaining advice is to install it or point straight at it.
 const NOT_FOUND: &str = "Voxam can't find the voxam command.\n\n\
     Install it with one of:\n\n    \
-    uv tool install voxam\n    pipx install voxam\n    pip install voxam\n\n\
+    pipx install voxam\n    uv tool install voxam\n\n\
     If voxam is already installed and runs in a terminal, this\n\
     app was launched without your shell's PATH. Set VOXAM_BIN to\n\
     its full path -- what `which voxam` prints in a terminal --\n\

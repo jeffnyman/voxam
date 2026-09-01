@@ -215,7 +215,7 @@ class Machine:
         self._headers: dict[int, funcs.FunctionHeader] = {}
         # The sidecar's one honest bit: an undo, restore, or
         # restart broke the causal thread; the wire face reads it
-        # once and rests it (PORT: What the sidecar carries).
+        # once and rests it (DESIGN: What the sidecar carries).
         self.discontinuity = False
         # The generator is deliberately not reseeded by restart:
         # it is no part of saved state either (Glulx: The Random

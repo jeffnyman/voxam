@@ -814,7 +814,7 @@ def test_an_empty_record_makes_no_card() -> None:
 # The voxam sidecar rides a real update between the sounds and the
 # exit flag, granted by the caller alone; None leaves the stanza
 # untouched, and a cycle where nothing changed stays the pass --
-# the sidecar never forces an update (PORT: What the sidecar
+# the sidecar never forces an update (DESIGN: What the sidecar
 # carries).
 def test_the_voxam_block_rides_the_update() -> None:
     page = Page()

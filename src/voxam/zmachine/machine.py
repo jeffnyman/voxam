@@ -424,7 +424,7 @@ class Bearings:
     """The sidecar's honest facts (§8.2).
 
     Where the player stands and how the tally reads, None where a
-    machine cannot honestly say (PORT: What the sidecar carries).
+    machine cannot honestly say (DESIGN: What the sidecar carries).
 
     Attributes:
         location: The object the first global names and its short
@@ -674,7 +674,7 @@ class Machine:
         # The sidecar's one honest bit: this state of play does
         # not follow causally from the last command -- an undo, a
         # restore, or a restart intervened. The wire face reads it
-        # once and rests it (PORT: What the sidecar carries).
+        # once and rests it (DESIGN: What the sidecar carries).
         self.discontinuity = False
         # Instructions executed across the whole session, kept
         # so an instrument can measure the machine's own pace.

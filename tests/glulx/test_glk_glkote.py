@@ -1463,7 +1463,7 @@ def test_a_wrongful_event_is_loud(image: Callable[..., bytes]) -> None:
 # The sidecar rides when the display says the "voxam" token: Glulx
 # has no location or score globals to read, so the block carries
 # the wire's own facts alone -- the delivered line and the
-# discontinuity bit, read once and rested (PORT: What the sidecar
+# discontinuity bit, read once and rested (DESIGN: What the sidecar
 # carries).
 def test_the_sidecar_rides_when_granted(image: Callable[..., bytes]) -> None:
     frontend = opened(support=["voxam"])

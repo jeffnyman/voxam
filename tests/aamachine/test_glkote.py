@@ -396,7 +396,7 @@ def test_a_refresh_keeps_the_dress() -> None:
 
 # The sidecar rides when the display says the "voxam" token: the
 # first update carries the empty block -- the feed alive, nothing
-# yet to tell -- and once a line lands the block carries it (PORT:
+# yet to tell -- and once a line lands the block carries it (DESIGN:
 # What the sidecar carries).
 def test_the_sidecar_rides_when_granted() -> None:
     events = [

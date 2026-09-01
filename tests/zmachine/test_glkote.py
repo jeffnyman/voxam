@@ -2004,7 +2004,7 @@ def test_the_stage_asks_for_its_file() -> None:
 # The sidecar rides when the display says the "voxam" token: the
 # machine's honest bearings -- a zeroed story tallies score and
 # turns with no location to name -- and, once a line lands, the
-# very command the wire delivered (PORT: What the sidecar
+# very command the wire delivered (DESIGN: What the sidecar
 # carries). Ungranted, the update carries no block at all.
 def test_the_sidecar_rides_when_granted(
     code_machine: Callable[..., Machine],
@@ -2035,7 +2035,7 @@ def test_the_sidecar_rides_when_granted(
 # The bearings name the location honestly: a planted object table
 # answers the first global's object and short name, an unreadable
 # object answers None rather than a halt, and the discontinuity
-# bit is read once and rested (PORT: What the sidecar carries).
+# bit is read once and rested (DESIGN: What the sidecar carries).
 def test_the_sidecar_tells_location_and_discontinuity(
     code_machine: Callable[..., Machine],
 ) -> None:
