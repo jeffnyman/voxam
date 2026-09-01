@@ -26,23 +26,19 @@ from collections.abc import Callable
 from typing import TextIO
 
 from voxam.aamachine.machine import Machine
-from voxam.aamachine.output import StyledVoice
+from voxam.aamachine.output import FiledVoice
 from voxam.aamachine.story import Story
 
-# The suffix a bare savefile name gains, the house courtesy.
-SUFFIX = ".aasave"
 
-
-class TerminalVoice(StyledVoice):
+class TerminalVoice(FiledVoice):
     """The plain voice with a terminal's file-keeping manners.
 
-    Dressed, it also wears the LOOK chunk's styles as terminal
-    attributes and answers VM_INFO's styling and color questions
-    with yes -- the honesty gate being that only a real terminal
-    is ever dressed.
+    The filenames are asked for on the stream, which is all a
+    filed voice needs of a face. Dressed, this one also wears the
+    LOOK chunk's styles as terminal attributes and answers
+    VM_INFO's styling and color questions with yes, the honesty
+    gate being that only a real terminal is ever dressed.
     """
-
-    has_saves = True
 
     def __init__(
         self,
@@ -55,10 +51,9 @@ class TerminalVoice(StyledVoice):
     ) -> None:
         """Speak at a width, through a writer, asking by a prompt."""
 
-        super().__init__(story, width)
+        super().__init__(story, width, asked)
 
         self._writer = writer
-        self._asked = asked
         self._mark = 0
         self._dressed = dressed
         self.has_styles = dressed
@@ -114,54 +109,6 @@ class TerminalVoice(StyledVoice):
         self._writer.write(told[self._mark :])
         self._writer.flush()
         self._mark = len(told)
-
-    def save(self, data: bytes) -> bool:
-        """Ask where to keep the savefile; an empty answer cancels."""
-
-        name = self._named("Save the story as: ")
-
-        if not name:
-            return False
-
-        try:
-            with open(name, "wb") as handle:  # noqa: PTH123 -- one write, the player's own path
-                handle.write(data)
-        except OSError:
-            return False
-
-        return True
-
-    def restore(self) -> bytes | None:
-        """Ask which savefile to revive; an empty answer cancels."""
-
-        name = self._named("Restore the story from: ")
-
-        if not name:
-            return None
-
-        try:
-            with open(name, "rb") as handle:  # noqa: PTH123 -- one read, the player's own path
-                return handle.read()
-        except OSError:
-            return None
-
-    def _named(self, prompt: str) -> str:
-        """One filename from the player, the pending story poured first.
-
-        A bare name gains the .aasave suffix; the player's own
-        dotted path is honored whole.
-        """
-
-        self.line()
-        self.poured()
-
-        name = self._asked(prompt).strip()
-        self.prompted()
-
-        if name and "." not in name:
-            name += SUFFIX
-
-        return name
 
 
 def played(  # noqa: PLR0913 -- one seam per replaceable stream

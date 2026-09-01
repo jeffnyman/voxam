@@ -2841,6 +2841,55 @@ def test_aamachine_faces_route(
     assert_that(capsys.readouterr().out).contains("address in use")
 
 
+# --graphics opens the third machine's window on the same pygame
+# glass the other two paint on, carrying the theme and the zoom;
+# without the extra installed the note is spoken and the terminal
+# keeps the session.
+def test_aamachine_plays_at_the_graphics_window(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story = "tests/fixtures/cloak-rel2.aastory"
+    opened: list[tuple[object, object, object]] = []
+
+    def opening(
+        standard: object = None, version: object = 0, zoom: object = None
+    ) -> WindowStub:
+        opened.append((standard, version, zoom))
+
+        # No keys: the window shuts at the first wait, which ends
+        # the session the way a closed one does.
+        return WindowStub("")
+
+    monkeypatch.setattr("voxam.glass.open_pygame_glass", opening)
+
+    assert_that(main(["--graphics", "--zoom", "0.5", story])).is_equal_to(0)
+    assert_that(opened).is_equal_to([(None, 0, 0.5)])
+
+    dressed: list[object] = []
+    monkeypatch.setattr(
+        "voxam.aamachine.glass.played",
+        lambda _story, **knobs: dressed.append(knobs["theme"]),
+    )
+
+    assert_that(main(["--graphics", "--theme", "sepia", story])).is_equal_to(0)
+    assert_that(dressed).is_equal_to(["sepia"])
+
+    def missing(*_seats: object, **_knobs: object) -> object:
+        raise ImportError
+
+    played: list[object] = []
+
+    monkeypatch.setattr("voxam.glass.open_pygame_glass", missing)
+    monkeypatch.setattr(
+        "voxam.cli.played", lambda _held, seed, dressed: played.append((seed, dressed))
+    )
+
+    assert_that(main(["--graphics", story])).is_equal_to(0)
+    assert_that(played).is_length(1)
+    assert_that(capsys.readouterr().out).contains("pygame-ce extra")
+
+
 # The session instruments the other machines carry are refused by
 # name for the third: the acceptance driver and the tracer are
 # later roads.

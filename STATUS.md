@@ -969,7 +969,17 @@ the reference engine's own transcripts.
   session roll the same numbers forever.
 - **The faces.** The terminal is the default -- the certified
   document discipline streamed live, the reference frontend's
-  own input drill -- and the wire carries the same certified
+  own input drill -- and `--graphics` plays the same voice at
+  the pygame window the other two machines paint on, which is
+  the one face that knows how tall it is: a story asking after
+  the screen height gets a true answer there rather than a
+  shrug, a windowful of unread text pauses at a `[MORE]` before
+  the scroll carries it away, and a story that clears the
+  screen really clears it. The window keeps its own grid of
+  dressed cells rather than borrowing the Z-Machine's screen
+  model, because that model stores the eleven §8.3.1 color
+  codes and the LOOK sheet's palette does not fit in them.
+  The wire carries the same certified
   voice at width zero into one buffer window, the browser doing
   the wrapping: `--glkote` serves it down the pipe, `--web`
   puts it in a tab under the META title, and the desktop shell
@@ -978,9 +988,11 @@ the reference engine's own transcripts.
 - **The savefile.** AASV written and revived: the story's own
   HEAD copied byte for byte as the identity gate, the state
   run-length encoded against INIT, the open divs re-entered on
-  revival. At the terminal a save asks for its name on the
-  spot; undo is aboard at every face, pruned at the reference's
-  own depth.
+  revival. At the terminal and at the window alike a save asks
+  for its name on the spot, which is the blocking faces' own
+  privilege: the file-keeping is shared and only the asking
+  differs. Undo is aboard at every face, pruned at the
+  reference's own depth.
 - **The dress.** At a real terminal the LOOK chunk's styles are
   worn: bold as bold, italics as underlines (the Dialog
   debugger's own rendering, drawn by every terminal), and the
@@ -1007,9 +1019,12 @@ wire await the suspended file-wait the Z-Machine's saves ride;
 the status areas stay honestly unclaimed on every face, and the
 author's whole sheet -- fonts, sizes, and margins as real CSS
 on the page -- is a richer wire road than the stock styles worn
-today; the acceptance driver, the tracer, and the filmstrip do
-not speak `.aastory` yet; and the browser tab borrows the Glulx
-icon until the third machine earns its own mark.
+today; the window refuses links and embedded resources honestly
+rather than half-drawing them, which is where its next work is;
+the acceptance driver, the tracer, and the filmstrip do not
+speak `.aastory` yet; and the browser tab borrows the Glulx
+icon while the window opens with no badge at all, until the
+third machine earns a mark of its own.
 
 ## The sidecar: 2.4
 

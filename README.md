@@ -120,9 +120,8 @@ itself is [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How to Play
 
-One command, several faces: every face speaks the Z-Machine and
-Glulx, all but the pygame window speak the Å-machine too, and a
-story file is all any of them needs:
+One command, several faces: every one of them speaks all three
+machines, and a story file is all any of them needs:
 
 - **At the terminal.** `voxam story.z5` -- with the `screen`
   extra installed, the painted display takes over: status line,
@@ -330,7 +329,11 @@ gate, and undo is aboard without asking. `--web` and `--glkote`
 carry the same story to a browser tab or down the wire -- the
 desktop shell plays it through that same seam -- with the
 story's META bibliography opening the page as its card and its
-title riding the tab. The story also wears what its author
+title riding the tab. `--graphics` opens the pygame window on
+it, which is the one face that knows how tall it is: a story
+asking after the screen height gets a true answer there, text
+that would scroll away pauses at a `[MORE]` first, and a story
+that clears the screen really clears it. The story also wears what its author
 dressed it in: the LOOK sheet's bold, its italics (drawn as
 underlines, the way Dialog's own debugger draws them), and its
 colors as truecolor ink and paper, worn at a real terminal and,
