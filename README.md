@@ -104,28 +104,15 @@ them: *Adventure* answers at the terminal, and glulxercise says
 "All tests passed." The Å-machine arrives certified harder still:
 every test battery its reference implementation ships replays
 under Voxam byte-identical to the reference engine's own
-transcripts -- *Miss Gosling's Last Case* walked three hundred
+transcripts. *Miss Gosling's Last Case* walked three hundred
 fifty-one commands to its finale among them.
 
-The full ledger -- the current release, what plays, what is
+The full ledger -- the current release, what plays, what's
 certified, and what remains -- lives in [STATUS.md](STATUS.md);
 the road here, told era by era, is [HISTORY.md](HISTORY.md);
 the thinking underneath it all, principles and vocabulary alike,
 is [DESIGN.md](DESIGN.md); and the setup for working on Voxam
 itself is [CONTRIBUTING.md](CONTRIBUTING.md).
-
-[voxam-rs](https://github.com/jeffnyman/voxam-rs) is a port of
-this interpreter to Rust, kept in its own repository, and this
-implementation is its reference: every seeded session recorded
-here is expected to replay byte-identically there, and the
-port's parity sweeps prove it rather than assert it. The port
-carries `PORT.md`, its design document, which is also where
-Voxam's own extensions to the GlkOte protocol are specified.
-That is why a few citations in this codebase read
-`PORT: What the sidecar carries` where the rest name a published
-specification: the wire's extensions belong to no standard, so
-they are written down once, in the one place both
-implementations can be held to.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jeffnyman/voxam/main/assets/voxam-footer.png" alt="">
@@ -165,54 +152,70 @@ in [Playing stories](#playing-stories).
 
 ## Installation
 
-Voxam requires Python 3.12 or later.
-
-```bash
-pip install voxam
-```
-
-or, as an isolated tool:
+Voxam requires Python 3.12 or later, and it is an application
+rather than a library, so it installs like one: in its own
+environment, with only the `voxam` command placed on your PATH.
+Nothing lands in your system Python.
 
 ```bash
 pipx install voxam
 ```
 
-If you're using uv managed Python:
+If your Python is uv managed:
 
 ```bash
 uv tool install voxam
 ```
 
-And `uvx voxam story.z5` runs it without installing anything at
-all -- uv fetches the package to its cache, runs the command, and
-leaves your PATH untouched, which is the quickest possible way to
-try Voxam on a story file. That gets you the plain text stream;
-for the painted terminal, ask uvx for the extra by name:
+Either way the story files, the saves, and the transcripts are
+ordinary files in ordinary places, and uninstalling takes the
+whole thing back out again.
+
+To try it without installing anything at all, `uvx` fetches the
+package to its cache, runs it, and leaves your PATH untouched:
 
 ```bash
-uvx --from "voxam[screen]" voxam story.z5
+uvx voxam story.z5
 ```
 
-The painted screen frontend rides in the `screen` extra, the
-pygame window in the `graphics` extra, and sampled-sound playback
-in the `sound` extra beside them:
+### The extras, and what they cost
+
+Voxam's core has no dependencies whatsoever. The interpreter, the
+story formats and the wire are standard-library Python: it
+decodes its own PNGs, writes its own savefiles, and serves its
+own pages. So an install of Voxam alone brings in Voxam alone.
+
+Three optional extras buy presentation, never correctness:
+`screen` for the painted terminal, `graphics` for the pygame
+window, and `sound` for sampled audio. They do have dependencies
+of their own -- blessed, pygame-ce, sounddevice -- and under
+either installer above those land in Voxam's own environment
+beside it, still nowhere near your system Python:
 
 ```bash
-pip install "voxam[screen,graphics,sound]"
+pipx install "voxam[screen,graphics,sound]"
 ```
-
-Again, if you're using uv managed Python:
 
 ```bash
 uv tool install "voxam[screen,graphics,sound]"
 ```
 
-On Windows and macOS the sound extra is self-contained; on Linux,
-PortAudio comes from the distribution (`apt install libportaudio2`
-or the local equivalent). Without the extras, Voxam plays as a
-plain text stream. Every game still works; the status line
-simply stays imaginary, and the sound games play in the conforming
-silence they were shipped to accept.
+`uvx` needs the extras named before the command:
+
+```bash
+uvx --from "voxam[screen]" voxam story.z5
+```
+
+The one genuinely system-level requirement anywhere is PortAudio,
+which the sound extra needs on Linux (`apt install libportaudio2`
+or the local equivalent) because it is a C library rather than a
+Python package. On Windows and macOS the sound extra is
+self-contained.
+
+Without any of the extras Voxam plays as a plain text stream.
+Every game still works; the status line simply stays imaginary,
+and the sound games play in the conforming silence they were
+shipped to accept.
 
 Voxam ships no story files. Bring your own: the
 [IF Archive](https://ifarchive.org/) hosts hundreds of freely
@@ -883,6 +886,12 @@ This project stands on the shoulders of the team at Infocom, the MIT-born compan
 
 The code used in this project is licensed under the [MIT license](https://github.com/jeffnyman/voxam/blob/main/LICENSE).
 
-**Note:** This license applies _only_ to the code in this repository. The original Z-Machine concept, design, and any original assets belong to their respective copyright holders.
+**Note:** This license applies _only_ to Voxam's own code. Two other things travel with it, and neither is covered by it.
+
+**The designs Voxam implements** belong to the people who made them. The Z-Machine is Infocom's, and the Standard documenting it is Graham Nelson's work with the community's; Glulx, Glk and Blorb are Andrew Plotkin's; the Å-machine and the Dialog language it serves are Linus Åkesson's; arc_image is Stefan Vogt's; the Treaty of Babel is the Interactive Fiction Technology Foundation's. Implementing a specification is not owning it, and none of these belong to this project.
+
+**The code Voxam redistributes** keeps its own license. The browser face and the desktop shell both ship two libraries unchanged: Andrew Plotkin's GlkOte display (`glkote.js`, `glkote.css`, `waiting.gif`) and jQuery. Both are MIT, and both licenses travel in the package beside the files they cover, as `LICENSE-glkote.txt` and `LICENSE-jquery.txt`.
+
+Story files belong to their authors. Voxam ships none, and reads yours without claiming anything about them.
 
 ✨ Long live the classics.

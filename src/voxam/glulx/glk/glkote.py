@@ -376,7 +376,7 @@ class GlkOteFrontend(Frontend):
         self._next_channel = 1
         # The sidecar seam: granted by the display's "voxam"
         # token; the serving loop attaches the machine so the
-        # discontinuity bit can be read (PORT: What the sidecar
+        # discontinuity bit can be read (DESIGN: What the sidecar
         # carries).
         self.machine: Machine | None = None
         self._speaks_voxam = False
@@ -1030,7 +1030,7 @@ class GlkOteFrontend(Frontend):
 
         Glulx has no fixed location or score globals to read, so
         only the wire's own facts travel: the last delivered line
-        and the discontinuity bit, read once and rested (PORT:
+        and the discontinuity bit, read once and rested (DESIGN:
         What the sidecar carries).
         """
 

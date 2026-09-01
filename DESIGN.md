@@ -20,8 +20,8 @@ specification. When Voxam and another interpreter disagree, the
 citation is where the argument starts, and usually where it
 ends. The one family of citations that names no published
 specification is the wire's own extensions, which no
-specification covers; the last section here explains where those
-are written down instead.
+specification covers; the last section here is where those are
+written down instead.
 
 **Loud beats wrong.** When Voxam can't do something correctly,
 it says so, by name, and stops. It doesn't guess, half-work, or
@@ -244,25 +244,61 @@ the architecture actually has.
   name, with the reason and usually the road. The opposite of a
   silent failure, and treated in this project as a feature.
 
-## The port, and the one citation with no specification
+## The wire's own extensions
 
-[voxam-rs](https://github.com/jeffnyman/voxam-rs) is a Rust port
-of this implementation, and the relationship is deliberately
-one-directional: the Python Voxam is the reference. Every seeded
-session recorded here is expected to replay byte-identically
-there, and the port proves it with parity sweeps rather than
-with assertions of similarity.
+Citations in the code normally name a public specification
+(`§8.2`, `Glulx: The Random Number Generator`, `Blorb: The
+Adaptive Palette Chunk`). One family cannot, because it names
+something no specification covers: Voxam's own additions to the
+GlkOte protocol. Those read `DESIGN: What the sidecar carries`,
+and this is the section they mean. Where the citation convention
+normally says "this behavior is not mine to invent," one of these
+says "this behavior is ours, and here is where it is written down
+so it cannot drift."
 
-That has one visible consequence in this codebase. Citations in
-the code normally name a public specification (`§8.2`, `Glulx:
-The Random Number Generator`, `Blorb: The Adaptive Palette
-Chunk`), but a handful read `PORT: What the sidecar carries`.
-Those name a section of
-[PORT.md](https://github.com/jeffnyman/voxam-rs/blob/main/PORT.md),
-the port's own design document, and they mark the one thing no
-published specification covers: Voxam's extensions to the
-GlkOte protocol, designed once and written down where both
-implementations can be held to them. Where the citation
-convention normally says "this behavior is not mine to invent,"
-a `PORT:` citation says "this behavior is ours, and here is
-where we wrote it down so it cannot drift."
+### What the sidecar carries
+
+The sidecar is a `voxam` block riding beside the windows in an
+ordinary update stanza: plain facts about the session, offered so
+that a face can build a map, a notebook, or a "take me to the
+kitchen" on knowledge instead of on guesswork. Everything clever
+belongs to the face. The block itself is dumb on purpose.
+
+**The grant.** It travels only to a display that names `voxam` in
+its own init support list. A display that never asks never sees
+it, and one that asks gets it on every real update.
+
+**Never a cause.** The block rides updates; it does not summon
+them. A cycle in which nothing changed stays the pass stanza it
+would have been.
+
+**The fields**, each present only when the machine can say it
+honestly, and absent otherwise rather than guessed:
+
+- `location`: `{"object": <number>, "name": <string>}` -- where
+  the player stands, identified by object number, with the
+  printed name beside it. The number is the identity; the name is
+  a courtesy, since two rooms may print alike.
+- `score`: the current score.
+- `turns`: the turn count.
+- `command`: the line the wire actually delivered to the machine,
+  which is not always the line the player typed.
+- `discontinuity`: `true` when an undo, a restore, or a restart
+  has intervened since the last update, so this state of play does
+  not follow from the last command. Read once and rested: it
+  appears in exactly one update and is cleared as it goes.
+
+**What each machine can honestly answer.** The Z-Machine reads
+its §8.2 bearings, so it offers all five -- except that a time
+game has no score or turns to give, and omits them. Glulx and the
+Å-machine have no fixed globals an interpreter could read for
+location, score, or turns, so they carry only `command` and
+`discontinuity`. An absent field means the machine could not say,
+never that the answer was zero.
+
+**The boundary, deliberately.** No direction parsing and no graph
+state live in the machines. Compass words are an English-only,
+typed-input-only heuristic: a fine thing for a face to do and a
+poisonous assumption in a core. Rooms are identified by object
+number rather than printed name, which is the property that makes
+a maze mappable at all.

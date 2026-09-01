@@ -5,6 +5,7 @@ import re
 import threading
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -16,6 +17,8 @@ from voxam.glulx.story import Story
 from voxam.iff import chunk
 from voxam.web import Face, GlulxSession, ZSession, serve_web, webbed
 from voxam.zmachine.story import Story as ZStory
+
+PAGES = Path(__file__).resolve().parents[1] / "src" / "voxam" / "pages"
 
 RIDX_ENTRY = 12
 FORM_PRELUDE = 12
@@ -199,7 +202,14 @@ def test_the_assets_serve_with_their_types() -> None:
         assert_that(served).is_equal_to(kind)
         assert_that(payload).is_not_empty()
 
-    assert_that(face.respond("GET", "/LICENSE-glkote.txt", b"")[0]).is_equal_to(404)
+    # Both vendored licenses ride in the package beside the files
+    # they cover, and neither is a road a browser may walk.
+    for license_file in ("LICENSE-glkote.txt", "LICENSE-jquery.txt"):
+        assert_that(face.respond("GET", f"/{license_file}", b"")[0]).is_equal_to(404)
+        assert_that((PAGES / license_file).read_text(encoding="utf-8")).contains(
+            "MIT License"
+        )
+
     assert_that(face.respond("GET", "/nothing", b"")[0]).is_equal_to(404)
     assert_that(face.respond("PUT", "/", b"")[0]).is_equal_to(404)
 

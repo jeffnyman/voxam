@@ -245,7 +245,7 @@ class GlkOteFrontend(PlainFrontend):
         # next render answers with everything.
         self._refresh_owed = False
         # The sidecar seam: granted by the display's "voxam"
-        # token, carrying the last line this face delivered (PORT:
+        # token, carrying the last line this face delivered (DESIGN:
         # What the sidecar carries).
         self._speaks_voxam = False
         self._last_command: str | None = None
@@ -1125,7 +1125,7 @@ class GlkOteFrontend(PlainFrontend):
         bearings; the command is the last line this face delivered
         -- the wire knows what it handed over -- and the
         discontinuity bit reports an undo, restore, or restart
-        since the last update, read once and rested (PORT: What
+        since the last update, read once and rested (DESIGN: What
         the sidecar carries).
         """
 

@@ -46,8 +46,10 @@ CONTENT_TYPES = {
     "waiting.gif": "image/gif",
 }
 
-# The assets a browser may ask for by name; the license rides in
-# the package but is nobody's fetch.
+# The assets a browser may ask for by name. The vendored licenses
+# ride in the package beside the files they cover, but are nobody's
+# fetch: they are there for whoever unpacks the wheel, not for the
+# page.
 _SERVED = frozenset(CONTENT_TYPES) - {"index.html"}
 
 _HTTP_OK = 200

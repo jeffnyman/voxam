@@ -280,7 +280,7 @@ class Machine:
 
         # The sidecar's one honest bit: an undo, restore, or
         # restart broke the causal thread; the wire face reads it
-        # once and rests it (PORT: What the sidecar carries).
+        # once and rests it (DESIGN: What the sidecar carries).
         self.discontinuity = False
 
         self._reinit()

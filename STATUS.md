@@ -1023,10 +1023,9 @@ windows in an ordinary update, carrying those facts and nothing
 else. Every ounce of intelligence stays in the face. Voxam's own
 displays do not read the block yet: it is designed and served
 before it is consumed, so that anyone's face can be written
-against it. The schema it serves is specified in
-[PORT.md](https://github.com/jeffnyman/voxam-rs/blob/main/PORT.md),
-in the sibling Rust port that keeps this implementation as its
-reference.
+against it. The schema it serves is specified under **What the
+sidecar carries** in [DESIGN.md](DESIGN.md), which is what the
+`DESIGN:` citations in the wire's own code point at.
 
 - **Granted, never assumed.** The block travels only to a
   display that names `voxam` in its own init support list,
