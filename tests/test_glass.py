@@ -1962,9 +1962,14 @@ def test_the_window_wears_the_version_badge(
     assert_that(module.icons).is_length(2)
     assert_that(str(module.icons[1][1])).ends_with("glulx.ico")
 
+    open_pygame_glass(None, "aamachine")
+
+    assert_that(module.icons).is_length(3)
+    assert_that(str(module.icons[2][1])).ends_with("aamachine.ico")
+
     open_pygame_glass()
 
-    assert_that(module.icons).is_length(2)
+    assert_that(module.icons).is_length(3)
 
 
 # A standard window size shapes the doorway's glass: the height

@@ -531,12 +531,11 @@ def _run_aamachine(  # noqa: PLR0913, PLR0911 -- one knob per seam, one exit per
             # Imported here because the graphics extra is optional,
             # and because voxam.glass stays out of the eager import
             # graph of a session that never opens a window.
+            from voxam.aamachine.glass import BADGE  # noqa: PLC0415
             from voxam.aamachine.glass import played as played_at_glass  # noqa: PLC0415
             from voxam.glass import open_pygame_glass  # noqa: PLC0415
 
-            # No badge: the third machine has no icon of its own
-            # yet, where a Z-Machine story wears its numbered one.
-            pane = open_pygame_glass(None, 0, zoom)
+            pane = open_pygame_glass(None, BADGE, zoom)
         except ImportError:
             print(
                 "voxam: the graphics window needs the pygame-ce extra "

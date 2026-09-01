@@ -115,6 +115,11 @@ class Pane(Protocol):
         """
 
 
+# The window badge an Å-machine session wears: the packaged
+# aamachine.ico, where a Z-Machine story wears its numbered z<n>
+# and a Glulx one its own mark.
+BADGE = "aamachine"
+
 # One cell as the window holds it: the character standing there
 # and the outfit it was told in.
 Painted = tuple[str, "Outfit"]
@@ -461,7 +466,7 @@ def played(
     """
 
     if glass is None:
-        glass = open_pygame_glass(None, 0, zoom)
+        glass = open_pygame_glass(None, BADGE, zoom)
 
     caption = story.meta.get("title")
 

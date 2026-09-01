@@ -2864,7 +2864,7 @@ def test_aamachine_plays_at_the_graphics_window(
     monkeypatch.setattr("voxam.glass.open_pygame_glass", opening)
 
     assert_that(main(["--graphics", "--zoom", "0.5", story])).is_equal_to(0)
-    assert_that(opened).is_equal_to([(None, 0, 0.5)])
+    assert_that(opened).is_equal_to([(None, "aamachine", 0.5)])
 
     dressed: list[object] = []
     monkeypatch.setattr(
