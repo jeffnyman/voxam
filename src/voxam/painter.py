@@ -33,6 +33,7 @@ from voxam.screen import (
 )
 from voxam.sixel import encode as sixel_encode
 from voxam.speaker import Speaker
+from voxam.winkeys import widened
 
 # Special keys arrive from blessed with names; §3.8.2.2 and §3.8.4
 # give the input-only ZSCII characters they mean. The cursor keys
@@ -332,7 +333,7 @@ class ScreenFrontend:
             # only building a real terminal needs blessed itself.
             import blessed  # noqa: PLC0415
 
-            terminal = cast("Terminal", blessed.Terminal())
+            terminal = cast("Terminal", widened(blessed.Terminal()))
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write

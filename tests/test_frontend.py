@@ -1,7 +1,17 @@
+import sys
+from collections.abc import Callable
+
 import pytest
 from assertpy import assert_that
 
-from voxam.frontend import COURIER_FONT, PlainFrontend, Status, keystroke
+from voxam.frontend import (
+    COURIER_FONT,
+    PlainFrontend,
+    Status,
+    keystroke,
+    reading_wide,
+)
+from voxam.winkeys import widened
 
 
 # With no stream given, story text lands on standard output: the
@@ -273,3 +283,51 @@ def test_an_ordinary_keystroke_passes_through() -> None:
             return f"k{timeout}"
 
     assert_that(keystroke(Plain(), 0.5)).is_equal_to("k0.5")
+
+
+class Console:
+    """A terminal whose key read can be swapped for a wide one."""
+
+    getch: Callable[..., str]
+
+    def __init__(self) -> None:
+        self.getch = lambda decode_latin1=False: "byte"  # noqa: ARG005
+
+
+# The Windows console's byte read loses a multibyte character's
+# second byte, so the read is swapped for the wide one, which
+# returns whole characters whatever the code page. An ordinary
+# character comes back alone.
+def test_a_wide_read_returns_whole_characters() -> None:
+    keys = iter("ö")
+    terminal = Console()
+
+    reading_wide(terminal, lambda: next(keys))
+
+    assert_that(terminal.getch()).is_equal_to("ö")
+
+
+# The CRT announces a special key with a lead byte and follows it
+# with the key itself, so both are collected as one read.
+def test_a_wide_read_collects_an_announced_special_key() -> None:
+    for lead in ("\x00", "\xe0"):
+        keys = iter([lead, "H"])
+        terminal = Console()
+
+        reading_wide(terminal, lambda: next(keys))  # noqa: B023
+
+        assert_that(terminal.getch()).is_equal_to(lead + "H")
+
+
+# Off Windows the terminal is handed back exactly as it came: no
+# other platform has the defect, and none pays for the workaround.
+def test_only_windows_pays_for_the_workaround(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    terminal = Console()
+    reader = terminal.getch
+
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    assert_that(widened(terminal)).is_same_as(terminal)
+    assert_that(terminal.getch).is_same_as(reader)

@@ -132,6 +132,36 @@ def keystroke(terminal: Keyboard, timeout: float | None = None) -> object:
         return ""
 
 
+def reading_wide(terminal: object, getwch: Callable[[], str]) -> object:
+    """Bind a whole-character read over the library's byte one.
+
+    Kept apart from the platform test above so the read itself can
+    be exercised anywhere, on a console that exists only in a test.
+    The two lead bytes are the CRT's own announcement of a special
+    key, and the second call collects the key it announces -- the
+    same pair the display library reads on its own wide path.
+    """
+
+    def getch(decode_latin1: bool = False) -> str:  # noqa: ARG001
+        """One whole character, special keys announced as the CRT does.
+
+        The latin-1 flag is the library's hint for legacy mouse
+        coordinates on the byte path, ignored here for the reason the
+        library ignores it on its own wide path: a character arrives
+        already decoded, so there is nothing left to decode.
+        """
+
+        first = getwch()
+
+        return first + getwch() if first in ("\x00", "\xe0") else first
+
+    # Bound over the library's own, which is the narrowest way to
+    # reach a defect living one call below anything it exposes.
+    terminal.getch = getch  # type: ignore[attr-defined]
+
+    return terminal
+
+
 class Frontend(Protocol):
     """The presentation seam between the machine and the player (§8).
 

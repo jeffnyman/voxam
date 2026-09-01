@@ -176,6 +176,15 @@ enable_error_code = [
 ]
 pretty = true
 
+# The one platform branch in the codebase. Whichever platform mypy
+# checks for, the other's arm reads as dead code -- so this module
+# alone is excused the unreachable warning. It holds the branch and
+# nothing else; the read it installs is ordinary code in
+# voxam.frontend, checked and tested everywhere.
+[[tool.mypy.overrides]]
+module = "voxam.winkeys"
+warn_unreachable = false
+
 # sounddevice ships no py.typed marker; the sliver Voxam touches is
 # wrapped behind the speaker's own Stream protocol instead.
 [[tool.mypy.overrides]]

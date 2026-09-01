@@ -21,6 +21,7 @@ from voxam.glulx.glk.objects import KeyCode
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, Terminal
 from voxam.speaker import Speaker
+from voxam.winkeys import widened
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -83,7 +84,7 @@ class TerminalFrontend(PaintedFrontend):
             # the stdio display must keep working without it.
             import blessed  # noqa: PLC0415
 
-            terminal = cast("Terminal", blessed.Terminal())
+            terminal = cast("Terminal", widened(blessed.Terminal()))
 
         self._terminal = terminal
         self._out = out if out is not None else _stdout_write
