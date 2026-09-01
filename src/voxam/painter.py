@@ -22,7 +22,7 @@ from time import monotonic
 from typing import Protocol, cast
 
 from voxam.editor import EXPIRED, LineEditor, read_line_edited
-from voxam.frontend import GRAPHICS_FONT, Status
+from voxam.frontend import GRAPHICS_FONT, Status, keystroke
 from voxam.png import Picture
 from voxam.screen import (
     BOLD,
@@ -543,7 +543,7 @@ class ScreenFrontend:
         """
 
         with self._terminal.cbreak():
-            key = self._terminal.inkey(timeout)
+            key = keystroke(self._terminal, timeout)
 
         name = getattr(key, "name", None)
 
@@ -716,7 +716,7 @@ class ScreenFrontend:
 
         with self._terminal.cbreak():
             while True:
-                piece = str(self._terminal.inkey(QUERY_PATIENCE))
+                piece = str(keystroke(self._terminal, QUERY_PATIENCE))
 
                 if not piece:
                     return ""
