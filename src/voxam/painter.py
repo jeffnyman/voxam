@@ -249,14 +249,22 @@ class Terminal(Protocol):
     def move_xy(self, x: int, y: int) -> str:
         """The sequence moving the cursor to (x, y), zero-based."""
 
+        ...
+
     def color_rgb(self, red: int, green: int, blue: int) -> str:
         """The sequence starting an exact foreground colour."""
+
+        ...
 
     def on_color_rgb(self, red: int, green: int, blue: int) -> str:
         """The sequence starting an exact background colour."""
 
+        ...
+
     def cbreak(self) -> AbstractContextManager[object]:
         """A context in which keystrokes arrive raw, one at a time."""
+
+        ...
 
     def inkey(self, timeout: float | None = None) -> object:
         """One keystroke: a str-like, with a .name for special keys.

@@ -59,6 +59,8 @@ class LineCanvas(Protocol):
     def retreat(self, cells: int) -> int:
         """Move the cursor left without erasing; answer cells moved."""
 
+        ...
+
 
 class LineEditor:
     """A line being composed, with the session's history behind it.

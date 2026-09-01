@@ -382,6 +382,8 @@ class Frontend(Protocol):
         -- which is what get_cursor reads back.
         """
 
+        ...
+
     def picture_data(self, number: int) -> tuple[int, int] | None:
         """A picture's height and width in pixels, None for none.
 
@@ -396,6 +398,8 @@ class Frontend(Protocol):
         The picture_data number-0 census (§15): (0, 0) on a
         frontend without pictures.
         """
+
+        ...
 
     def draw_picture(self, number: int, line: int, column: int) -> None:
         """Draw a picture, top left at a screen units position (§15).
@@ -436,11 +440,15 @@ class Frontend(Protocol):
         decides if an end-of-sound routine is worth keeping.
         """
 
+        ...
+
     def stop_sound(self, number: int | None) -> None:
         """Stop a sampled sound, or all of them when None (§9.4)."""
 
     def sound_playing(self) -> bool:
         """Whether a sampled sound is still sounding (§9 remarks)."""
+
+        ...
 
     def sound_finished(self) -> bool:
         """Whether a sound just ended of its own accord (§9.4.4).
@@ -448,6 +456,8 @@ class Frontend(Protocol):
         True once per natural ending; a stopped or replaced sound
         never reports, so its end-of-sound routine never runs.
         """
+
+        ...
 
     def wait_for_sound(self) -> None:
         """Block until the playing sound finishes a cycle.

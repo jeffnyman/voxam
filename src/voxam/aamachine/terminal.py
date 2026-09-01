@@ -130,30 +130,28 @@ def played(  # noqa: PLR0913 -- one seam per replaceable stream
     real terminal, and a pipe stays plain.
     """
 
-    reader = sys.stdin if reader is None else reader
-    writer = sys.stdout if writer is None else writer
+    reading = sys.stdin if reader is None else reader
+    writing = sys.stdout if writer is None else writer
 
-    if asked is None:
+    def prompting(prompt: str) -> str:
+        """The stream's own asking: put the prompt, take a line."""
 
-        def asked(prompt: str) -> str:
-            writer.write(prompt)
-            writer.flush()
+        writing.write(prompt)
+        writing.flush()
 
-            return reader.readline().rstrip("\r\n")
+        return reading.readline().rstrip("\r\n")
 
-    if width is None:
-        width = shutil.get_terminal_size().columns
+    asking = prompting if asked is None else asked
+    columns = shutil.get_terminal_size().columns if width is None else width
+    worn = writing.isatty() if dressed is None else dressed
 
-    if dressed is None:
-        dressed = writer.isatty()
-
-    voice = TerminalVoice(story, width, writer, asked, dressed=dressed)
+    voice = TerminalVoice(story, columns, writing, asking, dressed=worn)
     machine = Machine(story, voice, seed=seed)
     waiting = machine.run()
 
     while waiting != "quit":
         voice.poured()
-        line = reader.readline()
+        line = reading.readline()
 
         if not line:
             voice.line()

@@ -213,6 +213,8 @@ class Glass(Protocol):
         under the cursor, as it stands painted.
         """
 
+        ...
+
     def present(self) -> None:
         """Put the painted frame on screen."""
 
