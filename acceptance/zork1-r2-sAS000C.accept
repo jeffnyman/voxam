@@ -182,8 +182,25 @@ drop all
 w
 get coal and candles and screwdriver
 s
+
+# THE PDP10 EASTER EGG (Standard 3.7.1). The coal-to-diamond
+# machine answers to "pdp10", after the DEC PDP-10 that Infocom's
+# ZIL compiler ran on, and naming it that here is a parser test
+# wearing a puzzle's clothes. To look a typed word up, the
+# interpreter must encode it the way the dictionary was encoded,
+# and 3.7.1 says that in Versions 1 and 2 only, a run of two
+# characters from one alphabet takes the shift-LOCK Z-characters
+# 4 and 5 rather than the single shifts 2 and 3. "pdp10" ends in
+# two A2 characters together: locked it is six Z-characters and
+# fits, single-shifted it is seven, truncates to six, and never
+# matches. Frotz and Bocfel both single-shift and both answer "I
+# don't know the word 'pdp10'" -- Bocfel's maintainer knowingly,
+# on the grounds that one word in one game does not earn the
+# code. Voxam locks the shift (_shift_locked, in zscii.py), so
+# the egg opens, and this line is what holds that true.
+
 open lid
-put coal in machine
+put coal in pdp10
 close lid
 turn switch with screwdriver
 drop screwdriver

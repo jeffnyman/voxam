@@ -121,7 +121,15 @@ over the wire, its savefile written and revived mid-hook; and
 Daniel Stelzer's *Miss Gosling's Last Case* walks three hundred
 fifty-one commands deep, the whole mystery to its finale, with
 the transcript matching the reference engine's own byte for
-byte at the same seed.
+byte at the same seed. The oldest Zork on the record earns a
+footnote of its own: Release 2's walk now calls the
+coal-to-diamond machine by its true name, *pdp10*, after the DEC
+machine Infocom's compiler ran on. That word only parses in an
+interpreter that encodes dictionary words the way §3.7.1 says
+Versions 1 and 2 must, locking the shift across a run rather
+than shifting twice; Frotz and Bocfel both answer "I don't know
+the word 'pdp10'". One word in a three-hundred-move walk, and it
+holds a rule of the Standard upright.
 Forty-four recordings verify those sessions end-to-end with the
 acceptance harness the [README](README.md) describes, and their
 annotations double as
