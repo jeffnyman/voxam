@@ -166,14 +166,16 @@ class StdioFrontend(Frontend):
 
         self.output.write("-" * min(self.size()[0], DIVIDER_LIMIT) + "\n")
 
-    def read_line(self, _window: Window, maxlen: int) -> tuple[str, int]:
+    def read_line(self, window: Window, maxlen: int) -> tuple[str, int]:
         """A line off the input, cut to what the buffer holds."""
+
+        del window
 
         line = self._readline()
 
         return line[:maxlen], 0
 
-    def read_char(self, _window: Window) -> int:
+    def read_char(self, window: Window) -> int:
         """One keystroke: the first character of a line.
 
         The input is line-buffered, so this is the same compromise
@@ -183,6 +185,8 @@ class StdioFrontend(Frontend):
         leaves as the Glk keycode it means.
         """
 
+        del window
+
         line = self._readline()
 
         if not line:
@@ -190,7 +194,7 @@ class StdioFrontend(Frontend):
 
         return TOKEN_KEYCODES.get(line[0], ord(line[0]))
 
-    def read_mouse(self, _window: Window) -> tuple[int, int] | None:
+    def read_mouse(self, window: Window) -> tuple[int, int] | None:
         """A scripted click, spent as the script says click.
 
         The command stream and the click positions travel in step:
@@ -205,6 +209,8 @@ class StdioFrontend(Frontend):
             GlulxSessionEnd: When the script and the game disagree
                 about what comes next, or the clicks ran dry.
         """
+
+        del window
 
         if self._clicks is None:
             # No script aboard: the base answer, which sends
@@ -223,7 +229,7 @@ class StdioFrontend(Frontend):
 
         return position
 
-    def read_hyperlink(self, _window: Window) -> int | None:
+    def read_hyperlink(self, window: Window) -> int | None:
         """A scripted selection, spent as the script says link.
 
         The same discipline as read_mouse: the next command must
@@ -236,6 +242,8 @@ class StdioFrontend(Frontend):
             GlulxSessionEnd: When the script and the game disagree
                 about what comes next, or the links ran dry.
         """
+
+        del window
 
         if self._links is None:
             return None
@@ -252,8 +260,10 @@ class StdioFrontend(Frontend):
 
         return value
 
-    def prompt_file(self, _usage: int, fmode: int) -> str | None:
+    def prompt_file(self, usage: int, fmode: int) -> str | None:
         """Ask for a filename in the stream; empty cancels."""
+
+        del usage
 
         verb = "Load from" if fmode == FileMode.READ else "Save to"
 

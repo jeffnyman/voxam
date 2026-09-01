@@ -66,14 +66,20 @@ class Buffer(Protocol):
     def __len__(self) -> int:
         """The array's capacity, in characters."""
 
+        ...
+
     def __getitem__(self, index: int) -> int:
         """The character at an index."""
+
+        ...
 
     def __setitem__(self, index: int, value: int) -> None:
         """Store a character at an index."""
 
     def __iter__(self) -> Iterator[int]:
         """The characters in order."""
+
+        ...
 
 
 # -- the constant families --------------------------------------------------

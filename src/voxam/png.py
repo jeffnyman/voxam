@@ -721,7 +721,10 @@ def _pixels(  # noqa: PLR0913, PLR0917 -- one argument per PNG ingredient
     if colour_type == GREYSCALE:
         full = (1 << depth) - 1
 
-        return tuple((value * FULL_SCALE // full,) * 3 for value in values)
+        return tuple(
+            (level, level, level)
+            for level in (value * FULL_SCALE // full for value in values)
+        )
 
     return tuple(_from_palette(value, palette, alphas) for value in values)
 
@@ -794,7 +797,10 @@ def _straight_pixels(
         )
 
     if colour_type == GREY_ALPHA:
-        return tuple((line[2 * index],) * 3 for index in range(width))
+        return tuple(
+            (level, level, level)
+            for level in (line[2 * index] for index in range(width))
+        )
 
     # Composing over black at full opacity is the identity, so the
     # palette path reuses _from_palette for its bounds check alone.

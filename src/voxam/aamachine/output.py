@@ -106,6 +106,8 @@ class Voice(Protocol):
     def can_embed_res(self, resource: int) -> bool:
         """Whether the resource could be embedded."""
 
+        ...
+
     def progress(self, amount: int, total: int) -> None:
         """Draw a progress bar at amount of total."""
 
@@ -145,11 +147,15 @@ class Voice(Protocol):
     def script_on(self) -> bool:
         """Start a transcript; True on success."""
 
+        ...
+
     def script_off(self) -> None:
         """Stop the transcript."""
 
     def script_active(self) -> bool:
         """Whether a transcript is running."""
+
+        ...
 
     def reset(self) -> None:
         """Forget everything; the display starts over."""
@@ -157,11 +163,15 @@ class Voice(Protocol):
     def measured(self, dimension: int) -> int:
         """The current div's width (0) or height (1) in characters."""
 
+        ...
+
     def trace(self, text: str) -> None:
         """Print one debug tracepoint on its own line."""
 
     def save(self, data: bytes) -> bool:
         """Keep a savefile; True on success."""
+
+        ...
 
     def restore(self) -> "bytes | None":
         """A previously kept savefile, None when there is none."""
