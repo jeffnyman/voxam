@@ -1,7 +1,7 @@
 import pytest
 from assertpy import assert_that
 
-from voxam.frontend import COURIER_FONT, PlainFrontend, Status
+from voxam.frontend import COURIER_FONT, PlainFrontend, Status, keystroke
 
 
 # With no stream given, story text lands on standard output: the
@@ -224,3 +224,52 @@ def test_the_plain_cursor_ledger_reads_back() -> None:
     frontend.set_cursor(2, 5)
 
     assert_that(frontend.cursor_position()).is_equal_to((2, 5))
+
+
+class Truncating:
+    """A terminal whose console lost a character's second byte."""
+
+    def __init__(self, *, decoder: object | None = None) -> None:
+        self._keyboard_decoder = decoder
+
+    def inkey(self, timeout: float | None = None) -> object:  # noqa: ARG002
+        raise UnicodeDecodeError("utf-8", b"\xc3", 0, 1, "invalid continuation byte")
+
+
+class Decoder:
+    """A keyboard decoder that remembers being put back."""
+
+    def __init__(self) -> None:
+        self.resets = 0
+
+    def reset(self) -> None:
+        self.resets += 1
+
+
+# A Windows console with a UTF-8 input code page hands a byte read
+# only the first byte of a multibyte character, so a pasted umlaut
+# arrives half-formed and the display's decoder refuses. The
+# keystroke is dropped and the decoder is put back to a clean
+# state: the character is lost, the session is not -- and the
+# reset matters most, since that decoder outlives the keystroke and
+# a pending lead byte would spoil every one after it.
+def test_a_truncated_keystroke_is_dropped_not_fatal() -> None:
+    decoder = Decoder()
+
+    assert_that(keystroke(Truncating(decoder=decoder))).is_equal_to("")
+    assert_that(decoder.resets).is_equal_to(1)
+
+
+# A display with no decoder to put back -- a plain double -- simply
+# has nothing to do beyond dropping the keystroke.
+def test_a_truncated_keystroke_survives_a_decoderless_terminal() -> None:
+    assert_that(keystroke(Truncating())).is_equal_to("")
+
+
+# An ordinary keystroke passes straight through, timeout and all.
+def test_an_ordinary_keystroke_passes_through() -> None:
+    class Plain:
+        def inkey(self, timeout: float | None = None) -> object:
+            return f"k{timeout}"
+
+    assert_that(keystroke(Plain(), 0.5)).is_equal_to("k0.5")

@@ -89,6 +89,49 @@ class Status:
     time_game: bool
 
 
+class Keyboard(Protocol):
+    """The sliver of a painted display's terminal a key read needs."""
+
+    def inkey(self, timeout: float | None = None) -> object:
+        """One keystroke; an empty str-like means nothing usable."""
+
+
+def keystroke(terminal: Keyboard, timeout: float | None = None) -> object:
+    """One keystroke, surviving a console that truncates a character.
+
+    A Windows console whose input code page is UTF-8 hands a
+    byte-oriented read only the FIRST byte of a multibyte character:
+    a pasted "o" with an umlaut arrives as its lead byte with the
+    continuation byte simply missing. The display decodes bytes as
+    they come, so the next ordinary letter lands where a
+    continuation was required and the decode refuses.
+
+    Two things follow, and the second is the dangerous one. The
+    refusal would otherwise end the session on a keystroke, which is
+    a Python traceback where a shrug belongs. And the decoder lives
+    as long as the terminal does, so the pending lead byte would
+    poison every keystroke after it, long after the umlaut was
+    forgotten -- a session that never recovers.
+
+    So the refusal is caught, the decoder is put back to a clean
+    state, and the unusable input is dropped. The character is lost,
+    which cannot be helped from here; the session carries on, which
+    can. A display without a decoder to reset -- the test doubles --
+    simply has nothing to put back.
+    """
+
+    try:
+        return terminal.inkey(timeout)
+    except UnicodeDecodeError:
+        decoder = getattr(terminal, "_keyboard_decoder", None)
+        reset = getattr(decoder, "reset", None)
+
+        if reset is not None:
+            reset()
+
+        return ""
+
+
 class Frontend(Protocol):
     """The presentation seam between the machine and the player (§8).
 

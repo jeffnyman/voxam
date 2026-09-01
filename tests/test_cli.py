@@ -134,15 +134,39 @@ def test_main_reports_the_version(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 # A stream without the encoding knob -- a bare StringIO -- is left
-# as it is; everything Voxam prints is unicode-clean already.
+# as it is; everything Voxam prints is unicode-clean already, and
+# neither stream is required to carry the knob.
 def test_main_survives_a_stream_without_reconfigure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stream = io.StringIO()
     monkeypatch.setattr(sys, "stdout", stream)
+    monkeypatch.setattr(sys, "stdin", io.StringIO())
 
     assert_that(main([])).is_equal_to(0)
     assert_that(stream.getvalue()).contains("Voxam")
+
+
+# Both owned streams are asked for UTF-8, reading as well as
+# writing. A typed umlaut is two bytes; decoded by a legacy code
+# page it becomes two characters, neither of which has a ZSCII
+# code, and a German story dies on a word it would have parsed.
+def test_both_streams_are_asked_for_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
+    asked: list[tuple[str, str]] = []
+
+    class Knobbed(io.StringIO):
+        def __init__(self, name: str) -> None:
+            super().__init__()
+            self._name = name
+
+        def reconfigure(self, **knobs: object) -> None:
+            asked.append((self._name, str(knobs.get("encoding"))))
+
+    monkeypatch.setattr(sys, "stdout", Knobbed("stdout"))
+    monkeypatch.setattr(sys, "stdin", Knobbed("stdin"))
+
+    assert_that(main([])).is_equal_to(0)
+    assert_that(sorted(asked)).is_equal_to([("stdin", "utf-8"), ("stdout", "utf-8")])
 
 
 def test_running_as_module_invokes_the_cli(

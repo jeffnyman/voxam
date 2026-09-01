@@ -16,6 +16,7 @@ spine, as part of the layout but not yet part of the window.
 import sys
 from typing import TYPE_CHECKING, cast
 
+from voxam.frontend import keystroke
 from voxam.glulx.glk.objects import KeyCode
 from voxam.glulx.glk.painted import ATTRIBUTES, PaintedFrontend
 from voxam.painter import FALLBACK_COLUMNS, FALLBACK_LINES, Terminal
@@ -159,7 +160,7 @@ class TerminalFrontend(PaintedFrontend):
         """
 
         with self._terminal.cbreak():
-            key = self._terminal.inkey(timeout)
+            key = keystroke(self._terminal, timeout)
 
         name = getattr(key, "name", None)
 
