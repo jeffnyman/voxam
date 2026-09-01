@@ -31,6 +31,7 @@ All commands below assume that environment.
 | Format | `uv run ruff format .` |
 | Check formatting only | `uv run ruff format --check .` |
 | Type check | `uv run mypy` |
+| Type check as another platform | `uv run mypy --platform linux` |
 | Build distributions | `uv build` |
 
 ## The desktop shell
@@ -75,6 +76,12 @@ change not working.
   directory.
 - **Typing.** `mypy` runs in strict mode over both `src` and `tests`, and the
   package ships a `py.typed` marker so downstream consumers get its types.
+  One caution if you touch a platform branch: `mypy` narrows `sys.platform`
+  to the machine it is running on, so the other platform's arm reads as
+  dead code and the local gate cannot see the error CI will. Check it with
+  `uv run mypy --platform linux` before pushing. The project keeps its one
+  such branch isolated in `src/voxam/winkeys.py`, which holds the platform
+  test and nothing else, for exactly this reason.
 - **Coverage.** The suite is gated at 100% branch coverage. This is deliberate
   for a project of this size; adjust `fail_under` in `pyproject.toml` if it
   stops being useful.
@@ -177,17 +184,23 @@ To move the pin by hand instead:
 
 ```bash
 git submodule update --remote entharion
-git submodule update --init --recursive entharion
 git add entharion
+git submodule update --init --recursive entharion
 git commit -m "chore(deps): update entharion submodule"
 ```
 
-The second command carries no `--remote` on purpose: it aligns
+The `git add` comes second on purpose, not last. A plain
+`git submodule update` checks out whatever commit the superproject's
+index records, so with the new pointer still unstaged the third
+command would quietly put entharion back where it started and the
+pin would never move at all.
+
+The third command carries no `--remote` on purpose either: it aligns
 entharion's own vendored submodules to the pointers the new pin
 records. It is a no-op when the update only added files, and the
-cure when a vendor pointer moved -- with `--remote` it would
-instead drag those checkouts past their recorded pointers and
-leave the submodule looking dirty.
+cure when a vendor pointer moved: with `--remote` it would instead
+drag those checkouts past their recorded pointers and leave the
+submodule looking dirty.
 
 ### Building the Reference Tools
 
