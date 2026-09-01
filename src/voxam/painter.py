@@ -22,7 +22,7 @@ from time import monotonic
 from typing import Protocol, cast
 
 from voxam.editor import EXPIRED, LineEditor, read_line_edited
-from voxam.frontend import GRAPHICS_FONT, Status, keystroke, widened
+from voxam.frontend import GRAPHICS_FONT, Status, keystroke
 from voxam.png import Picture
 from voxam.screen import (
     BOLD,
@@ -33,6 +33,7 @@ from voxam.screen import (
 )
 from voxam.sixel import encode as sixel_encode
 from voxam.speaker import Speaker
+from voxam.winkeys import widened
 
 # Special keys arrive from blessed with names; §3.8.2.2 and §3.8.4
 # give the input-only ZSCII characters they mean. The cursor keys

@@ -10,8 +10,8 @@ from voxam.frontend import (
     Status,
     keystroke,
     reading_wide,
-    widened,
 )
+from voxam.winkeys import widened
 
 
 # With no stream given, story text lands on standard output: the

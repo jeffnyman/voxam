@@ -132,34 +132,6 @@ def keystroke(terminal: Keyboard, timeout: float | None = None) -> object:
         return ""
 
 
-def widened(terminal: object) -> object:
-    """Let a Windows console hand over whole characters.
-
-    A console whose input code page is UTF-8 returns a byte-oriented
-    read only the FIRST byte of a multibyte character: a pasted
-    o-umlaut arrives as its lead byte alone, and the continuation
-    byte is simply gone. No decoder can recover what was never
-    delivered, so German, French, and every other story leaning on
-    §3.8.5's extra characters is untypable at the painted terminal.
-
-    The wide console read has no such defect: it returns a character,
-    whatever code page the console is set to. The display library
-    already carries that path and takes it on consoles too old for
-    virtual-terminal input; a modern console takes the byte read
-    instead, which is the one that loses the byte.
-
-    Everywhere else the terminal is handed back untouched: no other
-    platform has the defect, and none should pay for the workaround.
-    """
-
-    if sys.platform != "win32":
-        return terminal
-
-    import msvcrt  # noqa: PLC0415 -- Windows only, imported where used
-
-    return reading_wide(terminal, msvcrt.getwch)
-
-
 def reading_wide(terminal: object, getwch: Callable[[], str]) -> object:
     """Bind a whole-character read over the library's byte one.
 
