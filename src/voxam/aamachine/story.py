@@ -24,6 +24,7 @@ FORM_ID = b"AAVM"
 HEAD_ID = b"HEAD"
 META_ID = b"META"
 FILE_ID = b"FILE"
+URLS_ID = b"URLS"
 
 # The chunks the HEAD's CRC-32 runs over, in the spec's own,
 # deliberate order (Aa-machine: Story file).
@@ -48,6 +49,85 @@ SUPPORTED_MAJOR = 1
 META_NAMES = {1: "title", 2: "author", 3: "noun", 4: "blurb", 5: "date"}
 
 
+# The one URL scheme an interpreter can answer by itself: it names
+# a FILE chunk carried in this same story (Aa-machine: URLS).
+FILE_SCHEME = "file:"
+
+# A URLS descriptor opens with a three-byte string pointer, and
+# the table with a two-byte count followed by two-byte offsets.
+_ALT_SIZE = 3
+_COUNT_SIZE = 2
+_OFFSET_SIZE = 2
+
+
+class Resource:
+    """One entry in the story's table of resources (Aa-machine: URLS).
+
+    Attributes:
+        alt: The string pointer to the alt text, for a display that
+            cannot show the resource itself.
+        url: The resource's own URL. Only the "file" scheme names
+            something the story carries.
+        options: The comma-delimited option list as written, which
+            the specification leaves to the interpreter to read.
+    """
+
+    def __init__(self, alt: int, url: str, options: str) -> None:
+        """Hold one descriptor, already unpacked."""
+
+        self.alt = alt
+        self.url = url
+        self.options = options
+
+
+def _resources(chunk: "Chunk | None") -> "tuple[Resource, ...]":
+    """The URLS table read into records, empty without the chunk.
+
+    A table that runs off its own chunk is read for the entries
+    that do fit rather than refused: the resources are a courtesy
+    the story can do without, and a display that never asks for
+    one never notices (Aa-machine: URLS).
+    """
+
+    if chunk is None:
+        return ()
+
+    payload = chunk.payload
+
+    if len(payload) < _COUNT_SIZE:
+        return ()
+
+    count = int.from_bytes(payload[0:_COUNT_SIZE], "big")
+    found = []
+
+    for index in range(count):
+        at = _COUNT_SIZE + index * _OFFSET_SIZE
+
+        if at + _OFFSET_SIZE > len(payload):
+            break
+
+        start = int.from_bytes(payload[at : at + _OFFSET_SIZE], "big")
+
+        if start + _ALT_SIZE > len(payload):
+            break
+
+        alt = int.from_bytes(payload[start : start + _ALT_SIZE], "big")
+        rest = payload[start + _ALT_SIZE :]
+        stop = rest.find(0)
+
+        if stop < 0:
+            break
+
+        url = rest[:stop].decode("latin-1")
+        tail = rest[stop + 1 :]
+        ends = tail.find(0)
+        options = tail[: ends if ends >= 0 else len(tail)].decode("latin-1")
+
+        found.append(Resource(alt, url, options))
+
+    return tuple(found)
+
+
 class Story:
     """One parsed Å-machine story, its header's claims verified.
 
@@ -67,6 +147,9 @@ class Story:
             title, author, noun, blurb, date -- empty without one.
         chunks: Every chunk, in file order.
         files: The FILE chunks alone, which may repeat.
+        resources: The URLS table, one Resource per descriptor,
+            counted from zero as the story's own opcodes count
+            them; empty without the chunk (Aa-machine: URLS).
     """
 
     def __init__(self, data: bytes) -> None:
@@ -136,6 +219,9 @@ class Story:
         self.ifid = _branded(head[HEAD_SIZE : HEAD_SIZE + IFID_SIZE])
         self.chunks = chunks
         self.files = tuple(held for held in chunks if held.chunk_id == FILE_ID)
+        self.resources = _resources(
+            next((held for held in chunks if held.chunk_id == URLS_ID), None)
+        )
 
         self._held: dict[bytes, Chunk] = {}
 
@@ -147,6 +233,38 @@ class Story:
         # LANG stands certified present, being a summed chunk.
         self.extended = _extended(self._held[b"LANG"])
         self.meta = _metadata(self._held.get(META_ID), self.extended)
+
+    def embedded(self, number: int) -> "tuple[str, bytes] | None":
+        """One resource's filename and bytes, when the story carries them.
+
+        Only the "file" scheme is answered: it names a FILE chunk
+        aboard this story, which is the one place an interpreter
+        can be sure of (Aa-machine: URLS). A resource pointing
+        anywhere else is somebody's network, and no business of an
+        interpreter's, so it comes back as nothing.
+        """
+
+        if not 0 <= number < len(self.resources):
+            return None
+
+        url = self.resources[number].url
+
+        if not url.startswith(FILE_SCHEME):
+            return None
+
+        wanted = url[len(FILE_SCHEME) :]
+
+        for held in self.files:
+            payload = held.payload
+            stop = payload.find(0)
+
+            if stop < 0:
+                continue
+
+            if payload[:stop].decode("latin-1") == wanted:
+                return wanted, payload[stop + 1 :]
+
+        return None
 
     def chunk(self, chunk_id: bytes) -> Chunk | None:
         """The first chunk of a kind, None when the story has none."""

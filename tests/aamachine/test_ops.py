@@ -1043,7 +1043,12 @@ def test_the_output_tour_reaches_the_voice() -> None:
     assert_that(voice.noted).contains(("set_style", 2))
     assert_that(voice.noted).contains(("reset_style", 2))
     assert_that(voice.noted).contains(("unstyle",))
-    assert_that(voice.noted).contains(("embed_res", 0x4001))
+    # The operand arrives tagged, as every value does, and the
+    # voice is handed the URLS index inside it: the reference
+    # engine masks with 0x1fff before calling its own output
+    # subsystem, and a voice given 0x4001 would look for a
+    # resource sixteen thousand past the end of the table.
+    assert_that(voice.noted).contains(("embed_res", 1))
     assert_that(voice.noted).contains(("progress", 1, 4))
     assert_that(voice.noted).contains(("clear_links",))
     assert_that(voice.noted).contains(("clear_div",))

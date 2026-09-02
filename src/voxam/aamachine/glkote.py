@@ -23,6 +23,7 @@ wire needs the suspended-file dance the Z-Machine's Filing wait
 performs, and that is a named road, not this rung.
 """
 
+import base64
 import json
 from typing import TextIO
 
@@ -38,6 +39,7 @@ from voxam.glkote import (
     read_stanza,
     write_stanza,
 )
+from voxam.glulx.glk.resources import image_size
 
 # The verdicts accept hands back: run on, redraw the standing
 # wait, or answer the protocol's pass.
@@ -79,6 +81,13 @@ class WireVoice(StyledVoice):
     always claimable on the wire, the display's stock styles
     rendering bold and italic; color waits on the display's own
     grant, which the face sets at begin.
+
+    A resource the story carries is marked the same way, at the
+    offset it was asked for, and the face sets the picture into
+    the flow there. Only a resource this story holds is claimed:
+    a URL naming somebody's network is not an interpreter's
+    business, and a display told no shows whatever the story says
+    instead (Aa-machine: CAN_EMBED_RES).
     """
 
     has_styles = True
@@ -88,12 +97,32 @@ class WireVoice(StyledVoice):
 
         super().__init__(story, 0)
 
+        self._story = story
         self.marks: list[tuple[int, Outfit]] = []
+        self.embeds: list[tuple[int, Stanza]] = []
 
     def _fitted(self) -> None:
         """Mark the outfit change at the telling's current end."""
 
         self.marks.append((len(self.told()), self._wardrobe.folded()))
+
+    def can_embed_res(self, resource: int) -> bool:
+        """Whether this story carries the resource, decodably."""
+
+        return _pictured(self._story, resource) is not None
+
+    def embed_res(self, resource: int) -> None:
+        """Mark a resource at the telling's current end.
+
+        The span is built here rather than at render, so what is
+        marked is a picture already known to be showable: the face
+        has nothing left to decide when it walks the marks.
+        """
+
+        picture = _pictured(self._story, resource)
+
+        if picture is not None:
+            self.embeds.append((len(self.told()), picture))
 
 
 class GlkOteFrontend:
@@ -163,14 +192,27 @@ class GlkOteFrontend:
         told = self.voice.told()
         runs: list[TextRun | object] = list(self._opening)
 
-        for at, outfit in self.voice.marks:
+        # Dress changes and pictures are both marked by their
+        # offset into the telling, so they are walked as one
+        # sequence: the text between two marks is cut once, and
+        # whatever the mark was lands after it.
+        marked: list[tuple[int, int, Outfit | Stanza]] = [
+            (at, 0, outfit) for at, outfit in self.voice.marks
+        ]
+        marked += [(at, 1, picture) for at, picture in self.voice.embeds]
+
+        for at, _kind, payload in sorted(marked, key=lambda mark: mark[:2]):
             if at > self._mark:
                 runs.append(self._dressed(told[self._mark : at]))
                 self._mark = at
 
-            self._outfit = outfit
+            if isinstance(payload, dict):
+                runs.append(payload)
+            else:
+                self._outfit = payload
 
         self.voice.marks.clear()
+        self.voice.embeds.clear()
 
         if told[self._mark :]:
             runs.append(self._dressed(told[self._mark :]))
@@ -306,6 +348,40 @@ def _keyed(value: str) -> int | None:
         return ord(value)
 
     return _KEYS.get(value)
+
+
+def _pictured(story: Story, resource: int) -> "Stanza | None":
+    """One resource as the display's own image span, or None.
+
+    The bytes ride inside the update as a data: url, exactly as a
+    Glulx picture does, so no host road is owed on the far side.
+    A resource whose bytes no decoder here can measure is not
+    claimed at all, rather than sent as a picture of unknown size
+    for a display to guess at.
+    """
+
+    found = story.embedded(resource)
+
+    if found is None:
+        return None
+
+    name, data = found
+    size = image_size(data)
+
+    if size is None:
+        return None
+
+    kind = "image/jpeg" if name.lower().endswith((".jpg", ".jpeg")) else "image/png"
+    width, height = size
+
+    return {
+        "special": "image",
+        "image": resource,
+        "url": f"data:{kind};base64,{base64.b64encode(data).decode('ascii')}",
+        "width": width,
+        "height": height,
+        "alignment": "inlinedown",
+    }
 
 
 def _carded(story: Story) -> "list[TextRun | object]":
