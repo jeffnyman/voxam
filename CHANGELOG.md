@@ -1,3 +1,33 @@
+## v2.7.0 (2026-09-02)
+
+### Feat
+
+- **faces**: the story's card rides the sidecar, and both faces build one window over it (#363)
+- **web**: the iFiction card gets a button and a window of its own (#362)
+- **faces**: styles can be reset to the defaults (#360)
+- **aamachine**: the window hangs a story's pictures, and takes whole rows to do it (#358)
+- **aamachine**: a story's own pictures reach the wire, and the tag comes off first (#357)
+- **faces**: Voxam brings its own type, so a story reads the same everywhere (#355)
+- **faces**: a reader can name any face their system already has (#354)
+- **faces**: the measure is counted in characters, and the spacings are user choice (#353)
+- **faces**: allow for a custom ink (#352)
+- **faces**: one preferences panel, worn by the browser tab and the shell alike (#351)
+- **icons**: the third machine earns a mark of its own (#347)
+- **aamachine**: the third machine gets a window of its own (#345)
+
+### Fix
+
+- **machines**: a run that ends by raising still says how far it got (#364)
+- **babel**: a record's indentation is not a line break (#361)
+- **web**: handle issue where icon can get cached and not update per story version (#359)
+- **shell**: the desktop face wears the browser's inks, frames and all (#350)
+- **faces**: the painted terminal reads whole characters on Windows (#344)
+- **faces**: a truncated keystroke costs a character, not the session (#341)
+
+### Refactor
+
+- **types**: clear 33 of 35 pyright findings in src (#348)
+
 ## v2.6.1 (2026-08-31)
 
 ### Fix
