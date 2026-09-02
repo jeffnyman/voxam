@@ -366,26 +366,33 @@ class Machine:
 
         steps = 0
 
-        while self._running:
-            if limit is not None and steps >= limit:
-                msg = f"execution exceeded {limit} instructions"
+        # The tally is kept in a local and folded in once, from a
+        # finally: the loop is the hot path and an attribute
+        # increment per instruction is not free, but a run that
+        # ends by raising -- the limit above, or any rule the story
+        # breaks -- must still say how far the machine got.
+        try:
+            while self._running:
+                if limit is not None and steps >= limit:
+                    msg = f"execution exceeded {limit} instructions"
 
-                raise GlulxInstructionError(msg)
+                    raise GlulxInstructionError(msg)
 
-            try:
-                self.step()
-            except MachineSuspended:
-                # The suspending instruction completed, so it
-                # counts; the machine stands down where it is.
-                self.instructions += steps + 1
+                try:
+                    self.step()
+                except MachineSuspended:
+                    # The suspending instruction completed, so it
+                    # counts; the machine stands down where it is.
+                    # The one that raises did not, and does not.
+                    steps += 1
 
-                return steps + 1
+                    return steps
 
-            steps += 1
+                steps += 1
 
-        self.instructions += steps
-
-        return steps
+            return steps
+        finally:
+            self.instructions += steps
 
     def _store(self, target: StoreTarget, value: int, width: int = 4) -> None:
         """Store through the operand machinery, at width."""

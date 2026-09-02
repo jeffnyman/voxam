@@ -1784,3 +1784,33 @@ def test_saves_stand_down_for_their_files(
     bygone.run()
 
     assert_that(bygone.running).is_false()
+
+
+# A run that ends by raising still says how far the machine got.
+# The tally lives in a local for the hot loop's sake and is folded
+# into the machine from a finally; while that addition sat after
+# the loop, an exception out of step() carried every instruction of
+# the session away with the frame that counted them, and
+# --benchmark reported a flat zero for any replay that simply ran
+# out of input.
+def test_a_run_that_raises_still_counts_its_instructions(
+    code_machine: Callable[..., Machine],
+) -> None:
+    def exhausted() -> str:
+        raise EOFError
+
+    # Three new_lines and then the read: the three complete, the
+    # read raises, and the difference is what the tally has to
+    # survive.
+    machine = code_machine(bytes([0xBB, 0xBB, 0xBB]) + SREAD, input_source=exhausted)
+
+    plant_dictionary(machine.memory)
+    machine.memory.write_byte(TEXT_BUFFER, 21)
+    machine.memory.write_byte(PARSE_BUFFER, 5)
+
+    with pytest.raises(EOFError):
+        machine.run()
+
+    # The instructions before the read all completed; the read that
+    # raised did not, and is not counted.
+    assert_that(machine.instructions).is_equal_to(3)

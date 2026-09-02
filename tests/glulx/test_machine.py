@@ -699,6 +699,12 @@ def test_frontiers_and_faults_are_loud(image: Callable[..., bytes]) -> None:
     with pytest.raises(GlulxInstructionError, match="exceeded 5"):
         looper.run(limit=5)
 
+    # And a run that ends by raising still says how far it got: the
+    # tally is folded in from a finally, not after the loop, so the
+    # instructions the machine really executed are not lost with
+    # the frame that counted them.
+    assert_that(looper.instructions).is_equal_to(5)
+
 
 # A string-terminator stub where a function result belongs is an
 # error in any era (Glulx: Call Stubs); the resume stubs proper
