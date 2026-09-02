@@ -245,6 +245,11 @@ def _field(section: ElementTree.Element | None, name: str) -> str | None:
     return found.text.strip() or None
 
 
+# Where a <br/> stood, kept apart from the newlines the XML file
+# indents itself with. NUL can never appear in the text itself.
+_MARKED = "\0"
+
+
 def _broken_field(section: ElementTree.Element | None, name: str) -> str | None:
     """A field whose <br/> children mark line breaks, walked whole.
 
@@ -252,6 +257,15 @@ def _broken_field(section: ElementTree.Element | None, name: str) -> str | None:
     silently drop everything after the first break, so the walk
     keeps every piece with a newline at each <br/> (Babel: The
     iFiction format).
+
+    Only a <br/> is a break the record asked for. The newlines and
+    tabs around it are the XML file's own indentation, and the
+    wrapping inside a piece is the width of the box the copy was
+    set on: neither is any business of a display wrapping to the
+    measure its reader chose. So whitespace within a line
+    collapses and the marked breaks stand. Zork I's blurb carries
+    two <br/> and thirty-odd indented lines, and honouring all of
+    them alike is what set the card double-spaced down the page.
     """
 
     if section is None:
@@ -266,12 +280,12 @@ def _broken_field(section: ElementTree.Element | None, name: str) -> str | None:
 
     for child in found:
         if child.tag.rpartition("}")[2] == "br":
-            pieces.append("\n")
+            pieces.append(_MARKED)
 
         pieces.append(child.text or "")
         pieces.append(child.tail or "")
 
-    lines = [line.strip() for line in "".join(pieces).split("\n")]
+    lines = [" ".join(line.split()) for line in "".join(pieces).split(_MARKED)]
 
     return "\n".join(lines).strip() or None
 
