@@ -171,16 +171,28 @@ def test_the_page_carries_a_preferences_panel() -> None:
     # existed, and a reader who chose one keeps it.
     assert_that(page).contains('localStorage.getItem("voxam-theme")')
 
-    # Every ink the panel offers needs a palette to wear, and one
-    # that never reached the stylesheet would read as the default
-    # on every load but the one that set it.
-    _, _, script = face.respond("GET", "/voxam-prefs.js", b"")
-    axis = re.search(r'key: "theme"(.*?)(?:key: "|\Z)', script.decode("utf-8"), re.S)
+    # Every named ink needs a palette to wear, and one that never
+    # reached the stylesheet would read as the default on every
+    # load but the one that set it. Two are exempt by design:
+    # "paper" is what :root already holds, and "custom" is mixed
+    # onto the root as inline properties rather than dressed by a
+    # block at all.
+    panel = face.respond("GET", "/voxam-prefs.js", b"")[2].decode("utf-8")
+    axis = re.search(r'key: "theme"(.*?)(?:key: "|\Z)', panel, re.S)
     offered = set(re.findall(r'\["([a-z]+)", "', axis.group(1) if axis else ""))
     dressed = set(re.findall(r'html\[data-theme="([a-z]+)"\]', page))
 
     assert_that(offered).is_not_empty()
-    assert_that(offered - dressed).is_equal_to({"paper"})
+    assert_that(offered - dressed).is_equal_to({"paper", "custom"})
+
+    # And every colour the mixer offers must be a property the page
+    # actually reads, or a reader would tune a knob wired to
+    # nothing.
+    mixed = set(re.findall(r'\n    \["([a-z-]+)", "[A-Z]', panel))
+    read = set(re.findall(r"var\(--([a-z-]+)", page))
+
+    assert_that(mixed).is_not_empty()
+    assert_that(mixed - read).is_empty()
 
 
 # The shared display files are one file each, copied to both faces
