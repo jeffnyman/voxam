@@ -20,7 +20,7 @@ from its own screen model.
 import json
 from typing import Any, Final, TextIO, cast
 
-from voxam.babel import IFiction
+from voxam.babel import IFiction, ifiction
 from voxam.errors import GlkOteError
 
 # The eleven style names, in the order Glk numbers them; the
@@ -1202,6 +1202,42 @@ def carded(record: "IFiction") -> list[tuple[str, str]]:
         lines.append(("normal", "\n"))
 
     return lines
+
+
+def catalogued(metadata: bytes | None) -> Stanza | None:
+    """A Blorb's iFiction chunk as the sidecar's card, or None.
+
+    The same bibliography the painted faces show at the door,
+    handed instead to a display that can keep it aside: a title, a
+    headline, an author, and a description whose paragraphs are
+    the record's own <br/> breaks.
+
+    Every quiet case answers None alike -- no chunk, a chunk that
+    will not parse, a record that answers none of the four -- so
+    that a story with nothing to say about itself travels as
+    nothing rather than as an empty block. A chunk that will not
+    parse says so loudly under --babel, which is the report that
+    exists for it (Babel: The iFiction format; DESIGN: What the
+    sidecar carries).
+    """
+
+    record = ifiction(metadata) if metadata else None
+
+    if record is None:
+        return None
+
+    block: Stanza = {
+        name: held
+        for name, held in (
+            ("title", record.title),
+            ("headline", record.headline),
+            ("author", record.author),
+            ("description", record.description),
+        )
+        if held
+    }
+
+    return block or None
 
 
 def partials(partial: object) -> dict[int, str]:

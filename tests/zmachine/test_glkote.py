@@ -907,16 +907,15 @@ def test_colours_ride_the_wire(code_machine: Callable[..., Machine]) -> None:
     assert_that(quiet.has_colours).is_false()
 
 
-# The record's card joins the cover at the door: the title in the
-# header dress, the headline and author emphasized, and the
-# description's paragraphs blank-line separated -- needing no
-# display grant, since a card is only text (Babel: The iFiction
-# The record's card stays out of the story's own words. It used to
-# be told as the opening text, which put a publisher's blurb among
-# the game's prose where no reader asked for it; the browser face
-# shows it behind a button instead, the little window WinFrotz has
-# always had (Babel: The iFiction format).
-def test_the_card_stays_out_of_the_story(
+# The record's card stays out of the story's own words and rides
+# the sidecar instead. It used to be told as the opening text,
+# which put a publisher's blurb among the game's prose where no
+# reader asked for it; a display that speaks the block is handed
+# the bibliography as facts and shows it behind a button, the
+# little window WinFrotz has always had. The cover stays in the
+# flow, being the story's own (Babel: The iFiction format; DESIGN:
+# What the sidecar carries).
+def test_the_card_rides_the_sidecar(
     code_machine: Callable[..., Machine],
 ) -> None:
     record = (
@@ -927,12 +926,22 @@ def test_the_card_stays_out_of_the_story(
     )
     frontend = GlkOteFrontend(5, banded_resources(front=True, record=record))
 
-    frontend.begin({**INIT, "support": ["timer", "graphics"]})
+    frontend.begin({**INIT, "support": ["timer", "graphics", "voxam"]})
 
     machine = code_machine(AREAD, version=5, frontend=frontend)
     frontend.machine = machine
 
-    text = frontend.render()["content"][0]["text"]
+    update = frontend.render()
+    text = update["content"][0]["text"]
+
+    assert_that(update["voxam"]["card"]).is_equal_to(
+        {
+            "title": "Tiny Case",
+            "headline": "An interactive test",
+            "author": "A. Tester",
+            "description": "One.\nTwo.",
+        }
+    )
 
     # The cover still stands at the door: art is the courtesy that
     # belongs in the flow, being the story's own.
@@ -947,6 +956,12 @@ def test_the_card_stays_out_of_the_story(
 
     for words in ("Tiny Case", "An interactive test", "A. Tester", "One."):
         assert_that(said).described_as(words).does_not_contain(words)
+
+    # Read once and rested: a story's record cannot change while it
+    # runs, so it never travels twice.
+    frontend.write("more")
+
+    assert_that("card" in frontend.render()["voxam"]).is_false()
 
 
 # The doorway courtesy over the wire: a Blorb's Fspc cover stands

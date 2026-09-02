@@ -233,10 +233,14 @@ def test_the_page_carries_a_preferences_panel() -> None:
     ).is_not_none()
 
 
-# The story's card travels with the page rather than in the story's
-# text: a button opens it, and a story whose record carries nothing
-# gets no button at all.
-def test_the_page_carries_the_ifiction_card() -> None:
+# The story's card reaches the page over the wire rather than
+# baked into it: the display says the sidecar's word, the first
+# update answers with the bibliography, and the shared module the
+# page loads is the one thing that dresses it. Baking it into the
+# page instead would give the browser and the shell two different
+# roads to the same card, which is exactly the drift that once
+# left the shell wearing GlkOte's own colours.
+def test_the_card_reaches_the_page_over_the_wire() -> None:
     record = (
         b"<ifindex><story><bibliographic><title>Tiny Case</title>"
         b"<headline>An interactive test</headline><author>A. Tester</author>"
@@ -248,19 +252,36 @@ def test_the_page_carries_the_ifiction_card() -> None:
     )
     page = carded.respond("GET", "/", b"")[2].decode("utf-8")
 
-    assert_that(page).does_not_contain("VOXAM_CARD")
-    assert_that(page).contains('"title": "Tiny Case"')
-    assert_that(page).contains('"headline": "An interactive test"')
-    # The blurb's own <br/> survives into the page as a break the
-    # popup renders as two paragraphs.
-    assert_that(page).contains(r"One.\nTwo.")
-    assert_that(page).contains('opener.textContent = "iFiction Card";')
+    assert_that(page).contains('<script src="voxam-card.js"')
+    assert_that(page).contains("VoxamCard.update(update)")
 
-    # A story with no record hands the page nothing, and the script
-    # builds no button over it.
-    bare = faced().respond("GET", "/", b"")[2].decode("utf-8")
+    # The story's name still dresses the tab, but nothing else of
+    # the record is written into the page.
+    assert_that(page).contains("<title>Tiny Case</title>")
+    assert_that(page).does_not_contain("A. Tester")
 
-    assert_that(bare).contains("var card = null;")
+    # The display grants the block, so the first update carries the
+    # card whole: the blurb's own <br/> is the one break in it, the
+    # wrapping the copy was set with left behind at the parser.
+    first = posted(carded, {**INIT, "support": ["timer", "voxam"]})
+
+    assert_that(first["voxam"]["card"]).is_equal_to(
+        {
+            "title": "Tiny Case",
+            "headline": "An interactive test",
+            "author": "A. Tester",
+            "description": "One.\nTwo.",
+        }
+    )
+
+    # And the module builds its door from what arrives, so every
+    # field the wire can send has to be a field it dresses.
+    module = carded.respond("GET", "/voxam-card.js", b"")[2].decode("utf-8")
+
+    assert_that(module).contains('opener.textContent = "iFiction Card";')
+
+    for field in first["voxam"]["card"]:
+        assert_that(module).described_as(field).contains(f"card.{field}")
 
 
 # The shared display files are one file each, copied to both faces
@@ -279,6 +300,7 @@ def test_both_faces_carry_the_same_display_assets() -> None:
 
     for name in [
         "voxam-prefs.js",
+        "voxam-card.js",
         "voxam-audio.js",
         "glkote.js",
         "glkote.css",
@@ -332,6 +354,7 @@ def test_the_assets_serve_with_their_types() -> None:
         ("glkote.css", "text/css"),
         ("jquery-1.12.4.min.js", "text/javascript"),
         ("voxam-prefs.js", "text/javascript"),
+        ("voxam-card.js", "text/javascript"),
         ("waiting.gif", "image/gif"),
     ):
         status, served, payload = face.respond("GET", f"/{name}", b"")

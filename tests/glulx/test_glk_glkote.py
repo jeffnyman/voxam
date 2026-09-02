@@ -670,16 +670,18 @@ def fronted_resources(record: bytes | None = None) -> Resources:
     )
 
 
-# The record's card needs no grant: it shows even where the
-# display never granted graphics -- the cover stays home, the
-# bibliography stands -- with the missing fields simply absent and
-# the game's own text following after.
-def test_the_card_stands_at_the_door() -> None:
+# The record's card rides the sidecar, not the story's text: a
+# display that grants the block is handed the bibliography as
+# plain facts, with the missing fields simply absent, and the
+# game's own words open the page as the author wrote them. It is
+# read once and rested, since a story's record cannot change while
+# it runs.
+def test_the_card_rides_the_sidecar() -> None:
     record = (
         b"<ifindex><story><bibliographic><title>Tiny Case</title>"
         b"<author>A. Tester</author></bibliographic></story></ifindex>"
     )
-    frontend = opened()
+    frontend = opened(support=["timer", "voxam"])
     library = Glk(frontend, resources=fronted_resources(record))
     window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
 
@@ -688,16 +690,44 @@ def test_the_card_stands_at_the_door() -> None:
 
     saying(window, "Banner")
 
-    text = next(held for held in frontend.render()["content"] if "text" in held)["text"]
+    update = frontend.render()
+    text = next(held for held in update["content"] if "text" in held)["text"]
 
-    assert_that(text[0]["content"]).is_equal_to(
-        [{"style": "header", "text": "Tiny Case"}]
+    assert_that(update["voxam"]["card"]).is_equal_to(
+        {"title": "Tiny Case", "author": "A. Tester"}
     )
-    assert_that(text[1]["content"]).is_equal_to(
-        [{"style": "emphasized", "text": "A. Tester"}]
-    )
-    assert_that(text[2]).is_equal_to({})
-    assert_that(text[3]["content"]).is_equal_to([{"style": "normal", "text": "Banner"}])
+    assert_that(text[0]["content"]).is_equal_to([{"style": "normal", "text": "Banner"}])
+
+    saying(window, "More")
+
+    assert_that("card" in frontend.render()["voxam"]).is_false()
+
+
+# A display that never says the "voxam" word never sees the card,
+# and a story that carries no record has none to send even when
+# the display asks.
+def test_the_card_answers_only_where_it_can() -> None:
+    ungranted = opened()
+    library = Glk(ungranted, resources=fronted_resources(b"<ifindex></ifindex>"))
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the root window opened")
+
+    saying(window, "Banner")
+
+    assert_that("voxam" in ungranted.render()).is_false()
+
+    bare = opened(support=["timer", "voxam"])
+    library = Glk(bare, resources=fronted_resources(b"<ifindex></ifindex>"))
+    window = library.glk_window_open(None, 0, 0, WindowType.TEXT_BUFFER, 0)
+
+    if window is None:
+        pytest.fail("the root window opened")
+
+    saying(window, "Banner")
+
+    assert_that("card" in bare.render()["voxam"]).is_false()
 
 
 # The gblorb's Fspc cover stands at the head of the first buffer
