@@ -8,7 +8,6 @@
 //! writes, prints pre-wire refusals as bare `voxam: ...` text,
 //! and exits 0 on game over or EOF, 2 on a fault.
 
-use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -219,36 +218,19 @@ impl Default for Claim {
     }
 }
 
-/// How the page dresses itself: the face and size of the story's
-/// type, the ink it is set in, and the measure of its column.
-/// Persisted as display.json in the app's own config dir, so the
-/// menu's checkmarks tell the truth at every startup.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct Display {
-    face: String,
-    size: u32,
-    theme: String,
-    measure: String,
-    /// The custom ink, when one is mixed: the page's own property
-    /// names against #rrggbb. The shell never reads these, it only
-    /// writes them down, so the page stays the one place that
-    /// knows what a colour means. Defaulted, so a settings file
-    /// written before the mixer existed still loads.
-    #[serde(default)]
-    colors: HashMap<String, String>,
-}
-
-impl Default for Display {
-    fn default() -> Self {
-        Self {
-            face: "serif".to_string(),
-            size: 15,
-            theme: "system".to_string(),
-            measure: "standard".to_string(),
-            colors: HashMap::new(),
-        }
-    }
-}
+/// How the page dresses itself, as the page's own JSON.
+///
+/// The shell keeps this and hands it back; it never reads a field.
+/// That is deliberate. The page is the one place that knows what a
+/// face, a measure, or a colour means, so holding the settings
+/// shapelessly here means a new knob on the panel needs no
+/// matching change on this side, and a settings file written by an
+/// older version can never fail to parse and quietly reset the
+/// lot. Persisted as display.json in the app's own config dir.
+///
+/// Null is the honest empty: the panel answers it with its own
+/// defaults, which are the only defaults there are.
+type Display = serde_json::Value;
 
 /// Where the open-story dialog starts: a folder the player pinned
 /// by hand, or -- with nothing pinned -- wherever the last story

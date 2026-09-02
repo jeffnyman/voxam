@@ -11,7 +11,10 @@
   --story-face: Palatino, Georgia, "Times New Roman", Times, serif;
   --story-size: 15px;
   --grid-size: 14px;
-  --measure: 900px;
+  --leading: 1.4;
+  --letters: 0em;
+  --words: 0em;
+  --measure: 98ch;
 }
 html, body {
   margin: 0;
@@ -25,6 +28,8 @@ html, body {
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--measure);
+  font-family: var(--story-face);
+  font-size: var(--story-size);
   top: 0;
   bottom: 0;
   background: var(--paper);
@@ -33,6 +38,9 @@ html, body {
 .BufferWindow, .BufferWindow .Input {
   font-family: var(--story-face);
   font-size: var(--story-size);
+  line-height: var(--leading);
+  letter-spacing: var(--letters);
+  word-spacing: var(--words);
 }
 .GridWindow, .GridWindow .Input {
   font-size: var(--grid-size);
