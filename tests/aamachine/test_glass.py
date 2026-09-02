@@ -6,6 +6,7 @@ asserts is what a player would be looking at, and no window ever
 opens in continuous integration.
 """
 
+import zlib
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,8 +14,18 @@ import pytest
 from assertpy import assert_that
 
 from voxam.aamachine.glass import GlassVoice, played
-from voxam.aamachine.story import Story
+from voxam.aamachine.story import SUMMED, Story
+from voxam.iff import chunk
 from voxam.painter import MORE_PROMPT
+
+# A minimal LANG: the four offsets and an empty extended table.
+LANG = (
+    b"\x00\x00"
+    + (8).to_bytes(2, "big")
+    + b"\x00\x00\x00\x00"
+    + bytes([1, 0xE5, 0xC5])
+    + (0xC5).to_bytes(3, "big")
+)
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -42,12 +53,16 @@ class StubGlass:
 
     columns = 40
     lines = 24
+    cell_width = 9
+    cell_height = 18
 
     def __init__(self, keys: "Sequence[str] | None" = None) -> None:
         self.keys = list(keys or [])
         self.frames: list[list[tuple[object, ...]]] = []
         self.entitled: list[str] = []
         self.presses = 0
+        self.drawn: list[tuple[int, int, tuple[int, int], int, int]] = []
+        self.shot: Sequence[Sequence[tuple[int, int, int]]] | None = None
         self._painting: list[tuple[object, ...]] = []
 
     def paint(
@@ -77,12 +92,37 @@ class StubGlass:
 
         return self.keys.pop(0) if self.keys else None
 
+    def draw(
+        self,
+        rows: Sequence[Sequence[tuple[int, ...]]],
+        line: int,
+        column: int,
+        size: tuple[int, int],
+    ) -> None:
+        self.drawn.append((line, column, size, len(rows), len(rows[0]) if rows else 0))
+
+    def photograph(
+        self, data: bytes
+    ) -> Sequence[Sequence[tuple[int, int, int]]] | None:
+        del data
+
+        # A stub carries no pygame decoders; a test that wants a
+        # photograph scripts one.
+        return self.shot
+
 
 class NarrowGlass(StubGlass):
     """A window too small to hold much before it has to pause."""
 
     columns = 20
     lines = 4
+
+
+class PinholeGlass(StubGlass):
+    """A window one pixel wide, so anything at all overruns it."""
+
+    columns = 1
+    cell_width = 1
 
 
 def shown(glass: StubGlass, frame: int = -1) -> list[str]:
@@ -415,6 +455,170 @@ def test_a_closed_window_ends_the_session() -> None:
     played(storied(), seed=7, glass=glass)
 
     assert_that(glass.frames).is_not_empty()
+
+
+# A story carrying one picture, built rather than vendored: the
+# resource table, the file, and a real PNG small enough to reason
+# about.
+def picturing(png: bytes, name: str = "art.png") -> Story:
+    """A minimal story whose one resource is the given picture."""
+
+    summed = {b"LANG": LANG, b"DICT": b"\x00\x00", b"LOOK": b"\x00\x00"}
+    crc = 0
+
+    for chunk_id in SUMMED:
+        crc = zlib.crc32(summed.get(chunk_id, b""), crc)
+
+    head = (
+        bytes([0, 5, 2, 0])
+        + (1).to_bytes(2, "big")
+        + b"260902"
+        + crc.to_bytes(4, "big")
+        + (16).to_bytes(2, "big")
+        + (8).to_bytes(2, "big")
+        + (32).to_bytes(2, "big")
+    )
+    descriptor = (
+        (0).to_bytes(3, "big") + f"file:{name}".encode("latin-1") + b"\x00" + b"\x00"
+    )
+    urls = (1).to_bytes(2, "big") + (4).to_bytes(2, "big") + descriptor
+    pieces = [
+        chunk(b"HEAD", head),
+        chunk(b"URLS", urls),
+        chunk(b"FILE", name.encode("latin-1") + b"\x00" + png),
+    ]
+
+    for chunk_id in SUMMED:
+        pieces.append(chunk(chunk_id, summed.get(chunk_id, b"")))
+
+    return Story(chunk(b"FORM", b"AAVM" + b"".join(pieces)))
+
+
+# The window can draw, so it says so -- and says no to a resource
+# whose bytes no decoder here can read (Aa-machine: CAN_EMBED_RES).
+def test_the_window_claims_a_picture_it_can_draw(tiny_png: bytes) -> None:
+    glass = StubGlass()
+
+    assert_that(GlassVoice(picturing(tiny_png), glass).can_embed_res(0)).is_true()
+    assert_that(GlassVoice(picturing(tiny_png), glass).can_embed_res(3)).is_false()
+    unshowable = GlassVoice(picturing(b"not a picture"), glass)
+
+    assert_that(unshowable.can_embed_res(0)).is_false()
+
+    # And asking it to hang one anyway hangs nothing.
+    unshowable.embed_res(0)
+
+    assert_that(unshowable._hung).is_empty()
+
+
+# A picture takes whole rows: the text before it stays above, the
+# rows it needs are reserved, and the story carries on beneath.
+def test_a_picture_takes_its_own_rows(tiny_png: bytes) -> None:
+    glass = StubGlass()
+    voice = GlassVoice(picturing(tiny_png), glass)
+
+    # No line break before the picture: it still takes whole rows,
+    # so the half-written line is finished first.
+    voice.say("above")
+    voice.embed_res(0)
+    voice.say("below")
+    voice.poured()
+
+    rows = shown(glass)
+
+    assert_that(rows[0]).is_equal_to("above")
+    assert_that(glass.drawn).is_length(1)
+
+    line, column, size, _tall, _wide = glass.drawn[0]
+
+    # Row 1 is the first blank row under the text, in pixels from
+    # the top, and the picture is drawn at the left edge.
+    assert_that(line).is_equal_to(1 * glass.cell_height + 1)
+    assert_that(column).is_equal_to(1)
+    assert_that(size).is_equal_to((2, 2))
+
+    # A two-pixel picture still owns a whole row, so the text that
+    # follows is under it rather than beside it.
+    assert_that(rows[2]).is_equal_to("below")
+
+
+# A picture rides the scroll like the lines it was set among, and
+# leaves at the top with them.
+def test_a_picture_scrolls_away_with_its_lines(tiny_png: bytes) -> None:
+    glass = NarrowGlass([" "] * 60)
+    voice = GlassVoice(picturing(tiny_png), glass)
+
+    poured_rows(voice, 2)
+    voice.embed_res(0)
+
+    assert_that(voice._hung).is_length(1)
+    assert_that(voice._hung[0][0]).is_equal_to(2)
+
+    # Each row that scrolls carries it one line nearer the top.
+    for expected in (1, 0):
+        poured_rows(voice, 1)
+
+        assert_that(voice._hung[0][0]).is_equal_to(expected)
+
+    # And the row after that takes it off the window entirely,
+    # with the lines it was set among.
+    poured_rows(voice, 1)
+
+    assert_that(voice._hung).is_empty()
+
+
+# A wipe takes the pictures with it, as it takes the words.
+def test_a_wipe_takes_the_pictures(tiny_png: bytes) -> None:
+    glass = StubGlass()
+    voice = GlassVoice(picturing(tiny_png), glass)
+
+    voice.embed_res(0)
+
+    assert_that(voice._hung).is_not_empty()
+
+    voice.clear()
+
+    assert_that(voice._hung).is_empty()
+
+
+# A picture wider than the window is brought down to fit, keeping
+# its proportions rather than being cropped or spilling off the
+# edge.
+def test_a_wide_picture_is_brought_down_to_fit(tiny_png: bytes) -> None:
+    glass = PinholeGlass()
+    voice = GlassVoice(picturing(tiny_png), glass)
+
+    voice.embed_res(0)
+    voice.poured()
+
+    _line, _column, size, _tall, _wide = glass.drawn[0]
+
+    # One column of one pixel is all the room there is, and the
+    # two-pixel picture comes down to it squarely.
+    assert_that(size).is_equal_to((1, 1))
+
+
+# A JPEG goes to the window's own decoder, which is where the
+# decoders the interpreter does not carry live.
+def test_a_photograph_goes_to_the_window(tiny_png: bytes) -> None:
+    glass = StubGlass()
+    glass.shot = (((9, 9, 9), (8, 8, 8)), ((7, 7, 7), (6, 6, 6)))
+    voice = GlassVoice(picturing(tiny_png, name="art.jpeg"), glass)
+
+    assert_that(voice.can_embed_res(0)).is_true()
+
+    voice.embed_res(0)
+    voice.poured()
+
+    assert_that(glass.drawn).is_length(1)
+    assert_that(glass.drawn[0][2]).is_equal_to((2, 2))
+
+    # A window that cannot decode it refuses honestly.
+    bare = StubGlass()
+
+    assert_that(
+        GlassVoice(picturing(tiny_png, name="art.jpeg"), bare).can_embed_res(0)
+    ).is_false()
 
 
 # Left to itself the face opens a real window wearing the third

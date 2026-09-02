@@ -28,10 +28,19 @@ knows how many lines it has, so VM_INFO's screen-height question
 finally has a true answer, text that would scroll away pauses at
 a [MORE] first, and CLEAR really clears (Aa-machine: VM_INFO).
 
-Status areas, links, and embedded resources are refused honestly
-for now, which is the plain voice's own posture and the spec's
-own provision for a display that cannot hold them: they are this
-face's named next roads.
+A story's own pictures hang here too. The window has always been
+able to draw them: the same glass draws Version 6 art and Glulx
+canvases, and Voxam decodes PNG itself. What the face had to
+learn is where a picture goes in a scrolling column of text, and
+the answer is that it takes whole rows: a picture reserves the
+lines it needs, the text carries on beneath it, and it rides the
+scroll like everything else until it leaves at the top
+(Aa-machine: EMBED_RES).
+
+Status areas and links are still refused honestly, which is the
+plain voice's own posture and the spec's own provision for a
+display that cannot hold them: they are this face's named next
+roads.
 """
 
 from itertools import groupby
@@ -41,10 +50,14 @@ from voxam.aamachine.machine import Machine
 from voxam.aamachine.output import FiledVoice
 from voxam.aamachine.story import Story
 from voxam.editor import LineEditor, read_line_edited
-from voxam.glass import DEFAULT_THEME, GLASS_THEMES, open_pygame_glass
+from voxam.errors import PNGError
+from voxam.glass import DEFAULT_THEME, GLASS_THEMES, layered, open_pygame_glass
 from voxam.painter import MORE_PROMPT
+from voxam.png import decode
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from voxam.aamachine.output import Outfit
 
 # The bare outfit a blank cell wears: no attribute claimed, and
@@ -82,10 +95,16 @@ class Pane(Protocol):
     Attributes:
         columns: The window's width in characters.
         lines: The window's height in characters.
+        cell_width: One cell's width in real pixels, which is what
+            a picture has to be measured against to know how many
+            columns it covers.
+        cell_height: One cell's height in real pixels.
     """
 
     columns: int
     lines: int
+    cell_width: int
+    cell_height: int
 
     def paint(  # noqa: PLR0913 -- a run carries its whole dress
         self,
@@ -114,6 +133,24 @@ class Pane(Protocol):
         shut window ends a session.
         """
 
+    def draw(
+        self,
+        rows: "Sequence[Sequence[tuple[int, ...]]]",
+        line: int,
+        column: int,
+        size: tuple[int, int],
+    ) -> None:
+        """Blit pixel rows with their top left at a pixel position."""
+
+    def photograph(
+        self, data: bytes
+    ) -> "Sequence[Sequence[tuple[int, int, int]]] | None":
+        """Decode photographic bytes -- a JPEG -- to pixel rows.
+
+        The interpreter decodes PNG itself; JPEG it hands to the
+        window, whose pygame carries the decoders it does not.
+        """
+
 
 # The window badge an Å-machine session wears: the packaged
 # aamachine.ico, where a Z-Machine story wears its numbered z<n>
@@ -123,6 +160,12 @@ BADGE = "aamachine"
 # One cell as the window holds it: the character standing there
 # and the outfit it was told in.
 Painted = tuple[str, "Outfit"]
+
+# One picture hung in the column: the row its top sits on, the
+# rows it covers, its pixels, and the size those are drawn at. The
+# row falls as the text scrolls, and the picture leaves at the top
+# with the lines it was set among.
+Hung = tuple[int, int, "Sequence[Sequence[tuple[int, ...]]]", tuple[int, int]]
 
 
 class GlassVoice(FiledVoice):
@@ -145,8 +188,11 @@ class GlassVoice(FiledVoice):
         """Speak into a window, wearing a theme's ink and paper."""
 
         self._glass = glass
+        self._story = story
         self._columns = glass.columns
         self._lines = glass.lines
+        self._cell_width = glass.cell_width
+        self._cell_height = glass.cell_height
         self._ink, self._paper = GLASS_THEMES[theme]
         # The ground the blank cells wear, the theme's until a
         # body class names its own.
@@ -154,6 +200,7 @@ class GlassVoice(FiledVoice):
         self._outfit: Outfit = _PLAIN
         self._editor = LineEditor()
         self._rows: list[list[Painted]] = []
+        self._hung: list[Hung] = []
         self._row = 0
         self._column = 0
         self._mark = 0
@@ -203,6 +250,91 @@ class GlassVoice(FiledVoice):
 
         paper = self._wardrobe.classed(style).paper
         self._ground = self._paper if paper is None else paper
+
+    def can_embed_res(self, resource: int) -> bool:
+        """Whether this story carries a picture this window can draw."""
+
+        return self._pixels(resource) is not None
+
+    def embed_res(self, resource: int) -> None:
+        """Hang a picture where the telling has reached.
+
+        A picture takes whole rows rather than a place on a line:
+        the text told so far is poured first, the rows the picture
+        needs are broken past -- pausing at a [MORE] and scrolling
+        exactly as text does -- and the story carries on beneath
+        it (Aa-machine: EMBED_RES).
+        """
+
+        found = self._pixels(resource)
+
+        if found is None:
+            return
+
+        rows, (width, height) = found
+
+        self._poured()
+
+        if self._column:
+            self._broken()
+
+        tall = -(-height // self._cell_height)
+        top = self._row
+
+        for _ in range(tall):
+            self._broken()
+
+            # A scroll while the rows are being reserved carries
+            # the top up with everything else.
+            top = min(top, self._row - 1)
+
+        self._hung.append((top, tall, rows, (width, height)))
+        self.prompted()
+
+    def _pixels(
+        self, resource: int
+    ) -> "tuple[Sequence[Sequence[tuple[int, ...]]], tuple[int, int]] | None":
+        """One resource as pixel rows and the size to draw them at.
+
+        PNG is decoded here, as everywhere else in Voxam; a JPEG
+        goes to the window, whose pygame carries what the
+        interpreter does not. A picture wider than the window is
+        brought down to fit, keeping its proportions.
+        """
+
+        found = self._story.embedded(resource)
+
+        if found is None:
+            return None
+
+        name, data = found
+
+        if name.lower().endswith((".jpg", ".jpeg")):
+            shot = self._glass.photograph(data)
+
+            if not shot or not shot[0]:
+                return None
+
+            rows: Sequence[Sequence[tuple[int, ...]]] = tuple(
+                tuple(tuple(pixel) for pixel in row) for row in shot
+            )
+            width, height = len(shot[0]), len(shot)
+        else:
+            try:
+                picture = decode(data)
+            except PNGError:
+                return None
+
+            rows = layered(picture)
+            width, height = picture.width, picture.height
+
+        room = self._columns * self._cell_width
+
+        if width > room:
+            height = max(1, height * room // width)
+            width = room
+
+        return rows, (width, height)
 
     def clear(self) -> None:
         """Wipe the window: a glass really can (Aa-machine: CLEAR)."""
@@ -289,11 +421,17 @@ class GlassVoice(FiledVoice):
         self._rows.append(self._blank())
         self._fresh += 1
         self._column = 0
+        self._hung = [
+            (top - 1, tall, rows, size)
+            for top, tall, rows, size in self._hung
+            if top - 1 + tall > 0
+        ]
 
     def _wiped(self) -> None:
         """Blank every row and take the cursor home."""
 
         self._rows = [self._blank() for _ in range(self._lines)]
+        self._hung = []
         self._row = 0
         self._column = 0
         self._fresh = 0
@@ -321,6 +459,11 @@ class GlassVoice(FiledVoice):
                 characters = "".join(character for character, _ in run)
                 self._blit(row, column, characters, outfit)
                 column += len(characters)
+
+        # After the cells, so a picture covers the blank rows it
+        # reserved rather than being written over by them.
+        for top, _tall, pixels, size in self._hung:
+            self._glass.draw(pixels, top * self._cell_height + 1, 1, size)
 
         if more:
             self._blit(self._row, self._marked(), MORE_PROMPT, _MARKED)

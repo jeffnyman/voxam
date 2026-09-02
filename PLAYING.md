@@ -64,7 +64,10 @@ reader's blue, selected by click.
 For the Å-machine this is the one face that knows how tall it is:
 a story asking after the screen height gets a true answer there,
 text that would scroll away pauses at a `[MORE]` first, and a
-story that clears the screen really clears it.
+story that clears the screen really clears it. A story carrying
+pictures of its own hangs them here too: a picture takes whole
+rows, the text carries on beneath it, and it rides the scroll
+like the lines it was set among until it leaves at the top.
 
 Every story version wears its own badge on the window: `z1`
 through `z8` by version, the Glulx mark for a Glulx story, and an
