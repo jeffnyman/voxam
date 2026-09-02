@@ -194,6 +194,22 @@ def test_the_page_carries_a_preferences_panel() -> None:
     assert_that(mixed).is_not_empty()
     assert_that(mixed - read).is_empty()
 
+    # The same for the sliders, which name the property each one
+    # writes. A slider wired to a property nothing reads would move
+    # under the hand and change nothing on the page.
+    written = set(re.findall(r'property: "--([a-z-]+)"', panel))
+
+    assert_that(written).is_not_empty()
+    assert_that(written - read).is_empty()
+
+    # And the column is counted in the story's own characters, which
+    # only means anything if the gameport is set in the story's own
+    # type.
+    assert_that(page).contains("--measure: 98ch;")
+    assert_that(
+        re.search(r"#gameport \{[^}]*var\(--story-face\)", page, re.S)
+    ).is_not_none()
+
 
 # The shared display files are one file each, copied to both faces
 # that wear this page, and a change to one that misses the other is

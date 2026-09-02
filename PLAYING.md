@@ -91,7 +91,14 @@ is never mistaken for one that has died.
 
 The page arrives in whichever light your system already prefers,
 and the **Aa** button in the corner opens the preferences panel:
-the ink, the type and its size, and the measure of the column.
+the ink, the type, its size, the measure of the column, and the
+three spacings (line, letter, and word). The measure is counted
+in characters rather than pixels, which is what a measure has
+always meant: a fixed pixel width is a different line length in
+every face, and shortens the line each time a reader asks for
+larger type. Counting characters holds the line steady through
+both, and the top of that slider is Full, the column taking the
+whole window.
 The inks are System, Paper, Sepia, Dark, and Frotz, which is the
 DOS Infocom look WinFrotz still opens in: white on deep blue,
 with the status bar its exact inverse.

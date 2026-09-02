@@ -23,14 +23,20 @@ var VoxamPrefs = (function () {
     mono: 'Consolas, "Courier New", monospace'
   };
 
-  /* The measure of the column, which is the setting that matters
-   * most to a reader and the one no terminal can offer. */
-  var MEASURES = {
-    narrow: "700px",
-    standard: "900px",
-    wide: "1200px",
-    full: "100%"
-  };
+  /* The measure of the column, counted in characters rather than
+   * pixels, which is what a measure has always meant. A fixed
+   * pixel width means a different line length in every face, and
+   * shortens the line each time a reader asks for larger type;
+   * counting characters holds the line steady through both.
+   *
+   * The top of the range is the old "full": no cap at all, the
+   * column taking the whole window. */
+  var FULL = 141;
+  var MEASURE_FLOOR = 45;
+
+  /* What the four named widths measured, in the default serif, so
+   * a reader who chose one before keeps the column they had. */
+  var NAMED_MEASURES = { narrow: 76, standard: 98, wide: 130, full: FULL };
 
   /* Every knob, in the order the panel shows them. The ink comes
    * first because it is the one people reach for. */
@@ -56,26 +62,70 @@ var VoxamPrefs = (function () {
         ["mono", "Typewriter"]
       ]
     },
+  ];
+
+  /* The knobs that answer a number rather than a word. Each says
+   * what property it writes, in what unit, and how to say its
+   * value back to a reader who is looking at the words and not at
+   * the CSS. */
+  var RANGES = [
     {
       key: "size",
       label: "Size",
-      values: [
-        ["12", "12"],
-        ["15", "15"],
-        ["18", "18"],
-        ["21", "21"],
-        ["24", "24"]
-      ]
+      property: "--story-size",
+      min: 11,
+      max: 32,
+      step: 1,
+      unit: "px",
+      shown: function (value) {
+        return value + " px";
+      }
     },
     {
       key: "measure",
       label: "Measure",
-      values: [
-        ["narrow", "Narrow"],
-        ["standard", "Standard"],
-        ["wide", "Wide"],
-        ["full", "Full"]
-      ]
+      min: MEASURE_FLOOR,
+      max: FULL,
+      step: 1,
+      shown: function (value) {
+        return value >= FULL ? "Full" : value + " chars";
+      }
+    },
+    {
+      key: "leading",
+      label: "Line spacing",
+      property: "--leading",
+      min: 1.1,
+      max: 2.2,
+      step: 0.05,
+      unit: "",
+      shown: function (value) {
+        return Number(value).toFixed(2);
+      }
+    },
+    {
+      key: "letters",
+      label: "Letter spacing",
+      property: "--letters",
+      min: -0.02,
+      max: 0.16,
+      step: 0.005,
+      unit: "em",
+      shown: function (value) {
+        return Number(value).toFixed(3) + " em";
+      }
+    },
+    {
+      key: "words",
+      label: "Word spacing",
+      property: "--words",
+      min: 0,
+      max: 0.5,
+      step: 0.02,
+      unit: "em",
+      shown: function (value) {
+        return Number(value).toFixed(2) + " em";
+      }
     }
   ];
 
@@ -101,7 +151,10 @@ var VoxamPrefs = (function () {
     theme: "system",
     face: "serif",
     size: 15,
-    measure: "standard",
+    measure: 98,
+    leading: 1.4,
+    letters: 0,
+    words: 0,
     colors: {}
   };
 
@@ -157,6 +210,17 @@ var VoxamPrefs = (function () {
     "#voxam-prefs-sheet select option {",
     "  color: initial;",
     "  background: initial;",
+    "}",
+    "#voxam-prefs-sheet input[type=range] {",
+    "  width: 9em;",
+    "  accent-color: var(--link, #1a5fb4);",
+    "}",
+    "#voxam-prefs-sheet .voxam-prefs-reading {",
+    "  margin-left: auto;",
+    "  margin-right: 0.7em;",
+    "  font-style: normal;",
+    "  font-variant-numeric: tabular-nums;",
+    "  opacity: 0.6;",
     "}",
     "#voxam-prefs-colors[hidden] { display: none; }",
     "#voxam-prefs-colors {",
@@ -222,7 +286,20 @@ var VoxamPrefs = (function () {
       chosen[axis.key] = known ? value : DEFAULTS[axis.key];
     });
 
-    chosen.size = parseInt(chosen.size, 10) || DEFAULTS.size;
+    RANGES.forEach(function (range) {
+      var value = Number(stored ? stored[range.key] : NaN);
+
+      if (range.key === "measure" && stored && NAMED_MEASURES[stored.measure]) {
+        /* The measure was a word before it was a number. */
+        value = NAMED_MEASURES[stored.measure];
+      }
+
+      chosen[range.key] =
+        isFinite(value) && value >= range.min && value <= range.max
+          ? value
+          : DEFAULTS[range.key];
+    });
+
     chosen.colors = {};
 
     COLORS.forEach(function (pair) {
@@ -240,12 +317,17 @@ var VoxamPrefs = (function () {
     var root = document.documentElement.style;
 
     root.setProperty("--story-face", FACES[chosen.face] || FACES.serif);
-    root.setProperty("--story-size", chosen.size + "px");
     root.setProperty("--grid-size", chosen.size - 1 + "px");
     root.setProperty(
       "--measure",
-      MEASURES[chosen.measure] || MEASURES.standard
+      chosen.measure >= FULL ? "100%" : chosen.measure + "ch"
     );
+
+    RANGES.forEach(function (range) {
+      if (range.property) {
+        root.setProperty(range.property, chosen[range.key] + range.unit);
+      }
+    });
     document.documentElement.dataset.theme = chosen.theme;
 
     COLORS.forEach(function (pair) {
@@ -375,6 +457,34 @@ var VoxamPrefs = (function () {
       sheet.appendChild(row);
     });
 
+    RANGES.forEach(function (range) {
+      var row = document.createElement("label");
+      var name = document.createElement("span");
+      var slide = document.createElement("input");
+      var reading = document.createElement("em");
+
+      name.textContent = range.label;
+      slide.type = "range";
+      slide.min = range.min;
+      slide.max = range.max;
+      slide.step = range.step;
+      slide.value = settings[range.key];
+      reading.className = "voxam-prefs-reading";
+      reading.textContent = range.shown(settings[range.key]);
+
+      slide.addEventListener("input", function () {
+        settings[range.key] = Number(slide.value);
+        reading.textContent = range.shown(settings[range.key]);
+        apply(settings);
+        keeper.save(settings);
+      });
+
+      row.appendChild(name);
+      row.appendChild(reading);
+      row.appendChild(slide);
+      sheet.appendChild(row);
+    });
+
     var mixer = document.createElement("div");
 
     mixer.id = "voxam-prefs-colors";
@@ -494,7 +604,6 @@ var VoxamPrefs = (function () {
     apply: apply,
     sound: sound,
     defaults: DEFAULTS,
-    faces: FACES,
-    measures: MEASURES
+    faces: FACES
   };
 })();
