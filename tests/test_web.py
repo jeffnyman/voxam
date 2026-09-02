@@ -209,6 +209,13 @@ def test_the_page_carries_a_preferences_panel() -> None:
     assert_that(panel).contains('["named", "Named..."]')
     assert_that(panel.count(r'replace(/["\\]/g, "")')).is_equal_to(2)
 
+    # The panel has a way back: every setting the reader can change
+    # has a default it can be put back to, and the button that does
+    # it re-shows every control rather than leaving them saying the
+    # old values.
+    assert_that(panel).contains('undo.textContent = "Reset";')
+    assert_that(panel).contains("settings = sound(null);")
+
     # And the column is counted in the story's own characters, which
     # only means anything if the gameport is set in the story's own
     # type.

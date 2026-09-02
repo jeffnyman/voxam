@@ -256,37 +256,51 @@ var VoxamPrefs = (function () {
     "}",
     "#voxam-prefs-done {",
     "  font: inherit;",
-    "  margin-top: 0.9em;",
     "  padding: 0.4em 1.4em;",
     "  border-radius: 4px;",
     "  cursor: pointer;",
     "}",
     "#voxam-prefs-open {",
     "  position: fixed;",
-    "  bottom: 8px;",
-    "  right: 10px;",
+    "  bottom: 12px;",
+    "  right: 14px;",
     "  z-index: 20;",
-    "  font: inherit;",
-    "  font-size: 12px;",
-    "  letter-spacing: 0.06em;",
+    "  font-family: system-ui, sans-serif;",
+    "  font-size: 19px;",
+    "  line-height: 1;",
+    "  letter-spacing: 0.02em;",
     "  color: var(--band-ink, #fff);",
     "  background: var(--band, #333);",
-    "  border: 0;",
-    "  border-radius: 4px;",
-    "  padding: 5px 11px;",
-    "  opacity: 0.7;",
+    "  border: 1px solid var(--paper, #fff);",
+    "  border-radius: 7px;",
+    "  padding: 9px 15px;",
+    "  opacity: 0.82;",
     "  cursor: pointer;",
+    "  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);",
     "  transition: opacity 0.15s ease;",
     "}",
     "#voxam-prefs-open:hover,",
     "#voxam-prefs-open:focus {",
     "  opacity: 1;",
+    "}",
+    "#voxam-prefs-buttons {",
+    "  display: flex;",
+    "  justify-content: space-between;",
+    "  gap: 1em;",
+    "  margin-top: 1em;",
+    "}",
+    "#voxam-prefs-reset {",
+    "  font: inherit;",
+    "  padding: 0.4em 1em;",
+    "  border-radius: 4px;",
+    "  cursor: pointer;",
     "}"
   ].join("\n");
 
   var settings = null;
   var keeper = null;
   var panel = null;
+  var controls = [];
 
   /* One stored object, with anything missing or unknown answered
    * by the default: a settings file from an older version, or a
@@ -488,6 +502,9 @@ var VoxamPrefs = (function () {
       });
 
       pick.value = String(settings[axis.key]);
+      controls.push(function () {
+        pick.value = String(settings[axis.key]);
+      });
       pick.addEventListener("change", function () {
         settings[axis.key] =
           axis.key === "size" ? parseInt(pick.value, 10) : pick.value;
@@ -531,6 +548,10 @@ var VoxamPrefs = (function () {
       slide.value = settings[range.key];
       reading.className = "voxam-prefs-reading";
       reading.textContent = range.shown(settings[range.key]);
+      controls.push(function () {
+        slide.value = settings[range.key];
+        reading.textContent = range.shown(settings[range.key]);
+      });
 
       slide.addEventListener("input", function () {
         settings[range.key] = Number(slide.value);
@@ -570,13 +591,26 @@ var VoxamPrefs = (function () {
 
     sheet.appendChild(mixer);
 
+    var buttons = document.createElement("div");
+    var undo = document.createElement("button");
     var done = document.createElement("button");
+
+    buttons.id = "voxam-prefs-buttons";
+
+    undo.id = "voxam-prefs-reset";
+    undo.type = "button";
+    undo.textContent = "Reset";
+    undo.title = "Put every setting back to how Voxam ships";
+    undo.addEventListener("click", reset);
 
     done.id = "voxam-prefs-done";
     done.type = "button";
     done.textContent = "Done";
     done.addEventListener("click", close);
-    sheet.appendChild(done);
+
+    buttons.appendChild(undo);
+    buttons.appendChild(done);
+    sheet.appendChild(buttons);
 
     panel.appendChild(sheet);
 
@@ -608,6 +642,10 @@ var VoxamPrefs = (function () {
     field.spellcheck = false;
     field.value = settings.named;
     verdict.className = "voxam-prefs-reading";
+    controls.push(function () {
+      field.value = settings.named;
+      judged();
+    });
 
     function judged() {
       verdict.textContent = !settings.named
@@ -654,6 +692,25 @@ var VoxamPrefs = (function () {
       settings.theme !== "custom";
     panel.querySelector("#voxam-prefs-named").hidden = settings.face !== "named";
     swatches();
+  }
+
+  /* Show what the settings now hold, wherever the change came
+   * from: every control registered a way to say itself. */
+  function synced() {
+    controls.forEach(function (show) {
+      show();
+    });
+    revealed();
+  }
+
+  /* Back to how Voxam ships. The panel stays open, because a
+   * reader who resets usually wants to see what they got and go
+   * again from there. */
+  function reset() {
+    settings = sound(null);
+    apply(settings);
+    keeper.save(settings);
+    synced();
   }
 
   function open() {
@@ -703,6 +760,7 @@ var VoxamPrefs = (function () {
     install: install,
     open: open,
     close: close,
+    reset: reset,
     apply: apply,
     sound: sound,
     defaults: DEFAULTS,
