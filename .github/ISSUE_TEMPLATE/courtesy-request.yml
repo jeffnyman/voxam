@@ -1,7 +1,7 @@
 name: Courtesy request
-description:
-  Something VΘXΔM does not do yet -- a feature, an interpreter
-  courtesy, an item from the README's "Not yet" list.
+description: >
+  Something VΘXΔM does not do yet: a feature, an interpreter
+  courtesy, or a gap STATUS.md already names.
 labels: ["enhancement"]
 body:
   - type: textarea

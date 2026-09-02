@@ -7,8 +7,10 @@ contact_links:
       form "how is this supposed to work?" usually have their answer
       here, section and verse -- and an issue that cites its section
       is halfway to being fixed.
-  - name: The README's "Not yet" list
-    url: https://github.com/jeffnyman/voxam#status
-    about:
-      The known gaps, honestly listed. Worth a glance before filing --
-      if it is on the list, it is a courtesy request, not a bug.
+  - name: What VΘXΔM does not do yet
+    url: https://github.com/jeffnyman/voxam/blob/main/STATUS.md
+    about: >
+      The known gaps, honestly listed beside the claims they qualify:
+      each subject names its own "Not yet", its residue, or its named
+      roads. Worth a glance before filing: if it is already named
+      there, it is a courtesy request, not a bug.
