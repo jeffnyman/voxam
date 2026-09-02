@@ -23,17 +23,6 @@ var opened = false;
 
 /* The Display menu's words, spelled as CSS: the faces are stacks,
    the measures are column widths. */
-var FACES = {
-  serif: 'Palatino, Georgia, "Times New Roman", Times, serif',
-  sans: '"Segoe UI", Helvetica, Arial, sans-serif',
-  mono: 'Consolas, "Courier New", monospace'
-};
-var MEASURES = {
-  narrow: "700px",
-  standard: "900px",
-  wide: "1200px",
-  full: "100%"
-};
 
 /* The picker's story shapes; All files rides behind them so a
    renamed story is never unreachable. */
@@ -162,21 +151,6 @@ function chooseStory() {
   });
 }
 
-/* Dress the page in the settings' word, then poke a resize so
-   GlkOte re-measures its metrics -- the machines take the new
-   arrangement live, no restart owed. Pre-init the poke is a
-   harmless no-op; the dress still paints the landing. */
-function dressed(display) {
-  var root = document.documentElement.style;
-
-  root.setProperty("--story-face", FACES[display.face] || FACES.serif);
-  root.setProperty("--story-size", display.size + "px");
-  root.setProperty("--grid-size", (display.size - 1) + "px");
-  root.setProperty("--measure", MEASURES[display.measure] || MEASURES.standard);
-  document.documentElement.dataset.theme = display.theme;
-
-  window.dispatchEvent(new Event("resize"));
-}
 
 function stranded(message) {
   document.getElementById("loadingpane").style.display = "none";
@@ -231,15 +205,22 @@ window.addEventListener("DOMContentLoaded", function() {
   listen("menu-follow", function() {
     invoke("set_home", { path: null });
   });
-  listen("display", function(event) {
-    dressed(event.payload);
+  listen("menu-preferences", function() {
+    VoxamPrefs.open();
   });
 
   /* The dress arrives before the story: GlkOte's init measures
-     the page, so the page must already wear its type and ink. */
-  invoke("display_settings").then(function(display) {
-    dressed(display);
-
+     the page, so the page must already wear its type and ink. The
+     shell keeps the choices on its own side, beside the app's own
+     config, where the next load reads them back. */
+  VoxamPrefs.install({
+    load: function() {
+      return invoke("display_settings");
+    },
+    save: function(chosen) {
+      invoke("set_display", { display: chosen }).catch(function() {});
+    }
+  }).then(function() {
     return invoke("current_story");
   }).then(function(story) {
     if (!story) return;

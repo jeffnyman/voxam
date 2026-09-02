@@ -6,10 +6,6 @@
  * with it.
  */
 
-:where(html, body) {
-  overscroll-behavior-y: none;
-}
-
 #gameport {
   /* The host page is supposed to define the gameport's layout, but
      this property is needed to prevent possible overflow scrollbars.
@@ -26,13 +22,13 @@
   position: absolute;
   top: 0px;
   width: 100%;
-  background: #ffa0a0;
-  border-bottom: 3px solid #ff4040;
+  background: #FFA0A0;
+  border-bottom: 3px solid #FF4040;
 }
 
 #errorpane.WarningPane {
-  background: #b0b0ff;
-  border-bottom: 3px solid #6060ff;
+  background: #B0B0FF;
+  border-bottom: 3px solid #6060FF;
 }
 
 #errorpane:hover {
@@ -63,11 +59,11 @@
      can change that, but don't touch the position or margin. */
   position: absolute;
   margin: 0px;
-  background: #ffffee;
+  background: #FFFFEE;
 }
 
 .BufferWindow {
-  overflow: scroll; /* vertical scrollbar is mandatory */
+  overflow: scroll;   /* vertical scrollbar is mandatory */
   overflow-x: hidden; /* but horizontal scrollbar is forbidden */
   font-family: Palatino, Georgia, "Times New Roman", Times, serif;
   font-size: 15px;
@@ -92,15 +88,9 @@
 }
 
 .GridWindow {
-  background: #ffd0a0;
+  background: #FFD0A0;
   overflow: hidden;
-  font-family:
-    monaco,
-    andale mono,
-    lucidatypewriter,
-    courier,
-    courier new,
-    monospace; /* necessary! */
+  font-family: monaco, andale mono, lucidatypewriter, courier, courier new, monospace; /* necessary! */
   font-size: 14px;
   padding: 6px 10px 6px 10px;
 }
@@ -143,10 +133,9 @@
   position: absolute;
   pointer-events: none;
   background: #603010;
-  color: #ffffcc;
+  color: #FFFFCC;
   opacity: 0.5;
   padding: 2px 6px;
-  border-radius: 4px;
   -webkit-border-radius: 4px;
   -moz-border-radius: 4px;
 }
@@ -155,7 +144,7 @@
   /* This describes the small horizontal mark that appears in a window
      when it needs paging. */
   position: absolute;
-  background: #b09888;
+  background: #B09888;
   height: 2px;
   width: 12px;
   top: 0px;
@@ -180,13 +169,7 @@
 }
 
 .GridWindow .Input {
-  font-family:
-    monaco,
-    andale mono,
-    lucidatypewriter,
-    courier,
-    courier new,
-    monospace; /* necessary! */
+  font-family: monaco, andale mono, lucidatypewriter, courier, courier new, monospace; /* necessary! */
   font-size: 14px;
 }
 
@@ -238,13 +221,7 @@
 }
 
 .Style_preformatted {
-  font-family:
-    monaco,
-    andale mono,
-    lucidatypewriter,
-    courier,
-    courier new,
-    monospace;
+  font-family: monaco, andale mono, lucidatypewriter, courier, courier new, monospace;
 }
 
 .Style_header {
@@ -268,7 +245,7 @@
 }
 
 .Style_blockquote {
-  background: #fff0c0;
+  background: #FFF0C0;
 }
 
 .Style_input {

@@ -5,19 +5,23 @@
 <title>VOXAM_TITLE</title>
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="glkote.css" type="text/css">
+<script src="voxam-prefs.js" type="text/javascript"></script>
 <script type="text/javascript">
-/* Set the ink before the first paint, so a chosen theme never
-   flashes the default first. The rest of the picker wiring waits
-   for the body; this one line cannot. */
-var VOXAM_INKS = ["paper", "sepia", "dark", "frotz"];
+/* Wear the kept choices before the first paint, so a chosen ink or
+   size never flashes the default on its way in. The panel itself
+   waits for the body; this cannot. */
 try {
-  var VOXAM_SAVED = localStorage.getItem("voxam-theme");
-  document.documentElement.setAttribute(
-    "data-theme",
-    VOXAM_INKS.indexOf(VOXAM_SAVED) >= 0 ? VOXAM_SAVED : "system"
-  );
+  var VOXAM_KEPT = JSON.parse(localStorage.getItem("voxam-display") || "null");
+
+  if (!VOXAM_KEPT) {
+    /* The ink alone was kept under its own key before the panel
+       existed; a reader who chose one keeps it. */
+    VOXAM_KEPT = { theme: localStorage.getItem("voxam-theme") };
+  }
+
+  VoxamPrefs.apply(VoxamPrefs.sound(VOXAM_KEPT));
 } catch (e) {
-  /* Private mode, blocked storage: the default ink stands. */
+  /* Private mode, blocked storage: the defaults stand. */
 }
 </script>
 <style type="text/css">
@@ -38,6 +42,10 @@ try {
    story's paper, because an upper window is part of the same
    screen. */
 :root {
+  --story-face: Palatino, Georgia, "Times New Roman", Times, serif;
+  --story-size: 15px;
+  --grid-size: 14px;
+  --measure: 900px;
   --page: #444;
   --paper: #fff;
   --ink: #000;
@@ -108,7 +116,7 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 900px;
+  max-width: var(--measure);
   top: 0;
   bottom: 0;
   background: var(--paper);
@@ -116,6 +124,13 @@ html, body {
 }
 /* GlkOte's own stylesheet paints windows a hardcoded cream; the
    theme's paper wins here. */
+.BufferWindow, .BufferWindow .Input {
+  font-family: var(--story-face);
+  font-size: var(--story-size);
+}
+.GridWindow, .GridWindow .Input {
+  font-size: var(--grid-size);
+}
 .WindowFrame {
   background: var(--paper);
 }
@@ -162,6 +177,26 @@ html, body {
 .BufferWindow a,
 .GridWindow a {
   color: var(--link);
+}
+/* Two corrections to the vendored stylesheet, kept here rather
+   than in it, so that dropping in a newer GlkOte cannot quietly
+   take them away again.
+
+   The first refuses the rubber-band overscroll a WebKit engine
+   does on macOS, where the whole page bounces past the end of the
+   story. Both faces meet that engine there -- Safari in a tab, and
+   the shell's own WKWebView -- and in a window with no browser
+   chrome around it the bounce reads as a glitch rather than as
+   scrolling.
+
+   The second is the [MORE] prompt's rounded corners, which the
+   vendored file asks for in the two vendor spellings of a decade
+   ago and never in the standard one a current engine reads. */
+:where(html, body) {
+  overscroll-behavior-y: none;
+}
+.MorePrompt {
+  border-radius: 4px;
 }
 /* The working light. The wire's burst model sends nothing back
    until the machine reaches its next wait, so a story that thinks
@@ -223,62 +258,6 @@ html, body {
     animation: none;
     opacity: 0.7;
   }
-}
-/* The theme picker: dressed as a small status-bar chip -- the
-   reverse-video colours the interface already wears, the grid's
-   own monospace -- so it reads as furniture, not an OS control.
-   Bottom-right, clear of the score and the input prompt, and
-   faint until it is wanted. */
-#theme-pick {
-  position: fixed;
-  bottom: 8px;
-  right: 10px;
-  z-index: 20;
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
-}
-#theme-pick:hover,
-#theme-pick:focus-within {
-  opacity: 1;
-}
-#theme-pick::after {
-  content: "\25be";
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
-  font-size: 11px;
-  color: var(--band-ink);
-}
-#theme-pick select {
-  -webkit-appearance: none;
-  appearance: none;
-  font-family:
-    monaco,
-    "andale mono",
-    "lucida console",
-    courier,
-    monospace;
-  font-size: 13px;
-  letter-spacing: 0.03em;
-  color: var(--band-ink);
-  background: var(--band);
-  border: 0;
-  border-radius: 4px;
-  padding: 6px 26px 6px 12px;
-  cursor: pointer;
-}
-#theme-pick select:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 1px;
-}
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
 }
 </style>
 <script src="jquery-1.12.4.min.js" type="text/javascript"></script>
@@ -363,16 +342,6 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </head>
 <body onload="GlkOte.init();">
 <div id="working" role="status" aria-live="polite">working<span id="working-for" aria-hidden="true"></span></div>
-<label id="theme-pick">
-<span class="sr-only">Theme</span>
-<select id="theme">
-<option value="system">System</option>
-<option value="paper">Paper</option>
-<option value="sepia">Sepia</option>
-<option value="dark">Dark</option>
-<option value="frotz">Frotz</option>
-</select>
-</label>
 <div id="gameport">
 <div id="windowport">
 <noscript><p>You must have Javascript turned on to play.</p></noscript>
@@ -383,25 +352,26 @@ VoxamAudio.start(function(event) { Game.accept(event); });
 </div>
 <div id="errorpane" style="display:none;"><div id="errorcontent">...</div></div>
 </div>
+
 <script type="text/javascript">
-/* The picker follows the head script: it shows what is already
-   worn and writes any change back to storage, where the head
-   script reads it next visit. */
-(function() {
-  var pick = document.getElementById("theme");
-
-  pick.value = document.documentElement.getAttribute("data-theme");
-
-  pick.addEventListener("change", function() {
-    document.documentElement.setAttribute("data-theme", pick.value);
-
+/* The browser face keeps its choices in the tab's own storage,
+   which is where the head script reads them next visit. */
+VoxamPrefs.install({
+  load: function() {
     try {
-      localStorage.setItem("voxam-theme", pick.value);
+      return JSON.parse(localStorage.getItem("voxam-display") || "null");
+    } catch (e) {
+      return null;
+    }
+  },
+  save: function(chosen) {
+    try {
+      localStorage.setItem("voxam-display", JSON.stringify(chosen));
     } catch (e) {
       /* A choice that cannot be kept still dresses this session. */
     }
-  });
-})();
+  }
+});
 </script>
 </body>
 </html>

@@ -72,6 +72,19 @@ html, body {
   --quote: #fff0c0;
   --link: #1a5fb4;
 }
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --page: #111;
+    --paper: #1c1c1c;
+    --ink: #d6d6d6;
+    --band: #d6d6d6;
+    --band-ink: #1c1c1c;
+    --bar: #a8a8a8;
+    --bar-ink: #141414;
+    --quote: #ffffff14;
+    --link: #8ab4f8;
+  }
+}
 html[data-theme="sepia"] {
   --page: #2f2921;
   --paper: #f4ecd8;
@@ -139,6 +152,26 @@ html[data-theme="frotz"] {
 .BufferWindow a,
 .GridWindow a {
   color: var(--link);
+}
+/* Two corrections to the vendored stylesheet, kept here rather
+   than in it, so that dropping in a newer GlkOte cannot quietly
+   take them away again.
+
+   The first refuses the rubber-band overscroll a WebKit engine
+   does on macOS, where the whole page bounces past the end of the
+   story. Both faces meet that engine there -- Safari in a tab, and
+   the shell's own WKWebView -- and in a window with no browser
+   chrome around it the bounce reads as a glitch rather than as
+   scrolling.
+
+   The second is the [MORE] prompt's rounded corners, which the
+   vendored file asks for in the two vendor spellings of a decade
+   ago and never in the standard one a current engine reads. */
+:where(html, body) {
+  overscroll-behavior-y: none;
+}
+.MorePrompt {
+  border-radius: 4px;
 }
 /* The working light. The pipe carries nothing back until the
    machine reaches its next wait, so a story that thinks for a
@@ -259,6 +292,7 @@ html[data-theme="frotz"] {
 <script src="jquery-1.12.4.min.js" type="text/javascript"></script>
 <script src="glkote.js" type="text/javascript"></script>
 <script src="voxam-audio.js" type="text/javascript"></script>
+<script src="voxam-prefs.js" type="text/javascript"></script>
 <script src="shell.js" type="text/javascript"></script>
 </head>
 <body>
