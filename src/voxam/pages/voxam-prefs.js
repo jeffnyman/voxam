@@ -43,7 +43,8 @@ var VoxamPrefs = (function () {
         ["paper", "Paper"],
         ["sepia", "Sepia"],
         ["dark", "Dark"],
-        ["frotz", "Frotz"]
+        ["frotz", "Frotz"],
+        ["custom", "Custom"]
       ]
     },
     {
@@ -78,11 +79,30 @@ var VoxamPrefs = (function () {
     }
   ];
 
+  /* The colours a reader can name outright, in the order the
+   * panel offers them: the story first, then the two bands that
+   * carry §8.7's reverse video and §8.2's status line, then the
+   * accents. --quote is not among them, because every ink sets it
+   * as a translucent wash and a colour input speaks only in solid
+   * #rrggbb. It follows whichever preset the custom ink was mixed
+   * from. */
+  var COLORS = [
+    ["paper", "Story paper"],
+    ["ink", "Story ink"],
+    ["bar", "Status bar"],
+    ["bar-ink", "Status text"],
+    ["band", "Reverse paper"],
+    ["band-ink", "Reverse ink"],
+    ["link", "Links"],
+    ["page", "Surround"]
+  ];
+
   var DEFAULTS = {
     theme: "system",
     face: "serif",
     size: 15,
-    measure: "standard"
+    measure: "standard",
+    colors: {}
   };
 
   /* The panel wears the story's own ink, so it never arrives as a
@@ -105,6 +125,8 @@ var VoxamPrefs = (function () {
     "  border-radius: 6px;",
     "  padding: 1.1em 1.3em 1.2em;",
     "  min-width: 17em;",
+    "  max-height: 82vh;",
+    "  overflow-y: auto;",
     "  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);",
     "  font-family: system-ui, sans-serif;",
     "  font-size: 14px;",
@@ -135,6 +157,21 @@ var VoxamPrefs = (function () {
     "#voxam-prefs-sheet select option {",
     "  color: initial;",
     "  background: initial;",
+    "}",
+    "#voxam-prefs-colors[hidden] { display: none; }",
+    "#voxam-prefs-colors {",
+    "  margin-top: 0.9em;",
+    "  padding-top: 0.8em;",
+    "  border-top: 1px solid var(--bar, #888);",
+    "}",
+    "#voxam-prefs-sheet input[type=color] {",
+    "  width: 8em;",
+    "  height: 1.7em;",
+    "  padding: 0;",
+    "  border: 1px solid var(--bar, #888);",
+    "  border-radius: 4px;",
+    "  background: transparent;",
+    "  cursor: pointer;",
     "}",
     "#voxam-prefs-done {",
     "  font: inherit;",
@@ -186,6 +223,13 @@ var VoxamPrefs = (function () {
     });
 
     chosen.size = parseInt(chosen.size, 10) || DEFAULTS.size;
+    chosen.colors = {};
+
+    COLORS.forEach(function (pair) {
+      var mixed = stored && stored.colors ? stored.colors[pair[0]] : null;
+
+      if (/^#[0-9a-f]{6}$/i.test(mixed)) chosen.colors[pair[0]] = mixed;
+    });
 
     return chosen;
   }
@@ -204,10 +248,57 @@ var VoxamPrefs = (function () {
     );
     document.documentElement.dataset.theme = chosen.theme;
 
+    COLORS.forEach(function (pair) {
+      var mixed = chosen.theme === "custom" && chosen.colors[pair[0]];
+
+      if (mixed) {
+        root.setProperty("--" + pair[0], mixed);
+      } else {
+        root.removeProperty("--" + pair[0]);
+      }
+    });
+
     /* GlkOte measures the window in characters, so a change of type
      * or measure is a change of geometry and the display has to be
      * told to look again. */
     window.dispatchEvent(new Event("resize"));
+  }
+
+  function hexed(value) {
+    var probe = document.createElement("span");
+
+    probe.style.color = value;
+    probe.style.display = "none";
+    document.body.appendChild(probe);
+
+    var resolved = getComputedStyle(probe).color.match(/\d+/g);
+
+    document.body.removeChild(probe);
+
+    if (!resolved) return "#000000";
+
+    return (
+      "#" +
+      resolved
+        .slice(0, 3)
+        .map(function (part) {
+          return ("0" + parseInt(part, 10).toString(16)).slice(-2);
+        })
+        .join("")
+    );
+  }
+
+  /* The ink as it stands, so mixing your own begins from whatever
+   * you were just reading rather than from black on white. */
+  function sampled() {
+    var worn = getComputedStyle(document.documentElement);
+    var found = {};
+
+    COLORS.forEach(function (pair) {
+      found[pair[0]] = hexed(worn.getPropertyValue("--" + pair[0]).trim());
+    });
+
+    return found;
   }
 
   function build() {
@@ -260,14 +351,54 @@ var VoxamPrefs = (function () {
       pick.addEventListener("change", function () {
         settings[axis.key] =
           axis.key === "size" ? parseInt(pick.value, 10) : pick.value;
+
+        /* Mixing your own begins from the ink you were reading, so
+           Custom opens on the page as it stands rather than on a
+           blank black-on-white. A ink already mixed is kept. */
+        if (
+          axis.key === "theme" &&
+          pick.value === "custom" &&
+          !Object.keys(settings.colors).length
+        ) {
+          settings.colors = sampled();
+          swatches();
+        }
+
         apply(settings);
         keeper.save(settings);
+
+        if (axis.key === "theme") revealed();
       });
 
       row.appendChild(name);
       row.appendChild(pick);
       sheet.appendChild(row);
     });
+
+    var mixer = document.createElement("div");
+
+    mixer.id = "voxam-prefs-colors";
+
+    COLORS.forEach(function (pair) {
+      var row = document.createElement("label");
+      var name = document.createElement("span");
+      var well = document.createElement("input");
+
+      name.textContent = pair[1];
+      well.type = "color";
+      well.dataset.colour = pair[0];
+      well.addEventListener("input", function () {
+        settings.colors[pair[0]] = well.value;
+        apply(settings);
+        keeper.save(settings);
+      });
+
+      row.appendChild(name);
+      row.appendChild(well);
+      mixer.appendChild(row);
+    });
+
+    sheet.appendChild(mixer);
 
     var done = document.createElement("button");
 
@@ -287,6 +418,30 @@ var VoxamPrefs = (function () {
 
     document.body.appendChild(opener);
     document.body.appendChild(panel);
+    revealed();
+  }
+
+  /* The wells show the ink they will change, which matters most
+   * the moment Custom is chosen and they are filled from the
+   * preset that was showing. */
+  function swatches() {
+    if (!panel) return;
+
+    var mixed = settings.theme === "custom" ? settings.colors : sampled();
+
+    panel.querySelectorAll("input[type=color]").forEach(function (well) {
+      var value = mixed[well.dataset.colour];
+
+      if (value) well.value = value;
+    });
+  }
+
+  function revealed() {
+    if (!panel) return;
+
+    panel.querySelector("#voxam-prefs-colors").hidden =
+      settings.theme !== "custom";
+    swatches();
   }
 
   function open() {

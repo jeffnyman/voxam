@@ -8,6 +8,7 @@
 //! writes, prints pre-wire refusals as bare `voxam: ...` text,
 //! and exits 0 on game over or EOF, 2 on a fault.
 
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -228,6 +229,13 @@ struct Display {
     size: u32,
     theme: String,
     measure: String,
+    /// The custom ink, when one is mixed: the page's own property
+    /// names against #rrggbb. The shell never reads these, it only
+    /// writes them down, so the page stays the one place that
+    /// knows what a colour means. Defaulted, so a settings file
+    /// written before the mixer existed still loads.
+    #[serde(default)]
+    colors: HashMap<String, String>,
 }
 
 impl Default for Display {
@@ -237,6 +245,7 @@ impl Default for Display {
             size: 15,
             theme: "system".to_string(),
             measure: "standard".to_string(),
+            colors: HashMap::new(),
         }
     }
 }

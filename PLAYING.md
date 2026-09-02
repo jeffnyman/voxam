@@ -94,9 +94,17 @@ and the **Aa** button in the corner opens the preferences panel:
 the ink, the type and its size, and the measure of the column.
 The inks are System, Paper, Sepia, Dark, and Frotz, which is the
 DOS Infocom look WinFrotz still opens in: white on deep blue,
-with the status bar its exact inverse. Every choice is
-remembered, and applied before the first paint, so a chosen ink
-or size never flashes the other one on its way in. Each ink
+with the status bar its exact inverse.
+
+Choosing Custom opens a set of colour wells instead, mixed from
+whichever ink was showing so you begin from what you were just
+reading: the story's own paper and ink, the §8.2 status bar and
+its text as their own pair, the paper and ink §8.7's reverse
+video wears, the links, and the surround behind the column.
+Nothing is derived from anything else, which is what lets a
+status line stay legible on a page you have made pale. Every
+choice is remembered, and applied before the first paint, so a
+chosen ink or size never flashes the other one on its way in. Each ink
 names its own status bar rather than deriving one by inverting
 the story, which is what keeps §8.2's line legible on a light
 page instead of dissolving into the prose beneath it.
