@@ -928,23 +928,34 @@ class Machine:
 
         steps = 0
 
-        while self._running:
-            self.poll_sound()
+        # The tally is kept in a local and folded in once, from a
+        # finally: the loop is the hot path and an attribute
+        # increment per instruction is not free, but a run that
+        # ends by raising must still say how far the machine got.
+        # A session at a frontend that does not suspend ends by
+        # EOFError when its input runs out, which is an ordinary
+        # ending for a replayed script, and every instruction of it
+        # was lost while this addition lived after the loop.
+        try:
+            while self._running:
+                self.poll_sound()
 
-            try:
-                self.step()
-            except MachineSuspended:
-                # The read parked its finish and the pc still names
-                # the read itself: the host delivers, the tail
-                # moves past it, and run continues from there. The
-                # suspending instruction completed, so it counts.
-                self.instructions += steps + 1
+                try:
+                    self.step()
+                except MachineSuspended:
+                    # The read parked its finish and the pc still
+                    # names the read itself: the host delivers, the
+                    # tail moves past it, and run continues from
+                    # there. The suspending instruction completed,
+                    # so it counts; the one that raises did not, and
+                    # does not.
+                    steps += 1
 
-                return
+                    return
 
-            steps += 1
-
-        self.instructions += steps
+                steps += 1
+        finally:
+            self.instructions += steps
 
     def deliver_line(self, line: str, terminator: int = 0) -> None:
         """Complete a suspended line read with the player's text.

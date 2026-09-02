@@ -2938,6 +2938,25 @@ def test_a_session_reports_its_pace(
     assert_that(again).contains(f"voxam: {counted} instructions")
     assert_that(int(counted.replace(",", ""))).is_greater_than(0)
 
+    # A replay that simply runs out of input is an ordinary ending
+    # -- a script fenced off partway through is the documented way
+    # to say "only up to here" -- and it reports the pace it really
+    # ran at. This said a flat zero for its whole life, because the
+    # machine's tally lived past the loop and an EOFError left by
+    # another road. Two new_lines stand before the read here, so
+    # there is a count to lose.
+    data = bytearray(reading_story(tmp_path).read_bytes())
+    data[0x40:0x49] = bytes([0xBB, 0xBB, 0xE4, 0x0F, 0x00, 0x50, 0x00, 0x58, 0xBA])
+    working = tmp_path / "works-then-reads.z3"
+
+    working.write_bytes(bytes(data))
+    main(["--accept", str(accept_file(tmp_path, f"! GAME={working}\n")), "--benchmark"])
+
+    stopped = capsys.readouterr().out
+
+    assert_that(stopped).contains("end of input")
+    assert_that(stopped).contains("voxam: 2 instructions")
+
 
 # The Glulx arm reports the same way, and reports from the finally,
 # so even a story that faults on its way out still says how far its
