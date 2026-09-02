@@ -124,7 +124,9 @@ video wears, the links, and the surround behind the column.
 Nothing is derived from anything else, which is what lets a
 status line stay legible on a page you have made pale. Every
 choice is remembered, and applied before the first paint, so a
-chosen ink or size never flashes the other one on its way in. Each ink
+chosen ink or size never flashes the other one on its way in.
+**Reset** puts every setting back to how Voxam ships, which is
+the way out of a page you have tuned into a corner. Each ink
 names its own status bar rather than deriving one by inverting
 the story, which is what keeps §8.2's line legible on a light
 page instead of dissolving into the prose beneath it.
