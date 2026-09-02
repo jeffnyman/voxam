@@ -9,11 +9,12 @@ release-by-release record is the [CHANGELOG](CHANGELOG.md).
 The Z-Machine claim is `1.0`'s: every opcode §14 defines has a
 handler, all eight story file versions play -- version 6
 illustrated at a pygame window, painted at a terminal, spoken
-aloud with the sound extra -- and everything is enforced in
-continuous integration rather than promised: a test suite at
-100% branch coverage, forty-five recorded playthroughs swept
-end-to-end, and the community's checkers held to their exact
-tallies, CZECH at four versions among them.
+aloud with the sound extra, and everything is enforced rather
+than promised: a test suite at 100% branch coverage and the
+community's checkers held to their exact tallies in continuous
+integration, CZECH at four versions among them, and forty-five
+recorded playthroughs replayed whole against the previous
+release.
 
 The Glulx machine is `1.1`'s: every opcode the Glulx 3.1.3
 roster defines is dispatched -- the full Glk 0.7.6 dispatch layer
@@ -256,6 +257,59 @@ not do is hide where it ends. Voxam is standard-library Python
 on purpose, and that buys correctness which installs with
 nothing; the price is a pace, and the pace is now written down
 where it can be held to rather than discovered.
+
+`2.7` turned outward from the machine to the reader. An
+interpreter has no business deciding that a story must be read
+in white on black; `2.5` settled that for the pixel window, and
+this era settled the rest of it. The browser tab and the desktop
+shell had between them decided the face, the size, the measure,
+and the ink for everybody, and now the reader decides, through
+one preferences panel written once and copied to both.
+
+It offers the type: two faces that travel with the package, so a
+story reads the same on every machine, and any face the reader's
+own system already has, checked before it is offered rather than
+falling back in silence. It offers the measure in characters,
+which is what a measure has always meant, and the leading, and
+the letter and word spacing that a reader who needs them needs
+badly. It offers eight surfaces set to anything at all, and one
+Reset, because a panel that can reach every corner owes a door
+out of them. Underneath, the shell and the tab stopped keeping
+two colour models and started keeping one, which fixed four
+defects that had been invisible only because nobody had put the
+two faces side by side.
+
+The third machine came to the glass in the same era. The
+Å-machine had played at the terminal and down the wire since
+`2.3`; it plays in the pixel window now, and it carries a mark of
+its own: an Å over a D, for the machine and for the language that
+compiles to it. Its stories' embedded pictures reach every face
+that can draw.
+
+The rest of the era is a small story about where a thing belongs.
+A story's iFiction card is the bibliography from the back of the
+box, and Voxam had been telling it as the page's opening text,
+which stood a publisher's blurb among the game's own first
+sentences. Worse, the parser read a record file's own indentation
+as line breaks, so Zork I's card arrived double-spaced down the
+screen, and it had been arriving that way for four releases while
+two thousand tests stayed green: every one of them fed the parser
+hand-written XML with no indentation, and real records are
+pretty-printed. The tests were right about the rule and wrong
+about the input, which is a kind of miss more tests of the same
+shape do not catch.
+
+Both halves were wrong, so both were fixed. The parser reads a
+break as a break and indentation as nothing. And the card left
+the story's text entirely: it rides the sidecar now, as plain
+facts, read once and rested, and both faces build the same little
+window over it behind a button. That gave the sidecar its first
+consumer, an era after it was designed and served on the
+principle that a thing should be specified before it is needed.
+What the era did not do is close the gap that let the card ship
+wrong: the filmstrip still photographs a replay page rather than
+the served one, so it sees the display and none of the furniture
+around it.
 
 The story continues in [STATUS.md](STATUS.md), which always
 opens with the current release and keeps the ledger of what

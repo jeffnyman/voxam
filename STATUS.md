@@ -8,35 +8,62 @@ nothing below is promised, only enforced.
 
 ## The current release
 
-Version `2.6`: twice as fast, and honest about the wait. A
-player opened a heavy Glulx story in a browser tab, pressed a
-key, and watched nothing happen for over a minute. Nothing was
-broken: the story's opening asks for thirty-one million
-instructions, and a pure-Python interpreter took seventy-seven
-seconds to answer them while the page sat perfectly still. Both
-halves of that are now addressed. The machine no longer repeats
-work its own memory had already settled, which halved the wait,
-and no face stays silent while it thinks.
+Version `2.7`: the reader dresses the story. An interpreter has
+no business deciding what a story is set in either, and for most
+of Voxam's life the browser tab and the desktop shell decided
+exactly that: one face, one size, one measure, black on the
+browser's own white. Now the reader decides, through one
+preferences panel that both faces wear.
 
-The speed came from keeping what cannot change. An instruction
-below RAMSTART is fixed, so its opcode, its handler, its
-operands' addressing modes, and the address it ends at are read
-once and kept; so is a function's header, on the same terms. The
-stack stopped building bytes only to discard them, and a local
-read stopped being four calls deep. Together that is roughly
-780,000 Glulx instructions a second where `2.5` managed 390,000,
-on identical instruction counts, with every seeded session
-byte-identical before and after. Where it stops, and why, is
-under **The pace** below.
+The panel is written once and copied to both, which is the point
+of it. It offers the type: two faces that travel with the package
+so a story reads the same on every machine (Voxam Serif, which
+is Charis SIL, and Voxam Mono, which is Go Mono, each subset to
+what a story can print and renamed as the Open Font License asks
+of a modified copy), three families from whatever the machine
+happens to have, and any face on the system by name, checked
+against the system before it is offered rather than falling back
+in silence. It offers the measure in characters, which is what a
+measure has always meant, the leading, and the letter and word
+spacing. It offers the ink: five named palettes, including the
+DOS Infocom blue WinFrotz still opens in, and eight surfaces a
+reader can set to anything at all: the story's paper and ink,
+the status bar and its text, reverse video's own pair, links, and
+the surround. And it offers the way back, one Reset, because a
+panel that can reach every corner needs a door out of them.
 
-Beside it, the browser face learned to say what it is doing: a
-working light that appears only once a turn has taken long
-enough to be worth mentioning, and then counts the seconds, so a
-still page is never mistaken for a dead one again. The same face
-stopped typing in the browser's black on a dark story's ground,
-gave every ink its own status bar rather than deriving one by
-inverting twice, and added the DOS Infocom blue that WinFrotz
-still opens in.
+Under it, a divergence closed. The shell and the tab render the
+same GlkOte display but had grown two colour models, and the
+shell was still wearing GlkOte's own. Making them share one set
+of custom properties fixed four defects that had been invisible
+only because nobody had put the two faces side by side.
+
+The third machine came to the glass. The Å-machine had played at
+the terminal and down the wire since `2.3`; it plays in the
+pygame window now, wearing the same voice ladder the other two
+wear, and it carries its own mark in the window's title bar and
+the browser's tab: an Å over a D, for the machine and for the
+language that compiles to it. A story's embedded
+pictures reach both faces: the URLS table names a resource, a FILE
+chunk holds it, and the picture rides inside the update as its
+own bytes, so nothing is fetched from anywhere. An Å-machine
+resource naming somebody's network is declined rather than
+reached for.
+
+And the story's own card was put where it belongs. It had been
+told as the page's opening text, which stood a publisher's blurb
+among the game's first sentences where no reader asked for it,
+and a parser bug made it worse by reading a record file's own
+indentation as line breaks, so Zork I's bibliography arrived
+double-spaced down the page. The parser was wrong and is fixed.
+The placement was wrong too: the card now rides the sidecar as
+plain facts, read once and rested, and the browser tab and the
+desktop shell build the same little window over it from the same
+shared script, behind a button beside the preferences opener. All
+three machines answer it alike, because a story's bibliography
+belongs to its file rather than to any machine's registers. This
+is the sidecar's first consumer, an era after it was designed and
+served.
 
 The standing claims beneath it, each enforced in continuous
 integration rather than promised: the Z-Machine is complete --
@@ -53,9 +80,30 @@ is spoken from the machine's side, so the stories play at the
 terminal, the pygame window, the browser, the desktop shell, and
 down a stdio wire, sound and art and the Version 6 stage
 included; the Treaty of Babel names every story that can be
-named; and a seeded session replays identically, forever --
-forty-five recorded playthroughs and a test suite at 100% branch
-coverage hold the whole of it.
+named; and a seeded session replays identically, forever. A test
+suite at 100% branch coverage holds that in continuous
+integration, and forty-five recorded playthroughs hold it across
+releases.
+
+Those forty-five were replayed whole against `2.6.1` before this
+release was cut, and forty-three of the forty-four they share are
+byte-identical. The one difference is a typed command a commit
+deliberately edited; the forty-fifth is new. That is what an era
+of face work is supposed to look like from the machine's side:
+nothing.
+
+The era's own residue, named. `--benchmark` reported a flat zero
+for any session that ended by running out of input rather than by
+the story quitting, which is an ordinary ending for a replayed
+script and the ending several recordings have; the tally lived in
+a local that an exception carried away, and it is folded in from
+a finally now, at no cost to the loop. Two gaps are open rather
+than fixed: the filmstrip photographs a replay page of its own
+rather than the served page, so it sees the display but none of
+the furniture around it, which is why a card that rendered wrong
+in a tab could not be caught by a picture; and the forty-five
+recordings still have no runner, which is [issue
+365](https://github.com/jeffnyman/voxam/issues/365).
 
 ## The played-games ledger
 
@@ -146,11 +194,12 @@ an archaeology of where the games' published walkthroughs go wrong.
 
 Full Z-Machine Support -- since `1.0`, no longer a goal but a
 claim. Every opcode §14 defines has a handler, all eight story
-file versions play, and everything below is enforced in
-continuous integration rather than promised: a test suite at
-100% branch coverage, forty-five recorded playthroughs swept
-end-to-end, and the community's own checkers held to their exact
-tallies. The short list that remains is under **Not yet**.
+file versions play, and everything below is enforced rather
+than promised: a test suite at 100% branch coverage and the
+community's own checkers held to their exact tallies, both in
+continuous integration, and forty-five recorded playthroughs
+replayed whole against the previous release, which is a sweep
+run by hand until it has a runner (issue 365). The short list that remains is under **Not yet**.
 
 **Works today:** story file versions 1 through 8 -- Infocom's
 whole catalog, the modern Inform and PunyInform games built on
@@ -490,10 +539,10 @@ spec-sanctioned refusals with their reasons written down:
 
 Everything else in the Glk 0.7.6 and Glulx 3.1.3 specifications
 that a blocking display can express is expressed, and enforced
-the way every Voxam claim is enforced: 100% branch coverage,
-forty-five recordings swept end-to-end, the checkers held to
-their
-tallies.
+the way every Voxam claim is enforced: 100% branch coverage and
+the checkers held to their tallies in continuous integration,
+and forty-five recordings replayed whole against the previous
+release.
 
 ### The road to 1.5, travelled
 
