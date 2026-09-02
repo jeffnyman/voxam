@@ -151,14 +151,16 @@ class GlkOteFrontend:
         self._size = (0, 0)
         self._refresh = False
         self._outfit: Outfit = _PLAIN
-        self._opening: list[TextRun | object] = _carded(story)
         # The sidecar seam: granted by the display's "voxam"
         # token; the serving loop attaches the machine so the
         # discontinuity bit can be read (DESIGN: What the sidecar
-        # carries).
+        # carries). The card is read from the META chunk once,
+        # here, because a story's bibliography cannot change while
+        # it runs; it rides the first real update and is rested.
         self.machine: Machine | None = None
         self._speaks_voxam = False
         self._last_command: str | None = None
+        self._card = _catalogued(story)
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -190,7 +192,7 @@ class GlkOteFrontend:
         self.page.window(_BUFFER, "buffer", 0, (0, 0, width, height))
 
         told = self.voice.told()
-        runs: list[TextRun | object] = list(self._opening)
+        runs: list[TextRun | object] = []
 
         # Dress changes and pictures are both marked by their
         # offset into the telling, so they are walked as one
@@ -217,7 +219,6 @@ class GlkOteFrontend:
         if told[self._mark :]:
             runs.append(self._dressed(told[self._mark :]))
 
-        self._opening = []
         self._mark = len(told)
 
         if runs:
@@ -243,10 +244,15 @@ class GlkOteFrontend:
         The Å-machine keeps no location or score registers the
         wire could read, so only the wire's own facts travel: the
         last delivered line and the discontinuity bit, read once
-        and rested (DESIGN: What the sidecar carries).
+        and rested. The story's card rides the first block and is
+        rested the same way (DESIGN: What the sidecar carries).
         """
 
         block: Stanza = {}
+
+        if self._card is not None:
+            block["card"] = self._card
+            self._card = None
 
         if self._last_command is not None:
             block["command"] = self._last_command
@@ -384,33 +390,35 @@ def _pictured(story: Story, resource: int) -> "Stanza | None":
     }
 
 
-def _carded(story: Story) -> "list[TextRun | object]":
-    """The META bibliography as the page's doorway card.
+def _catalogued(story: Story) -> Stanza | None:
+    """The META bibliography as the sidecar's card, or None.
 
-    The title stands as a header, the author beneath it, and the
-    blurb as its own paragraphs -- the same card every face opens
-    with, drawn from the chunk instead of the treaty record
+    The Å-machine carries its own bibliography rather than a
+    treaty record, and it says the same things in its own words:
+    a title, an author, and a blurb whose paragraph breaks are
+    the chunk's own 0x10 bytes. There is no headline to give
     (Aa-machine: META).
+
+    This used to open the page as text, the way the painted faces
+    still show a card at the door, which put a publisher's blurb
+    in the middle of the story's own first words. A display that
+    speaks the sidecar is handed the same facts to keep aside
+    instead, and a story that says none of the three has no card
+    at all (DESIGN: What the sidecar carries).
     """
 
-    runs: list[TextRun | object] = []
-    title = story.meta.get("title")
-    author = story.meta.get("author")
     blurb = story.meta.get("blurb")
+    block: Stanza = {
+        name: held
+        for name, held in (
+            ("title", story.meta.get("title")),
+            ("author", story.meta.get("author")),
+            ("description", blurb.replace("\x10", "\n") if blurb else None),
+        )
+        if held
+    }
 
-    if title:
-        runs.append(("header", 0, title + "\n"))
-
-    if author:
-        runs.append(("emphasized", 0, f"by {author}\n"))
-
-    if blurb:
-        runs.append(("normal", 0, blurb.replace("\x10", "\n") + "\n"))
-
-    if runs:
-        runs.append(("normal", 0, "\n"))
-
-    return runs
+    return block or None
 
 
 def fronted(story: Story) -> GlkOteFrontend:

@@ -39,7 +39,6 @@ refresh event, answered by an update complete in content.
 import json
 from typing import TextIO, cast
 
-from voxam.babel import ifiction
 from voxam.errors import GlkOteError, GlulxGlkError, VoxamError
 from voxam.glkote import (
     FLOWBREAK,
@@ -47,7 +46,7 @@ from voxam.glkote import (
     Page,
     Stanza,
     TextRun,
-    carded,
+    catalogued,
     measured,
     partials,
     read_stanza,
@@ -122,14 +121,6 @@ ALIGNMENT_NAMES = {
 # a channel may legally ask for more than 1.0, and the display's
 # gain node obliges (Glk: Other Sound Channel Functions).
 FULL_GAIN = 0x10000
-
-# The iFiction card's protocol dresses as Glk's own style numbers,
-# for the runs the doorway courtesy writes into the model.
-_CARD_STYLES = {
-    "header": Style.HEADER,
-    "emphasized": Style.EMPHASIZED,
-    "normal": Style.NORMAL,
-}
 
 # The named keys of a char event, each to its Glk keycode; a name
 # from some newer display reads as unknown (GlkOte: Input:
@@ -381,6 +372,11 @@ class GlkOteFrontend(Frontend):
         self.machine: Machine | None = None
         self._speaks_voxam = False
         self._last_command: str | None = None
+        # The card is read from the attached library's resources at
+        # the first sidecar block and rested there, so a display
+        # that never asked for the sidecar never pays for the
+        # parse.
+        self._card_read = False
 
     def begin(self, stanza: Stanza) -> None:
         """Open the session on the init event's word.
@@ -748,16 +744,22 @@ class GlkOteFrontend(Frontend):
     # -- the two halves of the conversation --------------------------------
 
     def _front(self, glk: Glk) -> None:
-        """Stand the cover and the record's card at the first buffer.
+        """Stand the Blorb's cover at the first buffer window.
 
         The doorway courtesy, over the wire: shown once, before
-        whatever the game has already written -- the Fspc cover
-        when the display grants bare graphics, then the iFiction
-        card, which is only text and needs no grant (Blorb:
-        Frontispiece Chunk; Babel: The iFiction format). A tree
-        with no buffer window yet waits for one; art and
-        bibliography are courtesies, never gates, so a session
-        with neither simply plays on.
+        whatever the game has already written, when the display
+        grants bare graphics (Blorb: Frontispiece Chunk). A tree
+        with no buffer window yet waits for one; art is a
+        courtesy, never a gate, so a session without a cover
+        simply plays on.
+
+        The record's card no longer stands here beside it. It was
+        told as the page's opening text, which put a publisher's
+        blurb in the middle of the story's own words where no
+        reader asked for it; a display that speaks the sidecar is
+        handed the same bibliography as facts instead, to keep
+        behind a button of its own (DESIGN: What the sidecar
+        carries).
         """
 
         if self._covered:
@@ -771,14 +773,6 @@ class GlkOteFrontend(Frontend):
                 Placed(cover.number, pictured(cover), cover.width, cover.height, 1, 0)
             )
             opening.append(Run(Style.NORMAL, 0, "\n"))
-
-        held = glk.resources.blorb.ifiction if glk.resources.blorb is not None else None
-        record = ifiction(held) if held is not None else None
-
-        if record is not None:
-            opening.extend(
-                Run(_CARD_STYLES[name], 0, text) for name, text in carded(record)
-            )
 
         if not opening:
             self._covered = True
@@ -1030,11 +1024,20 @@ class GlkOteFrontend(Frontend):
 
         Glulx has no fixed location or score globals to read, so
         only the wire's own facts travel: the last delivered line
-        and the discontinuity bit, read once and rested (DESIGN:
-        What the sidecar carries).
+        and the discontinuity bit, read once and rested. The
+        story's card rides the first block and is rested the same
+        way (DESIGN: What the sidecar carries).
         """
 
         block: Stanza = {}
+
+        if not self._card_read:
+            self._card_read = True
+            blorb = self._library().resources.blorb
+            card = catalogued(blorb.ifiction if blorb is not None else None)
+
+            if card is not None:
+                block["card"] = card
 
         if self._last_command is not None:
             block["command"] = self._last_command

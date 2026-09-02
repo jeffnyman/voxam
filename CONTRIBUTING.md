@@ -56,9 +56,12 @@ npx tauri build      # produce the platform installer
 Two facts worth knowing when changing the shell's display. First,
 part of `desktop/ui/` is vendored copies rather than originals:
 `glkote.js`, `glkote.css`, `jquery-1.12.4.min.js`, `waiting.gif`,
-`voxam-audio.js`, and `LICENSE-glkote.txt` are the same files the
+`voxam-audio.js`, `voxam-prefs.js`, `voxam-card.js`, the bundled
+`.woff2` faces, and `LICENSE-glkote.txt` are the same files the
 Python package ships in `src/voxam/pages/`, copied in so the
-shell needs no network and no build step. When the originals
+shell needs no network and no build step. A test holds them
+byte-identical, so a copy that drifts fails the gate rather than
+diverging quietly. When the originals
 change, re-copy them (`index.html` and `shell.js` are the shell's
 own and live only here). Second, a built shell *embeds* `ui/` at compile time:
 `npx tauri dev` serves the directory live, so edits show on

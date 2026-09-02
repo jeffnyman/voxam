@@ -287,14 +287,31 @@ honestly, and absent otherwise rather than guessed:
   has intervened since the last update, so this state of play does
   not follow from the last command. Read once and rested: it
   appears in exactly one update and is cleared as it goes.
+- `card`: the story's own bibliography, as `title`, `headline`,
+  `author` and `description`, each present only when the story
+  says it. Read once and rested, like the discontinuity bit: it
+  rides the first real update and never comes again, because it
+  cannot change while a story is running. A painted face shows
+  this at the door, in the story's own text, because a terminal
+  has nowhere else to put it. A display that speaks the sidecar
+  is given it as facts instead, and can keep it behind a button
+  where the reader asks for it rather than reading it in the
+  middle of the story's opening words.
 
 **What each machine can honestly answer.** The Z-Machine reads
-its §8.2 bearings, so it offers all five -- except that a time
-game has no score or turns to give, and omits them. Glulx and the
-Å-machine have no fixed globals an interpreter could read for
-location, score, or turns, so they carry only `command` and
-`discontinuity`. An absent field means the machine could not say,
-never that the answer was zero.
+its §8.2 bearings, so it offers all five of the play fields --
+except that a time game has no score or turns to give, and omits
+them. Glulx and the Å-machine have no fixed globals an
+interpreter could read for location, score, or turns, so they
+carry only `command` and `discontinuity`. An absent field means
+the machine could not say, never that the answer was zero.
+
+The card is the exception that proves the shape: it belongs to
+the story file rather than to any machine's registers, so all
+three answer it alike. The Z-Machine and Glulx read the treaty
+record a Blorb carries; the Å-machine reads its own META chunk,
+which says the same things in its own words and has no headline
+to give.
 
 **The boundary, deliberately.** No direction parsing and no graph
 state live in the machines. Compass words are an English-only,

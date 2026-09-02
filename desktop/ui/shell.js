@@ -172,9 +172,11 @@ function deliver(kind, payload) {
   working(false);
 
   if (kind === "stanza") {
-    /* Sounds ride the update in VOXAM's own dialect; the audio
-       module reads them before GlkOte draws the rest. */
+    /* Sounds ride the update in VOXAM's own dialect, and so does
+       the sidecar the story's card travels in; both modules read
+       the stanza before GlkOte draws the rest. */
     VoxamAudio.update(payload.stanza);
+    VoxamCard.update(payload.stanza);
     GlkOte.update(payload.stanza);
   } else if (kind === "fault") {
     /* Refusals and crashes both land in GlkOte's error pane,

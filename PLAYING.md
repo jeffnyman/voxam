@@ -134,8 +134,9 @@ page instead of dissolving into the prose beneath it.
 Typing `save` in the tab asks for a name through the display's
 own prompt and writes the Quetzal file beside the story, where
 `restore` -- and every other interpreter -- can find it. An
-Å-machine story opens the page with its META bibliography as the
-doorway card, and a story carrying pictures of its own shows
+Å-machine story offers its META bibliography behind the same
+iFiction Card button a blorbed story gets, and one carrying
+pictures of its own shows
 them: the URLS table names a resource, a FILE chunk holds it, and
 the picture rides inside the update as its own bytes, so nothing
 is fetched from anywhere. A resource naming somebody's network is
@@ -295,13 +296,16 @@ a session that never touches the streams leaves no files behind.
 Blorb resources ride along automatically: a `.zblorb` story boots
 from its package, and a like-named `.blb` beside a story file is
 found on its own and, if the names differ, then `--resources` names
-one explicitly. A packaged iFiction record greets the player as a
-card before play -- title, headline, author, and the blurb, the
-little window WinFrotz shows -- standing under the cover art in the
-browser and the shell, and printed with the banner at a painted
-terminal. The plain stream keeps its machine-readable quiet: a
-record may quote anything, so no free-form bibliography reaches
-a pipe.
+one explicitly. A packaged iFiction record gives the story a
+card: title, headline, author, and the blurb, the little window
+WinFrotz shows. In the browser and the shell it waits behind an
+**iFiction Card** button at the bottom of the page, beside the
+preferences opener, so a publisher's blurb never stands among the
+story's own opening words; at a painted terminal it prints with
+the banner, under the cover art, since a terminal has nowhere
+else to put it. The plain stream keeps its machine-readable
+quiet: a record may quote anything, so no free-form bibliography
+reaches a pipe. A story with no record raises no button.
 
 At a painted terminal a packaged cover picture shows before play;
 `--pixels` draws it in real pixels after asking whether the

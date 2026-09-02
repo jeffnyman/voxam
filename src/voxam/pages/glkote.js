@@ -2493,9 +2493,11 @@ function send_response(type, win, val, val2) {
         /* VOXAM: 'sound' advertises the dialect voxam-audio.js
            plays, 'colors' the per-span ink this page renders, and
            'stage' the scaled canvases with placed text, shifts,
-           and an emplaced editor that carry the Version 6 screen;
-           stock GlkOte has none of these words. */
-        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound', 'colors', 'stage'];
+           and an emplaced editor that carry the Version 6 screen,
+           and 'voxam' the sidecar block of plain facts an update
+           rides with -- the story's own card among them; stock
+           GlkOte has none of these words. */
+        res.support = ['timer', 'graphics', 'graphicswin', 'graphicsext', 'hyperlinks', 'sound', 'colors', 'stage', 'voxam'];
     }
     else if (type == 'arrange') {
         res.metrics = val;

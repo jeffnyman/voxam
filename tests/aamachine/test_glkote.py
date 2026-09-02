@@ -231,8 +231,11 @@ def test_serve_survives_a_closed_stream() -> None:
     assert_that(serve(storied(), io.StringIO(events), writer, seed=7)).is_true()
 
 
-# A META blurb joins the doorway card, its line feeds honored.
-def test_a_blurb_joins_the_card() -> None:
+# The META bibliography rides the sidecar rather than opening the
+# page: the blurb's own line feeds are honored, and not one word
+# of it reaches the story's text, where a publisher's copy has no
+# business standing among the game's first sentences.
+def test_the_bibliography_rides_the_sidecar() -> None:
     lang = (
         (8).to_bytes(2, "big")
         + (8).to_bytes(2, "big")
@@ -261,14 +264,25 @@ def test_a_blurb_joins_the_card() -> None:
 
     story = Story(iff_chunk(b"FORM", b"AAVM" + b"".join(pieces)))
     face = GlkOteFrontend(story)
-    face.begin(INIT)
+
+    face.begin({**INIT, "support": [*INIT["support"], "voxam"]})
+
     update = face.render()
 
-    told = texted(update)
-
-    assert_that(told).contains("Tale")
-    assert_that(told).contains("Told\nwhole.")
+    assert_that(update["voxam"]["card"]).is_equal_to(
+        {"title": "Tale", "description": "Told\nwhole."}
+    )
+    assert_that(texted(update)).does_not_contain("Tale")
+    assert_that(texted(update)).does_not_contain("whole.")
     assert_that(update.get("input", [])).is_empty()
+
+    # A display that never asked for the sidecar simply never
+    # learns the story's name, which is the grant doing its job.
+    plain = GlkOteFrontend(story)
+
+    plain.begin(INIT)
+
+    assert_that("voxam" in plain.render()).is_false()
 
 
 # An event before any init has spoken earns the unopened error.
@@ -395,9 +409,10 @@ def test_a_refresh_keeps_the_dress() -> None:
 
 
 # The sidecar rides when the display says the "voxam" token: the
-# first update carries the empty block -- the feed alive, nothing
-# yet to tell -- and once a line lands the block carries it (DESIGN:
-# What the sidecar carries).
+# first update carries the story's card and nothing else -- the
+# feed alive, nothing yet to tell of the play itself -- and once a
+# line lands the block carries it, the card rested behind it
+# (DESIGN: What the sidecar carries).
 def test_the_sidecar_rides_when_granted() -> None:
     events = [
         {**INIT, "support": [*INIT["support"], "voxam"]},
@@ -410,7 +425,8 @@ def test_the_sidecar_rides_when_granted() -> None:
 
     updates = [json.loads(line) for line in writer.getvalue().splitlines()]
 
-    assert_that(updates[0]["voxam"]).is_equal_to({})
+    assert_that(set(updates[0]["voxam"])).is_equal_to({"card"})
+    assert_that(updates[0]["voxam"]["card"]["title"]).is_not_empty()
     assert_that(updates[1]["voxam"]).is_equal_to({"command": "west"})
 
 
@@ -427,7 +443,7 @@ def test_the_sidecar_rests_the_discontinuity() -> None:
 
     update = face.render()
 
-    assert_that(update["voxam"]).is_equal_to({"discontinuity": True})
+    assert_that(update["voxam"]["discontinuity"]).is_true()
     assert_that(machine.discontinuity).is_false()
 
     plain = fronted(storied())

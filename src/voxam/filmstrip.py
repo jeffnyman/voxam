@@ -22,8 +22,12 @@ from voxam.png import decode
 from voxam.web import Session
 from voxam.zmachine.glkote import ZSCII_KEYS
 
-# The init event the driver speaks: every dialect word granted,
-# so the strip shows the fullest face the display can wear.
+# The init event the driver speaks: every dialect word the strip
+# can photograph, so it shows the fullest face the display can
+# wear. The sidecar's own word stays unsaid: its facts are for a
+# face's furniture -- the card's button, a map -- and the replay
+# page carries none of that, so granting it would put a block in
+# every strip that no frame could ever show.
 INIT: Stanza = {
     "type": "init",
     "gen": 0,

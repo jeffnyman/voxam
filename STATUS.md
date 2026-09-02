@@ -825,21 +825,32 @@ road, which `2.2` then travelled.
   already are -- AIFF FORMs re-framed whole so a player opens
   them, the story under its own version's name -- and a file
   already standing is never overwritten.
-- **The card at the door.** The iFiction record's bibliography
-  greets the player the way WinFrotz's little window does: on the
-  protocol faces the cover is followed by the title, headline,
-  author, and the description's paragraphs -- the record's
-  <br/>-broken blurb now parsed whole, mixed content walked
-  rather than truncated at the first break -- and the same card
-  prints with the banner at a painted terminal, under the
-  cover's own rule: the plain stream is the machine-readable
-  face, and a record may quote anything -- Zork I's blurb quotes
-  a ">"-prefixed command, which would desynchronize any harness
-  that frames output by the prompt. The card needs no display
-  grant, being only text; a record with some fields shows what it
-  has, and a blorb with none simply opens plain. Miss Gosling's
-  Last Case opens in the browser with its own obituary, exactly
-  as its author dressed it (Babel: The iFiction format).
+- **The card, and where it belongs.** The iFiction record's
+  bibliography reaches the player the way WinFrotz's little
+  window does: title, headline, author, and the description's
+  paragraphs -- the record's <br/>-broken blurb parsed whole,
+  mixed content walked rather than truncated at the first break,
+  and the file's own indentation kept out of it, since a
+  pretty-printed record is not a poem. At a painted terminal the
+  card prints with the banner, under the cover's own rule: the
+  plain stream is the machine-readable face, and a record may
+  quote anything -- Zork I's blurb quotes a ">"-prefixed
+  command, which would desynchronize any harness that frames
+  output by the prompt.
+
+  On the protocol faces it no longer opens the story's text at
+  all. It rode there for one era and was wrong to: a publisher's
+  blurb among the game's own first sentences is not something any
+  reader asked for, and the story's opening belongs to its
+  author. The card travels as facts in the sidecar instead, read
+  once and rested, and the browser tab and the desktop shell each
+  build the same little window over it from the same shared
+  script, behind a button beside the preferences opener. A
+  display that never says the sidecar's word never sees it, and a
+  blorb with no record raises no button at all. Miss Gosling's
+  Last Case still offers its own obituary, exactly as its author
+  dressed it, to a reader who asks for it (Babel: The iFiction
+  format; DESIGN: What the sidecar carries).
 
 ### The stage and the camera: 2.2
 
@@ -983,8 +994,9 @@ the reference engine's own transcripts.
   voice at width zero into one buffer window, the browser doing
   the wrapping: `--glkote` serves it down the pipe, `--web`
   puts it in a tab under the META title, and the desktop shell
-  plays it for free. The bibliography opens every face as the
-  doorway card, and the window and the browser tab both wear the
+  plays it for free. The META bibliography rides the sidecar to
+  the same little window the treaty's own records get, and the
+  window and the browser tab both wear the
   third machine's own mark now: an Å over a D, drawn in the same
   idiom the z badges are, for the machine and for the language
   that compiles to it. An Arcturus story wears no such thing on
@@ -1043,12 +1055,14 @@ session it is running.
 
 So the wire grew a sidecar: a `voxam` block riding beside the
 windows in an ordinary update, carrying those facts and nothing
-else. Every ounce of intelligence stays in the face. Voxam's own
-displays do not read the block yet: it is designed and served
-before it is consumed, so that anyone's face can be written
-against it. The schema it serves is specified under **What the
-sidecar carries** in [DESIGN.md](DESIGN.md), which is what the
-`DESIGN:` citations in the wire's own code point at.
+else. Every ounce of intelligence stays in the face. It was
+designed and served an era before anything consumed it, so that
+anyone's face could be written against it; the browser tab and
+the desktop shell are its first customers, and they read one
+field of it, the story's card. The schema it serves is specified
+under **What the sidecar carries** in [DESIGN.md](DESIGN.md),
+which is what the `DESIGN:` citations in the wire's own code
+point at.
 
 - **Granted, never assumed.** The block travels only to a
   display that names `voxam` in its own init support list,
@@ -1076,6 +1090,15 @@ sidecar carries** in [DESIGN.md](DESIGN.md), which is what the
   transcript-grepping heuristics the earlier automappers
   needed, and it is what keeps a mapper from drawing a phantom
   edge across time travel.
+- **The card as facts.** The story's own bibliography rides the
+  block too, read once and rested, since it cannot change while a
+  story runs. All three machines answer it alike -- it belongs to
+  the story file, not to any machine's registers -- the Z-Machine
+  and Glulx from the treaty record a Blorb carries, the Å-machine
+  from its own META chunk. This is the field the browser tab and
+  the desktop shell build their **iFiction Card** button over,
+  and it is the reason the block exists in the shape it does: a
+  face given plain facts can put them where they belong.
 - **The boundary, deliberately.** No direction parsing and no
   graph state anywhere in the machines. Reading a typed command
   for its compass word is an English-only, typed-input-only
@@ -1094,9 +1117,9 @@ The encoder now spells its own deflate stream by hand (RFC 1951)
 beside the reader that was already hand-written, so the bytes
 are the bytes, everywhere, forever.
 
-The sidecar's own footpaths, named: no Voxam face consumes the
-block yet, so the map, the notebook, and the verified fast
-travel that motivated it remain designs rather than claims;
+The sidecar's own footpaths, named: only the card is consumed, so
+the map, the notebook, and the verified fast travel that
+motivated it remain designs rather than claims;
 Glulx and the Å-machine carry no location, because neither
 format has one an interpreter could honestly read, so a face
 wanting rooms from them will have to earn them some other way;

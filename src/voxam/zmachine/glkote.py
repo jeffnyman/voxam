@@ -57,6 +57,7 @@ from voxam.glkote import (
     Page,
     Stanza,
     TextRun,
+    catalogued,
     measured,
     partials,
     read_stanza,
@@ -244,9 +245,17 @@ class GlkOteFrontend(PlainFrontend):
         self._refresh_owed = False
         # The sidecar seam: granted by the display's "voxam"
         # token, carrying the last line this face delivered (DESIGN:
-        # What the sidecar carries).
+        # What the sidecar carries). The card is read from the
+        # resources once, here, because a story's bibliography
+        # cannot change while it runs; it rides the first real
+        # update and is rested.
         self._speaks_voxam = False
         self._last_command: str | None = None
+        self._card = catalogued(
+            resources.blorb.ifiction
+            if resources is not None and resources.blorb is not None
+            else None
+        )
 
     # -- the conversation's opening ----------------------------------------
 
@@ -1117,13 +1126,18 @@ class GlkOteFrontend(PlainFrontend):
         bearings; the command is the last line this face delivered
         -- the wire knows what it handed over -- and the
         discontinuity bit reports an undo, restore, or restart
-        since the last update, read once and rested (DESIGN: What
-        the sidecar carries).
+        since the last update, read once and rested. The story's
+        card is rested the same way, on the first update that
+        carries it (DESIGN: What the sidecar carries).
         """
 
         machine = self._machine()
         bearings = machine.bearings()
         block: Stanza = {}
+
+        if self._card is not None:
+            block["card"] = self._card
+            self._card = None
 
         if bearings.location is not None:
             number, name = bearings.location
