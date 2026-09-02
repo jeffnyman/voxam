@@ -59,7 +59,8 @@ var VoxamPrefs = (function () {
       values: [
         ["serif", "Serif"],
         ["sans", "Sans"],
-        ["mono", "Typewriter"]
+        ["mono", "Typewriter"],
+        ["named", "Named..."]
       ]
     },
   ];
@@ -150,6 +151,7 @@ var VoxamPrefs = (function () {
   var DEFAULTS = {
     theme: "system",
     face: "serif",
+    named: "",
     size: 15,
     measure: 98,
     leading: 1.4,
@@ -210,6 +212,16 @@ var VoxamPrefs = (function () {
     "#voxam-prefs-sheet select option {",
     "  color: initial;",
     "  background: initial;",
+    "}",
+    "#voxam-prefs-named[hidden] { display: none; }",
+    "#voxam-prefs-sheet input[type=text] {",
+    "  font: inherit;",
+    "  color: inherit;",
+    "  background: transparent;",
+    "  border: 1px solid var(--bar, #888);",
+    "  border-radius: 4px;",
+    "  padding: 0.2em 0.4em;",
+    "  width: 9em;",
     "}",
     "#voxam-prefs-sheet input[type=range] {",
     "  width: 9em;",
@@ -300,6 +312,8 @@ var VoxamPrefs = (function () {
           : DEFAULTS[range.key];
     });
 
+    chosen.named =
+      stored && typeof stored.named === "string" ? stored.named.slice(0, 120) : "";
     chosen.colors = {};
 
     COLORS.forEach(function (pair) {
@@ -316,7 +330,7 @@ var VoxamPrefs = (function () {
   function apply(chosen) {
     var root = document.documentElement.style;
 
-    root.setProperty("--story-face", FACES[chosen.face] || FACES.serif);
+    root.setProperty("--story-face", stack(chosen));
     root.setProperty("--grid-size", chosen.size - 1 + "px");
     root.setProperty(
       "--measure",
@@ -344,6 +358,45 @@ var VoxamPrefs = (function () {
      * or measure is a change of geometry and the display has to be
      * told to look again. */
     window.dispatchEvent(new Event("resize"));
+  }
+
+  /* The face, as a CSS stack. A named one keeps a generic behind
+   * it, so a name this machine has never heard of leaves the story
+   * readable rather than fontless. */
+  function stack(chosen) {
+    if (chosen.face === "named" && chosen.named) {
+      return '"' + chosen.named.replace(/["\\]/g, "") + '", serif';
+    }
+
+    return FACES[chosen.face] || FACES.serif;
+  }
+
+  /* Whether this machine actually has a face by that name.
+   *
+   * A webview cannot be asked for the list of installed fonts --
+   * the one API that does is in a single engine, and Voxam's two
+   * faces meet three -- so the question is answered the way it has
+   * always been answered: set a probe string in the candidate over
+   * a known generic, and see whether the width moves. A name that
+   * resolves to nothing falls back to the generic and measures
+   * exactly like it.
+   */
+  function installed(name) {
+    if (!name) return false;
+
+    var probe = document.createElement("canvas").getContext("2d");
+    var sample = "mmmmmmmmmmlliWWWQQ0123";
+    var clean = '"' + name.replace(/["\\]/g, "") + '"';
+
+    return ["monospace", "serif", "sans-serif"].some(function (generic) {
+      probe.font = "72px " + generic;
+
+      var bare = probe.measureText(sample).width;
+
+      probe.font = "72px " + clean + ", " + generic;
+
+      return probe.measureText(sample).width !== bare;
+    });
   }
 
   function hexed(value) {
@@ -449,12 +502,14 @@ var VoxamPrefs = (function () {
         apply(settings);
         keeper.save(settings);
 
-        if (axis.key === "theme") revealed();
+        revealed();
       });
 
       row.appendChild(name);
       row.appendChild(pick);
       sheet.appendChild(row);
+
+      if (axis.key === "face") sheet.appendChild(naming());
     });
 
     RANGES.forEach(function (range) {
@@ -531,6 +586,47 @@ var VoxamPrefs = (function () {
     revealed();
   }
 
+  /* The name of a face this machine already has. There is no list
+   * to offer, so there is a field to type into and an honest word
+   * back about whether the name found anything. */
+  function naming() {
+    var row = document.createElement("label");
+    var name = document.createElement("span");
+    var field = document.createElement("input");
+    var verdict = document.createElement("em");
+
+    row.id = "voxam-prefs-named";
+    name.textContent = "Font name";
+    field.type = "text";
+    field.id = "voxam-prefs-name";
+    field.placeholder = "Iosevka, Charter...";
+    field.spellcheck = false;
+    field.value = settings.named;
+    verdict.className = "voxam-prefs-reading";
+
+    function judged() {
+      verdict.textContent = !settings.named
+        ? ""
+        : installed(settings.named)
+          ? "found"
+          : "not on this system";
+    }
+
+    field.addEventListener("input", function () {
+      settings.named = field.value.slice(0, 120);
+      judged();
+      apply(settings);
+      keeper.save(settings);
+    });
+
+    judged();
+    row.appendChild(name);
+    row.appendChild(verdict);
+    row.appendChild(field);
+
+    return row;
+  }
+
   /* The wells show the ink they will change, which matters most
    * the moment Custom is chosen and they are filled from the
    * preset that was showing. */
@@ -551,6 +647,7 @@ var VoxamPrefs = (function () {
 
     panel.querySelector("#voxam-prefs-colors").hidden =
       settings.theme !== "custom";
+    panel.querySelector("#voxam-prefs-named").hidden = settings.face !== "named";
     swatches();
   }
 
