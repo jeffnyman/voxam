@@ -130,7 +130,12 @@ Typing `save` in the tab asks for a name through the display's
 own prompt and writes the Quetzal file beside the story, where
 `restore` -- and every other interpreter -- can find it. An
 Å-machine story opens the page with its META bibliography as the
-doorway card.
+doorway card, and a story carrying pictures of its own shows
+them: the URLS table names a resource, a FILE chunk holds it, and
+the picture rides inside the update as its own bytes, so nothing
+is fetched from anywhere. A resource naming somebody's network is
+declined rather than reached for, and a story told no prints
+whatever it keeps for that case.
 
 ## On a wire
 

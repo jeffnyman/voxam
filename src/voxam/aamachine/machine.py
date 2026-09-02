@@ -2395,9 +2395,14 @@ class Machine:
                 self._spc = _SPACE
 
     def _op_embed_res(self, _op: int) -> None:
-        """EMBED_RES (Aa-machine: EMBED_RES)."""
+        """EMBED_RES (Aa-machine: EMBED_RES).
 
-        resource = self._deref(self._value())
+        The operand arrives tagged, as every value does; the voice
+        is handed the URLS index it carries, counted from zero the
+        way the reference engine counts it.
+        """
+
+        resource = self._deref(self._value()) & _VALUE_MASK
 
         if not self._cwl:
             self._voice.embed_res(resource)
@@ -2405,7 +2410,7 @@ class Machine:
     def _op_can_embed_res(self, _op: int) -> None:
         """CAN_EMBED_RES (Aa-machine: CAN_EMBED_RES)."""
 
-        resource = self._deref(self._value())
+        resource = self._deref(self._value()) & _VALUE_MASK
         told = 1 if self._voice.can_embed_res(resource) else 0
         self._store(self._fetched(), told)
 

@@ -1026,8 +1026,9 @@ author's whole sheet -- fonts, sizes, and margins as real CSS
 on the page -- is a richer wire road than the stock styles worn
 today; the window refuses links and embedded resources honestly
 rather than half-drawing them, which is where its next work is;
-and the acceptance driver, the tracer, and the filmstrip do not
-speak `.aastory` yet.
+the pygame window shows no embedded resource, the wire and the
+browser having taken that road first; and the acceptance driver,
+the tracer, and the filmstrip do not speak `.aastory` yet.
 
 ## The sidecar: 2.4
 
