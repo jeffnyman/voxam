@@ -228,10 +228,52 @@ def test_both_faces_carry_the_same_display_assets() -> None:
     shared = Path(__file__).parent.parent / "desktop" / "ui"
     served = Path(voxam.__file__).parent / "pages"
 
-    for name in ("voxam-prefs.js", "voxam-audio.js", "glkote.js", "glkote.css"):
+    fonts = [font.name for font in served.glob("voxam-*.woff2")]
+
+    assert_that(fonts).is_length(6)
+
+    for name in [
+        "voxam-prefs.js",
+        "voxam-audio.js",
+        "glkote.js",
+        "glkote.css",
+        *fonts,
+    ]:
         assert_that((shared / name).read_bytes()).described_as(name).is_equal_to(
             (served / name).read_bytes()
         )
+
+
+# The faces Voxam brings with it: declared in the page, offered by
+# the panel, and served under their own names. A family named in
+# one place and not the other would leave a reader choosing a face
+# the page never loads, or loading a face nobody can choose.
+def test_the_bundled_faces_are_declared_offered_and_served() -> None:
+    face = faced()
+    page = face.respond("GET", "/", b"")[2].decode("utf-8")
+    panel = face.respond("GET", "/voxam-prefs.js", b"")[2].decode("utf-8")
+
+    declared = set(re.findall(r'font-family: "(Voxam [A-Za-z]+)";', page))
+    offered = set(re.findall(r'\'"(Voxam [A-Za-z]+)"', panel))
+
+    assert_that(declared).is_equal_to({"Voxam Serif", "Voxam Mono"})
+    assert_that(offered).is_equal_to(declared)
+
+    # Every file the page asks for has to be one the server will
+    # hand over, or the face falls back silently.
+    for name in sorted(set(re.findall(r'url\("([a-z0-9.-]+\.woff2)"\)', page))):
+        status, kind, payload = face.respond("GET", f"/{name}", b"")
+
+        assert_that(status).described_as(name).is_equal_to(200)
+        assert_that(kind).is_equal_to("font/woff2")
+        assert_that(payload[:4]).is_equal_to(b"wOF2")
+
+    # Their licences ride in the package beside them, as the
+    # vendored display libraries' do.
+    pages = Path(voxam.__file__).parent / "pages"
+
+    for licence in ("LICENSE-voxam-serif.txt", "LICENSE-voxam-mono.txt"):
+        assert_that((pages / licence).read_text(encoding="utf-8")).is_not_empty()
 
 
 # The display's own files serve under their names and types; the
