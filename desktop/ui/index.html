@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="paper">
 <head>
 <meta charset="utf-8">
 <title>Voxam</title>
@@ -16,6 +16,7 @@
 html, body {
   margin: 0;
   height: 100%;
+  background: var(--page);
 }
 #gameport {
   position: absolute;
@@ -26,6 +27,8 @@ html, body {
   max-width: var(--measure);
   top: 0;
   bottom: 0;
+  background: var(--paper);
+  color: var(--ink);
 }
 .BufferWindow, .BufferWindow .Input {
   font-family: var(--story-face);
@@ -38,8 +41,10 @@ html, body {
   color: inherit;
   background: transparent;
 }
-/* The inks, each a whole dress: page, story, the reverse video
-   §8.7 sends as user1, and the §8.2 status bar.
+/* The inks, each a whole dress, worn as the nine properties the
+   browser face names them by: the page behind the story, the
+   story's own paper and ink, the reverse video §8.7 sends as
+   user1, the §8.2 status bar, a quotation's ground, and a link.
 
    The bar names its own pair rather than inverting the story's.
    Deriving it by inversion looks right until the upper window is
@@ -49,87 +54,91 @@ html, body {
    bar came to be pixel-for-pixel identical to the prose beneath
    it. So each ink chooses its bar, the way WinFrotz chooses white
    on blue, and the grid simply wears the story's paper, because
-   an upper window is part of the same screen. These inks are the
-   browser face's own, in src/voxam/pages/index.html: the two
-   files are written separately and have to move together. */
-body.theme-paper {
-  background: #444;
+   an upper window is part of the same screen.
+
+   These are the browser face's own values under its own property
+   names, from src/voxam/pages/index.html. The two files are
+   written separately and have to move together, so they are kept
+   in one shape: a divergence should be visible by reading them
+   side by side. */
+:root {
+  --page: #444;
+  --paper: #fff;
+  --ink: #000;
+  --band: #333;
+  --band-ink: #fff;
+  --bar: #2b2b2b;
+  --bar-ink: #f2f2f2;
+  --quote: #fff0c0;
+  --link: #1a5fb4;
 }
-body.theme-paper #gameport {
-  background: white;
-  color: black;
+html[data-theme="sepia"] {
+  --page: #2f2921;
+  --paper: #f4ecd8;
+  --ink: #43382a;
+  --band: #43382a;
+  --band-ink: #f4ecd8;
+  --bar: #43382a;
+  --bar-ink: #f4ecd8;
+  --quote: #0000000f;
+  --link: #7a5326;
 }
-body.theme-paper .Style_user1 {
-  background: #333;
-  color: #fff;
-}
-body.theme-paper .GridWindow {
-  background: white;
-  color: black;
-}
-body.theme-paper .GridWindow .Style_user1 {
-  background: #2b2b2b;
-  color: #f2f2f2;
-}
-body.theme-sepia {
-  background: #2f2921;
-}
-body.theme-sepia #gameport {
-  background: #f4ecd8;
-  color: #43382a;
-}
-body.theme-sepia .Style_user1 {
-  background: #43382a;
-  color: #f4ecd8;
-}
-body.theme-sepia .GridWindow {
-  background: #f4ecd8;
-  color: #43382a;
-}
-body.theme-sepia .GridWindow .Style_user1 {
-  background: #43382a;
-  color: #f4ecd8;
-}
-body.theme-dark {
-  background: #111;
-}
-body.theme-dark #gameport {
-  background: #1c1c1c;
-  color: #d6d6d6;
-}
-body.theme-dark .Style_user1 {
-  background: #d6d6d6;
-  color: #1c1c1c;
-}
-body.theme-dark .GridWindow {
-  background: #1c1c1c;
-  color: #d6d6d6;
-}
-body.theme-dark .GridWindow .Style_user1 {
-  background: #a8a8a8;
-  color: #141414;
+html[data-theme="dark"] {
+  --page: #111;
+  --paper: #1c1c1c;
+  --ink: #d6d6d6;
+  --band: #d6d6d6;
+  --band-ink: #1c1c1c;
+  --bar: #a8a8a8;
+  --bar-ink: #141414;
+  --quote: #ffffff14;
+  --link: #8ab4f8;
 }
 /* The DOS Infocom look, which WinFrotz still opens in: white on a
    deep blue, and the status bar its exact inverse. The one ink
    here that is a period piece rather than a reading preference. */
-body.theme-frotz {
-  background: #000042;
+html[data-theme="frotz"] {
+  --page: #000042;
+  --paper: #000084;
+  --ink: #fff;
+  --band: #fff;
+  --band-ink: #000084;
+  --bar: #fff;
+  --bar-ink: #000084;
+  --quote: #ffffff1f;
+  --link: #7ec8ff;
 }
-body.theme-frotz #gameport {
-  background: #000084;
-  color: #fff;
+/* And what wears them. GlkOte's own stylesheet paints window
+   frames, quotations, and the echoed line in fixed colours of its
+   own, which are one ink's idea of the page and no other's; the
+   theme wins here, exactly as it does in the browser face. */
+.WindowFrame {
+  background: var(--paper);
 }
-body.theme-frotz .Style_user1 {
-  background: #fff;
-  color: #000084;
+.GraphicsWindow canvas {
+  background-color: var(--paper);
 }
-body.theme-frotz .GridWindow {
-  background: #000084;
-  color: #fff;
+.Style_user1 {
+  background: var(--band);
+  color: var(--band-ink);
 }
-body.theme-frotz .GridWindow .Style_user1 {
-  background: #fff;
-  color: #000084;
+.GridWindow {
+  background: var(--paper);
+  color: var(--ink);
+}
+.GridWindow .Style_user1 {
+  background: var(--bar);
+  color: var(--bar-ink);
+}
+.Style_blockquote {
+  background: var(--quote);
+}
+.Style_input {
+  color: inherit;
+}
+.BufferWindow a,
+.GridWindow a {
+  color: var(--link);
 }
 /* The working light. The pipe carries nothing back until the
    machine reaches its next wait, so a story that thinks for a
@@ -150,8 +159,8 @@ body.theme-frotz .GridWindow .Style_user1 {
   letter-spacing: 0.03em;
   border-radius: 4px;
   padding: 6px 12px;
-  background: #2b2b2b;
-  color: #f2f2f2;
+  background: var(--bar);
+  color: var(--bar-ink);
 }
 /* The seconds, once there are enough of them to be worth saying.
    A number that moves is proof of life in a way a still chip is
@@ -159,18 +168,6 @@ body.theme-frotz .GridWindow .Style_user1 {
 #working-for {
   font-variant-numeric: tabular-nums;
   opacity: 0.75;
-}
-body.theme-sepia #working {
-  background: #43382a;
-  color: #f4ecd8;
-}
-body.theme-dark #working {
-  background: #a8a8a8;
-  color: #141414;
-}
-body.theme-frotz #working {
-  background: #fff;
-  color: #000084;
 }
 #working[data-shown] {
   display: flex;
@@ -264,7 +261,7 @@ body.theme-frotz #working {
 <script src="voxam-audio.js" type="text/javascript"></script>
 <script src="shell.js" type="text/javascript"></script>
 </head>
-<body class="theme-paper">
+<body>
 <div id="gameport">
 <div id="windowport">
 <noscript><p>You must have Javascript turned on to play.</p></noscript>
