@@ -92,7 +92,13 @@ is never mistaken for one that has died.
 The page arrives in whichever light your system already prefers,
 and the **Aa** button in the corner opens the preferences panel:
 the ink, the type, its size, the measure of the column, and the
-three spacings (line, letter, and word). The measure is counted
+three spacings (line, letter, and word). The type offers three
+families, or **Named**, where you type the name of any face this
+machine already has and are told plainly whether it was found.
+There is no list to pick from because no webview offers one that
+works on all three engines Voxam's faces meet, so the name is
+asked for instead, and a face nobody has leaves the story in a
+plain serif rather than in nothing. The measure is counted
 in characters rather than pixels, which is what a measure has
 always meant: a fixed pixel width is a different line length in
 every face, and shortens the line each time a reader asks for

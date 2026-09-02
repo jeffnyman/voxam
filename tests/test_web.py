@@ -202,6 +202,13 @@ def test_the_page_carries_a_preferences_panel() -> None:
     assert_that(written).is_not_empty()
     assert_that(written - read).is_empty()
 
+    # A reader can name a face this machine has, which the panel
+    # cannot offer as a list: no webview API for it reaches all
+    # three engines Voxam's two faces meet. What it must do is
+    # refuse to let a name break out of the CSS it is written into.
+    assert_that(panel).contains('["named", "Named..."]')
+    assert_that(panel.count(r'replace(/["\\]/g, "")')).is_equal_to(2)
+
     # And the column is counted in the story's own characters, which
     # only means anything if the gameport is set in the story's own
     # type.
