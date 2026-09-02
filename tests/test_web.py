@@ -350,9 +350,26 @@ def test_the_tab_wears_the_machine_icon() -> None:
         b"\x00\x00\x01\x00"
     )
 
+    # The icon's road names the icon, so each machine's mark has an
+    # address of its own. A favicon lives in a store keyed by
+    # origin and address, outside the caching the headers govern,
+    # and one constant road means a tab keeps whichever mark it saw
+    # first at that port: a Glulx session leaving its icon over
+    # every Zork served there afterwards.
     _, _, page = faced().respond("GET", "/", b"")
 
-    assert_that(page.decode("utf-8")).contains('rel="icon"')
+    assert_that(page.decode("utf-8")).contains('href="favicon.ico?glulx.ico"')
+    assert_that(page.decode("utf-8")).does_not_contain("VOXAM_ICON")
+
+    _, _, dressed = zed.respond("GET", "/", b"")
+
+    assert_that(dressed.decode("utf-8")).contains('href="favicon.ico?z4.ico"')
+
+    # The query is the browser's business, not the server's: the
+    # road still answers with the session's own icon.
+    assert_that(zed.respond("GET", "/favicon.ico?z4.ico", b"")[2][:4]).is_equal_to(
+        b"\x00\x00\x01\x00"
+    )
 
 
 # A whole turn travels by POST: the init births the session and

@@ -294,7 +294,16 @@ class Face:
         self.caption = caption if caption is not None else "Voxam"
 
     def respond(self, method: str, path: str, body: bytes) -> tuple[int, str, bytes]:
-        """Answer one request, whatever road it asks for."""
+        """Answer one request, whatever road it asks for.
+
+        A query is dropped before the road is read. Nothing here
+        takes one; the page hangs the icon's own name off its
+        address so a browser's favicon store keeps one mark per
+        machine rather than one per port, and that name is for the
+        browser to tell them apart by, not for the server to read.
+        """
+
+        path = path.partition("?")[0]
 
         if method == "POST" and path == "/event":
             return self._event(body)
@@ -317,15 +326,24 @@ class Face:
         return (_HTTP_NOT_FOUND, "text/plain", b"voxam: no such road")
 
     def _index(self) -> tuple[int, str, bytes]:
-        """The page itself, wearing the story's name."""
+        """The page itself, wearing the story's name and its mark.
+
+        The icon's road carries the icon's own name as a query the
+        server never reads. It is there for the browser: a favicon
+        lives in a store of its own, keyed by origin and address
+        and largely outside the caching the headers govern, so a
+        tab that once showed a Glulx session keeps that mark over
+        every story served at the same port afterwards. Naming the
+        icon in the address gives each one a road of its own, and
+        the story a tab that tells the truth without a reload.
+        """
 
         page = _page("index.html").decode("utf-8")
-
-        return (
-            _HTTP_OK,
-            CONTENT_TYPES["index.html"],
-            page.replace("VOXAM_TITLE", self.caption).encode("utf-8"),
+        dressed = page.replace("VOXAM_TITLE", self.caption).replace(
+            "VOXAM_ICON", self.session.icon
         )
+
+        return (_HTTP_OK, CONTENT_TYPES["index.html"], dressed.encode("utf-8"))
 
     def _pict(self, tail: str) -> tuple[int, str, bytes]:
         """One Blorb picture by number; a placeholder is no picture."""
