@@ -92,9 +92,13 @@ is never mistaken for one that has died.
 The page arrives in whichever light your system already prefers,
 and the **Aa** button in the corner opens the preferences panel:
 the ink, the type, its size, the measure of the column, and the
-three spacings (line, letter, and word). The type offers three
-families, or **Named**, where you type the name of any face this
-machine already has and are told plainly whether it was found.
+three spacings (line, letter, and word). The type is set in
+Voxam Serif by default, which travels with Voxam so that a story
+reads the same on every machine: the old default resolved to
+Palatino on macOS, Georgia on Windows, and whatever Linux had.
+Voxam Mono is aboard beside it, then three families taken from
+whatever this machine has, then **Named**, where you type the
+name of any face it already has and are told plainly whether it was found.
 There is no list to pick from because no webview offers one that
 works on all three engines Voxam's faces meet, so the name is
 asked for instead, and a face nobody has leaves the story in a

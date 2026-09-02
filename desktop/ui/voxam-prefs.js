@@ -15,9 +15,12 @@
 var VoxamPrefs = (function () {
   "use strict";
 
-  /* The type a story is set in. Three families rather than a font
-   * list, until the face can offer the real one. */
+  /* The type a story is set in. The two Voxam faces travel with
+   * the package, so they read the same on every machine; the three
+   * families after them are whatever this one happens to have. */
   var FACES = {
+    "voxam-serif": '"Voxam Serif", Palatino, Georgia, serif',
+    "voxam-mono": '"Voxam Mono", Consolas, "Courier New", monospace',
     serif: 'Palatino, Georgia, "Times New Roman", Times, serif',
     sans: '"Segoe UI", Helvetica, Arial, sans-serif',
     mono: 'Consolas, "Courier New", monospace'
@@ -57,6 +60,8 @@ var VoxamPrefs = (function () {
       key: "face",
       label: "Type",
       values: [
+        ["voxam-serif", "Voxam Serif"],
+        ["voxam-mono", "Voxam Mono"],
         ["serif", "Serif"],
         ["sans", "Sans"],
         ["mono", "Typewriter"],
@@ -150,7 +155,7 @@ var VoxamPrefs = (function () {
 
   var DEFAULTS = {
     theme: "system",
-    face: "serif",
+    face: "voxam-serif",
     named: "",
     size: 15,
     measure: 98,

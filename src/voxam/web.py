@@ -43,6 +43,12 @@ CONTENT_TYPES = {
     "glkote.js": "text/javascript",
     "voxam-audio.js": "text/javascript",
     "voxam-prefs.js": "text/javascript",
+    "voxam-serif-regular.woff2": "font/woff2",
+    "voxam-serif-italic.woff2": "font/woff2",
+    "voxam-serif-bold.woff2": "font/woff2",
+    "voxam-mono-regular.woff2": "font/woff2",
+    "voxam-mono-italic.woff2": "font/woff2",
+    "voxam-mono-bold.woff2": "font/woff2",
     "jquery-1.12.4.min.js": "text/javascript",
     "waiting.gif": "image/gif",
 }
