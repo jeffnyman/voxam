@@ -173,7 +173,7 @@ function dressed(display) {
   root.setProperty("--story-size", display.size + "px");
   root.setProperty("--grid-size", (display.size - 1) + "px");
   root.setProperty("--measure", MEASURES[display.measure] || MEASURES.standard);
-  document.body.className = "theme-" + display.theme;
+  document.documentElement.dataset.theme = display.theme;
 
   window.dispatchEvent(new Event("resize"));
 }
