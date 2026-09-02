@@ -174,6 +174,30 @@ def test_descriptions_keep_their_breaks() -> None:
         "One paragraph.\nAnother one, emphasized even."
     )
 
+    # A real record is a pretty-printed file whose copy was set for
+    # a 1980s box, so the description arrives indented and wrapped.
+    # Only the <br/> is a break the record asked for: reading the
+    # rest as breaks too is what set Zork I's card one line to a
+    # paragraph, double-spaced down the page.
+    boxed = ifiction(
+        b"<ifindex><story><bibliographic>\n\t\t<description>\n"
+        b"\t\t\tThe troll, who is remarkably coordinated,\n"
+        b"\t\t\tcatches the brown sack and eats it.\n"
+        b"\t\t\t<br/>\n"
+        b"\t\t\tWelcome to Zork I. It beckons you\n"
+        b"\t\t\tinto a world fraught with danger.\n"
+        b"\t\t</description>\n\t\t</bibliographic></story></ifindex>"
+    )
+
+    if boxed is None:
+        pytest.fail("the boxed record did not parse")
+
+    assert_that(boxed.description).is_equal_to(
+        "The troll, who is remarkably coordinated, catches the brown sack "
+        "and eats it.\nWelcome to Zork I. It beckons you into a world "
+        "fraught with danger."
+    )
+
     blank = ifiction(
         b"<ifindex><story><bibliographic><description>  </description>"
         b"</bibliographic></story></ifindex>"
