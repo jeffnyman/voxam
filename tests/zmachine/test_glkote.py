@@ -911,8 +911,14 @@ def test_colours_ride_the_wire(code_machine: Callable[..., Machine]) -> None:
 # header dress, the headline and author emphasized, and the
 # description's paragraphs blank-line separated -- needing no
 # display grant, since a card is only text (Babel: The iFiction
-# format).
-def test_the_card_stands_at_the_door(code_machine: Callable[..., Machine]) -> None:
+# The record's card stays out of the story's own words. It used to
+# be told as the opening text, which put a publisher's blurb among
+# the game's prose where no reader asked for it; the browser face
+# shows it behind a button instead, the little window WinFrotz has
+# always had (Babel: The iFiction format).
+def test_the_card_stays_out_of_the_story(
+    code_machine: Callable[..., Machine],
+) -> None:
     record = (
         b"<ifindex><story><bibliographic><title>Tiny Case</title>"
         b"<headline>An interactive test</headline><author>A. Tester</author>"
@@ -928,18 +934,19 @@ def test_the_card_stands_at_the_door(code_machine: Callable[..., Machine]) -> No
 
     text = frontend.render()["content"][0]["text"]
 
+    # The cover still stands at the door: art is the courtesy that
+    # belongs in the flow, being the story's own.
     assert_that(text[0]["content"][0]["special"]).is_equal_to("image")
-    assert_that(text[1]["content"]).is_equal_to(
-        [{"style": "header", "text": "Tiny Case"}]
+
+    said = "".join(
+        run.get("text", "")
+        for para in text
+        for run in (para.get("content") or [])
+        if isinstance(run, dict)
     )
-    assert_that(text[2]["content"]).is_equal_to(
-        [{"style": "emphasized", "text": "An interactive test"}]
-    )
-    assert_that(text[3]["content"]).is_equal_to(
-        [{"style": "emphasized", "text": "A. Tester"}]
-    )
-    assert_that(text[5]["content"]).is_equal_to([{"style": "normal", "text": "One."}])
-    assert_that(text[7]["content"]).is_equal_to([{"style": "normal", "text": "Two."}])
+
+    for words in ("Tiny Case", "An interactive test", "A. Tester", "One."):
+        assert_that(said).described_as(words).does_not_contain(words)
 
 
 # The doorway courtesy over the wire: a Blorb's Fspc cover stands

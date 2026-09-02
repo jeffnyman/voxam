@@ -88,8 +88,13 @@ def jpeg(width: int, height: int) -> bytes:
     )
 
 
-def pictured() -> Resources:
-    """Resources holding one PNG, one JPEG, and one placeholder."""
+def pictured(record: bytes | None = None) -> Resources:
+    """Resources holding one PNG, one JPEG, and one placeholder.
+
+    An iFiction record rides alongside when one is handed in: it is
+    a chunk of the Blorb rather than a numbered resource, so it
+    joins the body without an index entry.
+    """
 
     entries = (
         (b"Pict", 1, b"PNG ", png(2, 2)),
@@ -106,6 +111,9 @@ def pictured() -> Resources:
         framed = chunk(chunk_id, payload)
         body += framed
         offset += len(framed)
+
+    if record is not None:
+        body += chunk(b"IFmd", record)
 
     return Resources(
         Blorb.parse(chunk(b"FORM", b"IFRS" + chunk(b"RIdx", index) + body))
@@ -223,6 +231,36 @@ def test_the_page_carries_a_preferences_panel() -> None:
     assert_that(
         re.search(r"#gameport \{[^}]*var\(--story-face\)", page, re.S)
     ).is_not_none()
+
+
+# The story's card travels with the page rather than in the story's
+# text: a button opens it, and a story whose record carries nothing
+# gets no button at all.
+def test_the_page_carries_the_ifiction_card() -> None:
+    record = (
+        b"<ifindex><story><bibliographic><title>Tiny Case</title>"
+        b"<headline>An interactive test</headline><author>A. Tester</author>"
+        b"<description>One.<br/>Two.</description>"
+        b"</bibliographic></story></ifindex>"
+    )
+    carded = Face(
+        GlulxSession(Story(glulx_image()), pictured(record=record), seed=7), "Tiny Case"
+    )
+    page = carded.respond("GET", "/", b"")[2].decode("utf-8")
+
+    assert_that(page).does_not_contain("VOXAM_CARD")
+    assert_that(page).contains('"title": "Tiny Case"')
+    assert_that(page).contains('"headline": "An interactive test"')
+    # The blurb's own <br/> survives into the page as a break the
+    # popup renders as two paragraphs.
+    assert_that(page).contains(r"One.\nTwo.")
+    assert_that(page).contains('opener.textContent = "iFiction Card";')
+
+    # A story with no record hands the page nothing, and the script
+    # builds no button over it.
+    bare = faced().respond("GET", "/", b"")[2].decode("utf-8")
+
+    assert_that(bare).contains("var card = null;")
 
 
 # The shared display files are one file each, copied to both faces

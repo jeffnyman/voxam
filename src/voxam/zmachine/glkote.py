@@ -42,7 +42,6 @@ from base64 import b64encode
 from collections.abc import Callable, Mapping, Sequence
 from typing import Final, TextIO
 
-from voxam.babel import ifiction
 from voxam.errors import GlkOteError, VoxamError
 from voxam.frontend import (
     ARC_MODES,
@@ -58,7 +57,6 @@ from voxam.glkote import (
     Page,
     Stanza,
     TextRun,
-    carded,
     measured,
     partials,
     read_stanza,
@@ -305,19 +303,13 @@ class GlkOteFrontend(PlainFrontend):
             if cover is not None:
                 self._runs.extend([cover, ("normal", 0, "\n")])
 
-        # The record's card joins the cover at the door: the
-        # bibliography WinFrotz shows in its own little window,
-        # told as the page's opening text -- needing no grant,
-        # since a card is only text (Babel: The iFiction format).
-        held = (
-            self._resources.blorb.ifiction
-            if self._resources is not None and self._resources.blorb is not None
-            else None
-        )
-        record = ifiction(held) if held is not None else None
-
-        if record is not None:
-            self._runs.extend((name, 0, text) for name, text in carded(record))
+        # The record's card no longer joins the cover at the door.
+        # It was told as the page's opening text, which put a
+        # publisher's blurb in the middle of the story's own words
+        # where no reader asked for it; WinFrotz shows the same
+        # bibliography in a little window of its own, and so does
+        # the browser face now, behind a button (Babel: The
+        # iFiction format).
 
         self._measure(stanza)
 

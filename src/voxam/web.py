@@ -22,6 +22,7 @@ from importlib import resources as importlib_resources
 from voxam.aamachine.glkote import GlkOteFrontend as AAGlkOteFrontend
 from voxam.aamachine.machine import Machine as AAMachine
 from voxam.aamachine.story import Story as AAStory
+from voxam.babel import ifiction
 from voxam.blorb import PNG_ID
 from voxam.errors import VoxamError
 from voxam.glkote import Stanza
@@ -339,11 +340,40 @@ class Face:
         """
 
         page = _page("index.html").decode("utf-8")
-        dressed = page.replace("VOXAM_TITLE", self.caption).replace(
-            "VOXAM_ICON", self.session.icon
+        dressed = (
+            page.replace("VOXAM_TITLE", self.caption)
+            .replace("VOXAM_ICON", self.session.icon)
+            .replace("VOXAM_CARD", json.dumps(self._card()))
         )
 
         return (_HTTP_OK, CONTENT_TYPES["index.html"], dressed.encode("utf-8"))
+
+    def _card(self) -> "dict[str, str] | None":
+        """The story's iFiction card, for the page to keep aside.
+
+        The card used to be told as the story's opening text,
+        which put a publisher's blurb among the game's own words.
+        It travels with the page instead, and the page shows it
+        when a reader asks: the little window WinFrotz has always
+        had (Babel: The iFiction format).
+        """
+
+        blorb = self.session.resources.blorb
+        record = (
+            ifiction(blorb.ifiction) if blorb is not None and blorb.ifiction else None
+        )
+
+        if record is None:
+            return None
+
+        held = {
+            "title": record.title or "",
+            "headline": record.headline or "",
+            "author": record.author or "",
+            "description": record.description or "",
+        }
+
+        return held if any(held.values()) else None
 
     def _pict(self, tail: str) -> tuple[int, str, bytes]:
         """One Blorb picture by number; a placeholder is no picture."""
