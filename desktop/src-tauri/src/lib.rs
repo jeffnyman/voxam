@@ -218,55 +218,6 @@ impl Default for Claim {
     }
 }
 
-/// One Display menu group: its shown title, its settings word,
-/// and its (label, value) options.
-type DisplayGroup = (
-    &'static str,
-    &'static str,
-    &'static [(&'static str, &'static str)],
-);
-
-/// The Display menu's roster: each group a radio row, each value
-/// the word the page's own dresser understands.
-const DISPLAY_GROUPS: [DisplayGroup; 4] = [
-    (
-        "Type",
-        "face",
-        &[("Serif", "serif"), ("Sans", "sans"), ("Typewriter", "mono")],
-    ),
-    (
-        "Size",
-        "size",
-        &[
-            ("12", "12"),
-            ("15", "15"),
-            ("18", "18"),
-            ("21", "21"),
-            ("24", "24"),
-        ],
-    ),
-    (
-        "Ink",
-        "theme",
-        &[
-            ("Paper", "paper"),
-            ("Sepia", "sepia"),
-            ("Dark", "dark"),
-            ("Frotz", "frotz"),
-        ],
-    ),
-    (
-        "Measure",
-        "measure",
-        &[
-            ("Narrow", "narrow"),
-            ("Standard", "standard"),
-            ("Wide", "wide"),
-            ("Full", "full"),
-        ],
-    ),
-];
-
 /// How the page dresses itself: the face and size of the story's
 /// type, the ink it is set in, and the measure of its column.
 /// Persisted as display.json in the app's own config dir, so the
@@ -284,20 +235,8 @@ impl Default for Display {
         Self {
             face: "serif".to_string(),
             size: 15,
-            theme: "paper".to_string(),
+            theme: "system".to_string(),
             measure: "standard".to_string(),
-        }
-    }
-}
-
-impl Display {
-    /// The chosen value of one menu group, for the checkmarks.
-    fn value(&self, group: &str) -> String {
-        match group {
-            "face" => self.face.clone(),
-            "size" => self.size.to_string(),
-            "theme" => self.theme.clone(),
-            _ => self.measure.clone(),
         }
     }
 }
@@ -376,7 +315,6 @@ fn save_display(app: &AppHandle, display: &Display) {
 struct Chrome {
     interpreters: Vec<(String, CheckMenuItem<Wry>)>,
     tandy: CheckMenuItem<Wry>,
-    displays: Vec<(String, CheckMenuItem<Wry>)>,
     following: CheckMenuItem<Wry>,
 }
 
@@ -662,6 +600,21 @@ async fn display_settings(state: State<'_, Shell>) -> Result<Display, String> {
     Ok(state.display.lock().unwrap().clone())
 }
 
+/// The settings the page has just changed, kept beside the app's
+/// own config so the next load opens in them. The page is the one
+/// that knows what it is wearing; this only writes it down.
+#[tauri::command]
+async fn set_display(
+    app: AppHandle,
+    state: State<'_, Shell>,
+    display: Display,
+) -> Result<(), String> {
+    *state.display.lock().unwrap() = display.clone();
+    save_display(&app, &display);
+
+    Ok(())
+}
+
 /// One GlkOte event down the pipe, on its own line, flushed.
 #[tauri::command]
 async fn send_stanza(state: State<'_, Shell>, line: String) -> Result<(), String> {
@@ -749,53 +702,26 @@ pub fn run() {
             )?;
             let story = Submenu::with_items(handle, "Story", true, &[&platforms, &tandy])?;
 
-            // The Display menu: the persisted dress read first, so
-            // every checkmark tells the truth at startup.
-            let dressed = load_display(handle);
+            // The dress is read once at startup and handed to the
+            // page, which owns every knob from here: the panel it
+            // opens is the browser face's own, so a choice means the
+            // same thing in both.
+            *app.state::<Shell>().display.lock().unwrap() = load_display(handle);
 
-            *app.state::<Shell>().display.lock().unwrap() = dressed.clone();
-
-            let mut displays = Vec::new();
-            let mut groups = Vec::new();
-
-            for (shown, group, options) in DISPLAY_GROUPS {
-                let chosen = dressed.value(group);
-                let start = displays.len();
-
-                for (label, value) in options {
-                    displays.push((
-                        format!("{group}:{value}"),
-                        CheckMenuItem::with_id(
-                            handle,
-                            format!("{group}:{value}"),
-                            *label,
-                            true,
-                            *value == chosen,
-                            None::<&str>,
-                        )?,
-                    ));
-                }
-
-                let row: Vec<&dyn IsMenuItem<Wry>> = displays[start..]
-                    .iter()
-                    .map(|(_, item)| item as &dyn IsMenuItem<Wry>)
-                    .collect();
-
-                groups.push(Submenu::with_items(handle, shown, true, &row)?);
-            }
-
-            let rows: Vec<&dyn IsMenuItem<Wry>> = groups
-                .iter()
-                .map(|group| group as &dyn IsMenuItem<Wry>)
-                .collect();
-            let display = Submenu::with_items(handle, "Display", true, &rows)?;
+            let prefs = MenuItem::with_id(
+                handle,
+                "prefs",
+                "Preferences...",
+                true,
+                Some("CmdOrCtrl+,"),
+            )?;
+            let display = Submenu::with_items(handle, "Display", true, &[&prefs])?;
             let menu = Menu::with_items(handle, &[&file, &story, &display])?;
 
             app.set_menu(menu)?;
             app.manage(Chrome {
                 interpreters,
                 tandy,
-                displays,
                 following,
             });
 
@@ -841,35 +767,10 @@ pub fn run() {
 
                     let _ = app.emit("menu-restart", ());
                 }
-                chose if chose.contains(':') => {
-                    // A Display choice: dress the state, keep it,
-                    // fix the group's checkmarks, and tell the
-                    // page -- which re-dresses live, no restart.
-                    let (group, value) = chose.split_once(':').expect("the arm found a colon");
-                    let shell = app.state::<Shell>();
-                    let mut display = shell.display.lock().unwrap();
-
-                    match group {
-                        "face" => display.face = value.to_string(),
-                        "size" => display.size = value.parse().unwrap_or(15),
-                        "theme" => display.theme = value.to_string(),
-                        _ => display.measure = value.to_string(),
-                    }
-
-                    let settings = display.clone();
-
-                    drop(display);
-                    save_display(app, &settings);
-
-                    let fellows = format!("{group}:");
-
-                    for (id, item) in &app.state::<Chrome>().displays {
-                        if id.starts_with(&fellows) {
-                            let _ = item.set_checked(id == chose);
-                        }
-                    }
-
-                    let _ = app.emit("display", settings);
+                "prefs" => {
+                    // The panel lives in the page, so the menu item
+                    // only knocks on it.
+                    let _ = app.emit("menu-preferences", ());
                 }
                 _ => {}
             });
@@ -901,6 +802,7 @@ pub fn run() {
             start_session,
             send_stanza,
             display_settings,
+            set_display,
             story_home,
             set_home
         ])

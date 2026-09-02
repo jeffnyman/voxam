@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from assertpy import assert_that
 
+import voxam
 from voxam.blorb import Blorb
 from voxam.glulx.glk.resources import Resources
 from voxam.glulx.story import Story
@@ -151,37 +152,51 @@ def test_the_page_wears_the_story_name() -> None:
     assert_that(unnamed.decode("utf-8")).contains("<title>Voxam</title>")
 
 
-# The page carries its own theme picker: a plain select of the
-# four inks, an html attribute the CSS keys off, a dark palette
-# behind prefers-color-scheme, and the pre-paint script that reads
-# the saved choice before the first frame.
-def test_the_page_carries_a_theme_picker() -> None:
-    _, _, payload = faced().respond("GET", "/", b"")
+# The page carries its own preferences panel: the shared script
+# that builds it, an html attribute the CSS keys off, a dark
+# palette behind prefers-color-scheme, and the pre-paint script
+# that wears the kept choices before the first frame.
+def test_the_page_carries_a_preferences_panel() -> None:
+    face = faced()
+    _, _, payload = face.respond("GET", "/", b"")
     page = payload.decode("utf-8")
 
     assert_that(page).contains('<html lang="en" data-theme="system">')
-    assert_that(page).contains('<select id="theme">')
-
-    for ink in ("system", "paper", "sepia", "dark", "frotz"):
-        assert_that(page).contains(f'value="{ink}"')
-
+    assert_that(page).contains('<script src="voxam-prefs.js"')
     assert_that(page).contains("@media (prefers-color-scheme: dark)")
+    assert_that(page).contains('localStorage.getItem("voxam-display")')
+    assert_that(page).contains('localStorage.setItem("voxam-display"')
+
+    # The ink alone was kept under its own key before the panel
+    # existed, and a reader who chose one keeps it.
     assert_that(page).contains('localStorage.getItem("voxam-theme")')
-    assert_that(page).contains('localStorage.setItem("voxam-theme"')
 
-    # The pre-paint script keeps its own roster of the inks it will
-    # honour, and a new option that never reached it would be read
-    # back as "system" on every reload but the one that set it.
-    roster = re.findall(r"var VOXAM_INKS = \[([^\]]*)\]", page)
+    # Every ink the panel offers needs a palette to wear, and one
+    # that never reached the stylesheet would read as the default
+    # on every load but the one that set it.
+    _, _, script = face.respond("GET", "/voxam-prefs.js", b"")
+    axis = re.search(r'key: "theme"(.*?)(?:key: "|\Z)', script.decode("utf-8"), re.S)
+    offered = set(re.findall(r'\["([a-z]+)", "', axis.group(1) if axis else ""))
+    dressed = set(re.findall(r'html\[data-theme="([a-z]+)"\]', page))
 
-    assert_that(roster).is_length(1)
-    assert_that(sorted(re.findall(r'"([a-z]+)"', roster[0]))).is_equal_to(
-        sorted(
-            ink
-            for ink in re.findall(r'<option value="([a-z]+)"', page)
-            if ink != "system"
+    assert_that(offered).is_not_empty()
+    assert_that(offered - dressed).is_equal_to({"paper"})
+
+
+# The shared display files are one file each, copied to both faces
+# that wear this page, and a change to one that misses the other is
+# exactly the drift that left the shell showing GlkOte's own
+# colours for an era. The vendored stylesheet is in the list too:
+# Voxam's corrections to it live in the pages, so the file itself
+# has no reason ever to differ.
+def test_both_faces_carry_the_same_display_assets() -> None:
+    shared = Path(__file__).parent.parent / "desktop" / "ui"
+    served = Path(voxam.__file__).parent / "pages"
+
+    for name in ("voxam-prefs.js", "voxam-audio.js", "glkote.js", "glkote.css"):
+        assert_that((shared / name).read_bytes()).described_as(name).is_equal_to(
+            (served / name).read_bytes()
         )
-    )
 
 
 # The display's own files serve under their names and types; the
@@ -194,6 +209,7 @@ def test_the_assets_serve_with_their_types() -> None:
         ("glkote.js", "text/javascript"),
         ("glkote.css", "text/css"),
         ("jquery-1.12.4.min.js", "text/javascript"),
+        ("voxam-prefs.js", "text/javascript"),
         ("waiting.gif", "image/gif"),
     ):
         status, served, payload = face.respond("GET", f"/{name}", b"")

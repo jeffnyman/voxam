@@ -42,6 +42,7 @@ CONTENT_TYPES = {
     "glkote.css": "text/css",
     "glkote.js": "text/javascript",
     "voxam-audio.js": "text/javascript",
+    "voxam-prefs.js": "text/javascript",
     "jquery-1.12.4.min.js": "text/javascript",
     "waiting.gif": "image/gif",
 }
