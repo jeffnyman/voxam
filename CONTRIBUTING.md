@@ -34,6 +34,35 @@ All commands below assume that environment.
 | Type check as another platform | `uv run mypy --platform linux` |
 | Build distributions | `uv build` |
 
+## The C# port
+
+The `csharp/` directory holds the C# port of the Z-Machine: a
+class library, a console executable answering `--accept` the way
+the Python does, and a test project. It needs the .NET SDK named
+in `csharp/global.json` and nothing else; the Python toolchain
+never sees it and the wheel never carries it. Its gate is the
+Python's, translated: warnings are errors, formatting is checked,
+and the tests enforce 100% line and branch coverage through
+coverlet's threshold.
+
+| Task | Command |
+| --- | --- |
+| Build | `dotnet build csharp -c Release` |
+| Run the tests at the coverage threshold | `dotnet test csharp -c Release` |
+| Format | `dotnet format csharp` |
+| Check formatting only | `dotnet format csharp --verify-no-changes` |
+| Publish a native executable | `dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish` |
+| Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
+
+The port is certified the way a release is: a sweep of the corpus
+under the Python, a sweep under the native executable, and a
+comparison of the two by transcript digest. CI does the smallest
+version of that on every push, replaying Zork I under both and
+requiring the bytes to agree. The Python is the reference and
+stays so: a difference between the two is a question for the
+port, not the Python, unless the Python is shown wrong against
+the Standard.
+
 ## The desktop shell
 
 The `desktop/` directory holds Voxam's native shell, a
