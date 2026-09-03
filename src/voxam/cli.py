@@ -93,6 +93,13 @@ _SHORTEST_RUN = 1e-9
 # The graphics window's --theme choices, named here so the parser
 # needs no eager import of the optional glass. voxam.glass holds
 # their actual ink and paper, and a test keeps the two in step.
+# What the third machine says to the session instruments, said the
+# same way through every door that can reach it.
+AAMACHINE_LATER = (
+    "the Å-machine plays live for now -- the acceptance driver, "
+    "the tracer, and the benchmark are later roads"
+)
+
 THEME_CHOICES = ("classic", "dark", "paper", "sepia")
 DEFAULT_THEME = "dark"
 
@@ -460,6 +467,29 @@ def _aamachine_story(story_path: Path) -> bool:
     return opening[:4] == IFF_FORM and opening[8:12] == AAM_FORM
 
 
+def _aamachine_refusal(story_path: Path) -> str | None:
+    """The third machine's refusal of the session instruments, or None.
+
+    Every door that drives a story from a script asks this before
+    it reads the file as anything else. Without it the instruments
+    reach the Z-code header reader first, and an .aastory earns
+    "declares version 70" -- the F of FORM, read as a version byte
+    -- which sends a reader hunting for a corrupt file that is not
+    corrupt. The story is fine; the road is not built.
+
+    A file that cannot be read at all is not this refusal's
+    business: the door that opens it will say so in its own words.
+    """
+
+    try:
+        if not _aamachine_story(story_path):
+            return None
+    except OSError:
+        return None
+
+    return AAMACHINE_LATER
+
+
 def _run_aamachine(  # noqa: PLR0913, PLR0911 -- one knob per seam, one exit per face
     story_path: Path,
     *,
@@ -496,10 +526,7 @@ def _run_aamachine(  # noqa: PLR0913, PLR0911 -- one knob per seam, one exit per
         if recorder is not None:
             recorder.close()
 
-        print(
-            "voxam: the Å-machine plays live for now -- the acceptance "
-            "driver, the tracer, and the benchmark are later roads"
-        )
+        print(f"voxam: {AAMACHINE_LATER}")
 
         return EXIT_UNUSABLE
 
@@ -833,6 +860,13 @@ def _regtest_session(script_path: Path) -> int:
 
         return EXIT_UNUSABLE
 
+    refused = _aamachine_refusal(script.game)
+
+    if refused is not None:
+        print(f"voxam: {refused}")
+
+        return EXIT_UNUSABLE
+
     errors = run_script(script, print)
 
     if errors:
@@ -1033,7 +1067,7 @@ def _recorded_session(arguments: argparse.Namespace, identity: Identity | None) 
     )
 
 
-def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
+def _replay_script(  # noqa: PLR0913, PLR0911 -- one knob per seam, one exit per refusal
     script_path: Path,
     story: Path | None,
     seed_override: int | None,
@@ -1067,6 +1101,13 @@ def _replay_script(  # noqa: PLR0913 -- one knob per replay seam
         script = AcceptanceScript.parse(script_path)
     except (OSError, VoxamError) as error:
         print(f"voxam: {error}")
+
+        return EXIT_UNUSABLE
+
+    refused = _aamachine_refusal(script.game)
+
+    if refused is not None:
+        print(f"voxam: {refused}")
 
         return EXIT_UNUSABLE
 
