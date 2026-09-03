@@ -16,6 +16,8 @@
     <Threshold>100</Threshold>
     <ThresholdType>line,branch</ThresholdType>
     <ThresholdStat>total</ThresholdStat>
+    <!-- Source generators (the regex generator) emit code that is not ours to cover. -->
+    <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
   </PropertyGroup>
 
   <ItemGroup>

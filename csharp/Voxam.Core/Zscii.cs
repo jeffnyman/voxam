@@ -10,9 +10,23 @@ public static class Zscii
     private const string Alphabet2 = " \n0123456789.,!?_#'\"/\\-:()";
     private const string Alphabet2V1 = " 0123456789.,!?_#'\"/\\<-:()";
 
+    private const int Space = 0;
+    private const int Escape = 6;
+    private const int A2Newline = 7;
+    private const int FirstAlphabetChar = 6;
+    private const int LastShiftLockVersion = 2;
+
+    private const int Delete = 8;
     private const int Newline = 13;
+    private const int EscapeKey = 27;
+    private const int InputKeysFirst = 129;
+    private const int InputKeysLast = 154;
     private const int ExtrasFirst = 155;
     private const int ExtrasLast = 251;
+
+    // The IBM PC's arrow glyphs at ZSCII 24 to 27, which Beyond Zork
+    // prints for its compass rose; the reference draws them so.
+    private static readonly string[] Arrows = ["↑", "↓", "→", "←"];
 
     // The default extra characters, ZSCII 155 to 223 (§3.8.5.3).
     private static readonly int[] DefaultExtras =
@@ -52,17 +66,21 @@ public static class Zscii
     /// <summary>Decode the string at an address: its text and the address past it.</summary>
     public static (string Text, int End) Decode(Memory m, int address) => Decode(m, address, abbreviated: false);
 
-    // An abbreviation may not itself use an abbreviation (§3.3.1). A
-    // table that breaks the rule can point at itself, and refusing it
-    // is what keeps a broken story from recursing without end.
+    // Z-characters are read under the version's rules (§3.2, §3.5).
+    // "Current" is the alphabet for the next character and "locked"
+    // the one it falls back to: from Version 3 a shift is absolute
+    // and lasts one character; in Versions 1 and 2 the shifts rotate
+    // relative to the current alphabet, and 4 and 5 rotate the lock.
+    // An abbreviation may not itself use an abbreviation (§3.3.1),
+    // and a table that breaks the rule can point at itself, so that
+    // is refused rather than recursed into.
     private static (string Text, int End) Decode(Memory m, int address, bool abbreviated)
     {
         var version = m.Version;
         var text = new StringBuilder();
         var pos = address;
-        var alphabet = 0;
-        var shift = -1;
-        var lockedFrom = 0;
+        var locked = 0;
+        var current = 0;
         var tenBit = 0;
         var high = 0;
         var abbreviation = 0;
@@ -87,10 +105,31 @@ public static class Zscii
                 {
                     text.Append(ToChar(m, (high << 5) | z));
                     tenBit = 0;
+                    current = locked;
                     continue;
                 }
 
                 if (abbreviation != 0)
+                {
+                    var table = m.ReadWord(Header.Abbreviations);
+                    var entry = m.FetchWord(table + 2 * (32 * (abbreviation - 1) + z));
+                    text.Append(Decode(m, entry * 2, abbreviated: true).Text);
+                    abbreviation = 0;
+                    current = locked;
+                    continue;
+                }
+
+                if (z == Space)
+                {
+                    text.Append(' ');
+                    current = locked;
+                }
+                else if (version == 1 && z == 1)
+                {
+                    text.Append('\n');
+                    current = locked;
+                }
+                else if (IsAbbreviation(version, z))
                 {
                     if (abbreviated)
                     {
@@ -98,64 +137,25 @@ public static class Zscii
                             $"the abbreviation at ${address:x4} uses an abbreviation itself, which §3.3.1 forbids");
                     }
 
-                    var table = m.ReadWord(Header.Abbreviations);
-                    var entry = m.FetchWord(table + 2 * (32 * (abbreviation - 1) + z));
-                    text.Append(Decode(m, entry * 2, abbreviated: true).Text);
-                    abbreviation = 0;
-                    continue;
+                    abbreviation = z;
                 }
-
-                switch (z)
+                else if (z < FirstAlphabetChar)
                 {
-                    case 0:
-                        text.Append(' ');
-                        break;
-                    case 1 when version >= 2:
-                        abbreviation = 1;
-                        break;
-                    case 1:
-                        text.Append('\n');
-                        break;
-                    case 2 or 3 when version >= 3:
-                        abbreviation = z;
-                        break;
-                    case 2 or 3:
-                        // Versions 1 and 2: a temporary shift up or down.
-                        shift = (alphabet + (z == 2 ? 1 : 2)) % 3;
-                        break;
-                    case 4 or 5 when version >= 3:
-                        shift = z - 3;
-                        break;
-                    case 4 or 5:
-                        // Versions 1 and 2: a shift lock.
-                        alphabet = (alphabet + (z == 4 ? 1 : 2)) % 3;
-                        lockedFrom = alphabet;
-                        break;
-                    default:
-                        {
-                            var row = shift >= 0 ? shift : alphabet;
-                            shift = -1;
-
-                            if (row == 2 && z == 6)
-                            {
-                                tenBit = 1;
-                            }
-                            else if (row == 2 && z == 7 && version >= 2)
-                            {
-                                text.Append('\n');
-                            }
-                            else
-                            {
-                                text.Append(AlphabetChar(m, row, z - 6));
-                            }
-
-                            break;
-                        }
+                    (current, locked) = Shift(version, current, locked, z);
                 }
-
-                if (z >= 6 && version < 3)
+                else if (current == 2 && z == Escape)
                 {
-                    alphabet = lockedFrom;
+                    tenBit = 1;
+                }
+                else if (current == 2 && version > 1 && z == A2Newline)
+                {
+                    text.Append('\n');
+                    current = locked;
+                }
+                else
+                {
+                    text.Append(AlphabetChar(m, current, z - FirstAlphabetChar));
+                    current = locked;
                 }
             }
 
@@ -164,6 +164,20 @@ public static class Zscii
                 return (text.ToString(), pos);
             }
         }
+    }
+
+    private static bool IsAbbreviation(int version, int z) =>
+        version >= 3 ? z is 1 or 2 or 3 : version == 2 && z == 1;
+
+    private static (int Current, int Locked) Shift(int version, int current, int locked, int z)
+    {
+        if (version > LastShiftLockVersion)
+        {
+            return (z - 3, locked);
+        }
+
+        var rotated = (current + (z % 2 == 0 ? 1 : 2)) % 3;
+        return z is 4 or 5 ? (rotated, rotated) : (rotated, locked);
     }
 
     /// <summary>The character a ZSCII code prints as (§3.8).</summary>
@@ -175,6 +189,7 @@ public static class Zscii
             9 => "\t",
             11 => " ",
             Newline => "\n",
+            >= 24 and <= 27 => Arrows[code - 24],
             >= 32 and <= 126 => ((char)code).ToString(),
             >= ExtrasFirst and <= ExtrasLast => Extra(m, code),
             _ => throw new ZMachineException($"ZSCII {code} has no character to print (§3.8)"),
@@ -184,14 +199,17 @@ public static class Zscii
     /// <summary>The ZSCII code a typed character lands as (§3.8).</summary>
     public static int FromChar(Memory m, char c)
     {
-        if (c == '\n')
+        switch (c)
         {
-            return Newline;
-        }
-
-        if (c is >= (char)32 and <= (char)126)
-        {
-            return c;
+            case '\n':
+                return Newline;
+            case '\b' or '\x7f':
+                return Delete;
+            case '\x1b':
+                return EscapeKey;
+            case >= (char)32 and <= (char)126:
+            case >= (char)InputKeysFirst and <= (char)InputKeysLast:
+                return c;
         }
 
         var extras = ExtrasTable(m);
@@ -210,69 +228,112 @@ public static class Zscii
     /// <summary>Encode a word to dictionary form: 4 bytes through Version 3, 6 after (§3.7).</summary>
     public static byte[] EncodeWord(Memory m, string word)
     {
-        var count = m.Version <= 3 ? 6 : 9;
-        var codes = new List<int>();
+        var version = m.Version;
+        var count = version <= 3 ? 6 : 9;
+        var targets = new List<(int Alphabet, int[] Chars)>();
+        // Version 1's third alphabet has no new-line entry, so its
+        // search starts one place earlier.
+        var searchFrom = version == 1 ? 1 : 2;
 
         // Dictionary form is lower case, as the reference encodes it.
         foreach (var c in word.ToLowerInvariant())
         {
-            if (codes.Count >= count)
-            {
-                break;
-            }
+            var text = c.ToString();
+            var found = false;
 
-            var row = -1;
-            var index = -1;
-
-            for (var r = 0; r < 3 && row < 0; r++)
+            for (var row = 0; row < 3 && !found; row++)
             {
-                for (var i = 0; i < 26; i++)
+                for (var index = row == 2 ? searchFrom : 0; index < 26; index++)
                 {
-                    if (r == 2 && i < 2)
+                    if (AlphabetChar(m, row, index) == text)
                     {
-                        continue;
-                    }
-
-                    if (AlphabetChar(m, r, i) == c.ToString())
-                    {
-                        row = r;
-                        index = i;
+                        targets.Add((row, [index + FirstAlphabetChar]));
+                        found = true;
                         break;
                     }
                 }
             }
 
-            if (row == 0)
-            {
-                codes.Add(index + 6);
-            }
-            else if (row > 0)
-            {
-                codes.Add(row + 3);
-                codes.Add(index + 6);
-            }
-            else
+            if (!found)
             {
                 var code = FromChar(m, c);
-                codes.Add(5);
-                codes.Add(6);
-                codes.Add(code >> 5);
-                codes.Add(code & 0x1F);
+                targets.Add((2, [Escape, (code >> 5) & 0x1F, code & 0x1F]));
             }
         }
+
+        var codes = version > LastShiftLockVersion ? SingleShifted(targets) : ShiftLocked(targets);
 
         while (codes.Count < count)
         {
             codes.Add(5);
         }
 
-        var encoded = new byte[count / 3 * 2];
+        return Pack(codes.Take(count).ToList());
+    }
 
-        for (var w = 0; w < count / 3; w++)
+    // From Version 3, each character outside the first alphabet takes
+    // its own single shift (§3.7).
+    private static List<int> SingleShifted(List<(int Alphabet, int[] Chars)> targets)
+    {
+        var codes = new List<int>();
+
+        foreach (var (alphabet, chars) in targets)
+        {
+            if (alphabet != 0)
+            {
+                codes.Add(3 + alphabet);
+            }
+
+            codes.AddRange(chars);
+        }
+
+        return codes;
+    }
+
+    // Versions 1 and 2 shift relative to the current alphabet, and
+    // lock instead when the next character shares the alphabet
+    // (§3.2.2, §3.7.1).
+    private static List<int> ShiftLocked(List<(int Alphabet, int[] Chars)> targets)
+    {
+        var codes = new List<int>();
+        var locked = 0;
+
+        for (var index = 0; index < targets.Count; index++)
+        {
+            var (alphabet, chars) = targets[index];
+
+            if (alphabet != locked)
+            {
+                var run = index + 1 < targets.Count && targets[index + 1].Alphabet == alphabet;
+                var upward = ((alphabet - locked) % 3 + 3) % 3 == 1;
+
+                if (run)
+                {
+                    codes.Add(upward ? 4 : 5);
+                    locked = alphabet;
+                }
+                else
+                {
+                    codes.Add(upward ? 2 : 3);
+                }
+            }
+
+            codes.AddRange(chars);
+        }
+
+        return codes;
+    }
+
+    private static byte[] Pack(List<int> codes)
+    {
+        var words = codes.Count / 3;
+        var encoded = new byte[2 * words];
+
+        for (var w = 0; w < words; w++)
         {
             var value = (codes[3 * w] << 10) | (codes[3 * w + 1] << 5) | codes[3 * w + 2];
 
-            if (w == count / 3 - 1)
+            if (w == words - 1)
             {
                 value |= 0x8000;
             }
