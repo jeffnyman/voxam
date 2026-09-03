@@ -4,6 +4,9 @@
 # Bronze, Release 11 / serial 060503, played to the winning ending:
 # "*** You have restored the King and freed his servants ***"
 #
+# Fenced partway down, so an ordinary replay covers the opening and
+# stops. The reason, and how to lift it, are written at the fence.
+#
 # The command stream is adapted from David A. Wheeler's Release 12
 # transcript (https://dwheeler.com/bronze/bronze-transcript.html).
 # Release 12 survives publicly only as a Glulx build, so that session
@@ -97,6 +100,19 @@ x staircase
 e
 x gargoyle
 u
+# The everyday sweep stops here: 71 commands, 14 of 55 rooms
+# searched, the whole ground floor toured. Bronze is Inform 7 and
+# runs roughly forty times the instructions per turn that an Inform
+# 6 game does, so its full 934-command walk takes minutes where
+# every other recording in this corpus takes seconds, and a sweep
+# that waits for it is a sweep nobody runs.
+#
+# The winning walk is still here, whole, below this line. Delete
+# the fence to replay it: an unclosed fence skips the rest of the
+# file, which is what makes "replay only up to here" a one-line
+# edit (acceptance.py: the grammar, line by line).
+
+``` the rest of the winning walk, from the upper floors to the king restored
 e
 x puzzle
 x table

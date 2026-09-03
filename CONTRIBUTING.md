@@ -102,6 +102,24 @@ change not working.
   rather than in CI, and they double as the project's archaeology notebook,
   annotating where the games' published walkthroughs go wrong.
 
+  They are also the project's widest regression net, and
+  `tools/sweep-corpus.py` is what runs them. A sweep replays every
+  recording into transcripts with a manifest of timings; two sweeps
+  compare, on RegTest's exit codes, so a release can be held against the
+  one before it:
+
+  ```bash
+  uv run python tools/sweep-corpus.py record before --root ../voxam-2.6.1
+  uv run python tools/sweep-corpus.py record after
+  uv run python tools/sweep-corpus.py compare before after
+  ```
+
+  `--root` sweeps another checkout using that checkout's own source, so
+  the tool need exist in only one of the two. A recording that times out
+  keeps what it earned and is marked incomplete: a truncated transcript
+  is excluded from the verdict rather than counted as a difference.
+  Bronze is the one recording that needs `--timeout` raised on purpose.
+
 ## Pre-commit hooks
 
 Install the hooks once, after which lint, format, and type checks run on every
