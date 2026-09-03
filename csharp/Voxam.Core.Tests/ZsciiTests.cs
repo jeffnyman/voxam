@@ -134,7 +134,7 @@ public class ZsciiTests
         Assert.Equal("Œ", Zscii.ToChar(memory, 221));
         var beyond = Assert.Throws<ZMachineException>(() => Zscii.ToChar(memory, 224));
         Assert.Contains("beyond the extra characters", beyond.Message, StringComparison.Ordinal);
-        var none = Assert.Throws<ZMachineException>(() => Zscii.ToChar(memory, 24));
+        var none = Assert.Throws<ZMachineException>(() => Zscii.ToChar(memory, 23));
         Assert.Contains("no character to print", none.Message, StringComparison.Ordinal);
     }
 
@@ -170,6 +170,58 @@ public class ZsciiTests
         Assert.Equal("ä", Zscii.ToChar(short3, 155));
         var zero = Story(5, builder => builder.ExtensionTable = builder.Words(3, 0, 0, 0));
         Assert.Equal("ä", Zscii.ToChar(zero, 155));
+    }
+
+    // Versions 1 and 2 shift relative to the current alphabet and lock
+    // for a run of two: these bytes come from the reference's
+    // encode_word over the Version 1 and 2 releases of Zork I.
+    [Theory]
+    [InlineData(1, "n", "4ca594a5")]
+    [InlineData(1, "mailbox", "48cec4f4")]
+    [InlineData(1, ".", "0e2594a5")]
+    [InlineData(1, "a1", "186894a5")]
+    [InlineData(1, "12", "150994a5")]
+    [InlineData(1, "x-y", "747cf8a5")]
+    [InlineData(1, "ab12cd", "18e5a124")]
+    [InlineData(1, "0", "0ce594a5")]
+    [InlineData(1, "<", "0f6594a5")]
+    [InlineData(1, "12a1", "150988c8")]
+    [InlineData(2, ".", "0e4594a5")]
+    [InlineData(2, "12a1", "152a88c9")]
+    [InlineData(2, "a1", "186994a5")]
+    [InlineData(2, "12", "152a94a5")]
+    [InlineData(2, "ab12cd", "18e5a544")]
+    [InlineData(2, "0", "0d0594a5")]
+    [InlineData(2, "<", "0cc1f0a5")]
+    public void EarlyDictionaryEncodingMatchesTheReference(int version, string word, string hex)
+    {
+        Assert.Equal(hex, Convert.ToHexStringLower(Zscii.EncodeWord(Story(version), word)));
+    }
+
+    // In Version 2, Z-character 1 opens the one abbreviation bank, 2
+    // shifts up for one character relative to the alphabet in force,
+    // a space ends a pending shift, and 4 and 5 rotate the lock. The
+    // Z-characters here are 2 6 0, 2 0 6, 4 6 1, 0 5 5.
+    [Fact]
+    public void VersionTwoAbbreviatesAndShiftsRelatively()
+    {
+        var builder = new StoryBuilder(2);
+        builder.SetAbbreviation(0, "the");
+        var address = builder.Bytes(0x08, 0xC0, 0x08, 0x06, 0x10, 0xC1, 0x80, 0xA5);
+        builder.Quit();
+        Assert.Equal("A  aAthe", Zscii.Decode(new Memory(builder.Build()), address).Text);
+    }
+
+    [Fact]
+    public void ArrowsAndInputKeysHaveCharacters()
+    {
+        var memory = Story();
+        Assert.Equal("↑↓→←", string.Concat(Enumerable.Range(24, 4).Select(code => Zscii.ToChar(memory, code))));
+        Assert.Equal(8, Zscii.FromChar(memory, '\b'));
+        Assert.Equal(8, Zscii.FromChar(memory, '\x7f'));
+        Assert.Equal(27, Zscii.FromChar(memory, '\x1b'));
+        Assert.Equal(129, Zscii.FromChar(memory, '\u0081'));
+        Assert.Equal(154, Zscii.FromChar(memory, '\u009a'));
     }
 
     // These bytes are what the Python reference's encode_word yields

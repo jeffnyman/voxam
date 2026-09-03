@@ -1339,21 +1339,23 @@ dictionary rules, the seeded generator ported bit for bit, and a
 plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
-`Voxam.Core.Tests`, 155 tests at 100% line and branch coverage,
+`Voxam.Core.Tests`, 189 tests at 100% line and branch coverage,
 enforced as a threshold the way the Python's suite is, most of
 them driving tiny stories assembled by a builder in the test
 project rather than fixtures on disk.
 
 **Where it stands.** Of the 37 Z-code recordings in the corpus,
-18 replay identically: seven of the nine Version 3 games, one
-Version 2, one Version 4, eight Version 5 and one Version 8.
-Every remaining difference belongs to a road not yet walked
-rather than to a wrong turn: the refusal watch, timed reads and
-the patient typist, the keystroke queue behind `read_char`, save
-and restore, the `erase_window` paragraph rule, the shift
-semantics of Versions 1 and 2, and one ZSCII code Beyond Zork
-prints. Glulx, the Å-machine and Version 6 are refused at the
-door. `tools/sweep-corpus.py record --voxam` is the certificate:
+30 replay identically: every Version 1, 2 and 3 walk, two of the
+four at Version 4, twelve of the sixteen at Version 5, the
+Version 7 walk excepted, and all three at Version 8. The port
+speaks the whole acceptance grammar, keys, clicks, links and
+camera marks included, and carries the refusal watch, so a
+replay warns of a silently refused command exactly where the
+Python does. Every remaining difference belongs to a road not
+yet walked rather than to a wrong turn: timed reads and the
+patient typist, the keystroke queue behind `read_char`, save and
+restore, and the screen model the later versions lean on. Glulx,
+the Å-machine and Version 6 are refused at the door. `tools/sweep-corpus.py record --voxam` is the certificate:
 it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
 push, on all three platforms, from a NativeAOT publish.

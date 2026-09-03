@@ -93,17 +93,31 @@ internal static class Program
             return ExitUnusable;
         }
 
-        var commands = script.Commands.GetEnumerator();
+        // The watch reads the story's output, never the typed echoes,
+        // and judges each response the moment the next command is
+        // typed: a warning lands between the prompt and the echo, as
+        // in the reference.
+        var watch = new RefusalWatch(script, message => emit($"voxam: {message}\n"));
+        var at = 0;
 
         string? Source()
         {
-            if (!commands.MoveNext())
+            if (at >= script.Commands.Count)
             {
                 return null;
             }
 
-            emit(commands.Current + "\n");
-            return commands.Current;
+            var command = script.Commands[at];
+            watch.Typed(at);
+            at++;
+            emit(AcceptanceScript.Shown(command) + "\n");
+            return command;
+        }
+
+        void Tee(string text)
+        {
+            emit(text);
+            watch.Saw(text);
         }
 
         emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
@@ -124,21 +138,24 @@ internal static class Program
                 }
             }
 
-            var machine = new Machine(story, new PlainFrontend(emit), Source, seed);
+            var machine = new Machine(story, new PlainFrontend(Tee), Source, seed);
             machine.Run();
             emit("\n");
         }
         catch (EndOfInputException)
         {
             emit("\nvoxam: end of input\n");
+            watch.Finish();
             return ExitOk;
         }
         catch (ZMachineException error)
         {
             emit($"\nvoxam: {error.Message}\n");
+            watch.Finish();
             return ExitUnusable;
         }
 
+        watch.Finish();
         return ExitOk;
     }
 }
