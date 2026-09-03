@@ -41,6 +41,11 @@ public sealed class Machine
     private bool _storyWindow = true;
     private int _font = 1;
 
+    // The nimble half of the patient typist: the address of a timed
+    // read_char an interrupt just terminated, whose retry finds the
+    // keys ready rather than waiting a second interval.
+    private int _typistReady = -1;
+
     /// <summary>Instructions executed across the whole session.</summary>
     public long Instructions { get; private set; }
 
@@ -324,7 +329,14 @@ public sealed class Machine
             return;
         }
 
-        var address = RoutineAddress(packed);
+        Enter(RoutineAddress(packed), values[1..], i.NextAddress, i.StoreVariable);
+    }
+
+    // Enter a routine at its header: locals from the header through
+    // Version 4 and zeroed after, arguments laid over them, and a
+    // frame remembering where to return and where the result goes.
+    private void Enter(int address, int[] arguments, int returnAddress, int storeVariable)
+    {
         var count = _m.FetchByte(address);
 
         if (count > 15)
@@ -350,20 +362,18 @@ public sealed class Machine
             first = address + 1;
         }
 
-        var argCount = values.Length - 1;
-
-        for (var k = 0; k < Math.Min(argCount, count); k++)
+        for (var k = 0; k < Math.Min(arguments.Length, count); k++)
         {
-            locals[k] = values[k + 1];
+            locals[k] = arguments[k];
         }
 
         _frames.Add(new Frame
         {
-            ReturnAddress = i.NextAddress,
-            StoreVariable = i.StoreVariable,
+            ReturnAddress = returnAddress,
+            StoreVariable = storeVariable,
             Locals = locals,
             StackBase = _stack.Count,
-            ArgCount = argCount,
+            ArgCount = arguments.Length,
         });
         _pc = first;
     }
@@ -470,6 +480,36 @@ public sealed class Machine
                 $"the text buffer at ${textBuffer:x4} claims a capacity of {capacity}: almost certainly overrun by a previous array (§15 read)");
         }
 
+        _typistReady = -1;
+
+        // An interrupt that ends the read erases all input (§15 read):
+        // a counted buffer reports no letters, a terminated one an
+        // empty string, and the lexing sees that emptiness.
+        if (TimedOut(values, 2))
+        {
+            if (counted)
+            {
+                _m.WriteByte(textBuffer + 1, 0);
+            }
+            else
+            {
+                WriteText(textBuffer + 1, "", terminate: true);
+            }
+
+            if (parseBuffer != 0 || !counted)
+            {
+                Parse(parseBuffer, "", counted ? 2 : 1, null, keepUnrecognized: false);
+            }
+
+            if (i.Info.Stores)
+            {
+                Store(i, 0);
+            }
+
+            Next(i);
+            return;
+        }
+
         var preloaded = 0;
         var held = "";
 
@@ -567,21 +607,66 @@ public sealed class Machine
         }
     }
 
+    // One key from the queue, refilled a line at a time: an empty
+    // line is the return key alone, and a longer line queues its
+    // characters to be typed one read_char at a time. The queue never
+    // invents a return, so a one-character line is exactly one key.
     private int NextKey()
     {
         if (_pendingKeys.Count == 0)
         {
             var line = NextLine();
 
+            if (line.Length == 0)
+            {
+                return NewlineCode;
+            }
+
             foreach (var c in line)
             {
                 _pendingKeys.Enqueue(Zscii.FromChar(_m, c));
             }
-
-            _pendingKeys.Enqueue(NewlineCode);
         }
 
         return _pendingKeys.Dequeue();
+    }
+
+    // The patient typist lets one interval of a timed read elapse
+    // (§15 read): the interrupt routine fires once, and a true return
+    // ends the read with no input consumed. Before Version 4, and
+    // without both a time and a routine, nothing fires.
+    private bool TimedOut(int[] values, int timeIndex)
+    {
+        if (_version < 4)
+        {
+            return false;
+        }
+
+        var time = values.Length > timeIndex ? values[timeIndex] : 0;
+        var routine = values.Length > timeIndex + 1 ? values[timeIndex + 1] : 0;
+
+        if (time == 0 || routine == 0)
+        {
+            return false;
+        }
+
+        return Interrupt(routine) != 0;
+    }
+
+    // Run an interrupt routine to completion through the ordinary call
+    // machinery, its result routed through the stack. A story that
+    // quits mid-interrupt has certainly ended its input.
+    private int Interrupt(int packed)
+    {
+        var floor = _frames.Count;
+        Enter(RoutineAddress(packed), [], _pc, 0);
+
+        while (_running && _frames.Count > floor)
+        {
+            Step();
+        }
+
+        return _running ? Pop() : TrueValue;
     }
 
     // Save, restore, restart, undo (§6.1).
@@ -1209,7 +1294,27 @@ public sealed class Machine
                 }
             case Op.ReadChar:
                 {
-                    Values(i);
+                    var values = Values(i);
+
+                    if (values.Length > 0 && values[0] != 1)
+                    {
+                        throw new ZMachineException(
+                            $"read_char at ${i.Address:x4} asks for input device {values[0]}, but the keyboard, 1, is the only device there is (§15 read_char)");
+                    }
+
+                    // Keys already under the fingers beat the clock, and so
+                    // does the retry of a read an interrupt just terminated.
+                    var ready = _pendingKeys.Count > 0 || _typistReady == i.Address;
+                    _typistReady = -1;
+
+                    if (!ready && TimedOut(values, 1))
+                    {
+                        _typistReady = i.Address;
+                        Store(i, 0);
+                        Next(i);
+                        break;
+                    }
+
                     Store(i, NextKey());
                     Next(i);
                     break;

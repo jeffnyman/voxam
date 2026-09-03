@@ -767,7 +767,7 @@ public class MachineTests
     {
         var b = new StoryBuilder(5);
 
-        for (var k = 0; k < 4; k++)
+        for (var k = 0; k < 3; k++)
         {
             b.OpVar(0x16, Arg.Small(1));
             b.Store(G0);
@@ -775,7 +775,7 @@ public class MachineTests
         }
 
         b.Quit();
-        Assert.Equal("97\n98\n13\n99\n", Session.Run(b, ["ab", "c"]).Output);
+        Assert.Equal("97\n98\n99\n", Session.Run(b, ["ab", "c"]).Output);
     }
 
     [Fact]
