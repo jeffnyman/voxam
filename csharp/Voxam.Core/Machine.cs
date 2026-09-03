@@ -9,6 +9,10 @@ public sealed class Machine
     private const int FalseValue = 0;
     private const int NewlineCode = 13;
     private const int UndoDepth = 10;
+    private const int DefaultForeground = 9;
+    private const int DefaultBackground = 2;
+    private const int TotalWidthAddress = 0x30;
+    private const int RedirectionLimit = 16;
 
     private sealed class Frame
     {
@@ -21,6 +25,8 @@ public sealed class Machine
 
     private sealed record Snapshot(byte[] Dynamic, int[] Stack, Frame[] Frames, int Pc, int StoreVariable);
 
+    private sealed record Redirection(int Table, StringBuilder Text, int? Limit);
+
     private readonly Memory _m;
     private readonly IFrontend _frontend;
     private readonly Func<string?> _input;
@@ -31,15 +37,18 @@ public sealed class Machine
     private readonly List<int> _stack = [];
     private readonly List<Frame> _frames = [];
     private readonly Dictionary<int, Instruction> _cache = [];
-    private readonly List<(int Table, StringBuilder Text)> _redirections = [];
+    private readonly List<Redirection> _redirections = [];
     private readonly Queue<int> _pendingKeys = [];
     private readonly LinkedList<Snapshot> _undo = [];
+    private readonly HashSet<int> _passedReserved = [];
+    private WindowLedger _windows;
     private DictionaryTable? _words;
     private int _pc;
     private bool _running = true;
     private bool _screenSelected = true;
     private bool _storyWindow = true;
     private int _font = 1;
+    private int _screenBuffering;
 
     // The nimble half of the patient typist: the address of a timed
     // read_char an interrupt just terminated, whose retry finds the
@@ -61,6 +70,7 @@ public sealed class Machine
         _version = _m.Version;
         _globals = _m.ReadWord(Header.Globals);
         _objects = new ObjectTable(_m);
+        _windows = FreshWindows();
         DeclareCapabilities();
         StartExecution();
     }
@@ -74,6 +84,9 @@ public sealed class Machine
         }
     }
 
+    // Outside Version 6, execution begins at the header's initial
+    // address, inside no routine (§5.5); Version 6 instead calls the
+    // main routine (§5.4).
     private void StartExecution()
     {
         _stack.Clear();
@@ -82,10 +95,12 @@ public sealed class Machine
 
         if (_version == 6)
         {
-            throw new ZMachineException("Version 6 is not yet ported");
+            Enter(RoutineAddress(_m.ReadWord(Header.InitialPc)), [], 0, -1);
         }
-
-        _pc = _m.ReadWord(Header.InitialPc);
+        else
+        {
+            _pc = _m.ReadWord(Header.InitialPc);
+        }
     }
 
     /// <summary>Stamp the frontend's honest capabilities into the header (§11.1).</summary>
@@ -105,8 +120,8 @@ public sealed class Machine
         {
             _m.WriteByte(Header.Interpreter, 6);
             _m.WriteByte(Header.InterpreterVersion, 'V');
-            _m.WriteByte(Header.ScreenLines, _frontend.ScreenLines);
-            _m.WriteByte(Header.ScreenColumns, _frontend.ScreenColumns);
+            _m.WriteByte(Header.ScreenLines, Math.Min(_frontend.ScreenLines, 255));
+            _m.WriteByte(Header.ScreenColumns, Math.Min(_frontend.ScreenColumns, 255));
             SetFlag1(0x04, _frontend.HasBold);
             SetFlag1(0x08, _frontend.HasItalic);
             SetFlag1(0x10, _frontend.HasFixedPitch);
@@ -114,14 +129,29 @@ public sealed class Machine
 
             if (_version >= 5)
             {
-                _m.WriteWord(Header.ScreenWidthUnits, _frontend.ScreenColumns);
-                _m.WriteWord(Header.ScreenHeightUnits, _frontend.ScreenLines);
-                _m.WriteByte(Header.FontWidth, 1);
-                _m.WriteByte(Header.FontHeight, 1);
+                var (fontWidth, fontHeight) = UnitMetrics();
+                _m.WriteWord(Header.ScreenWidthUnits, Math.Min(_frontend.ScreenColumns * fontWidth, 0xFFFF));
+                _m.WriteWord(Header.ScreenHeightUnits, Math.Min(_frontend.ScreenLines * fontHeight, 0xFFFF));
+                // §11's table swaps the two font bytes in Version 6.
+                _m.WriteByte(Header.FontWidth, _version == 6 ? fontHeight : fontWidth);
+                _m.WriteByte(Header.FontHeight, _version == 6 ? fontWidth : fontHeight);
                 SetFlag1(0x01, _frontend.HasColours);
-                SetFlag2(0x08, false);
+                _m.WriteByte(Header.DefaultBackground, DefaultBackground);
+                _m.WriteByte(Header.DefaultForeground, DefaultForeground);
                 SetFlag2(0x20, false);
-                SetFlag2(0x40, false);
+
+                if (_version == 6)
+                {
+                    SetFlag2(0x08, false);
+                    SetFlag2(0x0100, false);
+                    SetFlag1(0x02, false);
+                    SetFlag1(0x20, _frontend.HasSounds);
+                }
+                else
+                {
+                    SetFlag2(0x08, false);
+                    SetFlag1(0x02, false);
+                }
             }
         }
     }
@@ -136,6 +166,26 @@ public sealed class Machine
     {
         var value = _m.ReadWord(Header.Flags2);
         _m.WriteWord(Header.Flags2, on ? value | mask : value & ~mask);
+    }
+
+    // One character cell's width and height in units: Version 6 alone
+    // measures its screen in real pixels (§8.8.1); every other version
+    // keeps one unit per character (§8.4.2).
+    private (int Width, int Height) UnitMetrics() =>
+        _version == 6 ? (_frontend.FontWidth, _frontend.FontHeight) : (1, 1);
+
+    // A boot-state §8.8 window ledger sized to this glass, built for
+    // every version: it is inert outside Version 6.
+    private WindowLedger FreshWindows()
+    {
+        var (fontWidth, fontHeight) = UnitMetrics();
+        return new WindowLedger(
+            _frontend.ScreenLines * fontHeight,
+            _frontend.ScreenColumns * fontWidth,
+            DefaultForeground,
+            DefaultBackground,
+            fontWidth,
+            fontHeight);
     }
 
     private void Step()
@@ -315,6 +365,16 @@ public sealed class Machine
 
     private void Next(Instruction i) => _pc = i.NextAddress;
 
+    // The §6.6 user stacks: the first word counts the spare slots and
+    // doubles as the index of the top value's slot.
+
+    private int UserPull(int stack)
+    {
+        var spare = _m.ReadWord(stack) + 1;
+        _m.WriteWord(stack, spare);
+        return _m.ReadWord(stack + 2 * spare);
+    }
+
     // Calls, returns, and branches (§6.4, §4.7).
 
     private void Call(Instruction i)
@@ -440,17 +500,142 @@ public sealed class Machine
         }
     }
 
-    private void EndRedirection()
+    // Open a stream 3 redirection (§7.1.2.1). In Version 6 a third
+    // operand asks for print_form's line shape: zero or positive
+    // names a window whose width is the limit, negative a box of that
+    // many units, and the wrap counts characters, so the unit width
+    // divides by the font width.
+    private void RedirectInto(Instruction i, int[] values)
     {
-        var (table, text) = _redirections[^1];
+        if (values.Length < 2)
+        {
+            throw new ZMachineException($"output_stream 3 at ${i.Address:x4} names no table to redirect into (§7.1.2.1)");
+        }
+
+        if (_redirections.Count >= RedirectionLimit)
+        {
+            throw new ZMachineException(
+                $"output_stream 3 at ${i.Address:x4} would nest {RedirectionLimit + 1} deep; §7.1.2.1.1 allows {RedirectionLimit} at most");
+        }
+
+        int? limit = null;
+
+        if (values.Length > 2 && _version == 6)
+        {
+            var width = Signed(values[2]);
+            var (fontWidth, _) = UnitMetrics();
+            limit = width < 0
+                ? Math.Max(1, -width / fontWidth)
+                : Math.Max(1, _windows.Property(width, WindowLedger.XSize) / fontWidth);
+        }
+
+        _redirections.Add(new Redirection(values[1], new StringBuilder(), limit));
+    }
+
+    // Close the newest stream 3 table, writing its count (§7.1.2.1),
+    // or print_form's line shape when a width was asked for; in
+    // Version 6 the widest line lands in the header word at $30.
+    private void EndRedirection(Instruction i)
+    {
+        if (_redirections.Count == 0)
+        {
+            throw new ZMachineException($"output_stream -3 at ${i.Address:x4}, but stream 3 is not selected (§7.1.2)");
+        }
+
+        var (table, text, limit) = _redirections[^1];
         _redirections.RemoveAt(_redirections.Count - 1);
         var content = text.ToString();
-        _m.WriteWord(table, content.Length);
+        int widest;
 
-        for (var k = 0; k < content.Length; k++)
+        if (limit is null)
         {
-            _m.WriteByte(table + 2 + k, Zscii.FromChar(_m, content[k]));
+            for (var k = 0; k < content.Length; k++)
+            {
+                _m.WriteByte(table + 2 + k, Zscii.FromChar(_m, content[k]));
+            }
+
+            _m.WriteWord(table, content.Length);
+            widest = content.Split('\n').Max(part => part.Length);
         }
+        else
+        {
+            widest = WriteFormatted(table, content, limit.Value);
+        }
+
+        if (_version == 6)
+        {
+            var (fontWidth, _) = UnitMetrics();
+            _m.WriteWord(TotalWidthAddress, widest * fontWidth);
+        }
+    }
+
+    // print_form's line shape: each line a word holding its count then
+    // the characters, ending at a zero word. A blank line travels as a
+    // single space, since the count doubles as the terminator.
+    private int WriteFormatted(int table, string text, int limit)
+    {
+        var position = table;
+        var widest = 0;
+
+        foreach (var line in Wrapped(text, limit))
+        {
+            var carried = line.Length > 0 ? line : " ";
+            widest = Math.Max(widest, carried.Length);
+            _m.WriteWord(position, carried.Length);
+            position += 2;
+
+            foreach (var c in carried)
+            {
+                _m.WriteByte(position, Zscii.FromChar(_m, c));
+                position++;
+            }
+        }
+
+        _m.WriteWord(position, 0);
+        return widest;
+    }
+
+    // Greedy word-wrap onto lines at most limit wide (§7.2). Forced
+    // new-lines end their lines; a word longer than the whole limit
+    // breaks at the limit.
+    private static List<string> Wrapped(string text, int limit)
+    {
+        var lines = new List<string>();
+
+        foreach (var paragraph in text.Split('\n'))
+        {
+            var current = "";
+
+            foreach (var word in paragraph.Split(' '))
+            {
+                var candidate = current.Length > 0 ? $"{current} {word}" : word;
+
+                if (candidate.Length <= limit)
+                {
+                    current = candidate;
+                    continue;
+                }
+
+                if (current.Length > 0)
+                {
+                    lines.Add(current);
+                }
+
+                var remainder = word;
+
+                while (remainder.Length > limit)
+                {
+                    lines.Add(remainder[..limit]);
+                    remainder = remainder[limit..];
+                }
+
+                current = remainder;
+            }
+
+            lines.Add(current);
+        }
+
+        return lines;
     }
 
     // Input (§15 read).
@@ -720,6 +905,7 @@ public sealed class Machine
         _redirections.Clear();
         _screenSelected = true;
         _storyWindow = true;
+        _windows = FreshWindows();
         _frontend.EraseWindow(-1);
         StartExecution();
     }
@@ -747,6 +933,99 @@ public sealed class Machine
 
     private static ZMachineException Unported(Instruction i) =>
         new($"{i.Info.Name} at ${i.Address:x4} is not yet ported");
+
+    // The Version 6 window opcodes (§8.8), which land in the ledger;
+    // the character glass hears only about windows 0 and 1.
+
+    private void SelectWindow(int window)
+    {
+        if (_version == 6)
+        {
+            var selected = _windows.Resolve(window);
+            _windows.Selected = selected;
+            _storyWindow = selected == 0;
+
+            if (selected <= 1)
+            {
+                _frontend.SetWindow(selected);
+            }
+        }
+        else
+        {
+            _storyWindow = window == 0;
+            _frontend.SetWindow(window);
+        }
+    }
+
+    // In Version 6 any of the eight windows may be named, -3 meaning
+    // the current one; erasing a window the glass never painted is
+    // already true (§8.8.3), so nothing is said about it.
+    private void EraseWindow(Instruction i)
+    {
+        var window = Signed(Value(i.Operands[0]));
+
+        if (_version == 6)
+        {
+            if (window >= 0 || window == WindowLedger.CurrentWindow)
+            {
+                var target = _windows.Resolve(window);
+
+                if (target > 1)
+                {
+                    Next(i);
+                    return;
+                }
+
+                window = target;
+            }
+
+            if (window == -1)
+            {
+                _windows.Selected = 0;
+            }
+        }
+
+        if (window == -1)
+        {
+            _storyWindow = true;
+        }
+
+        _frontend.EraseWindow(window);
+        Next(i);
+    }
+
+    // The Version 6 split tiles ledger windows 1 and 0 vertically
+    // (§8.8.4.1): window 1 takes the top at the given height in units
+    // and window 0 the rest.
+    private void TileSplit(int height)
+    {
+        var (_, fontHeight) = UnitMetrics();
+        var screenHeight = _frontend.ScreenLines * fontHeight;
+        _windows.WriteProperty(1, WindowLedger.YCoordinate, 1);
+        _windows.WriteProperty(1, WindowLedger.YSize, height);
+        _windows.WriteProperty(0, WindowLedger.YCoordinate, height + 1);
+        _windows.WriteProperty(0, WindowLedger.YSize, Math.Max(screenHeight - height, 0));
+    }
+
+    // The Version 6 set_cursor forms (§15): a line of -1 turns the
+    // blinking cursor off and -2 on, chrome a character glass has no
+    // cursor to honour; an ordinary move may name any window,
+    // defaulting to the current one, and lands in its properties.
+    private void MoveCursor(int[] values)
+    {
+        var line = values[0];
+
+        if (line is 0xFFFF or 0xFFFE)
+        {
+            return;
+        }
+
+        var column = values[1];
+        var window = values.Length > 2 ? values[2] : WindowLedger.CurrentWindow;
+        var target = _windows.Resolve(window);
+        _windows.WriteProperty(target, WindowLedger.YCursor, line);
+        _windows.WriteProperty(target, WindowLedger.XCursor, column);
+    }
 
     // The dispatch (§14, §15).
 
@@ -955,16 +1234,64 @@ public sealed class Machine
                 Call(i);
                 break;
             case Op.SetColour:
-            case Op.SetTrueColour:
+                // The pair is only read where colours were claimed; a
+                // frontend that declared none makes the request a
+                // legitimate no-op, its operands untouched.
+                if (_frontend.HasColours)
+                {
+                    Values(i);
+                }
+
+                Next(i);
+                break;
             case Op.SetTextStyle:
             case Op.BufferMode:
             case Op.EraseLine:
-            case Op.InputStream:
             case Op.SoundEffect:
-            case Op.Nop:
+            case Op.ScrollWindow:
+            case Op.DrawPicture:
+            case Op.ErasePicture:
+                // Presentation a plain stream has nothing to show for:
+                // the operands are read, and nothing changes.
                 Values(i);
                 Next(i);
                 break;
+            case Op.SetTrueColour:
+            case Op.Nop:
+            case Op.MouseWindow:
+            case Op.PictureTable:
+            case Op.ExtPrivate:
+            case Op.DrawImage:
+                // Passed in the conforming quiet, operands and all.
+                Next(i);
+                break;
+            case Op.ExtReserved:
+                // §14.2.1: an opcode of a future Standard is ignored,
+                // with a warning off-screen, once per number.
+                if (_passedReserved.Add(i.Number))
+                {
+                    Console.Error.WriteLine($"voxam: EXT:{i.Number} is reserved for a future Standard; passed unclaimed (§14.2.1)");
+                }
+
+                Next(i);
+                break;
+            case Op.InputStream:
+                {
+                    var stream = Value(i.Operands[0]);
+
+                    if (stream == 1)
+                    {
+                        throw Unported(i);
+                    }
+
+                    if (stream != 0)
+                    {
+                        throw new ZMachineException($"input_stream at ${i.Address:x4} names stream {stream}, but §10.2 defines only 0 and 1");
+                    }
+
+                    Next(i);
+                    break;
+                }
             case Op.Throw:
                 {
                     var value = Value(i.Operands[0]);
@@ -1095,9 +1422,6 @@ public sealed class Machine
                 Print(Zscii.Decode(_m, i.OperandsEnd).Text + "\n");
                 Return(TrueValue);
                 break;
-            case Op.Save:
-            case Op.Restore:
-                throw Unported(i);
             case Op.Restart:
                 Restart();
                 break;
@@ -1127,6 +1451,11 @@ public sealed class Machine
                 break;
             case Op.Piracy:
                 DoBranch(i, true);
+                break;
+            case Op.MakeMenu:
+                // The Flags 2 menus request was cleared at boot; a menu
+                // is never successfully built.
+                DoBranch(i, false);
                 break;
             case Op.Storew:
                 {
@@ -1197,53 +1526,224 @@ public sealed class Machine
                 break;
             case Op.Pull:
                 {
-                    // Version 6's storing form never arrives: the machine
-                    // refuses Version 6 stories at the door for now.
+                    // Version 6 turns the opcode around: it stores its
+                    // result, and an operand names a §6.6 user stack.
+                    if (i.Info.Stores)
+                    {
+                        Store(i, i.Operands.Length > 0 ? UserPull(Value(i.Operands[0])) : Pop());
+                        Next(i);
+                        break;
+                    }
+
                     var reference = Value(i.Operands[0]);
                     var value = Pop();
                     WriteInPlace(reference, value);
                     Next(i);
                     break;
                 }
-            case Op.SplitWindow:
-                _frontend.SplitWindow(Value(i.Operands[0]));
-                Next(i);
-                break;
-            case Op.SetWindow:
+            case Op.PushStack:
                 {
-                    var window = Value(i.Operands[0]);
-                    _frontend.SetWindow(window);
-                    _storyWindow = window == 0;
-                    Next(i);
+                    var values = Values(i);
+                    var stack = values[1];
+                    var spare = _m.ReadWord(stack);
+
+                    if (spare != 0)
+                    {
+                        _m.WriteWord(stack + 2 * spare, values[0]);
+                        _m.WriteWord(stack, spare - 1);
+                    }
+
+                    DoBranch(i, spare != 0);
                     break;
                 }
-            case Op.EraseWindow:
+            case Op.PopStack:
                 {
-                    var window = Signed(Value(i.Operands[0]));
-                    _frontend.EraseWindow(window);
+                    var values = Values(i);
 
-                    if (window == -1)
+                    if (values.Length > 1)
                     {
-                        _storyWindow = true;
+                        _m.WriteWord(values[1], _m.ReadWord(values[1]) + values[0]);
+                    }
+                    else
+                    {
+                        for (var k = 0; k < values[0]; k++)
+                        {
+                            Pop();
+                        }
                     }
 
                     Next(i);
                     break;
                 }
+            case Op.SplitWindow:
+                {
+                    var height = Value(i.Operands[0]);
+
+                    if (_version == 6)
+                    {
+                        TileSplit(height);
+                    }
+
+                    _frontend.SplitWindow(height);
+                    Next(i);
+                    break;
+                }
+            case Op.SetWindow:
+                SelectWindow(Value(i.Operands[0]));
+                Next(i);
+                break;
+            case Op.EraseWindow:
+                EraseWindow(i);
+                break;
             case Op.SetCursor:
                 {
-                    var line = Value(i.Operands[0]);
-                    var column = Value(i.Operands[1]);
-                    _frontend.SetCursor(line, column);
+                    if (_version == 6)
+                    {
+                        MoveCursor(Values(i));
+                    }
+                    else
+                    {
+                        var line = Value(i.Operands[0]);
+                        var column = Value(i.Operands[1]);
+                        _frontend.SetCursor(line, column);
+                    }
+
                     Next(i);
                     break;
                 }
             case Op.GetCursor:
                 {
                     var array = Value(i.Operands[0]);
-                    var (line, column) = _frontend.CursorPosition();
+                    var (line, column) = _version == 6
+                        ? (_windows.Property(WindowLedger.CurrentWindow, WindowLedger.YCursor),
+                            _windows.Property(WindowLedger.CurrentWindow, WindowLedger.XCursor))
+                        : _frontend.CursorPosition();
                     _m.WriteWord(array, line);
                     _m.WriteWord(array + 2, column);
+                    Next(i);
+                    break;
+                }
+            case Op.MoveWindow:
+                {
+                    var values = Values(i);
+                    _windows.Move(values[0], values[1], values[2]);
+                    Next(i);
+                    break;
+                }
+            case Op.WindowSize:
+                {
+                    var values = Values(i);
+                    _windows.Resize(values[0], values[1], values[2]);
+                    Next(i);
+                    break;
+                }
+            case Op.WindowStyle:
+                {
+                    var values = Values(i);
+                    _windows.Restyle(values[0], values[1], values.Length > 2 ? values[2] : 0);
+                    Next(i);
+                    break;
+                }
+            case Op.GetWindProp:
+                {
+                    var values = Values(i);
+                    Store(i, _windows.Property(values[0], values[1]));
+                    Next(i);
+                    break;
+                }
+            case Op.PutWindProp:
+                {
+                    var values = Values(i);
+                    _windows.WriteProperty(values[0], values[1], values[2]);
+                    Next(i);
+                    break;
+                }
+            case Op.SetMargins:
+                {
+                    var values = Values(i);
+                    var window = values.Length > 2 ? values[2] : WindowLedger.CurrentWindow;
+                    _windows.SetMargins(window, values[0], values[1]);
+                    Next(i);
+                    break;
+                }
+            case Op.PictureData:
+                {
+                    // Without pictures every number is invalid and the
+                    // census counts none, as the cleared header bit
+                    // promised (§11.1.4).
+                    var values = Values(i);
+
+                    if (values[0] == 0)
+                    {
+                        _m.WriteWord(values[1], 0);
+                        _m.WriteWord(values[1] + 2, 0);
+                    }
+
+                    DoBranch(i, false);
+                    break;
+                }
+            case Op.ReadMouse:
+                {
+                    // A mouse the header declined reports zeros: parked
+                    // at nowhere, no buttons down, no menu touched.
+                    var array = Value(i.Operands[0]);
+
+                    for (var word = 0; word < 4; word++)
+                    {
+                        _m.WriteWord(array + 2 * word, 0);
+                    }
+
+                    Next(i);
+                    break;
+                }
+            case Op.BufferScreen:
+                {
+                    var mode = Signed(Value(i.Operands[0]));
+
+                    if (mode is not (0 or 1 or -1))
+                    {
+                        throw new ZMachineException($"buffer_screen at ${i.Address:x4} asks for mode {mode}, but §8.8.7.1 defines only 0, 1, and -1");
+                    }
+
+                    var previous = _screenBuffering;
+
+                    if (mode != -1)
+                    {
+                        _screenBuffering = mode;
+                    }
+
+                    Store(i, previous);
+                    Next(i);
+                    break;
+                }
+            case Op.PrintForm:
+                {
+                    // Each line a word holding its count then the
+                    // characters, the sequence ending at a zero word;
+                    // each prints followed by a new-line.
+                    var position = Value(i.Operands[0]);
+
+                    while (true)
+                    {
+                        var count = _m.ReadWord(position);
+
+                        if (count == 0)
+                        {
+                            break;
+                        }
+
+                        position += 2;
+                        var line = new StringBuilder();
+
+                        for (var k = 0; k < count; k++)
+                        {
+                            line.Append(Zscii.ToChar(_m, _m.ReadByte(position + k)));
+                        }
+
+                        Print(line.Append('\n').ToString());
+                        position += count;
+                    }
+
                     Next(i);
                     break;
                 }
@@ -1266,19 +1766,10 @@ public sealed class Machine
                             SetFlag2(0x01, false);
                             break;
                         case 3:
-                            if (_redirections.Count >= 16)
-                            {
-                                throw new ZMachineException("output stream 3 nested more than 16 deep (§7.1.2.1.1)");
-                            }
-
-                            _redirections.Add((values[1], new StringBuilder()));
+                            RedirectInto(i, values);
                             break;
                         case -3:
-                            if (_redirections.Count > 0)
-                            {
-                                EndRedirection();
-                            }
-
+                            EndRedirection(i);
                             break;
                         case 4 or -4 or 0:
                             // Stream 4 records commands to a file this
@@ -1286,7 +1777,7 @@ public sealed class Machine
                             // nothing, as in the reference without a scribe.
                             break;
                         default:
-                            throw new ZMachineException($"output stream {stream} does not exist (§7.1)");
+                            throw new ZMachineException($"output_stream at ${i.Address:x4} names stream {stream}, but §7.1 defines only 1 to 4");
                     }
 
                     Next(i);
@@ -1542,6 +2033,8 @@ public sealed class Machine
                     break;
                 }
             default:
+                // Save and restore, and anything the cases above do not
+                // name: a road not yet walked is refused, never guessed.
                 throw Unported(i);
         }
     }

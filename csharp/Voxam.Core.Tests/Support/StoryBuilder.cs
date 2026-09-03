@@ -406,7 +406,8 @@ public sealed class StoryBuilder
         story[Header.Version] = (byte)Version;
         Word(story, Header.Release, 1);
         Word(story, Header.HighBase, CodeStart);
-        Word(story, Header.InitialPc, InitialPc);
+        // Version 6 names its main routine by packed address (§5.4).
+        Word(story, Header.InitialPc, Version == 6 ? Packed(InitialPc) : InitialPc);
         Word(story, Header.Dictionary, DictionaryAddress);
         Word(story, Header.ObjectTable, ObjectTable);
         Word(story, Header.Globals, Globals);

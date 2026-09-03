@@ -183,11 +183,13 @@ public static class Zscii
     /// <summary>The character a ZSCII code prints as (§3.8).</summary>
     public static string ToChar(Memory m, int code)
     {
+        // The Version 6 typography codes render as runs of spaces
+        // (§3.8.2.3); elsewhere they are not printable at all.
         return code switch
         {
             0 => "",
-            9 => "\t",
-            11 => " ",
+            9 when m.Version == 6 => "   ",
+            11 when m.Version == 6 => "  ",
             Newline => "\n",
             >= 24 and <= 27 => Arrows[code - 24],
             >= 32 and <= 126 => ((char)code).ToString(),

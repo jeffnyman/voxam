@@ -1339,24 +1339,27 @@ dictionary rules, the seeded generator ported bit for bit, and a
 plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
-`Voxam.Core.Tests`, 200 tests at 100% line and branch coverage,
+`Voxam.Core.Tests`, 220 tests at 100% line and branch coverage,
 enforced as a threshold the way the Python's suite is, most of
 them driving tiny stories assembled by a builder in the test
 project rather than fixtures on disk.
 
-**Where it stands.** Of the 41 Z-code recordings in the corpus,
-37 replay identically: every walk at Versions 1 through 5, 7 and
-8, packaged stories included, and Bronze among them in a second
-where the Python takes eighteen. The port speaks the whole
-acceptance grammar, keys, clicks, links and camera marks
-included, and carries the refusal watch, so a replay warns of a
-silently refused command exactly where the Python does. Its
-keystroke queue and patient typist are the reference's: a
-scripted line is spent one `read_char` at a time, and a timed
-read lets one interval pass, firing its interrupt once. What
-remains is the four Version 6 walks, which need the stage, and
-save and restore, which no recording reaches. Glulx, the
-Å-machine and Version 6 are refused at the door. `tools/sweep-corpus.py record --voxam` is the certificate:
+**Where it stands.** Every one of the 41 Z-code recordings in
+the corpus replays identically, Versions 1 through 8, packaged
+stories included, and Bronze among them in a second where the
+Python takes eighteen. The port speaks the whole acceptance
+grammar, keys, clicks, links and camera marks included, and
+carries the refusal watch, so a replay warns of a silently
+refused command exactly where the Python does. Its keystroke
+queue and patient typist are the reference's: a scripted line
+is spent one `read_char` at a time, and a timed read lets one
+interval pass, firing its interrupt once. Version 6 keeps the
+§8.8 window ledger as pure state, the eight windows' geometry,
+cursors and properties, and answers the picture, mouse and menu
+opcodes as a frontend without them does, which is exactly what
+a plain transcript of Arthur or Shogun records. What remains on
+this machine is save and restore, which no recording reaches,
+and the faces. Glulx and the Å-machine are refused at the door. `tools/sweep-corpus.py record --voxam` is the certificate:
 it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
 push, on all three platforms, from a NativeAOT publish.

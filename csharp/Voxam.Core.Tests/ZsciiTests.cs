@@ -125,8 +125,11 @@ public class ZsciiTests
     {
         var memory = Story();
         Assert.Equal("", Zscii.ToChar(memory, 0));
-        Assert.Equal("\t", Zscii.ToChar(memory, 9));
-        Assert.Equal(" ", Zscii.ToChar(memory, 11));
+        Assert.Throws<ZMachineException>(() => Zscii.ToChar(memory, 9));
+        Assert.Throws<ZMachineException>(() => Zscii.ToChar(memory, 11));
+        var typography = Story(6);
+        Assert.Equal("   ", Zscii.ToChar(typography, 9));
+        Assert.Equal("  ", Zscii.ToChar(typography, 11));
         Assert.Equal("\n", Zscii.ToChar(memory, 13));
         Assert.Equal("A", Zscii.ToChar(memory, 65));
         Assert.Equal("ä", Zscii.ToChar(memory, 155));
