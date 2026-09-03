@@ -25,6 +25,11 @@ The grammar, line by line:
     <link n>         a hyperlink selection, by the link value the
                      session's display delivered (Glk: Accepting
                      Hyperlink Events)
+    <shot>           a camera mark: photograph the walk here, when
+    <shot name>      a camera is watching. Not input: it types
+                     nothing and the machine never sees it, so a
+                     replay without --shots passes it by. The
+                     optional name files the frame under it.
     (blank)          skipped
 
 An inline comment starts at whitespace followed by #. A command that
@@ -88,6 +93,11 @@ DOUBLE_CLICK = "\xfd"
 LINK = "\xfc"
 
 _CLICK_TOKEN = re.compile(r"<click (\d+) (\d+)>\Z")
+
+# A camera mark: <shot> here, or <shot name> to file the frame
+# under a name of the walk author's choosing. It is not input,
+# so it types nothing and the machine never sees it.
+_SHOT_TOKEN = re.compile(r"<shot(?: ([a-z0-9][a-z0-9-]*))?>\Z")
 _DOUBLE_CLICK_TOKEN = re.compile(r"<double-click (\d+) (\d+)>\Z")
 _LINK_TOKEN = re.compile(r"<link (\d+)>\Z")
 
@@ -118,6 +128,11 @@ class AcceptanceScript:
             same stream.
         links: The selected link values, in selection order --
             spent one per delivered hyperlink event.
+        shots: Where the walk asked to be photographed, as (how
+            many commands had played, the frame's name). A camera
+            mark is not input: it types nothing, the machine never
+            sees it, and a replay with no camera passes it by. The
+            name is the author's, or empty for the mark's number.
     """
 
     game: Path
@@ -126,9 +141,10 @@ class AcceptanceScript:
     lines: tuple[int, ...]
     clicks: tuple[tuple[int, int], ...] = ()
     links: tuple[int, ...] = ()
+    shots: tuple[tuple[int, str], ...] = ()
 
     @classmethod
-    def parse(cls, path: Path) -> Self:
+    def parse(cls, path: Path) -> Self:  # noqa: PLR0912 -- one arm per grammar line
         """Read an acceptance script file.
 
         Args:
@@ -149,6 +165,7 @@ class AcceptanceScript:
         numbers: list[int] = []
         clicks: list[tuple[int, int]] = []
         links: list[int] = []
+        shots: list[tuple[int, str]] = []
         fenced = False
         lines = path.read_text(encoding="utf-8").splitlines()
 
@@ -174,6 +191,15 @@ class AcceptanceScript:
 
                     raise AcceptanceError(msg)
             else:
+                marked = _shot_token(line)
+
+                if marked is not None:
+                    # A camera mark stands between commands rather
+                    # than among them: it records where the walk
+                    # had got to, and nothing is typed.
+                    shots.append((len(commands), marked))
+                    continue
+
                 pointer = _pointer_token(line, number)
                 link = _link_token(line, number) if pointer is None else None
 
@@ -202,6 +228,7 @@ class AcceptanceScript:
             lines=tuple(numbers),
             clicks=tuple(clicks),
             links=tuple(links),
+            shots=tuple(shots),
         )
 
 
@@ -775,10 +802,29 @@ def _key_token(line: str, number: int) -> str | None:
     known = ", ".join(sorted(KEY_TOKENS))
     msg = (
         f"line {number}: unknown key {line!r}; the keys are: "
-        f"{known}, <click x y>, <double-click x y>, and <link n>"
+        f"{known}, <click x y>, <double-click x y>, <link n>, "
+        "and <shot> for the camera"
     )
 
     raise AcceptanceError(msg)
+
+
+def _shot_token(line: str) -> str | None:
+    """A <shot> mark's name, empty for the bare form; None for other lines.
+
+    Unlike the key tokens, an angle-bracketed line that is not a
+    shot is left alone rather than refused here: the key parser
+    still owns that complaint, and it names every token a script
+    may use. A name is lowercase letters, digits and hyphens, so
+    it can become a filename without escaping.
+    """
+
+    matched = _SHOT_TOKEN.fullmatch(line.lower())
+
+    if matched is None:
+        return None
+
+    return matched.group(1) or ""
 
 
 def _command(line: str) -> str:

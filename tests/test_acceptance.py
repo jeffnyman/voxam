@@ -689,3 +689,48 @@ def test_a_resumed_recording_appends(tmp_path: Path) -> None:
 def test_a_resume_requires_an_existing_recording(tmp_path: Path) -> None:
     with pytest.raises(AcceptanceError, match="a resume continues"):
         Recorder.resumed(tmp_path / "ghost.accept", warn=print)
+
+
+# A <shot> line marks where a walk asked to be photographed. It is
+# not input: nothing is typed, the machine never sees it, and the
+# commands are exactly the commands the same walk would have run
+# without it -- so a camera mark can be added to a certified
+# recording without changing what the recording certifies. The mark
+# records how many commands had played, so a camera knows the
+# moment; the optional name is the author's, for filing the frame.
+def test_shot_tokens_mark_the_camera_without_typing(tmp_path: Path) -> None:
+    marked = AcceptanceScript.parse(
+        script_file(
+            tmp_path,
+            """\
+! GAME=games/bz.z5
+<shot>
+north
+<shot cellar-troll>
+south
+east
+<SHOT Opening-2>
+""",
+        )
+    )
+    plain = AcceptanceScript.parse(
+        script_file(tmp_path, "! GAME=games/bz.z5\nnorth\nsouth\neast\n")
+    )
+
+    assert_that(marked.commands).is_equal_to(plain.commands)
+    assert_that(marked.shots).is_equal_to(
+        ((0, ""), (1, "cellar-troll"), (3, "opening-2"))
+    )
+
+    # A recording that asks for no picture carries no marks.
+    assert_that(plain.shots).is_empty()
+
+
+# The camera's token is spelled like the others, so a near miss is
+# a typo rather than a silent no-op, and the complaint names the
+# camera among the tokens a script may use.
+def test_a_misspelled_shot_is_still_a_typo(tmp_path: Path) -> None:
+    path = script_file(tmp_path, "! GAME=g.z5\n<shott>\n")
+
+    with pytest.raises(AcceptanceError, match=r"unknown key.*and <shot> for"):
+        AcceptanceScript.parse(path)
