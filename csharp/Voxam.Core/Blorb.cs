@@ -10,6 +10,13 @@ public sealed class Blorb
     public bool HasStory { get; private init; }
     private byte[]? _identity;
 
+    /// <summary>
+    /// The packaged Z-code story, or null: an Exec resource is
+    /// numbered 0, and only the ZCOD executable format belongs to
+    /// this machine.
+    /// </summary>
+    public byte[]? Story { get; private init; }
+
     public static Blorb Load(byte[] data)
     {
         if (data.Length < 12 || Ascii(data, 0) != "FORM" || Ascii(data, 8) != "IFRS")
@@ -20,26 +27,42 @@ public sealed class Blorb
         var pictures = 0;
         var sounds = 0;
         var story = false;
+        byte[]? packaged = null;
         byte[]? identity = null;
         var pos = 12;
 
         while (pos + 8 <= data.Length)
         {
             var id = Ascii(data, pos);
-            var length = (data[pos + 4] << 24) | (data[pos + 5] << 16) | (data[pos + 6] << 8) | data[pos + 7];
+            var length = Word32(data, pos + 4);
             var payload = pos + 8;
 
             if (id == "RIdx")
             {
-                var count = (data[payload] << 24) | (data[payload + 1] << 16) | (data[payload + 2] << 8) | data[payload + 3];
+                var count = Word32(data, payload);
 
                 for (var k = 0; k < count; k++)
                 {
-                    var usage = Ascii(data, payload + 4 + 12 * k);
+                    var entry = payload + 4 + 12 * k;
+                    var usage = Ascii(data, entry);
 
-                    if (usage == "Pict") pictures++;
-                    else if (usage == "Snd ") sounds++;
-                    else if (usage == "Exec") story = true;
+                    if (usage == "Pict")
+                    {
+                        pictures++;
+                    }
+                    else if (usage == "Snd ")
+                    {
+                        sounds++;
+                    }
+                    else if (usage == "Exec")
+                    {
+                        story = true;
+
+                        if (Word32(data, entry + 4) == 0)
+                        {
+                            packaged = Executable(data, Word32(data, entry + 8));
+                        }
+                    }
                 }
             }
             else if (id == "IFhd")
@@ -50,8 +73,22 @@ public sealed class Blorb
             pos = payload + length + (length & 1);
         }
 
-        return new Blorb { Pictures = pictures, Sounds = sounds, HasStory = story, _identity = identity };
+        return new Blorb { Pictures = pictures, Sounds = sounds, HasStory = story, Story = packaged, _identity = identity };
     }
+
+    // The chunk an Exec entry points at, when it is Z-code.
+    private static byte[]? Executable(byte[] data, int offset)
+    {
+        if (offset + 8 > data.Length || Ascii(data, offset) != "ZCOD")
+        {
+            return null;
+        }
+
+        var length = Word32(data, offset + 4);
+        return data[(offset + 8)..(offset + 8 + length)];
+    }
+
+    private static int Word32(byte[] data, int at) => (data[at] << 24) | (data[at + 1] << 16) | (data[at + 2] << 8) | data[at + 3];
 
     /// <summary>A one-line census for the session banner.</summary>
     public string Described()

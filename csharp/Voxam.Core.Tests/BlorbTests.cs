@@ -93,6 +93,35 @@ public class BlorbTests
         Assert.False(Blorb.Load(Form(Index(), Chunk("IFhd", wrongChecksumHigh))).Matches(story));
     }
 
+    // An Exec entry numbered 0 names the packaged story by the offset
+    // of its chunk; only ZCOD belongs to this machine.
+    [Fact]
+    public void ThePackagedStoryIsTheZcodChunkAnExecEntryPointsAt()
+    {
+        var story = new byte[] { 3, 0, 1, 2, 3 };
+        var index = new List<byte> { 0, 0, 0, 1 };
+        index.AddRange(Encoding.ASCII.GetBytes("Exec"));
+        index.AddRange([0, 0, 0, 0]);
+        // The chunk follows the index: FORM header 12, RIdx header 8, index 16.
+        index.AddRange([0, 0, 0, 36]);
+        var packaged = Blorb.Load(Form(Chunk("RIdx", [.. index]), Chunk("ZCOD", story)));
+        Assert.Equal(story, packaged.Story);
+        Assert.True(packaged.HasStory);
+
+        var glulx = Blorb.Load(Form(Chunk("RIdx", [.. index]), Chunk("GLUL", story)));
+        Assert.Null(glulx.Story);
+        Assert.True(glulx.HasStory);
+
+        var numbered = new List<byte>(index);
+        numbered[11] = 1;
+        Assert.Null(Blorb.Load(Form(Chunk("RIdx", [.. numbered]), Chunk("ZCOD", story))).Story);
+
+        var dangling = new List<byte>(index);
+        dangling[15] = 200;
+        Assert.Null(Blorb.Load(Form(Chunk("RIdx", [.. dangling]))).Story);
+        Assert.Null(Blorb.Load(Form(Index())).Story);
+    }
+
     [Fact]
     public void OtherChunksArePassedOverWithTheirPadding()
     {

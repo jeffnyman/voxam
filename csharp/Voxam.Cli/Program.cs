@@ -74,16 +74,28 @@ internal static class Program
 
         try
         {
-            story = File.ReadAllBytes(script.Game);
-
-            foreach (var suffix in BlorbSuffixes)
+            // A path with a Blorb suffix must carry a packaged story;
+            // any other loads as a story file, with a like-named
+            // Blorb beside it as its resources when one exists.
+            if (BlorbSuffixes.Contains(Path.GetExtension(script.Game).ToLowerInvariant()))
             {
-                var sidecar = Path.ChangeExtension(script.Game, suffix);
+                blorb = Blorb.Load(File.ReadAllBytes(script.Game));
+                story = blorb.Story
+                    ?? throw new ZMachineException($"{Path.GetFileName(script.Game)} packages no Z-code story to run");
+            }
+            else
+            {
+                story = File.ReadAllBytes(script.Game);
 
-                if (File.Exists(sidecar))
+                foreach (var suffix in BlorbSuffixes)
                 {
-                    blorb = Blorb.Load(File.ReadAllBytes(sidecar));
-                    break;
+                    var sidecar = Path.ChangeExtension(script.Game, suffix);
+
+                    if (File.Exists(sidecar))
+                    {
+                        blorb = Blorb.Load(File.ReadAllBytes(sidecar));
+                        break;
+                    }
                 }
             }
         }
