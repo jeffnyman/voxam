@@ -14,6 +14,12 @@ public interface IFrontend
     int ScreenLines { get; }
     int ScreenColumns { get; }
 
+    /// <summary>One character cell's width in units, which Version 6 reads as pixels (§8.8.1).</summary>
+    int FontWidth { get; }
+
+    /// <summary>One character cell's height in units.</summary>
+    int FontHeight { get; }
+
     void Write(string text);
     void WriteRectangle(IReadOnlyList<string> rows);
     void SplitWindow(int lines);
@@ -49,6 +55,10 @@ public sealed class PlainFrontend(Action<string> write) : IFrontend
     public bool HasColours => false;
     public int ScreenLines => 255;
     public int ScreenColumns => 80;
+
+    // A stream measures in characters: one unit is one character.
+    public int FontWidth => 1;
+    public int FontHeight => 1;
 
     private bool UpperHoldsContent => _split > StatusChromeLines;
 

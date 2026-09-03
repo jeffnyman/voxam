@@ -18,6 +18,8 @@ internal sealed class LoudFrontend(Action<string> write) : IFrontend
     public bool HasColours => true;
     public int ScreenLines => 24;
     public int ScreenColumns => 80;
+    public int FontWidth => 8;
+    public int FontHeight => 16;
 
     public void Write(string text) => _plain.Write(text);
     public void WriteRectangle(IReadOnlyList<string> rows) => _plain.WriteRectangle(rows);
@@ -182,9 +184,16 @@ public class EdgeTests
         restore.Op0(0x6);
         restore.Branch(true, 5);
         Assert.Contains("restore at $1000 is not yet ported", Session.Fails<ZMachineException>(restore).Message, StringComparison.Ordinal);
+        // Private and reserved extended opcodes pass unclaimed (§14.2).
         var extension = new StoryBuilder(5);
-        extension.Ext(0x90);
-        Assert.Contains("ext_private at $1000 is not yet ported", Session.Fails<ZMachineException>(extension).Message, StringComparison.Ordinal);
+        extension.Ext(0x90, Arg.Small(1));
+        extension.Ext(0x1F);
+        extension.Ext(0x1F);
+        // The arc_image band is presentation a stream never claimed.
+        extension.Ext(0x80, Arg.Small(1), Arg.Small(2));
+        extension.Print("on");
+        extension.Quit();
+        Assert.Equal("on", Session.Run(extension).Output);
     }
 
     // The one seed whose mixing lands on zero, a fixed point of the

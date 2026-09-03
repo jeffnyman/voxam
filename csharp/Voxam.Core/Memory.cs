@@ -33,6 +33,9 @@ public static class Header
     public const int FontHeight = 0x27;
     public const int RoutinesOffset = 0x28;
     public const int StringsOffset = 0x2A;
+    public const int DefaultBackground = 0x2C;
+    public const int DefaultForeground = 0x2D;
+    public const int TotalWidth = 0x30;
     public const int StandardMajor = 0x32;
     public const int StandardMinor = 0x33;
     public const int AlphabetTable = 0x34;

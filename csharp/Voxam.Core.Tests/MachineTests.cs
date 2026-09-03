@@ -818,7 +818,6 @@ public class MachineTests
         b.OpVar(0x13, Arg.Large(0xFFFD));
         b.Print("d");
         b.OpVar(0x13, Arg.Large(0xFFFD));
-        b.OpVar(0x13, Arg.Large(0xFFFD));
         b.OpVar(0x13, Arg.Small(4));
         b.OpVar(0x13, Arg.Large(0xFFFC));
         b.OpVar(0x13, Arg.Small(0));
@@ -854,7 +853,15 @@ public class MachineTests
 
         var unknown = new StoryBuilder();
         unknown.OpVar(0x13, Arg.Small(5));
-        Assert.Contains("output stream 5 does not exist", Session.Fails<ZMachineException>(unknown).Message, StringComparison.Ordinal);
+        Assert.Contains("names stream 5, but §7.1 defines only 1 to 4", Session.Fails<ZMachineException>(unknown).Message, StringComparison.Ordinal);
+
+        var unselected = new StoryBuilder();
+        unselected.OpVar(0x13, Arg.Large(0xFFFD));
+        Assert.Contains("stream 3 is not selected", Session.Fails<ZMachineException>(unselected).Message, StringComparison.Ordinal);
+
+        var tableless = new StoryBuilder();
+        tableless.OpVar(0x13, Arg.Small(3));
+        Assert.Contains("names no table to redirect into", Session.Fails<ZMachineException>(tableless).Message, StringComparison.Ordinal);
 
         var deep = new StoryBuilder();
         var table = deep.Alloc(4);
@@ -864,7 +871,7 @@ public class MachineTests
             deep.OpVar(0x13, Arg.Small(3), Arg.Large(table));
         }
 
-        Assert.Contains("nested more than 16 deep", Session.Fails<ZMachineException>(deep).Message, StringComparison.Ordinal);
+        Assert.Contains("would nest 17 deep; §7.1.2.1.1 allows 16 at most", Session.Fails<ZMachineException>(deep).Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -961,7 +968,7 @@ public class MachineTests
         StoryBuilder.Word(story5, Header.Flags2, 0xFFFE);
         output.Clear();
         new Machine(story5, new PlainFrontend(t => output.Append(t)), () => null, null).Run();
-        Assert.Equal("242\n6\n86\n255\n80\n1\n1\n-234\n80\n255\n", output.ToString());
+        Assert.Equal("240\n6\n86\n255\n80\n1\n1\n-170\n80\n255\n", output.ToString());
     }
 
     [Fact]
@@ -1026,11 +1033,6 @@ public class MachineTests
         b.Op0(0x5);
         b.Branch(true, 5);
         Assert.Contains("save at $1000 is not yet ported", Session.Fails<ZMachineException>(b).Message, StringComparison.Ordinal);
-        var v6 = new StoryBuilder(6);
-        v6.Quit();
-        Assert.Contains("Version 6 is not yet ported", Assert.Throws<ZMachineException>(() => Session.Run(v6)).Message, StringComparison.Ordinal);
-        var pull = new StoryBuilder(6);
-        _ = pull;
     }
 
     [Fact]

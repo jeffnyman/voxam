@@ -240,6 +240,9 @@ public sealed class Instruction
 {
     public required int Address { get; init; }
     public required OpInfo Info { get; init; }
+
+    /// <summary>The opcode number within its table, for the reserved-opcode warning.</summary>
+    public required int Number { get; init; }
     public required Operand[] Operands { get; init; }
     public required int OperandsEnd { get; init; }
 
@@ -368,6 +371,7 @@ public sealed class Instruction
         {
             Address = address,
             Info = info,
+            Number = number,
             Operands = operands,
             OperandsEnd = operandsEnd,
             StoreVariable = store,
