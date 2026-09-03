@@ -15,6 +15,15 @@ The comparison's exit codes are RegTest's contract, so a script can
 gate on them: nothing changed, something changed, or the question
 could not be asked.
 
+A sweep can also run a different interpreter over the same corpus:
+any executable that answers `--accept SCRIPT` the way voxam does.
+That is how a port is certified against this one, transcript by
+transcript, with the Python as the reference:
+
+    uv run python tools/sweep-corpus.py record reference
+    uv run python tools/sweep-corpus.py record port --voxam path/to/voxam
+    uv run python tools/sweep-corpus.py compare reference port
+
 The corpus is an optional submodule. Without it there's nothing to
 sweep, and that's not a failure: `record` says so and exits clean.
 """
@@ -22,6 +31,7 @@ sweep, and that's not a failure: `record` says so and exits clean.
 import argparse
 import difflib
 import hashlib
+import io
 import json
 import os
 import subprocess
@@ -126,7 +136,31 @@ def scripts(root: Path, *, subset: bool = False) -> list[Path]:
     return sorted(found)
 
 
-def replayed(script: Path, out: Path, timeout: int, root: Path) -> dict[str, Any]:
+def invocation(root: Path, voxam: Path | None) -> tuple[list[str], dict[str, str]]:
+    """The command that replays a recording, and the environment it runs in.
+
+    Without an executable, the swept checkout's own source goes
+    first on the path, so a sweep of an older tree runs that tree's
+    machine rather than the one this tool was installed beside. Only
+    --version reads the installed metadata, which stays whatever is
+    installed. With one, the executable is the whole interpreter and
+    the environment is left alone: a port has no source to put on a
+    path.
+    """
+
+    running = dict(os.environ)
+
+    if voxam is not None:
+        return [str(voxam)], running
+
+    running["PYTHONPATH"] = str(root / "src")
+
+    return [sys.executable, "-m", "voxam"], running
+
+
+def replayed(
+    script: Path, out: Path, timeout: int, root: Path, voxam: Path | None = None
+) -> dict[str, Any]:
     """Replay one recording; its transcript and how it went.
 
     A run that times out keeps the transcript it earned, and is
@@ -136,16 +170,11 @@ def replayed(script: Path, out: Path, timeout: int, root: Path) -> dict[str, Any
 
     began = time.monotonic()
     complete = True
-    # The swept checkout's own source goes first on the path, so a
-    # sweep of an older tree runs that tree's machine rather than
-    # the one this tool was installed beside. Only --version reads
-    # the installed metadata, which stays whatever is installed.
-    running = dict(os.environ)
-    running["PYTHONPATH"] = str(root / "src")
+    command, running = invocation(root, voxam)
 
     try:
-        answer = subprocess.run(  # noqa: S603 -- this interpreter, fixed words
-            [sys.executable, "-m", "voxam", "--accept", str(script)],
+        answer = subprocess.run(  # noqa: S603 -- an interpreter, fixed words
+            [*command, "--accept", str(script)],
             capture_output=True,
             check=False,
             cwd=root,
@@ -189,8 +218,21 @@ def stocked(root: Path) -> bool:
     return corpus.is_dir() and any(corpus.iterdir())
 
 
-def recorded(out: Path, timeout: int, root: Path, *, subset: bool = False) -> int:
-    """Replay the corpus into a directory, with a manifest."""
+def recorded(
+    out: Path,
+    timeout: int,
+    root: Path,
+    *,
+    subset: bool = False,
+    voxam: Path | None = None,
+) -> int:
+    """Replay the corpus into a directory, with a manifest.
+
+    The corpus is always the root's: its recordings and its games.
+    What walks them is the root's own source, or the executable
+    given as voxam, which the manifest names so a comparison can
+    say what it compared.
+    """
 
     found = scripts(root, subset=subset)
 
@@ -214,13 +256,14 @@ def recorded(out: Path, timeout: int, root: Path, *, subset: bool = False) -> in
 
     for index, script in enumerate(found, start=1):
         print(f"[{index:>2}/{len(found)}] {script.stem}", flush=True)
-        entries.append(replayed(script, out, timeout, root))
+        entries.append(replayed(script, out, timeout, root, voxam))
 
     (out / MANIFEST).write_text(
         json.dumps(
             {
                 "timeout": timeout,
                 "root": str(root),
+                "voxam": None if voxam is None else str(voxam),
                 "subset": subset,
                 "entries": entries,
             },
@@ -347,6 +390,14 @@ def _differed(mine: Path, theirs: Path, most: int = 12) -> list[str]:
 def main(argv: list[str]) -> int:
     """Record a sweep, or compare two of them."""
 
+    # A comparison quotes transcript lines, and a transcript may
+    # hold any character a story prints: an arrow, a box-drawing
+    # rune. A Windows console encodes stdout in its code page by
+    # default and dies on the first one, so the tool's own stream
+    # speaks UTF-8, and replaces what even that cannot carry.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(
         prog="sweep-corpus.py",
         description="Replay every acceptance recording, and compare sweeps.",
@@ -375,6 +426,15 @@ def main(argv: list[str]) -> int:
             "corpus reaches, for a smoke test rather than a comparison"
         ),
     )
+    keeping.add_argument(
+        "--voxam",
+        type=Path,
+        default=None,
+        help=(
+            "an executable answering --accept SCRIPT to walk the corpus "
+            "with, instead of this checkout's source: how a port is certified"
+        ),
+    )
 
     against = doing.add_parser("compare", help="compare two sweep directories")
     against.add_argument("left", type=Path)
@@ -392,8 +452,18 @@ def main(argv: list[str]) -> int:
 
             return EXIT_UNUSABLE
 
+        voxam: Path | None = asked.voxam
+
+        if voxam is not None:
+            voxam = voxam.resolve()
+
+            if not voxam.is_file():
+                print(f"voxam: {voxam} is not an executable to sweep with")
+
+                return EXIT_UNUSABLE
+
         try:
-            return recorded(out, timeout, root, subset=asked.subset)
+            return recorded(out, timeout, root, subset=asked.subset, voxam=voxam)
         except LookupError as missing:
             print(f"voxam: {missing}")
 
