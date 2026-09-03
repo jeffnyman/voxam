@@ -155,7 +155,13 @@ line-ending = "lf"
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src", "tests"]
+
+# The developer scripts under tools/ are checked on the package's own
+# terms even though they never ship: they import voxam, so a change to
+# a signature here should break them loudly rather than at the moment
+# someone reaches for one. The release audit keeps them out of the
+# wheel and the sdist on its own.
+files = ["src", "tests", "tools"]
 exclude = "entharion"
 
 # The test tree has a conftest.py at two levels and no __init__.py
