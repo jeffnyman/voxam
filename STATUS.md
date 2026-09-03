@@ -1320,3 +1320,49 @@ heaviest thing Voxam plays, and would make a good permanent
 guard against a performance regression; it stays out of the
 corpus for now because it would add half a minute to every
 sweep, and `--benchmark` catches the same regressions for less.
+
+## The C# port: begun
+
+Voxam has a second implementation now, under `csharp/`, and the
+reason is the one
+[#373](https://github.com/jeffnyman/voxam/issues/373) set out: a
+native executable that installs with nothing, which Python cannot
+produce, and a language whose coverage tools report branches,
+which Go's does not. The exploration the issue asked for came
+back with both answers it wanted. The Version 3 core replays the
+whole of Zork I byte for byte against the Python, and it was
+pleasant to write.
+
+**What is in the directory.** `Voxam.Core`, the machine: memory,
+the decoder and its opcode tables, the text, object and
+dictionary rules, the seeded generator ported bit for bit, and a
+plain frontend with the Python's muting rules. `Voxam.Cli`, a
+console executable answering `--accept SCRIPT` exactly as the
+Python does, down to the banner and the Blorb census. And
+`Voxam.Core.Tests`, 155 tests at 100% line and branch coverage,
+enforced as a threshold the way the Python's suite is, most of
+them driving tiny stories assembled by a builder in the test
+project rather than fixtures on disk.
+
+**Where it stands.** Of the 37 Z-code recordings in the corpus,
+18 replay identically: seven of the nine Version 3 games, one
+Version 2, one Version 4, eight Version 5 and one Version 8.
+Every remaining difference belongs to a road not yet walked
+rather than to a wrong turn: the refusal watch, timed reads and
+the patient typist, the keystroke queue behind `read_char`, save
+and restore, the `erase_window` paragraph rule, the shift
+semantics of Versions 1 and 2, and one ZSCII code Beyond Zork
+prints. Glulx, the Å-machine and Version 6 are refused at the
+door. `tools/sweep-corpus.py record --voxam` is the certificate:
+it records a sweep under the executable and compares it with the
+Python's by digest, and CI replays Zork I under both on every
+push, on all three platforms, from a NativeAOT publish.
+
+**What it is not.** Not a replacement. The Python is the
+reference and keeps every face it has; the port is certified
+against it, and a difference is the port's question until the
+Python is shown wrong against the Standard. The roads, in order:
+the rest of Version 3, then 4, 5, 7 and 8, then Version 6 and the
+stage; then a painted terminal, an Avalonia desktop, and the
+GlkOte face served from C#; then Glulx, and the Å-machine once
+the Python's acceptance driver can walk it.

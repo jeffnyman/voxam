@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Voxam.Cli/Voxam.Cli.csproj" />
+  <Project Path="Voxam.Core.Tests/Voxam.Core.Tests.csproj" />
+  <Project Path="Voxam.Core/Voxam.Core.csproj" />
+</Solution>

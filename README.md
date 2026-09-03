@@ -241,6 +241,17 @@ commit message rules, the instruments Voxam is developed with
 (acceptance recordings, RegTest suites, the benchmark, the probe,
 and the filmstrip), and the optional reference material.
 
+### The C# port
+
+`csharp/` holds a second implementation of the Z-Machine, in C#,
+built to ship as one native executable through NativeAOT. It is
+young: it plays Version 3 stories and a good part of what came
+after, and its measure is the acceptance corpus, replayed byte
+for byte against the Python above, which stays the reference.
+Where it stands, and where it is going, is in
+[STATUS.md](STATUS.md); how to build and certify it is in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ---
 
 ## 🪄 The Name

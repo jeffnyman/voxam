@@ -1,0 +1,7 @@
+# Build output and restore state, per project.
+bin/
+obj/
+# Coverage reports the test project writes.
+coverage/
+# Where a NativeAOT publish lands.
+publish/
