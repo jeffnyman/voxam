@@ -143,6 +143,25 @@ jobs:
           echo "$out" | grep -q "All tests passed."
           ! echo "$out" | grep -q "FAILED"
 
+      # The acceptance corpus, smoke-tested. Seventeen of the
+      # forty-five recordings, chosen because they execute every
+      # line of voxam the whole corpus executes and cover every
+      # story file version besides; the list and the measurement
+      # behind it are in the tool. This asks only whether real games
+      # still play: a crash, a hang, or a story that no longer opens
+      # fails the job.
+      #
+      # It does not ask whether they play the SAME, which is the
+      # question the whole corpus answers by comparing two sweeps.
+      # That one wants a human reading the diff, and lives at
+      # release time rather than here.
+      #
+      # It rides this job because the story corpus is already
+      # checked out here for CZECH and glulxercise above, so it
+      # costs the replay and nothing else.
+      - name: The acceptance corpus, smoke-tested
+        run: uv run python tools/sweep-corpus.py record sweep --subset
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest

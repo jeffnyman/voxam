@@ -24,6 +24,9 @@ htmlcov/
 # to carry.
 VOXAM-MANUAL-TESTS.md
 
+# Where tools/sweep-corpus.py drops transcripts, including in CI.
+sweep/
+
 # Local environment overrides
 .env
 .env.*

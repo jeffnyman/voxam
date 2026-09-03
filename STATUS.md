@@ -198,8 +198,8 @@ file versions play, and everything below is enforced rather
 than promised: a test suite at 100% branch coverage and the
 community's own checkers held to their exact tallies, both in
 continuous integration, and forty-five recorded playthroughs
-replayed whole against the previous release, which is a sweep
-run by hand until it has a runner (issue 365). The short list that remains is under **Not yet**.
+replayed whole against the previous release, a sweep with a
+runner of its own under `tools/`. The short list that remains is under **Not yet**.
 
 **Works today:** story file versions 1 through 8 -- Infocom's
 whole catalog, the modern Inform and PunyInform games built on
