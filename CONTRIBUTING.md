@@ -76,9 +76,11 @@ change not working.
 
 - **Layout.** Source lives under `src/voxam`, tests under `tests/`. The `src`
   layout ensures tests exercise the installed package rather than the working
-  directory.
-- **Typing.** `mypy` runs in strict mode over both `src` and `tests`, and the
-  package ships a `py.typed` marker so downstream consumers get its types.
+  directory. Developer scripts live under `tools/`: they import `voxam` and
+  are held to the same lint and typing bar, but they never ship, and the
+  release audit fails the build if one ever reaches an artifact.
+- **Typing.** `mypy` runs in strict mode over `src`, `tests`, and `tools`, and
+  the package ships a `py.typed` marker so downstream consumers get its types.
   One caution if you touch a platform branch: `mypy` narrows `sys.platform`
   to the machine it's running on, so the other platform's arm reads as
   dead code and the local gate can't see the error CI will. Check it with
