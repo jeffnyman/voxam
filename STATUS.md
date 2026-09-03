@@ -1364,11 +1364,38 @@ it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
 push, on all three platforms, from a NativeAOT publish.
 
-**What it is not.** Not a replacement. The Python is the
-reference and keeps every face it has; the port is certified
-against it, and a difference is the port's question until the
-Python is shown wrong against the Standard. The roads, in order:
-the rest of Version 3, then 4, 5, 7 and 8, then Version 6 and the
-stage; then a painted terminal, an Avalonia desktop, and the
-GlkOte face served from C#; then Glulx, and the Å-machine once
-the Python's acceptance driver can walk it.
+**What it is not.** Not a replacement, and not a mirror. The
+Python is the reference and keeps every face it has; the port is
+certified against it, and a difference is the port's question
+until the Python is shown wrong against the Standard. Where the
+two part is the faces. The Python's browser tab and desktop shell
+exist because a page was the one display it could give without an
+install, and the sidecar and the GlkOte dialect belong to them.
+The port has a native window instead, so it carries no wire face
+at all: its glass is [Avalonia](https://avaloniaui.net/), one code
+on Windows, macOS, Linux and the phones, and it is where the stage
+gets drawn as a stage rather than flowing as text. Beside it
+stands a console, the same `voxam` that answers `--accept` and the
+tools, which also plays at a prompt the way the painted terminal
+does, because a machine that installs with nothing should also
+play with nothing. Two executables, one core: `voxam` at the
+prompt, `Voxam` with an icon. The console keeps the Python's
+name on purpose: it answers the same banner, the same transcript
+and the same exit codes, which is what the sweep certifies, so a
+different name would claim a difference the certificate denies.
+The one place they should differ is `--version`, where the
+native one names its runtime; the port versions with the repo.
+
+**The roads, in order.** The console plays: the painted terminal's
+screen model and status line, so `voxam story.z5` is a game and
+not only a certificate. Save and restore in Quetzal, with the
+file conventions the Python keeps, in the same stretch, since a
+terminal that cannot save is a toy. Then the Avalonia glass,
+measured the way the filmstrip measures the Python's faces but
+inside the test suite: Avalonia's headless platform renders real
+frames to bitmaps without a window, so the stage can be
+photographed at the 100% gate. Then Glulx, its own era, with the
+two recordings that certify it. The Å-machine waits on the
+Python's own acceptance driver for it, and a browser face waits
+on someone wanting one, at which point it is Avalonia in
+WebAssembly and not a second renderer.
