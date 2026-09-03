@@ -2910,6 +2910,52 @@ def test_aamachine_refuses_the_instruments(
         assert_that(capsys.readouterr().out).contains("later roads")
 
 
+# And every door that drives a story from a script refuses the same
+# way. The instruments used to reach the Z-code header reader first
+# through some of them, and an .aastory earned "declares version
+# 70" -- the F of FORM read as a version byte -- which sends a
+# reader hunting for a corrupt file that is not corrupt. The story
+# is fine; the road is not built, and each door now says so.
+def test_every_scripted_door_refuses_the_third_machine_alike(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    aastory: bytes,
+) -> None:
+    story = tmp_path / "cloak.aastory"
+
+    story.write_bytes(aastory)
+
+    walk = accept_file(tmp_path, f"! GAME={story}\nlook\n")
+    checks = tmp_path / "checks.regtest"
+
+    checks.write_text(
+        f"** game: {story}\n\n* start\n> look\n", encoding="utf-8", newline="\n"
+    )
+
+    doors = (
+        ["--accept", str(walk)],
+        ["--accept", str(walk), "--shots", str(tmp_path / "frames")],
+        ["--replay", str(walk)],
+        ["--regtest", str(checks)],
+    )
+
+    for door in doors:
+        assert_that(main(door)).described_as(door[0]).is_equal_to(2)
+
+        spoken = capsys.readouterr().out
+
+        assert_that(spoken).described_as(door[0]).contains("later roads")
+        assert_that(spoken).described_as(door[0]).does_not_contain("version 70")
+
+    # A game that is not there at all is not the third machine's
+    # business: the guard steps aside and the door complains in its
+    # own words rather than raising through it.
+    missing = accept_file(tmp_path, f"! GAME={tmp_path / 'gone.z3'}\nlook\n")
+
+    assert_that(main(["--accept", str(missing)])).is_equal_to(2)
+    assert_that(capsys.readouterr().out).contains("No such file")
+
+
 # --benchmark rides a session and reports the machine's own pace
 # when it ends: the instruction count first, because a seeded
 # session executes exactly the same instructions every time and is
