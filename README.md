@@ -47,6 +47,8 @@
 </p>
 
 <p align="center">
+  <a href="SCREENSHOTS.md"><em>See what it looks like</em></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="#-the-name"><em>What does Voxam mean?</em></a>
 </p>
 
