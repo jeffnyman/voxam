@@ -15,9 +15,10 @@ public sealed class Blorb
     private byte[]? _identity;
 
     /// <summary>
-    /// The packaged Z-code story, or null: an Exec resource is
-    /// numbered 0, and only the ZCOD executable format belongs to
-    /// this machine.
+    /// The packaged story, or null: an Exec resource is numbered 0,
+    /// and the ZCOD and GLUL executable formats are the two this
+    /// interpreter knows. Which of them arrived is the story's own
+    /// first bytes to say.
     /// </summary>
     public byte[]? Story { get; private init; }
 
@@ -223,10 +224,18 @@ public sealed class Blorb
         return new Ratio(numerator, denominator);
     }
 
-    // The chunk an Exec entry points at, when it is Z-code.
+    // The chunk an Exec entry points at, when it is in a format
+    // this interpreter runs.
     private static byte[]? Executable(byte[] data, int offset)
     {
-        if (offset < 0 || offset + 8 > data.Length || Ascii(data, offset) != "ZCOD")
+        if (offset < 0 || offset + 8 > data.Length)
+        {
+            return null;
+        }
+
+        var format = Ascii(data, offset);
+
+        if (format != "ZCOD" && format != "GLUL")
         {
             return null;
         }

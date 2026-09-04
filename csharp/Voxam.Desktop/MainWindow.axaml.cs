@@ -113,7 +113,7 @@ public partial class MainWindow : Window
             _session = Session.Start(game, Screen, Tell, new PickedSaves(game, Files));
             Title = $"{Path.GetFileNameWithoutExtension(game)}: Voxam";
         }
-        catch (Exception error) when (error is ZMachineException or IOException)
+        catch (Exception error) when (error is VoxamException or IOException)
         {
             Tell($"voxam: {error.Message}");
         }

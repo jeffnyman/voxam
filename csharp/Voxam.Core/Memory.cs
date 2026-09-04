@@ -1,7 +1,17 @@
 namespace Voxam.Core;
 
-/// <summary>A rule the story or the machine broke (the Python VoxamError).</summary>
-public class ZMachineException(string message) : Exception(message);
+/// <summary>
+/// Anything a story or the machine running it did that the rules
+/// refuse (the Python VoxamError). The two machines raise their own
+/// kinds; what catches a session's refusals catches this.
+/// </summary>
+public class VoxamException(string message) : Exception(message);
+
+/// <summary>A rule a Z-code story or the machine running it broke.</summary>
+public class ZMachineException(string message) : VoxamException(message);
+
+/// <summary>A rule a Glulx story or the machine running it broke.</summary>
+public class GlulxException(string message) : VoxamException(message);
 
 /// <summary>The input source ran dry: the session ends there, as at end of input.</summary>
 public sealed class EndOfInputException() : Exception("end of input");

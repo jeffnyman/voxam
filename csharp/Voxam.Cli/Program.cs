@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Voxam.Core;
+using Glulx = Voxam.Core.Glulx;
 
 namespace Voxam.Cli;
 
@@ -86,6 +87,24 @@ internal static class Program
         return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
     }
 
+    // A Glulx story loads and is held to every promise its header
+    // makes, and then says what it is: the machine that runs one is a
+    // road this port has not walked yet, and a session that stops
+    // should name what stopped it.
+    private static bool Frontier(string game, byte[] data, Action<string> emit)
+    {
+        if (!Glulx.Story.IsGlulx(data))
+        {
+            return false;
+        }
+
+        var story = new Glulx.Story(data);
+        var checksum = story.Verify() ? "checksum verified" : "checksum wrong";
+        emit($"voxam: {Path.GetFileName(game)} is a Glulx story (version {story.Version}, {checksum}), and the Glulx machine is not here yet\n");
+
+        return true;
+    }
+
     private static void Banner(string game, byte[] story, Blorb? blorb, Action<string> emit)
     {
         emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
@@ -114,8 +133,13 @@ internal static class Program
         {
             script = AcceptanceScript.Parse(scriptPath);
             (story, blorb) = StoryFile.Load(script.Game);
+
+            if (Frontier(script.Game, story, emit))
+            {
+                return ExitUnusable;
+            }
         }
-        catch (Exception error) when (error is ZMachineException or IOException)
+        catch (Exception error) when (error is VoxamException or IOException)
         {
             emit($"voxam: {error.Message}\n");
             return ExitUnusable;
@@ -167,8 +191,13 @@ internal static class Program
         try
         {
             (story, blorb) = StoryFile.Load(game);
+
+            if (Frontier(game, story, emit))
+            {
+                return ExitUnusable;
+            }
         }
-        catch (Exception error) when (error is ZMachineException or IOException)
+        catch (Exception error) when (error is VoxamException or IOException)
         {
             emit($"voxam: {error.Message}\n");
             return ExitUnusable;

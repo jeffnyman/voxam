@@ -50,7 +50,7 @@ internal static class StageGrid
             script = AcceptanceScript.Parse(scriptPath);
             (story, blorb) = StoryFile.Load(script.Game);
         }
-        catch (Exception error) when (error is ZMachineException or IOException)
+        catch (Exception error) when (error is VoxamException or IOException)
         {
             emit($"voxam: {error.Message}\n");
             return 2;

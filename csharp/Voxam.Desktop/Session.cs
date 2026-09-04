@@ -1,4 +1,5 @@
 using Voxam.Core;
+using Glulx = Voxam.Core.Glulx;
 
 namespace Voxam.Desktop;
 
@@ -35,6 +36,16 @@ public sealed class Session
     public static Session Start(string game, Glass glass, Action<string> notice, ISaveSlot saves, int? seed = null)
     {
         var (story, blorb) = StoryFile.Load(game);
+
+        if (Glulx.Story.IsGlulx(story))
+        {
+            // Held to its header's promises even here, so a Glulx file
+            // with something wrong inside it says what that is, rather
+            // than only that it cannot be played.
+            var glulx = new Glulx.Story(story);
+
+            throw new GlulxException($"{Path.GetFileName(game)} is a Glulx story (version {glulx.Version}), and the Glulx machine is not here yet");
+        }
 
         if (story[0] == 6)
         {
@@ -81,7 +92,7 @@ public sealed class Session
         {
             // Retired: another story has the glass now.
         }
-        catch (ZMachineException error)
+        catch (VoxamException error)
         {
             notice($"voxam: {error.Message}");
         }

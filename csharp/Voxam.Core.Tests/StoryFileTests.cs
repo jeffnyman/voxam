@@ -89,10 +89,16 @@ public class StoryFileTests
             Assert.Equal(story, loaded);
             Assert.NotNull(blorb);
 
+            // A Glulx Blorb comes out of its wrapper the same way; what
+            // arrived is the story's own first bytes to say.
             var glulx = Path.Combine(directory.FullName, "other.gblorb");
             File.WriteAllBytes(glulx, Packaged("GLUL", story));
-            var error = Assert.Throws<ZMachineException>(() => StoryFile.Load(glulx));
-            Assert.Equal("other.gblorb packages no Z-code story to run", error.Message);
+            Assert.Equal(story, StoryFile.Load(glulx).Story);
+
+            var adrift = Path.Combine(directory.FullName, "elsewhere.blorb");
+            File.WriteAllBytes(adrift, Packaged("ADRI", story));
+            var error = Assert.Throws<ZMachineException>(() => StoryFile.Load(adrift));
+            Assert.Equal("elsewhere.blorb packages no story this interpreter can run", error.Message);
         }
         finally
         {
