@@ -58,9 +58,10 @@ public sealed class Machine
     /// called. A seed makes the dice reproducible; none means true
     /// entropy.
     /// </summary>
-    public Machine(Story story, int? seed = null)
+    public Machine(Story story, int? seed = null, IGlkOutput? glk = null)
     {
         _story = story;
+        Glk = glk;
         Memory = new Memory(story);
         Stack = new StackMemory(story.StackSize);
         IoSys = new IoSystem();
@@ -72,8 +73,12 @@ public sealed class Machine
         Restart();
     }
 
-    /// <summary>The program counter.</summary>
-    public int Pc { get; private set; }
+    /// <summary>
+    /// The program counter. The string decoder moves it too, since a
+    /// print that suspends into a function has to say where the
+    /// machine picks back up.
+    /// </summary>
+    public int Pc { get; internal set; }
 
     /// <summary>The live memory map.</summary>
     public Memory Memory { get; }
@@ -83,6 +88,14 @@ public sealed class Machine
 
     /// <summary>Which output system is current (Glulx: Output).</summary>
     public IoSystem IoSys { get; }
+
+    /// <summary>
+    /// Where Glk output goes, or null with no library installed. What
+    /// the machine can do follows from this: installing a library is
+    /// what lets setiosys select the Glk system at all, so the
+    /// fallback and the refusal tell the same truth.
+    /// </summary>
+    public IGlkOutput? Glk { get; }
 
     /// <summary>The string-decoding table's address; 0 means none.</summary>
     public uint StringTable { get; private set; }
@@ -290,10 +303,12 @@ public sealed class Machine
 
         if (stub.DestType is DestType.ResumeCompressed or DestType.ResumeNumber or DestType.ResumeCString or DestType.ResumeUnicode)
         {
-            // A function called from inside a string has returned,
-            // which is the strings era's business to resume (Glulx:
-            // Calling and Returning Within Strings).
-            throw new GlulxException("a string-resumption call stub arrived, and this machine does not print strings yet");
+            // A function called from inside a string has returned: its
+            // value is discarded and the print picks up where it left
+            // off (Glulx: Calling and Returning Within Strings).
+            Strings.Resume(this, stub);
+
+            return;
         }
 
         Store(new StoreTarget(stub.DestType, stub.DestAddr), value);
@@ -308,8 +323,9 @@ public sealed class Machine
 
     // Begin a call: every way of invoking a function lands here, which
     // is where the accelerated replacements will intercept when they
-    // arrive (Glulx: Accelerated Functions).
-    private void EnterFunction(uint addr, IReadOnlyList<uint> args) =>
+    // arrive (Glulx: Accelerated Functions). The string decoder enters
+    // functions too, for a filter and for a table's function nodes.
+    internal void EnterFunction(uint addr, IReadOnlyList<uint> args) =>
         Pc = Funcs.PushCallFrame(Memory, Stack, (int)addr, args, _headers);
 
     // A bit number resolved to its byte address and the bit within.
@@ -735,14 +751,14 @@ public sealed class Machine
 
     // Select the output system (Glulx: Output). Selecting an
     // unsupported system selects the null system, and Glk without a
-    // library installed is exactly that, so the fallback here will
-    // tell the same truth the gestalt answer does once both exist.
+    // library installed is exactly that, so the fallback here tells
+    // the same truth the gestalt answer will once it exists.
     private void OpSetiosys(Operand[] args)
     {
         var mode = args[0].Value;
         var rock = args[1].Value;
 
-        if (mode == (uint)IoMode.Glk)
+        if (mode == (uint)IoMode.Glk && Glk is null)
         {
             mode = (uint)IoMode.Null;
             rock = 0;
@@ -888,6 +904,12 @@ public sealed class Machine
         [(int)Op.Stkswap] = new(None, static (m, a) => m.OpStkswap(a)),
         [(int)Op.Stkroll] = new(Ll, static (m, a) => m.OpStkroll(a)),
         [(int)Op.Stkcopy] = new(L, static (m, a) => m.OpStkcopy(a)),
+        // Print one character, its low byte, or the whole of it
+        // (Glulx: Output).
+        [(int)Op.Streamchar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value & 0xFF)),
+        [(int)Op.Streamunichar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value)),
+        [(int)Op.Streamnum] = new(L, static (m, a) => Strings.StreamNum(m, a[0].Value)),
+        [(int)Op.Streamstr] = new(L, static (m, a) => Strings.StreamString(m, a[0].Value)),
         [(int)Op.Getstringtbl] = new(S, static (m, a) => m.OpGetstringtbl(a)),
         [(int)Op.Setstringtbl] = new(L, static (m, a) => m.OpSetstringtbl(a)),
         [(int)Op.Getiosys] = new(Ss, static (m, a) => m.OpGetiosys(a)),

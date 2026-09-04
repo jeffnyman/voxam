@@ -659,9 +659,9 @@ public sealed class MachineTests
     public void AnOpcodeNotCarriedYetSaysSoAndOneNotDefinedSaysThat()
     {
         var program = new GlulxProgram();
-        program.Op(Op.Streamchar, Modes.Constant(65));
+        program.Op(Op.Malloc, Modes.Constant(16), Modes.Discard);
 
-        Assert.Equal("executed streamchar, an opcode this machine does not carry yet", Refusal(() => program.Booted().Run()));
+        Assert.Equal("executed malloc, an opcode this machine does not carry yet", Refusal(() => program.Booted().Run()));
 
         var unknown = new GlulxProgram();
         unknown.Op((Op)0x99, Modes.Constant(0));
@@ -751,15 +751,10 @@ public sealed class MachineTests
         Assert.Equal(1u, machine.Memory.ReadWord((int)Flag));
     }
 
-    // A string-resumption stub is the strings era's business, and a
-    // string terminator where a result belongs is nobody's.
-    [Theory]
-    [InlineData(DestType.ResumeFunction, "a string-terminator call stub arrived where a function result belongs (Glulx: Call Stubs)")]
-    [InlineData(DestType.ResumeNumber, "a string-resumption call stub arrived, and this machine does not print strings yet")]
-    [InlineData(DestType.ResumeCompressed, "a string-resumption call stub arrived, and this machine does not print strings yet")]
-    [InlineData(DestType.ResumeCString, "a string-resumption call stub arrived, and this machine does not print strings yet")]
-    [InlineData(DestType.ResumeUnicode, "a string-resumption call stub arrived, and this machine does not print strings yet")]
-    public void AStringStubIsRefusedWhereAResultBelongs(DestType desttype, string message)
+    // The four resume stubs are the string decoder's now, but a
+    // string terminator where a function result belongs is nobody's.
+    [Fact]
+    public void AStringTerminatorIsRefusedWhereAResultBelongs()
     {
         var callee = 160;
         var program = new GlulxProgram();
@@ -774,9 +769,11 @@ public sealed class MachineTests
         machine.Step();
         // Rewrite the stub the call just left, which sits four words
         // below the new frame.
-        machine.Stack.WriteWord(machine.Stack.FramePtr - StackMemory.StubSize, (uint)desttype);
+        machine.Stack.WriteWord(machine.Stack.FramePtr - StackMemory.StubSize, (uint)DestType.ResumeFunction);
 
-        Assert.Equal(message, Refusal(() => machine.Run()));
+        Assert.Equal(
+            "a string-terminator call stub arrived where a function result belongs (Glulx: Call Stubs)",
+            Refusal(() => machine.Run()));
     }
 
     private static uint Computed(Op opcode, uint a, uint b)

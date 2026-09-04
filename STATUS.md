@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 610 tests and
+And the test projects, `Voxam.Core.Tests` at 638 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1650,9 +1650,43 @@ matching the reference at every single step. The forty-sixth is
 `binarysearch`, which belongs to a later rung; that is where the
 trace stops, and it stops honestly.
 
+**And it prints.** Three kinds of string share one entry point:
+E0's plain bytes, E2's 32-bit characters, and E1's Huffman coding
+against the story's own decoding table. Only the compressed kind is
+interesting, and it is interesting because its tree is not only
+letters: a node can hold a whole string of either width, or reach
+indirectly to a string somewhere else, or through an address that
+holds an address, or into a function, with or without arguments
+read out of the node itself.
+
+That is why a print is not a loop. In filter mode every character
+is a function call, and a compressed string may call a function at
+any node, so the decoder stops where it stands, writes down where
+that was as a call stub, and hands the machine back its own thread;
+the stub coming off the stack later is what resumes the print. The
+four resume kinds and the terminator stub are the whole of that
+conversation, and a stub that says the wrong thing is caught rather
+than followed. Glk output never suspends, being a direct call, and
+the null system decodes and discards, which is not the same as not
+decoding: a broken string still refuses either way.
+
+Where a character actually goes is now a seam. A byte stream would
+flatten anything above 0xFF to a question mark, so the wide
+characters take their own call, exactly as Glk has it; the library
+that answers arrives with the Glk era, and until then only a
+caller can supply one. Selecting the Glk system with no library
+installed falls back to the null system, so a story cannot reach
+that refusal at all.
+
+Certified by a probe rather than by assertion alone. The port's own
+assembler builds one story that prints a plain string, a wide one, a
+compressed one walking every node type the table may hold, five
+signed decimals including both ends of the range, and two loose
+characters; the same story file then runs under the Python. All
+forty-three characters come out identical.
+
 **The roads, in order.** The rest of Glulx, a rung at a time:
-string decoding and the I/O system; then search, the heap and the
-accelerated functions; then the floats. Only once Glk is over the
+search, the heap and the accelerated functions; then the floats. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
