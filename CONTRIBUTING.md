@@ -57,6 +57,7 @@ window, so the glass is measured at the same gate as the core.
 | Publish a native executable | `dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish` |
 | Publish the desktop | `dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop` |
 | Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
+| Certify the Version 6 stage | `uv run python tools/stage-grid.py acceptance/SCRIPT.accept --voxam csharp/publish/voxam` |
 | Play at the terminal | `csharp/publish/voxam story.z5` (`--plain` for the transcript stream) |
 | Play in the window | `csharp/publish-desktop/Voxam story.z5` (`--theme paper` for a lighter look), or open one from its Story menu |
 
@@ -66,7 +67,11 @@ release as the Python and adds `(native)` after it.
 
 The port is certified the way a release is: a sweep of the corpus
 under the Python, a sweep under the native executable, and a
-comparison of the two by transcript digest. CI does the smallest
+comparison of the two by transcript digest. A transcript is a
+character face's answer, though, so the Version 6 stage has a
+certificate of its own: `tools/stage-grid.py` replays a walk on
+each interpreter's stage, at the same geometry, and compares the
+grids row for row. CI does the smallest
 version of that on every push, replaying Zork I under both and
 requiring the bytes to agree. The Python is the reference and
 stays so: a difference between the two is a question for the

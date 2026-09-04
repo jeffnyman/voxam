@@ -74,10 +74,20 @@ public sealed class StageFrontend : IStageFrontend, ILineCanvas
     private bool _composing;
     private string _prompt = "";
 
-    public StageFrontend(IStageScreen screen)
+    /// <summary>
+    /// Wrap a stage around a glass. A driven session never pauses at
+    /// [MORE]: a script is typing, there is nobody to press the key,
+    /// and the walk's own pacing is the walk itself.
+    /// </summary>
+    public StageFrontend(IStageScreen screen, bool driven = false)
     {
         _screen = screen;
-        _model = new StageModel(screen.Columns, screen.Lines, screen.FontWidth, screen.FontHeight) { More = Pause };
+        _model = new StageModel(screen.Columns, screen.Lines, screen.FontWidth, screen.FontHeight);
+
+        if (!driven)
+        {
+            _model.More = Pause;
+        }
     }
 
     /// <summary>The stage this face keeps faithful.</summary>

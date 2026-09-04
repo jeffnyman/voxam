@@ -168,6 +168,56 @@ public class StageMachineTests
         Assert.Equal("    efghij", face.Model.RowText(1));
     }
 
+    // A stage's cursor is the printing truth: text flow moves it, and
+    // the ledger's copy cannot know (§8.8.3.5). Shogun centres each
+    // title line by reading property 4 back between prints, and against
+    // a stale copy every line lands on the first one's row.
+    [Fact]
+    public void TheCursorPropertiesAnswerFromTheStagesOwnCursor()
+    {
+        var (face, _) = Play(b =>
+        {
+            b.Print("ab\n");
+            b.Ext(0x13, Arg.Small(0), Arg.Small(WindowLedger.YCursor));
+            b.Store(G0);
+            b.Ext(0x13, Arg.Small(0), Arg.Small(WindowLedger.XCursor));
+            b.Store(G0 + 1);
+            b.OpVar(0x06, Arg.Var(G0));
+            b.Print(" ");
+            b.OpVar(0x06, Arg.Var(G0 + 1));
+            // A window that is not the selected one keeps answering
+            // from the ledger, where its own set_cursor wrote.
+            b.OpVar(0x0F, Arg.Large(1 + 3 * Units), Arg.Large(1 + 4 * Units), Arg.Small(1));
+            b.Ext(0x13, Arg.Small(1), Arg.Small(WindowLedger.YCursor));
+            b.Store(G0);
+            b.Print(" ");
+            b.OpVar(0x06, Arg.Var(G0));
+            // A property that is not a cursor answers from the ledger
+            // whatever face is listening.
+            b.Ext(0x13, Arg.Small(1), Arg.Small(WindowLedger.XSize));
+            b.Store(G0);
+            b.Print(" ");
+            b.OpVar(0x06, Arg.Var(G0));
+        });
+        Assert.Equal($"{1 + Units} 1 {1 + 3 * Units} {10 * Units}", face.Model.RowText(2));
+    }
+
+    // get_cursor answers from the stage as well, for the same reason.
+    [Fact]
+    public void GetCursorAnswersFromTheStageToo()
+    {
+        var (face, _) = Play(b =>
+        {
+            var array = b.Alloc(4);
+            b.Print("abc\n");
+            b.OpVar(0x10, Arg.Large(array));
+            b.Op2(0x0F, Arg.Large(array), Arg.Small(0));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+        });
+        Assert.Equal($"{1 + Units}", face.Model.RowText(2));
+    }
+
     // The same story on a character face leaves the transcript exactly
     // as it was: none of these seams is sent, and the sweep that
     // certifies the corpus is untouched by construction.

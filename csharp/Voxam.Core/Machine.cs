@@ -2038,8 +2038,15 @@ public sealed class Machine
                 }
             case Op.GetCursor:
                 {
+                    // A stage's cursor is the printing truth: text flow
+                    // moves it, which the ledger's copy never sees, and
+                    // a game that saves the cursor before redrawing its
+                    // status line reprints a whole line on a stale
+                    // answer. A character glass reads the ledger, the
+                    // same place its own set_cursor writes, so its
+                    // round trip stays exact.
                     var array = Value(i.Operands[0]);
-                    var (line, column) = _version == 6
+                    var (line, column) = _version == 6 && _stage is null
                         ? (_windows.Property(WindowLedger.CurrentWindow, WindowLedger.YCursor),
                             _windows.Property(WindowLedger.CurrentWindow, WindowLedger.XCursor))
                         : _frontend.CursorPosition();
@@ -2073,8 +2080,24 @@ public sealed class Machine
                 }
             case Op.GetWindProp:
                 {
+                    // On a stage the selected window's cursor properties
+                    // answer from the flowed cursor: printing moves it,
+                    // and the ledger's copy cannot know (§8.8.3.5).
+                    // Shogun centres each title line by reading property
+                    // 4 back between prints, and against the stale copy
+                    // every line lands on the first one's row.
                     var values = Values(i);
-                    Store(i, _windows.Property(values[0], values[1]));
+                    var value = _windows.Property(values[0], values[1]);
+
+                    if (_stage is not null
+                        && values[1] is WindowLedger.YCursor or WindowLedger.XCursor
+                        && _windows.Resolve(values[0]) == _windows.Selected)
+                    {
+                        var (line, column) = _stage.CursorPosition();
+                        value = values[1] == WindowLedger.YCursor ? line : column;
+                    }
+
+                    Store(i, value);
                     Next(i);
                     break;
                 }

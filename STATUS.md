@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 365 tests and
+And the test projects, `Voxam.Core.Tests` at 368 tests and
 `Voxam.Desktop.Tests` at 23, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1460,6 +1460,20 @@ or erases across a width in units, and a plain stream or a painted
 terminal is asked none of them. That is what keeps the corpus
 certification exact rather than merely re-measured, and the sweep
 after the stage landed is the same 43 of 45 it was before.
+
+The stage has a certificate of its own, because a transcript is
+what a character face answers and says nothing about §8.8. The
+`tools/stage-grid.py` tool replays a walk on each interpreter's
+stage at the same geometry and compares the grids row for row, and
+all four Version 6 recordings, Arthur, Shogun, Zork Zero and
+Journey, come back identical. It earned its keep at once: Shogun
+centres its title lines and redraws its status strip by reading
+the cursor back between prints, and the port was answering from
+the window ledger's copy, which printing never moves. Reading the
+stage's own cursor instead, for both the cursor properties and
+get_cursor, is what the reference does and where the difference
+lay. The corpus sweep is unchanged either way, since a character
+face still reads the ledger it writes.
 
 On the glass the stage draws to a surface it keeps, which is
 §8.8.3's retained screen made literal: text lands where the game
