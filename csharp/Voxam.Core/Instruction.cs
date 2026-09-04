@@ -335,26 +335,7 @@ public sealed class Instruction
 
         if (info.Branches)
         {
-            var first = m.FetchByte(pos);
-            var onTrue = (first & 0x80) != 0;
-
-            if ((first & 0x40) != 0)
-            {
-                branch = new Branch(onTrue, first & 0x3F);
-                pos += 1;
-            }
-            else
-            {
-                var offset = ((first & 0x3F) << 8) | m.FetchByte(pos + 1);
-
-                if ((offset & 0x2000) != 0)
-                {
-                    offset -= 0x4000;
-                }
-
-                branch = new Branch(onTrue, offset);
-                pos += 2;
-            }
+            (branch, pos) = ReadBranch(m, pos);
         }
 
         if (info.HasText)
@@ -378,6 +359,27 @@ public sealed class Instruction
             Branch = branch,
             NextAddress = pos,
         };
+    }
+
+    /// <summary>Read a branch rider at an address (§4.7): the branch and the address past it.</summary>
+    public static (Branch Branch, int After) ReadBranch(Memory m, int address)
+    {
+        var first = m.FetchByte(address);
+        var onTrue = (first & 0x80) != 0;
+
+        if ((first & 0x40) != 0)
+        {
+            return (new Branch(onTrue, first & 0x3F), address + 1);
+        }
+
+        var offset = ((first & 0x3F) << 8) | m.FetchByte(address + 1);
+
+        if ((offset & 0x2000) != 0)
+        {
+            offset -= 0x4000;
+        }
+
+        return (new Branch(onTrue, offset), address + 2);
     }
 
     private static OperandKind[] FieldTypes(params int[] typeBytes)

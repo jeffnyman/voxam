@@ -1027,15 +1027,6 @@ public class MachineTests
     }
 
     [Fact]
-    public void SaveAndRestoreAreNotYetPorted()
-    {
-        var b = new StoryBuilder();
-        b.Op0(0x5);
-        b.Branch(true, 5);
-        Assert.Contains("save at $1000 is not yet ported", Session.Fails<ZMachineException>(b).Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void UndoRestoresTheMomentOfTheSave()
     {
         var b = new StoryBuilder(5);
@@ -1107,14 +1098,5 @@ public class MachineTests
         b.Call(routine, G0);
         b.Quit();
         Assert.Equal("cc", Session.Run(b).Output);
-    }
-
-    [Fact]
-    public void AnUnportedOpcodeSaysSoByName()
-    {
-        var b = new StoryBuilder(5);
-        b.Ext(0x00);
-        b.Store(G0);
-        Assert.Contains("save at $1000 is not yet ported", Session.Fails<ZMachineException>(b).Message, StringComparison.Ordinal);
     }
 }

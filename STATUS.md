@@ -1339,7 +1339,7 @@ dictionary rules, the seeded generator ported bit for bit, and a
 plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
-`Voxam.Core.Tests`, 263 tests at 100% line and branch coverage,
+`Voxam.Core.Tests`, 304 tests at 100% line and branch coverage,
 enforced as a threshold the way the Python's suite is, most of
 them driving tiny stories assembled by a builder in the test
 project rather than fixtures on disk.
@@ -1357,9 +1357,10 @@ interval pass, firing its interrupt once. Version 6 keeps the
 §8.8 window ledger as pure state, the eight windows' geometry,
 cursors and properties, and answers the picture, mouse and menu
 opcodes as a frontend without them does, which is exactly what
-a plain transcript of Arthur or Shogun records. What remains on
-this machine is save and restore, which no recording reaches,
-and the faces. Glulx and the Å-machine are refused at the door. `tools/sweep-corpus.py record --voxam` is the certificate:
+a plain transcript of Arthur or Shogun records. The saves are
+Quetzal, below. What remains on this machine is the glass. Glulx
+and the Å-machine are refused at the door.
+`tools/sweep-corpus.py record --voxam` is the certificate:
 it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
 push, on all three platforms, from a NativeAOT publish.
@@ -1399,9 +1400,23 @@ Python's does. `voxam --version` says `voxam 2.7.0 (native)`, and
 the port versions with the repository. Not yet at this face:
 sixel pictures, sound, and the terminal's title bar.
 
-**The roads, in order.** Save and restore in Quetzal, with the
-file conventions the Python keeps, since a terminal that cannot
-save is a toy. Then the Avalonia glass,
+**The saves.** SAVE and RESTORE write and read Quetzal by the
+rules the Python keeps: an IFhd naming the story by release,
+serial and checksum, the checksum summed from the file when the
+header holds none; a CMem that is the xor against the pristine
+story, its zero runs counted and its unchanged tail dropped; a
+Stks with the dummy frame first. The file conventions are the
+Python's as well, `zork1.z3` saving to `zork1.sav` beside it, and
+the table forms writing auxiliary files under the names the game
+gives. A restore resumes at its save's own rider, with 2 from
+Version 4 and the branch again in Version 3, and undo rides the
+same capture. A malformed file is refused by the rule it breaks,
+section cited, and a save of another game is turned away by its
+IFhd. The certificate no recording can give was taken by hand:
+a Zork I saved in the Python restores in the port, and one saved
+in the port restores in the Python.
+
+**The roads, in order.** The Avalonia glass,
 measured the way the filmstrip measures the Python's faces but
 inside the test suite: Avalonia's headless platform renders real
 frames to bitmaps without a window, so the stage can be

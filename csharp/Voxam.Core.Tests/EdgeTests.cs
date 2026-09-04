@@ -191,13 +191,9 @@ public class EdgeTests
     }
 
     [Fact]
-    public void RestoreAndPrivateOpcodesAreNotYetPorted()
+    // Private and reserved extended opcodes pass unclaimed (§14.2).
+    public void PrivateAndReservedOpcodesPassUnclaimed()
     {
-        var restore = new StoryBuilder();
-        restore.Op0(0x6);
-        restore.Branch(true, 5);
-        Assert.Contains("restore at $1000 is not yet ported", Session.Fails<ZMachineException>(restore).Message, StringComparison.Ordinal);
-        // Private and reserved extended opcodes pass unclaimed (§14.2).
         var extension = new StoryBuilder(5);
         extension.Ext(0x90, Arg.Small(1));
         extension.Ext(0x1F);
