@@ -63,6 +63,9 @@ public sealed class Machine
         _story = story;
         Glk = glk;
         Memory = new Memory(story);
+        Heap = new Heap(Memory);
+        Accel = new Accelerator(Memory);
+        Capabilities = new Capabilities { Glk = glk is not null };
         Stack = new StackMemory(story.StackSize);
         IoSys = new IoSystem();
         // The generator is deliberately not reseeded by a restart: it
@@ -85,6 +88,15 @@ public sealed class Machine
 
     /// <summary>The value stack.</summary>
     public StackMemory Stack { get; }
+
+    /// <summary>The dynamic allocation heap (Glulx: Memory Allocation Heap).</summary>
+    public Heap Heap { get; }
+
+    /// <summary>The acceleration table (Glulx: Accelerated Functions).</summary>
+    public Accelerator Accel { get; }
+
+    /// <summary>What this build of the machine can do (Glulx: Gestalt).</summary>
+    public Capabilities Capabilities { get; }
 
     /// <summary>Which output system is current (Glulx: Output).</summary>
     public IoSystem IoSys { get; }
@@ -124,6 +136,9 @@ public sealed class Machine
     /// </summary>
     public void Restart()
     {
+        // The heap goes first, before the map is rebuilt: it does not
+        // survive a restart (Glulx: Memory Allocation Heap).
+        Heap.Clear();
         Memory.Reset();
         Stack.Reset();
         IoSys.Reset();
@@ -321,12 +336,28 @@ public sealed class Machine
         EnterFunction(addr, args);
     }
 
-    // Begin a call: every way of invoking a function lands here, which
-    // is where the accelerated replacements will intercept when they
-    // arrive (Glulx: Accelerated Functions). The string decoder enters
-    // functions too, for a filter and for a table's function nodes.
-    internal void EnterFunction(uint addr, IReadOnlyList<uint> args) =>
+    /// <summary>
+    /// Begin a call: every way of invoking a function lands here.
+    ///
+    /// This is what the specification means by a call including "any
+    /// function invocation of that address", so the accelerated
+    /// replacements intercept here, covering the call opcodes,
+    /// tailcall, and the string-decoding table's function nodes alike
+    /// (Glulx: Accelerated Functions). An accelerated function
+    /// produces its result immediately, and the come-home stub the
+    /// caller just pushed pops straight back off.
+    /// </summary>
+    internal void EnterFunction(uint addr, IReadOnlyList<uint> args)
+    {
+        if (Accel.Lookup(addr) is { } accelerated)
+        {
+            PopStub(accelerated(args));
+
+            return;
+        }
+
         Pc = Funcs.PushCallFrame(Memory, Stack, (int)addr, args, _headers);
+    }
 
     // A bit number resolved to its byte address and the bit within.
     // Bits number sequentially in both directions from the least
@@ -787,11 +818,15 @@ public sealed class Machine
     private void OpGetmemsize(Operand[] args) => Store(args[0].Target, (uint)Memory.EndMem);
 
     // Resize the map; success stores 0 (Glulx: The Memory Map). The
-    // rule that setmemsize is illegal while the allocation heap is
-    // active waits on the heap: until malloc arrives there is no heap
-    // to be active.
+    // opcode is illegal while the allocation heap is active, the heap
+    // owning the map then (Glulx: Memory Allocation Heap).
     private void OpSetmemsize(Operand[] args)
     {
+        if (Heap.Active)
+        {
+            throw new GlulxException("setmemsize is illegal while the allocation heap is active");
+        }
+
         Memory.SetSize(args[0].Value);
         Store(args[1].Target, 0);
     }
@@ -845,6 +880,8 @@ public sealed class Machine
     private static readonly OperandList Lls = new("LLS");
     private static readonly OperandList Llls = new("LLLS");
     private static readonly OperandList Lllls = new("LLLLS");
+    private static readonly OperandList Lllllls = new("LLLLLLS");
+    private static readonly OperandList Llllllls = new("LLLLLLLS");
 
     private static readonly FrozenDictionary<int, Dispatch> Table = new Dictionary<int, Dispatch>
     {
@@ -910,6 +947,26 @@ public sealed class Machine
         [(int)Op.Streamunichar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value)),
         [(int)Op.Streamnum] = new(L, static (m, a) => Strings.StreamNum(m, a[0].Value)),
         [(int)Op.Streamstr] = new(L, static (m, a) => Strings.StreamString(m, a[0].Value)),
+        // Claim and release heap memory (Glulx: Memory Allocation
+        // Heap); the address stores, or zero for a refusal, since
+        // allocation is never guaranteed.
+        [(int)Op.Malloc] = new(Ls, static (m, a) => m.Store(a[1].Target, m.Heap.Alloc(a[0].Value))),
+        [(int)Op.Mfree] = new(L, static (m, a) => m.Heap.Free(a[0].Value)),
+
+        // Install or cancel a replacement, and set a veneer parameter
+        // (Glulx: Accelerated Functions).
+        [(int)Op.Accelfunc] = new(Ll, static (m, a) => m.Accel.SetFunc(a[0].Value, a[1].Value)),
+        [(int)Op.Accelparam] = new(Ll, static (m, a) => m.Accel.SetParam(a[0].Value, a[1].Value)),
+
+        // The three built-in searches (Glulx: Searching).
+        [(int)Op.Linearsearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
+            Search.Linear(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
+        [(int)Op.Binarysearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
+            Search.Binary(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
+        [(int)Op.Linkedsearch] = new(Lllllls, static (m, a) => m.Store(a[6].Target,
+            Search.Linked(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value))),
+
+        [(int)Op.Gestalt] = new(Lls, static (m, a) => m.Store(a[2].Target, Gestalt.Answer(m, a[0].Value, a[1].Value))),
         [(int)Op.Getstringtbl] = new(S, static (m, a) => m.OpGetstringtbl(a)),
         [(int)Op.Setstringtbl] = new(L, static (m, a) => m.OpSetstringtbl(a)),
         [(int)Op.Getiosys] = new(Ss, static (m, a) => m.OpGetiosys(a)),

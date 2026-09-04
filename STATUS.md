@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 638 tests and
+And the test projects, `Voxam.Core.Tests` at 735 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1685,8 +1685,48 @@ signed decimals including both ends of the range, and two loose
 characters; the same story file then runs under the Python. All
 forty-three characters come out identical.
 
-**The roads, in order.** The rest of Glulx, a rung at a time:
-search, the heap and the accelerated functions; then the floats. Only once Glk is over the
+**The tables under the floor.** Three things Inform leans on all
+day, and none of them are about text. The built-in searches first:
+linear, binary and linked, over fixed-size structures in memory,
+comparing keys as byte strings. They exist for speed, the
+specification noting that Advent runs 15 to 20% faster with
+binary-search property lookup than with the equivalent Inform code.
+
+Then the allocation heap, which lives above ENDMEM. The first malloc
+activates it and the map grows from there; the last free hands the
+memory back and setmemsize becomes legal again, the heap owning the
+map until then. Free blocks are part of one address-ordered list
+rather than a separate free list, so coalescing is something the
+allocator does as it searches, and only when something actually
+needs the space. The bookkeeping is kept privately rather than in
+the map, which the specification expressly permits, so a game
+writing outside its blocks cannot corrupt it.
+
+Then the accelerated functions, which the specification cheerfully
+calls "outrageously CISC": a game asks that calls to its own veneer
+routines be replaced by built-in equivalents, and property lookup
+and ofclass stop being an object-table walk repeated thousands of
+times a turn. Both generations are carried, the older six that
+assume seven attribute bytes and the newer six that derive the
+width, because an older game file will ask for the older ones. Every
+way of invoking a function lands in one place, so the replacements
+intercept the call opcodes, tailcall, and a string table's function
+nodes alike. And gestalt now answers for all of it, each false in
+the capability set naming the era still to come rather than a
+decision.
+
+The certificate moved. With the searches in place the port walks
+*every* Glulx checker in the reference corpus beside the Python,
+step for step: sixteen stories, 1,242 instructions, the program
+counter and all four stack registers and a digest of the whole live
+stack agreeing at every one. The sixteen lines that differ are the
+last line of each story, where both machines stop at the same `glk`
+instruction and only the wording of why differs. That comparison
+also caught a real defect on its first run, an operand signature one
+too long, which no unit test of mine had been aimed at.
+
+**The roads, in order.** The floats, then the save format, and then
+Glk, which is what these stories are all waiting for. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
