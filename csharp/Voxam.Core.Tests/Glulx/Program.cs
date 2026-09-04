@@ -82,6 +82,9 @@ public sealed class GlulxProgram
     /// <summary>Where the memory map ends.</summary>
     public uint EndMem { get; set; } = 1024;
 
+    /// <summary>How long the stored image is, which is how far Lay can reach.</summary>
+    public uint ImageSize { get; set; } = 512;
+
     /// <summary>The address the next instruction will be assembled at.</summary>
     public int Here => Start + _header.Length + _code.Count;
 
@@ -154,6 +157,7 @@ public sealed class GlulxProgram
         {
             StartFunction = (uint)Start,
             StackSize = (uint)StackSize,
+            ExtStart = ImageSize,
             EndMem = EndMem,
         };
 
@@ -168,5 +172,5 @@ public sealed class GlulxProgram
     }
 
     /// <summary>A machine booted on this program, its dice seeded for repeatability.</summary>
-    public Machine Booted(int? seed = 7) => new(new Story(Build()), seed);
+    public Machine Booted(int? seed = 7, IGlkOutput? glk = null) => new(new Story(Build()), seed, glk);
 }
