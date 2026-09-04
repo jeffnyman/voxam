@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 434 tests and
+And the test projects, `Voxam.Core.Tests` at 480 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1577,9 +1577,49 @@ stops should say what stopped it.
 `accelfunctest-r4-s220529.ulx` reads back the same seven header
 numbers under the port as under the Python, its checksum included.
 
-**The roads, in order.** The rest of Glulx: the interpreter
-itself, certified against glulxercise, then Glk over the faces the
-port already has, then the two recordings that take the sweep to
+**The shape of an instruction.** Under the header sit the two
+things every Glulx instruction is made of. The stack first: byte
+addressed, growing upward from zero, and strictly aligned where
+main memory is not, which is where a call builds its frame, a
+header, a locals-format list, the zeroed locals themselves, and
+where a call leaves the four-word stub saying how to come home. Two
+rulings the Python settled ride along. The bytes are big-endian
+even though the specification leaves the order to the interpreter
+and the reference glulxe uses the machine's own, because the save
+format wants big-endian and storing it that way makes a save a
+straight copy. And a local reference is bounds-checked: the
+specification says a reference must not point outside the current
+function's locals segment, glulxe skips the test with a note that a
+strict interpreter probably should make it, and this is that
+interpreter.
+
+Then the decoder. An opcode number says its own length in its own
+top bits, so 01, 8001 and C0000001 all name opcode 1. The sixteen
+addressing modes decode arithmetically rather than by table, four
+groups of four, so the group and the width fall out of the number
+itself. Reading the shape and fetching the values are two passes on
+purpose: an operand's mode and the address it names are fixed for
+as long as the instruction's bytes are, while what a mode fetches
+is not, so the machine can keep the shape and re-fetch alone. The
+whole roster of opcode numbers is here as well, all of 3.1.3, so a
+number the dispatch does not serve yet can say what it is and that
+it waits rather than pretending to be unknown; the names come off
+the numbers themselves, which survives the native compile.
+
+Both halves are certified against the Python differentially rather
+than only by assertion. Every addressing mode in every position,
+for one, two and three operands, loads and stores together, is
+33,824 cases, and all 33,824 shapes match the reference exactly,
+refusal wording included. Every locals-format list across three
+widths and six counts, one, two and three entries deep, is 558 call
+frames, and all 558 match, down to the raw bytes of the frame.
+
+**The roads, in order.** The rest of Glulx, a rung at a time: the
+execution loop and the integer, branch, call and memory opcodes;
+then string decoding and the I/O system; then search, the heap and
+the accelerated functions; then the floats. Only once Glk is over
+the faces the port already has can glulxercise judge any of it, and
+after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
 mouse and the menus. The Å-machine waits on the Python's own
 acceptance driver for it, and a browser face waits on someone
