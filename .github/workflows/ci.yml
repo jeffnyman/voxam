@@ -182,7 +182,7 @@ jobs:
           submodules: true
 
       - name: Install .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: csharp/global.json
 
