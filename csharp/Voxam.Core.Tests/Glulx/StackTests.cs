@@ -1,13 +1,14 @@
 using Voxam.Core.Glulx;
+using GlulxException = Voxam.Core.GlulxException;
 
-namespace Voxam.Core.Tests;
+namespace Voxam.Tests.Glulx;
 
 /// <summary>
 /// The Glulx stack: byte-addressed, growing upward from zero, big
 /// endian, and strictly aligned where main memory is not (Glulx: The
 /// Stack, Glulx: The Call Frame, Glulx: Call Stubs).
 /// </summary>
-public sealed class GlulxStackTests
+public sealed class StackTests
 {
     private const int Size = 1024;
 

@@ -43,11 +43,14 @@ public sealed class Story
     // header fits inside it (Glulx: The Header, Glulx: The Stack).
     private const uint Boundary = 256;
 
-    // The largest 256-byte boundary a map can reach here. The spec
-    // sets no such limit, since addresses are 32 bits and the
-    // reference glulxe simply fails to allocate; this machine says
-    // so in words instead.
-    private const uint Ceiling = 0x7FFFFF00;
+    /// <summary>
+    /// The largest 256-byte boundary a map can reach here. The
+    /// specification sets no such limit, since addresses are 32 bits
+    /// and the reference glulxe simply fails to allocate; this
+    /// machine says so in words instead, at the header and again at
+    /// every setmemsize.
+    /// </summary>
+    public const uint Ceiling = 0x7FFFFF00;
 
     /// <summary>
     /// The raw bytes of the game file: the initial memory image from

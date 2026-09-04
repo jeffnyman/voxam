@@ -1,7 +1,7 @@
 using Voxam.Core.Glulx;
-using Voxam.Core.Tests.Support;
+using GlulxException = Voxam.Core.GlulxException;
 
-namespace Voxam.Core.Tests;
+namespace Voxam.Tests.Glulx;
 
 /// <summary>
 /// The Glulx memory map: ROM below RAMSTART held sacred, RAM above
@@ -9,7 +9,7 @@ namespace Voxam.Core.Tests;
 /// (Glulx: The Memory Map). The default map here has ROM to 256, the
 /// stored image ending at 512, and the map ending at 1024.
 /// </summary>
-public sealed class GlulxMemoryTests
+public sealed class MemoryTests
 {
     private const int Rom = 100;
     private const int Ram = 300;
@@ -215,6 +215,8 @@ public sealed class GlulxMemoryTests
 
         Assert.Equal("a memory size of 1000 is not a multiple of 256 (Glulx: Game State)", Refusal(() => memory.SetSize(1000)));
         Assert.Equal("memory cannot shrink to 768, below the 1024 it booted with (Glulx: Game State)", Refusal(() => memory.SetSize(768)));
+        // The same ceiling the header is held to, for the same reason.
+        Assert.Equal("a memory size of 2147483648 is larger than this machine can map (Glulx: Game State)", Refusal(() => memory.SetSize(0x80000000)));
     }
 
     // restart's work: the boot image whole again, and the boot size
@@ -349,6 +351,6 @@ public sealed class GlulxMemoryTests
 
     // The one place the Glulx map is named, the Z-machine having a
     // Memory of its own.
-    private static Voxam.Core.Glulx.Memory Mapped(GlulxBuilder? builder = null) =>
+    private static Memory Mapped(GlulxBuilder? builder = null) =>
         new(new Story((builder ?? new GlulxBuilder()).Build()));
 }

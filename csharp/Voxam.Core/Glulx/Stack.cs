@@ -441,6 +441,14 @@ public sealed class StackMemory
     /// <summary>Discard the current frame and everything pushed above it.</summary>
     public void LeaveFrame() => Sp = FramePtr;
 
+    /// <summary>
+    /// Unwind to a catch token: throw's work (Glulx: Continuations).
+    /// Whether the token is a place on this stack is the machine's to
+    /// say, since only it knows what a token may be; what follows is
+    /// the call stub that token stands above.
+    /// </summary>
+    public void Unwind(int position) => Sp = position;
+
     /// <summary>The current frame's whole length, off its own header.</summary>
     public uint FrameLen => ReadWord(FramePtr);
 

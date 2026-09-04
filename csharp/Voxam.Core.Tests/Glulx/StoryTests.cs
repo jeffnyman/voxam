@@ -1,14 +1,14 @@
 using Voxam.Core.Glulx;
-using Voxam.Core.Tests.Support;
+using GlulxException = Voxam.Core.GlulxException;
 
-namespace Voxam.Core.Tests;
+namespace Voxam.Tests.Glulx;
 
 /// <summary>
 /// Loading a Glulx story file: the header is nine words in ROM, so
 /// the moment of loading is the moment to hold the file to every
 /// promise they make (Glulx: The Header).
 /// </summary>
-public sealed class GlulxStoryTests
+public sealed class StoryTests
 {
     // A file with no room for a header cannot have made any of the
     // header's promises.

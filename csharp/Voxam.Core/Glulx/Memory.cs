@@ -112,7 +112,7 @@ public sealed class Memory
 
     /// <summary>Read a run of bytes; an empty run needs no address at all.</summary>
     /// <exception cref="GlulxException">For a run leaving the map.</exception>
-    public byte[] ReadRun(int address, int count)
+    public byte[] ReadRun(int address, long count)
     {
         if (count == 0)
         {
@@ -121,7 +121,7 @@ public sealed class Memory
 
         RequireReadable(address, count);
 
-        return _data[address..(address + count)];
+        return _data[address..(int)(address + count)];
     }
 
     /// <summary>Write one byte into RAM, the value masked to 8 bits.</summary>
@@ -197,7 +197,7 @@ public sealed class Memory
 
     /// <summary>Set a run of RAM bytes to one value: mzero's work.</summary>
     /// <exception cref="GlulxException">For a run touching ROM or leaving the map.</exception>
-    public void Fill(int address, int count, uint value = 0)
+    public void Fill(int address, long count, uint value = 0)
     {
         if (count == 0)
         {
@@ -205,7 +205,7 @@ public sealed class Memory
         }
 
         RequireWritable(address, count);
-        Array.Fill(_data, (byte)value, address, count);
+        Array.Fill(_data, (byte)value, address, (int)count);
     }
 
     /// <summary>
@@ -216,7 +216,7 @@ public sealed class Memory
     /// For a source leaving the map, or a destination touching ROM or
     /// leaving it.
     /// </exception>
-    public void Copy(int destination, int source, int count)
+    public void Copy(int destination, int source, long count)
     {
         if (count == 0)
         {
@@ -225,7 +225,7 @@ public sealed class Memory
 
         RequireReadable(source, count);
         RequireWritable(destination, count);
-        Array.Copy(_data, source, _data, destination, count);
+        Array.Copy(_data, source, _data, destination, (int)count);
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed class Memory
     /// <exception cref="GlulxException">
     /// For a size off its boundary or below the boot ENDMEM.
     /// </exception>
-    public void SetSize(int size)
+    public void SetSize(long size)
     {
         if (size % Boundary != 0)
         {
@@ -253,8 +253,16 @@ public sealed class Memory
             throw new GlulxException($"memory cannot shrink to {size}, below the {_bootEndMem} it booted with (Glulx: Game State)");
         }
 
-        Array.Resize(ref _data, size);
-        _endMem = size;
+        // The same ceiling the header is held to, and for the same
+        // reason: a map this machine cannot lay out is refused in
+        // words rather than by failing to allocate.
+        if (size > Story.Ceiling)
+        {
+            throw new GlulxException($"a memory size of {size} is larger than this machine can map (Glulx: Game State)");
+        }
+
+        Array.Resize(ref _data, (int)size);
+        _endMem = (int)size;
     }
 
     /// <summary>
@@ -384,7 +392,7 @@ public sealed class Memory
     // arrive as exact integers, so the overflow gymnastics glulxe
     // needs when a count times a size wraps its 32-bit arithmetic
     // cannot happen here: the naive check is the correct one.
-    private void RequireReadable(int address, int count)
+    private void RequireReadable(int address, long count)
     {
         if (address < 0 || address > _endMem - count)
         {
@@ -393,7 +401,7 @@ public sealed class Memory
     }
 
     // Hold a run to RAM (Glulx: The Memory Map).
-    private void RequireWritable(int address, int count)
+    private void RequireWritable(int address, long count)
     {
         if (address < RamStart || address > _endMem - count)
         {

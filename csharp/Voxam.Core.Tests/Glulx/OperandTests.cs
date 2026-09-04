@@ -1,7 +1,7 @@
 using Voxam.Core.Glulx;
-using Voxam.Core.Tests.Support;
+using GlulxException = Voxam.Core.GlulxException;
 
-namespace Voxam.Core.Tests;
+namespace Voxam.Tests.Glulx;
 
 /// <summary>
 /// Operand decoding: an opcode number whose own top bits say how
@@ -10,7 +10,7 @@ namespace Voxam.Core.Tests;
 /// has ROM to 256, the stored image ending at 512, and the map
 /// ending at 1024, with instructions laid in ROM at 64.
 /// </summary>
-public sealed class GlulxOperandTests
+public sealed class OperandTests
 {
     private const int Code = 64;
     private const int RamStart = 256;
@@ -276,7 +276,7 @@ public sealed class GlulxOperandTests
 
     // The one place the Glulx map is named, the Z-machine having a
     // Memory of its own.
-    private static Voxam.Core.Glulx.Memory Mapped(byte[] code) =>
+    private static Memory Mapped(byte[] code) =>
         new(new Story(new GlulxBuilder().Lay(Code, code).Build()));
 
     private static string Refusal(Action work) => Assert.Throws<GlulxException>(work).Message;
