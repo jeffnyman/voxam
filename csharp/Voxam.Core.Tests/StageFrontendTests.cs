@@ -112,6 +112,19 @@ public class StageFrontendTests
         Assert.Equal("zpq", face.Model.RowText(2));
     }
 
+    // A driven session has nobody to press the key, so its stage
+    // prints straight past what would otherwise pause.
+    [Fact]
+    public void ADrivenStageNeverPauses()
+    {
+        var screen = new FakeScreen();
+        var face = new StageFrontend(screen, driven: true);
+        face.Write("a\nb\nc\nd\ne\nf");
+        Assert.Empty(screen.Keys);
+        Assert.DoesNotContain(screen.Settled.OfType<TextPaint>(), paint => paint.Cell.Style == ScreenModel.Reverse);
+        Assert.Equal("f", face.Model.RowText(4));
+    }
+
     [Fact]
     public void KeysAreReadRawWithOrWithoutATimeout()
     {

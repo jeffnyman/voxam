@@ -9,11 +9,12 @@ internal static class Program
 {
     private const int ExitOk = 0;
     private const int ExitUnusable = 2;
-    private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --version";
+    private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --stage-grid SCRIPT [--seed N]\n       voxam --version";
 
     private static int Main(string[] args)
     {
         string? script = null;
+        string? grid = null;
         string? story = null;
         int? seedOverride = null;
         var plain = false;
@@ -24,6 +25,9 @@ internal static class Program
             {
                 case "--accept" when k + 1 < args.Length:
                     script = args[++k];
+                    break;
+                case "--stage-grid" when k + 1 < args.Length:
+                    grid = args[++k];
                     break;
                 case "--seed" when k + 1 < args.Length:
                     seedOverride = int.Parse(args[++k], CultureInfo.InvariantCulture);
@@ -46,7 +50,7 @@ internal static class Program
             }
         }
 
-        if (script is null && story is null)
+        if (script is null && grid is null && story is null)
         {
             Console.Error.WriteLine(Usage);
             return ExitUnusable;
@@ -62,6 +66,11 @@ internal static class Program
 
         try
         {
+            if (grid is not null)
+            {
+                return StageGrid.Dump(grid, seedOverride, Emit);
+            }
+
             return script is not null ? Replay(script, seedOverride, Emit) : Play(story!, seedOverride, plain, Emit, stdout);
         }
         finally
