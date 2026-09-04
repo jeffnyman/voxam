@@ -30,6 +30,8 @@ public sealed class Machine
     private readonly Memory _m;
     private readonly IFrontend _frontend;
     private readonly Func<string?> _input;
+    private readonly Func<double?, string?>? _keySource;
+    private readonly Func<double, string?>? _timedInputSource;
     private readonly Randomizer _rng;
     private readonly int _version;
     private readonly int _globals;
@@ -50,6 +52,10 @@ public sealed class Machine
     private int _font = 1;
     private int _screenBuffering;
 
+    // Story-window prints so far: a timed read's interrupt that
+    // printed asks for the input line to be shown again.
+    private int _prints;
+
     // The nimble half of the patient typist: the address of a timed
     // read_char an interrupt just terminated, whose retry finds the
     // keys ready rather than waiting a second interval.
@@ -61,11 +67,28 @@ public sealed class Machine
     /// <summary>The working memory image, for instruments that read it.</summary>
     public Memory Memory => _m;
 
-    public Machine(byte[] story, IFrontend frontend, Func<string?> input, int? seed)
+    /// <summary>
+    /// Boot the machine. The input source answers whole lines; a key
+    /// source, when a frontend can read the keyboard raw, answers one
+    /// key per call and null when its timeout in seconds expires, and
+    /// a timed input source waits a line read's own interval on the
+    /// wall clock, answering null on expiry with the half-typed line
+    /// kept composed. Without them, keystrokes are spent from lines
+    /// and the patient typist keeps scripted sessions identical.
+    /// </summary>
+    public Machine(
+        byte[] story,
+        IFrontend frontend,
+        Func<string?> input,
+        int? seed,
+        Func<double?, string?>? keySource = null,
+        Func<double, string?>? timedInputSource = null)
     {
         _m = new Memory(story);
         _frontend = frontend;
         _input = input;
+        _keySource = keySource;
+        _timedInputSource = timedInputSource;
         _rng = new Randomizer(seed);
         _version = _m.Version;
         _globals = _m.ReadWord(Header.Globals);
@@ -154,6 +177,37 @@ public sealed class Machine
                 }
             }
         }
+    }
+
+    /// <summary>Re-stamp the §8.4 screen size after the frontend resized; only the size and unit fields move.</summary>
+    public void RefreshScreenFields()
+    {
+        if (_version < 4)
+        {
+            return;
+        }
+
+        _m.WriteByte(Header.ScreenLines, Math.Min(_frontend.ScreenLines, 255));
+        _m.WriteByte(Header.ScreenColumns, Math.Min(_frontend.ScreenColumns, 255));
+
+        if (_version >= 5)
+        {
+            var (fontWidth, fontHeight) = UnitMetrics();
+            _m.WriteWord(Header.ScreenWidthUnits, Math.Min(_frontend.ScreenColumns * fontWidth, 0xFFFF));
+            _m.WriteWord(Header.ScreenHeightUnits, Math.Min(_frontend.ScreenLines * fontHeight, 0xFFFF));
+        }
+    }
+
+    // What the status line shows (§8.2): the object the first global
+    // names, then score and turns, or the clock in a time game.
+    private Status StatusLine()
+    {
+        var location = ReadVariable(16);
+        var text = Zscii.Decode(_m, _objects.ShortNameAddress(location)).Text;
+        // Only Versions 1 to 3 have a status line at all, so the flag
+        // is read without asking the version again (§8.2.3.2).
+        var timeGame = (_m.ReadByte(Header.Flags1) & 0x02) != 0;
+        return new Status(text, Signed(ReadVariable(17)), ReadVariable(18), timeGame);
     }
 
     private void SetFlag1(int mask, bool on)
@@ -496,6 +550,11 @@ public sealed class Machine
 
         if (_screenSelected)
         {
+            if (_storyWindow)
+            {
+                _prints++;
+            }
+
             _frontend.Write(text);
         }
     }
@@ -647,6 +706,12 @@ public sealed class Machine
     private void Read(Instruction i)
     {
         var values = Values(i);
+
+        if (_version <= 3 && _frontend.HasStatusLine)
+        {
+            _frontend.ShowStatus(StatusLine());
+        }
+
         var textBuffer = values[0];
         var parseBuffer = values.Length > 1 ? values[1] : 0;
         var counted = _version >= 5;
@@ -666,11 +731,12 @@ public sealed class Machine
         }
 
         _typistReady = -1;
+        var (terminated, ticked) = LineOutcome(values);
 
         // An interrupt that ends the read erases all input (§15 read):
         // a counted buffer reports no letters, a terminated one an
         // empty string, and the lexing sees that emptiness.
-        if (TimedOut(values, 2))
+        if (terminated)
         {
             if (counted)
             {
@@ -711,7 +777,7 @@ public sealed class Machine
             held = kept.ToString();
         }
 
-        var raw = NextLine();
+        var raw = ticked ?? NextLine();
         string line;
 
         if (counted)
@@ -798,6 +864,21 @@ public sealed class Machine
     // invents a return, so a one-character line is exactly one key.
     private int NextKey()
     {
+        if (_keySource is not null && _pendingKeys.Count == 0)
+        {
+            // A key ZSCII has no code for is a key the story cannot
+            // hear (§3.8): the wait stands for the next one.
+            while (true)
+            {
+                var key = _keySource(null);
+
+                if (key is not null && Zscii.TryFromChar(_m, key[0], out var code))
+                {
+                    return code;
+                }
+            }
+        }
+
         if (_pendingKeys.Count == 0)
         {
             var line = NextLine();
@@ -820,7 +901,7 @@ public sealed class Machine
     // (§15 read): the interrupt routine fires once, and a true return
     // ends the read with no input consumed. Before Version 4, and
     // without both a time and a routine, nothing fires.
-    private bool TimedOut(int[] values, int timeIndex)
+    private bool TimedOut(int[] values, int timeIndex, bool redisplay = false)
     {
         if (_version < 4)
         {
@@ -835,7 +916,97 @@ public sealed class Machine
             return false;
         }
 
-        return Interrupt(routine) != 0;
+        // §15's remark: an interrupt that printed and let input
+        // continue asks for the input line to be shown again.
+        if (redisplay)
+        {
+            _frontend.BeginInput();
+        }
+
+        var printed = _prints;
+        var terminated = Interrupt(routine) != 0;
+
+        if (redisplay && !terminated && _prints != printed)
+        {
+            _frontend.ResumeInput();
+        }
+
+        return terminated;
+    }
+
+    // How a line read's timing plays out before any typing lands: a
+    // live session with a wall clock runs a timed read in real time,
+    // and the completed line comes back with the verdict; scripted
+    // sessions fall through to the patient typist.
+    private (bool Terminated, string? Line) LineOutcome(int[] values)
+    {
+        if (_timedInputSource is not null && _version >= 4 && values.Length > 3 && values[2] != 0 && values[3] != 0)
+        {
+            var ticked = TickedLine(_timedInputSource, values[2], values[3]);
+            return (ticked is null, ticked);
+        }
+
+        return (TimedOut(values, 2, redisplay: true), null);
+    }
+
+    // A live timed line read: the frontend waits the read's interval
+    // at a stretch, each expiry runs the interrupt, and a true return
+    // ends the read with the input erased from glass and buffers.
+    private string? TickedLine(Func<double, string?> source, int time, int routine)
+    {
+        var seconds = time / 10.0;
+
+        while (true)
+        {
+            var line = source(seconds);
+
+            if (line is not null)
+            {
+                return line;
+            }
+
+            _frontend.BeginInput();
+            var printed = _prints;
+
+            if (Interrupt(routine) != 0)
+            {
+                _frontend.AbandonInput();
+                return null;
+            }
+
+            if (_prints != printed)
+            {
+                _frontend.ResumeInput();
+            }
+        }
+    }
+
+    // A live timed keystroke read: each expired interval fires the
+    // interrupt, a true return ends the read with null, and a key
+    // that arrives first beats the clock.
+    private int? TimedKeystroke(Func<double?, string?> source, int time, int routine)
+    {
+        var interval = time / 10.0;
+
+        while (true)
+        {
+            var key = source(interval);
+
+            if (key is null)
+            {
+                if (Interrupt(routine) != 0)
+                {
+                    return null;
+                }
+
+                continue;
+            }
+
+            if (Zscii.TryFromChar(_m, key[0], out var code))
+            {
+                return code;
+            }
+        }
     }
 
     // Run an interrupt routine to completion through the ordinary call
@@ -1239,14 +1410,31 @@ public sealed class Machine
                 // legitimate no-op, its operands untouched.
                 if (_frontend.HasColours)
                 {
-                    Values(i);
+                    var foreground = Signed(Value(i.Operands[0]));
+                    var background = Signed(Value(i.Operands[1]));
+                    _frontend.SetColour(foreground, background);
                 }
 
                 Next(i);
                 break;
             case Op.SetTextStyle:
+                _frontend.SetStyle(Value(i.Operands[0]));
+                Next(i);
+                break;
             case Op.BufferMode:
+                _frontend.SetBuffering(Value(i.Operands[0]) != 0);
+                Next(i);
+                break;
             case Op.EraseLine:
+                // Value 1 erases to the end of the line; a Version 6
+                // pixel width never reaches a character glass.
+                if (Value(i.Operands[0]) == 1)
+                {
+                    _frontend.EraseLine();
+                }
+
+                Next(i);
+                break;
             case Op.SoundEffect:
             case Op.ScrollWindow:
             case Op.DrawPicture:
@@ -1444,6 +1632,11 @@ public sealed class Machine
                 Next(i);
                 break;
             case Op.ShowStatus:
+                if (_frontend.HasStatusLine)
+                {
+                    _frontend.ShowStatus(StatusLine());
+                }
+
                 Next(i);
                 break;
             case Op.Verify:
@@ -1793,6 +1986,13 @@ public sealed class Machine
                             $"read_char at ${i.Address:x4} asks for input device {values[0]}, but the keyboard, 1, is the only device there is (§15 read_char)");
                     }
 
+                    if (_keySource is not null && values.Length > 2 && values[1] != 0 && values[2] != 0)
+                    {
+                        Store(i, TimedKeystroke(_keySource, values[1], values[2]) ?? 0);
+                        Next(i);
+                        break;
+                    }
+
                     // Keys already under the fingers beat the clock, and so
                     // does the retry of a read an interrupt just terminated.
                     var ready = _pendingKeys.Count > 0 || _typistReady == i.Address;
@@ -1979,10 +2179,11 @@ public sealed class Machine
                     {
                         Store(i, _font);
                     }
-                    else if (font is 1 or 4)
+                    else if (font is 1 or 4 || (font == 3 && _frontend.HasCharacterGraphics))
                     {
                         Store(i, _font);
                         _font = font;
+                        _frontend.SetFont(font);
                     }
                     else
                     {

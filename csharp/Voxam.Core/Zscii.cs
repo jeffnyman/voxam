@@ -198,6 +198,21 @@ public static class Zscii
         };
     }
 
+    /// <summary>Whether a typed character has a ZSCII code, and which (§3.8).</summary>
+    public static bool TryFromChar(Memory m, char c, out int code)
+    {
+        try
+        {
+            code = FromChar(m, c);
+            return true;
+        }
+        catch (ZMachineException)
+        {
+            code = 0;
+            return false;
+        }
+    }
+
     /// <summary>The ZSCII code a typed character lands as (§3.8).</summary>
     public static int FromChar(Memory m, char c)
     {

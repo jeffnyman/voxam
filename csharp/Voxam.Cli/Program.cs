@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Reflection;
 using System.Text;
 using Voxam.Core;
 
@@ -7,12 +9,15 @@ internal static class Program
 {
     private const int ExitOk = 0;
     private const int ExitUnusable = 2;
+    private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --version";
     private static readonly string[] BlorbSuffixes = [".blb", ".blorb", ".zblorb", ".gblorb"];
 
     private static int Main(string[] args)
     {
         string? script = null;
+        string? story = null;
         int? seedOverride = null;
+        var plain = false;
 
         for (var k = 0; k < args.Length; k++)
         {
@@ -22,17 +27,29 @@ internal static class Program
                     script = args[++k];
                     break;
                 case "--seed" when k + 1 < args.Length:
-                    seedOverride = int.Parse(args[++k], System.Globalization.CultureInfo.InvariantCulture);
+                    seedOverride = int.Parse(args[++k], CultureInfo.InvariantCulture);
                     break;
+                case "--plain":
+                    plain = true;
+                    break;
+                case "--version":
+                    Console.WriteLine($"voxam {Version()} (native)");
+                    return ExitOk;
                 default:
-                    Console.Error.WriteLine("usage: voxam --accept SCRIPT [--seed N]");
-                    return ExitUnusable;
+                    if (args[k].StartsWith('-') || story is not null)
+                    {
+                        Console.Error.WriteLine(Usage);
+                        return ExitUnusable;
+                    }
+
+                    story = args[k];
+                    break;
             }
         }
 
-        if (script is null)
+        if (script is null && story is null)
         {
-            Console.Error.WriteLine("usage: voxam --accept SCRIPT [--seed N]");
+            Console.Error.WriteLine(Usage);
             return ExitUnusable;
         }
 
@@ -46,7 +63,7 @@ internal static class Program
 
         try
         {
-            return Replay(script, seedOverride, Emit);
+            return script is not null ? Replay(script, seedOverride, Emit) : Play(story!, seedOverride, plain, Emit, stdout);
         }
         finally
         {
@@ -54,13 +71,69 @@ internal static class Program
         }
     }
 
+    // The port versions with the repository; the runtime is the tell.
+    private static string Version()
+    {
+        var version = Assembly.GetEntryAssembly()?.GetName().Version;
+        return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
+    }
+
+    // A path with a Blorb suffix must carry a packaged story; any other
+    // loads as a story file, with a like-named Blorb beside it as its
+    // resources when one exists.
+    private static (byte[] Story, Blorb? Blorb) Loaded(string game)
+    {
+        if (BlorbSuffixes.Contains(Path.GetExtension(game).ToLowerInvariant()))
+        {
+            var packaged = Blorb.Load(File.ReadAllBytes(game));
+            var story = packaged.Story
+                ?? throw new ZMachineException($"{Path.GetFileName(game)} packages no Z-code story to run");
+            return (story, packaged);
+        }
+
+        var bytes = File.ReadAllBytes(game);
+
+        foreach (var suffix in BlorbSuffixes)
+        {
+            var sidecar = Path.ChangeExtension(game, suffix);
+
+            if (File.Exists(sidecar))
+            {
+                return (bytes, Blorb.Load(File.ReadAllBytes(sidecar)));
+            }
+        }
+
+        return (bytes, null);
+    }
+
+    private static void Banner(string game, byte[] story, Blorb? blorb, Action<string> emit)
+    {
+        emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
+        var release = (story[Header.Release] << 8) | story[Header.Release + 1];
+        var serial = Encoding.ASCII.GetString(story, Header.Serial, 6);
+        emit($"Running {Path.GetFileName(game)}: release {release}, serial {serial} (z{story[0]})\n\n");
+
+        if (blorb is not null)
+        {
+            emit($"Resources: {blorb.Described()}\n\n");
+
+            if (!blorb.Matches(story))
+            {
+                emit("voxam: the resource file names a different story\n\n");
+            }
+        }
+    }
+
     private static int Replay(string scriptPath, int? seedOverride, Action<string> emit)
     {
         AcceptanceScript script;
+        byte[] story;
+        Blorb? blorb;
 
         try
         {
             script = AcceptanceScript.Parse(scriptPath);
+            (story, blorb) = Loaded(script.Game);
         }
         catch (Exception error) when (error is ZMachineException or IOException)
         {
@@ -69,41 +142,6 @@ internal static class Program
         }
 
         var seed = seedOverride ?? script.Seed;
-        byte[] story;
-        Blorb? blorb = null;
-
-        try
-        {
-            // A path with a Blorb suffix must carry a packaged story;
-            // any other loads as a story file, with a like-named
-            // Blorb beside it as its resources when one exists.
-            if (BlorbSuffixes.Contains(Path.GetExtension(script.Game).ToLowerInvariant()))
-            {
-                blorb = Blorb.Load(File.ReadAllBytes(script.Game));
-                story = blorb.Story
-                    ?? throw new ZMachineException($"{Path.GetFileName(script.Game)} packages no Z-code story to run");
-            }
-            else
-            {
-                story = File.ReadAllBytes(script.Game);
-
-                foreach (var suffix in BlorbSuffixes)
-                {
-                    var sidecar = Path.ChangeExtension(script.Game, suffix);
-
-                    if (File.Exists(sidecar))
-                    {
-                        blorb = Blorb.Load(File.ReadAllBytes(sidecar));
-                        break;
-                    }
-                }
-            }
-        }
-        catch (Exception error) when (error is ZMachineException or IOException)
-        {
-            emit($"voxam: {error.Message}\n");
-            return ExitUnusable;
-        }
 
         // The watch reads the story's output, never the typed echoes,
         // and judges each response the moment the next command is
@@ -132,42 +170,81 @@ internal static class Program
             watch.Saw(text);
         }
 
-        emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
+        var code = Session(() => new Machine(story, new PlainFrontend(Tee), Source, seed), emit, () => Banner(script.Game, story, blorb, emit), null);
+        watch.Finish();
+        return code;
+    }
+
+    // An interactive session: the painted terminal when standard
+    // output and input are a real console and --plain was not asked
+    // for, the plain stream otherwise.
+    private static int Play(string game, int? seed, bool plain, Action<string> emit, StreamWriter stdout)
+    {
+        byte[] story;
+        Blorb? blorb;
 
         try
         {
-            var release = (story[Header.Release] << 8) | story[Header.Release + 1];
-            var serial = Encoding.ASCII.GetString(story, Header.Serial, 6);
-            emit($"Running {Path.GetFileName(script.Game)}: release {release}, serial {serial} (z{story[0]})\n\n");
+            (story, blorb) = Loaded(game);
+        }
+        catch (Exception error) when (error is ZMachineException or IOException)
+        {
+            emit($"voxam: {error.Message}\n");
+            return ExitUnusable;
+        }
 
-            if (blorb is not null)
+        var painted = !plain && !Console.IsOutputRedirected && !Console.IsInputRedirected;
+
+        if (!painted)
+        {
+            return Session(() => new Machine(story, new PlainFrontend(emit), Console.ReadLine, seed), emit, () => Banner(game, story, blorb, emit), null);
+        }
+
+        using var terminal = new ConsoleTerminal();
+        var face = new TerminalFrontend(story[0], terminal);
+        Console.CancelKeyPress += (_, _) => terminal.Write("\u001b[0m\n");
+
+        return Session(
+            () =>
             {
-                emit($"Resources: {blorb.Described()}\n\n");
+                var machine = new Machine(story, face, face.ReadLine, seed, face.ReadKey, face.ReadLineUntil);
+                face.OnResize = machine.RefreshScreenFields;
+                return machine;
+            },
+            emit,
+            () =>
+            {
+                stdout.Flush();
+                Banner(game, story, blorb, emit);
+                stdout.Flush();
+                face.Clear();
+            },
+            () => terminal.Write("\u001b[0m\n"));
+    }
 
-                if (!blorb.Matches(story))
-                {
-                    emit("voxam: the resource file names a different story\n\n");
-                }
-            }
-
-            var machine = new Machine(story, new PlainFrontend(Tee), Source, seed);
-            machine.Run();
+    private static int Session(Func<Machine> boot, Action<string> emit, Action banner, Action? closing)
+    {
+        try
+        {
+            banner();
+            boot().Run();
             emit("\n");
         }
         catch (EndOfInputException)
         {
             emit("\nvoxam: end of input\n");
-            watch.Finish();
             return ExitOk;
         }
         catch (ZMachineException error)
         {
             emit($"\nvoxam: {error.Message}\n");
-            watch.Finish();
             return ExitUnusable;
         }
+        finally
+        {
+            closing?.Invoke();
+        }
 
-        watch.Finish();
         return ExitOk;
     }
 }

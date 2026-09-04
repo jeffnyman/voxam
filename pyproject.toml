@@ -255,6 +255,9 @@ tag_format = "v$version"
 # beside [project], so the tag, the wheel, and the installers all tell one
 # story. (The shell's Cargo and npm manifests keep private scaffold versions;
 # the bundler reads only this file's.)
-version_files = ['desktop/src-tauri/tauri.conf.json:"version"']
+version_files = [
+    'desktop/src-tauri/tauri.conf.json:"version"',
+    'csharp/Directory.Build.props:<Version>',
+]
 
 update_changelog_on_bump = true

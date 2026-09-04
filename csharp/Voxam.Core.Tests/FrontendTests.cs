@@ -73,6 +73,23 @@ public class FrontendTests
     }
 
     [Fact]
+    public void PresentationRequestsAreTheConformingQuiet()
+    {
+        var (frontend, output) = Plain();
+        frontend.ShowStatus(new Status("Room", 1, 2, false));
+        frontend.SetStyle(ScreenModel.Bold);
+        frontend.SetFont(3);
+        frontend.SetColour(3, 4);
+        frontend.SetBuffering(false);
+        frontend.EraseLine();
+        frontend.BeginInput();
+        frontend.ResumeInput();
+        frontend.AbandonInput();
+        frontend.Write("only this");
+        Assert.Equal("only this", output.ToString());
+    }
+
+    [Fact]
     public void RectanglesBecomeLines()
     {
         var (frontend, output) = Plain();

@@ -8,6 +8,8 @@
     <RootNamespace>Voxam.Cli</RootNamespace>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The console mode calls are source-generated interop. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Voxam.Core\Voxam.Core.csproj" />
