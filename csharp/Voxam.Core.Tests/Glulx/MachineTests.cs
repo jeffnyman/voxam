@@ -659,9 +659,10 @@ public sealed class MachineTests
     public void AnOpcodeNotCarriedYetSaysSoAndOneNotDefinedSaysThat()
     {
         var program = new GlulxProgram();
-        program.Op(Op.Save, Modes.Constant(0), Modes.Discard);
+        // The Glk opcode is the last one still waiting on its era.
+        program.Op(Op.Glk, Modes.Constant(0), Modes.Constant(0), Modes.Discard);
 
-        Assert.Equal("executed save, an opcode this machine does not carry yet", Refusal(() => program.Booted().Run()));
+        Assert.Equal("executed glk, an opcode this machine does not carry yet", Refusal(() => program.Booted().Run()));
 
         var unknown = new GlulxProgram();
         unknown.Op((Op)0x99, Modes.Constant(0));

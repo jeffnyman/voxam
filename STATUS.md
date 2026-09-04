@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 770 tests and
+And the test projects, `Voxam.Core.Tests` at 790 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1777,8 +1777,41 @@ the moment it left, once for the library and once for the processor,
 which is the honest reason the shape it has now is the shape it
 needed.
 
-**The roads, in order.** The save format, and then Glk, which is
-what these stories are all waiting for. Only once Glk is over the
+**A state put by.** The save format is Quetzal with Glulx's own
+chunks: IFhd names the story by the first 128 bytes of memory, CMem
+holds dynamic memory XOR-compressed against the game file, MAll the
+allocation heap, and Stks the stack whole. What is not saved matters
+as much: the Glk state, the protected range, the dice, the output
+system and the string table's address all survive a restore
+untouched.
+
+The stack chunk is a straight copy, and that is the earlier ruling
+paying out. The specification wants stack values written
+big-endian, and the reference glulxe has to walk every frame's
+locals format to byte-swap them; this stack chose big-endian storage
+back in its own era for exactly this moment, so saving is a snapshot
+and restoring is the reverse, the locals format never consulted.
+
+The undo opcodes are the whole format exercised every turn, and they
+work. What cannot work yet is save and restore themselves, because
+those name a Glk stream and there is no library to hold a registry
+of streams; with none installed the answer is the spoken failure a
+game learns to prompt again from, which is exactly what the
+reference answers in the same condition. The bytes such a stream
+would carry are already right.
+
+Right in the strongest sense available: the port and the reference
+were run to the same state in the same story, each wrote its own
+save file, and the two files are byte-identical at 296 bytes. Then
+each read the other's back, and both came out at the same map size,
+the same memory, the same heap and the same stack pointer. A save
+written by one interpreter opens in the other.
+
+That leaves `glk` as the only opcode in the whole of 3.1.3 this
+machine still answers as a frontier.
+
+**The road, now singular.** Glk, which is what these stories are all
+waiting for, and then the two recordings. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the

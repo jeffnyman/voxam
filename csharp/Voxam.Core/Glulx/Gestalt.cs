@@ -45,11 +45,11 @@ public sealed record Capabilities
     /// <summary>accelfunc and accelparam; the acceleration era carried them.</summary>
     public bool Acceleration { get; init; } = true;
 
-    /// <summary>saveundo and restoreundo; the save era waits.</summary>
-    public bool Undo { get; init; }
+    /// <summary>saveundo and restoreundo; the save era carried them.</summary>
+    public bool Undo { get; init; } = true;
 
-    /// <summary>hasundo and discardundo; the same era waits.</summary>
-    public bool ExtUndo { get; init; }
+    /// <summary>hasundo and discardundo; the same era carried them.</summary>
+    public bool ExtUndo { get; init; } = true;
 
     /// <summary>The single-precision opcodes; the float era carried them.</summary>
     public bool Floats { get; init; } = true;
