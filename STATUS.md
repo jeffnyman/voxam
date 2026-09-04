@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 480 tests and
+And the test projects, `Voxam.Core.Tests` at 610 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1614,11 +1614,46 @@ refusal wording included. Every locals-format list across three
 widths and six counts, one, two and three entries deep, is 558 call
 frames, and all 558 match, down to the raw bytes of the frame.
 
-**The roads, in order.** The rest of Glulx, a rung at a time: the
-execution loop and the integer, branch, call and memory opcodes;
-then string decoding and the I/O system; then search, the heap and
-the accelerated functions; then the floats. Only once Glk is over
-the faces the port already has can glulxercise judge any of it, and
+**The machine turns over.** The loop is here, and with it the
+opcodes that make a program rather than an arithmetic exercise:
+integer math, every branch and comparison, calls in all five of
+their spellings, returns, tailcalls, catch and throw, array data at
+three widths and at single bits, the five stack manipulations, the
+map's own measuring and resizing, the dice, the output system's
+selection, and the game state that quits, restarts and verifies.
+
+Two things about the loop are worth saying. An instruction below
+RAMSTART cannot change, so neither can its opcode, its handler, its
+operands' addressing modes, nor where it ends; all of that is read
+once and kept, and every later visit does the one thing that is not
+fixed, which is fetching what the operands stand for. Code above
+RAMSTART is shaped again on every visit, so a story that writes its
+own code runs the code it wrote. And the operands resolve before
+the program counter moves, so an instruction that refuses, on an
+empty stack or a local outside its frame, leaves the machine
+standing at the instruction that asked rather than past it.
+
+The eras still to come are not silent. The whole roster of 3.1.3 is
+known, so an opcode this machine does not carry yet says exactly
+that and names itself, while a number the specification never
+defined says that instead. There is no third answer, and no
+pretending.
+
+Certified against the Python two ways. The dice first: seven seeds,
+each giving twelve words, six folded rolls, a reseed to zero and a
+reseed to ninety-nine, all identical, which matters because a
+recorded playthrough must replay forever. Then a real story:
+*accelfunctest* is Inform's own veneer starting up, and the port
+walks its first forty-five instructions with the program counter,
+all four stack registers and a digest of the entire live stack
+matching the reference at every single step. The forty-sixth is
+`binarysearch`, which belongs to a later rung; that is where the
+trace stops, and it stops honestly.
+
+**The roads, in order.** The rest of Glulx, a rung at a time:
+string decoding and the I/O system; then search, the heap and the
+accelerated functions; then the floats. Only once Glk is over the
+faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
 mouse and the menus. The Å-machine waits on the Python's own

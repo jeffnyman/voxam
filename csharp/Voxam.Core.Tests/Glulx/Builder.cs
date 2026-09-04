@@ -1,4 +1,5 @@
-namespace Voxam.Core.Tests.Support;
+using Voxam.Core.Glulx;
+namespace Voxam.Tests.Glulx;
 
 /// <summary>
 /// Assembles a tiny Glulx image from the numbers its header

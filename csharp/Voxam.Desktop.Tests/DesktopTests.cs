@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Voxam.Core.Tests.Support;
+using Voxam.Tests.Glulx;
 using static Voxam.Desktop.Tests.Rig;
 
 namespace Voxam.Desktop.Tests;
