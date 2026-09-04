@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 735 tests and
+And the test projects, `Voxam.Core.Tests` at 770 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1725,8 +1725,60 @@ instruction and only the wording of why differs. That comparison
 also caught a real defect on its first run, an operand signature one
 too long, which no unit test of mine had been aimed at.
 
-**The roads, in order.** The floats, then the save format, and then
-Glk, which is what these stories are all waiting for. Only once Glk is over the
+**Sixty-one opcodes of one shape.** The float and double families
+are the last large block of arithmetic: singles held in one 32-bit
+value, doubles split across two, and everything computed in double
+precision so that a single-precision opcode rounds only on the way
+back out. A double argument arrives high word first and a double
+result stores low word first, an asymmetry the specification calls
+out and one that would swap every double a game ever computed if it
+were read backwards.
+
+One thing had to be relearned rather than ported. The Python wraps
+its own math library because it raises for log(0), sqrt(-1) and
+asin(2) where C answers with an IEEE value, and this runtime already
+answers the IEEE way, so the wrappers looked unnecessary. They are
+not: they also settle the sign of a manufactured NaN. This runtime's
+own NaN constant carries its sign bit set and the Python's does not,
+and although nothing in the specification says which NaN an
+operation must produce, the sign is observable in Glulx. So every
+NaN this module makes for itself is made positive, and only a NaN
+that came out of the hardware is left as the hardware made it. That
+was a hundred differences out of sixteen hundred before the wrappers
+went back in, and none after.
+
+Which is how it was found. The certificate for this family is a
+probe: one story, assembled by the port itself, running every one of
+the sixty-one opcodes over seventeen values, twenty-seven operand
+pairs and four epsilons, and then run again under the Python from
+the very same file. All 2,095 results agree.
+
+Only 1,525 of them can be written down, though, and the reason is
+worth keeping. IEEE 754 fixes addition, subtraction, multiplication,
+division, remainder and the square root to the last bit; it does not
+fix sine, logarithm or power. Those belong to whichever library the
+platform ships, and the Python is handed the same one, so the two
+implementations agree machine for machine while no constant is true
+on Windows and Linux and macOS at once. The digest therefore covers
+what the specification fixes, taken from the Python's own answers;
+what it leaves open is checked for the things that are still
+portable, that each opcode reaches the function it names at the
+width it names, and that the infinities and NaNs the specification
+does fix come out fixed. A NaN sign is left out of the digest for
+the same reason and a different cause: an x86 makes its default NaN
+with the sign bit set and an ARM makes the same NaN with it clear,
+so infinity less infinity reads differently on a Mac, and the
+specification does not say which one an operation owes. The payload
+does travel, and stays.
+
+The first shape of this test asserted one digest over all of it. It
+passed on the machine it was written on and failed on the other two
+the moment it left, once for the library and once for the processor,
+which is the honest reason the shape it has now is the shape it
+needed.
+
+**The roads, in order.** The save format, and then Glk, which is
+what these stories are all waiting for. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
