@@ -1340,8 +1340,8 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 368 tests and
-`Voxam.Desktop.Tests` at 23, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 389 tests and
+`Voxam.Desktop.Tests` at 24, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1480,9 +1480,26 @@ On the glass the stage draws to a surface it keeps, which is
 put it, a fill paints a rectangle, and a scroll slides the pixels
 the surface already holds and blanks the strip it exposes. Only
 the region between a window's margins scrolls, so art anchored in
-a margin stays where it was. What the stage does not yet draw is
-pictures, which is the next branch, and what it does not yet
+a margin stays where it was. What the stage does not yet
 answer is the mouse and the menus.
+
+**The art.** A Version 6 Blorb's pictures now reach the port. The
+resource reader pulls them out by number, PNG art keeping its
+bytes and a Rect being a size with no pixels, along with the
+release the census reports and the resolution chunk that says
+what screen the author drew for. A picture's size is answered
+from its own header without decoding anything, scaled by the room
+the screen earns it, which is an exact ratio the whole way so the
+reported size and the drawn one can never drift apart. The header
+declares the art, and a game that asks what hangs is told.
+
+That declaration is the reason this arrived before any drawing:
+a game lays its whole stage out from those sizes, so claiming
+pictures moves every line of text on the screen. The stage
+certificate is what proves the arithmetic, since it sees exactly
+that movement, and the four Version 6 walks stay identical with
+the art declared on both sides. What is still a road is the
+drawing itself: a picture takes its room and leaves it empty.
 
 **The roads, in order.** Pictures on the stage, then sound. Then
 Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the

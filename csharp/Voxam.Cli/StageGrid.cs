@@ -43,11 +43,12 @@ internal static class StageGrid
     {
         AcceptanceScript script;
         byte[] story;
+        Blorb? blorb;
 
         try
         {
             script = AcceptanceScript.Parse(scriptPath);
-            (story, _) = StoryFile.Load(script.Game);
+            (story, blorb) = StoryFile.Load(script.Game);
         }
         catch (Exception error) when (error is ZMachineException or IOException)
         {
@@ -55,7 +56,7 @@ internal static class StageGrid
             return 2;
         }
 
-        var face = new StageFrontend(new Headless(), driven: true);
+        var face = new StageFrontend(new Headless(), driven: true, gallery: blorb?.Gallery);
         var at = 0;
 
         string? Source()
@@ -84,7 +85,10 @@ internal static class StageGrid
         }
         catch (ZMachineException error)
         {
-            emit($"# ended: {error.Message}\n");
+            // How a walk ends is worth saying, but it is each
+            // interpreter's own voice and no part of the grid, so it
+            // keeps off the output being compared.
+            Console.Error.WriteLine($"# ended: {error.Message}");
         }
 
         emit(face.Model.Rendered() + "\n");

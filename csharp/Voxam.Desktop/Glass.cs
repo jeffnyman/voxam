@@ -378,10 +378,12 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         }
 
         // The caret underlines the cursor's cell in its own ink while
-        // the machine waits for typing; the wait only begins once
-        // Clear has painted every row, so the cursor always has one,
-        // and parked past a row's end it shows on the last cell.
-        if (_waiting)
+        // the machine waits for typing. The cell face paints every row
+        // before its first wait, so the cursor has one; a stage draws
+        // to its own surface instead and can be waiting with none.
+        // Parked past a row's end, as the model allows, it shows on
+        // the last cell.
+        if (_waiting && rows.Length > 0)
         {
             var line = rows[Math.Min(cursor.Row, rows.Length) - 1];
             var column = Math.Min(cursor.Column, line.Length);

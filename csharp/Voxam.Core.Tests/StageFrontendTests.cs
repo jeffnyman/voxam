@@ -125,6 +125,20 @@ public class StageFrontendTests
         Assert.Equal("f", face.Model.RowText(4));
     }
 
+    // Nothing is drawn yet: the room a picture takes is declared, and
+    // the calls that would draw it arrive and wait for a glass.
+    [Fact]
+    public void DrawingAPictureWaitsForAGlass()
+    {
+        var (face, screen) = Staged();
+        Assert.False(face.HasPictures);
+        Assert.Null(face.PictureData(1));
+        Assert.Equal((0, 0), face.PictureCensus());
+        face.DrawPicture(1, 1, 1);
+        face.ErasePicture(1, 1, 1);
+        Assert.Empty(screen.Settled);
+    }
+
     [Fact]
     public void KeysAreReadRawWithOrWithoutATimeout()
     {

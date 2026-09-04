@@ -33,12 +33,15 @@ public sealed class Session
     /// </summary>
     public static Session Start(string game, Glass glass, Action<string> notice, int? seed = null)
     {
-        var (story, _) = StoryFile.Load(game);
+        var (story, blorb) = StoryFile.Load(game);
         var saves = new FileSaveSlot(Path.ChangeExtension(game, ".sav"));
 
         if (story[0] == 6)
         {
-            var stage = new StageFrontend(glass);
+            // The art hangs behind the stage, so a game lays its
+            // windows out for the room its pictures take, even while
+            // the drawing of them is still a road.
+            var stage = new StageFrontend(glass, gallery: blorb?.Gallery);
             var staged = new Machine(story, stage, stage.ReadLine, seed, stage.ReadKey, stage.ReadLineUntil, saves);
             return Started(glass, stage, () => staged.Run(), notice, session => session.Stage = stage);
         }

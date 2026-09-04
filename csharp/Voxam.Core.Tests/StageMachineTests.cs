@@ -11,7 +11,7 @@ public class StageMachineTests
     /// <summary>A glass that records the paints it is given and answers queued keys.</summary>
     private sealed class FakeScreen : IStageScreen
     {
-        public int Columns => 10;
+        public int Columns { get; set; } = 10;
 
         public int Lines => 6;
 
@@ -26,6 +26,89 @@ public class StageMachineTests
         public string? ReadKey(double? timeoutSeconds) => Keys.Count > 0 ? Keys.Dequeue() : null;
 
         public void Settle(IReadOnlyList<Paint> paints) => Settled.AddRange(paints);
+    }
+
+    /// <summary>A stage that writes down every picture it is asked to draw or erase.</summary>
+    private sealed class Watching(StageFrontend inner, List<(int Number, int Line, int Column)> drawn) : IStageFrontend
+    {
+        public bool HasStatusLine => inner.HasStatusLine;
+
+        public bool HasScreenSplitting => inner.HasScreenSplitting;
+
+        public bool HasSounds => inner.HasSounds;
+
+        public bool HasBold => inner.HasBold;
+
+        public bool HasItalic => inner.HasItalic;
+
+        public bool HasFixedPitch => inner.HasFixedPitch;
+
+        public bool HasTimedInput => inner.HasTimedInput;
+
+        public bool HasColours => inner.HasColours;
+
+        public bool HasCharacterGraphics => inner.HasCharacterGraphics;
+
+        public bool HasPictures => inner.HasPictures;
+
+        public int ScreenLines => inner.ScreenLines;
+
+        public int ScreenColumns => inner.ScreenColumns;
+
+        public int FontWidth => inner.FontWidth;
+
+        public int FontHeight => inner.FontHeight;
+
+        public void Write(string text) => inner.Write(text);
+
+        public void WriteRectangle(IReadOnlyList<string> rows) => inner.WriteRectangle(rows);
+
+        public void ShowStatus(Status status) => inner.ShowStatus(status);
+
+        public void SetStyle(int style) => inner.SetStyle(style);
+
+        public void SetFont(int font) => inner.SetFont(font);
+
+        public void SetColour(int foreground, int background) => inner.SetColour(foreground, background);
+
+        public void SetBuffering(bool buffered) => inner.SetBuffering(buffered);
+
+        public void SplitWindow(int lines) => inner.SplitWindow(lines);
+
+        public void SetWindow(int window) => inner.SetWindow(window);
+
+        public void EraseWindow(int window) => inner.EraseWindow(window);
+
+        public void EraseLine() => inner.EraseLine();
+
+        public void EraseLine(int pixels) => inner.EraseLine(pixels);
+
+        public void SetCursor(int line, int column) => inner.SetCursor(line, column);
+
+        public (int Line, int Column) CursorPosition() => inner.CursorPosition();
+
+        public void PlaceWindow(int window, int line, int column, int height, int width) =>
+            inner.PlaceWindow(window, line, column, height, width);
+
+        public void SetLineCount(int window, int count) => inner.SetLineCount(window, count);
+
+        public void SetMargins(int window, int left, int right) => inner.SetMargins(window, left, right);
+
+        public void ScrollWindow(int window, int pixels) => inner.ScrollWindow(window, pixels);
+
+        public (int Height, int Width)? PictureData(int number) => inner.PictureData(number);
+
+        public (int Count, int Release) PictureCensus() => inner.PictureCensus();
+
+        public void DrawPicture(int number, int line, int column) => drawn.Add((number, line, column));
+
+        public void ErasePicture(int number, int line, int column) => drawn.Add((number, line, column));
+
+        public void BeginInput() => inner.BeginInput();
+
+        public void ResumeInput() => inner.ResumeInput();
+
+        public void AbandonInput() => inner.AbandonInput();
     }
 
     // Assemble a Version 6 story around a main routine and run it on a
@@ -216,6 +299,153 @@ public class StageMachineTests
             b.OpVar(0x06, Arg.Var(G0));
         });
         Assert.Equal($"{1 + Units}", face.Model.RowText(2));
+    }
+
+    // A gallery of one PNG and one placard, with the second scalable
+    // to half its size on the standard window.
+    private static Gallery Hung()
+    {
+        var png = new List<byte> { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13 };
+        png.AddRange(System.Text.Encoding.ASCII.GetBytes("IHDR"));
+        png.AddRange([0, 0, 0, 40, 0, 0, 0, 20]);
+        var art = new Dictionary<int, object> { [1] = png.ToArray(), [2] = new Placard(8, 4) };
+        var scalings = new Dictionary<int, Scaling> { [2] = new(new Ratio(1, 2), null, null) };
+        return new Gallery(art, 9, new Resolution(10 * Units, 6 * Units, scalings));
+    }
+
+    private static (StageFrontend Face, FakeScreen Screen) Showing(Action<StoryBuilder> body, Gallery? gallery, int columns = 10)
+    {
+        var b = new StoryBuilder(6);
+        var main = b.Routine(0);
+        body(b);
+        b.Quit();
+        b.InitialPc = main;
+        var screen = new FakeScreen { Columns = columns };
+        var face = new StageFrontend(screen, driven: true, gallery: gallery);
+        new Machine(b.Build(), face, () => null, 1).Run();
+        return (face, screen);
+    }
+
+    // picture_data's number 0 asks the census, and any other number
+    // asks that picture's size, Reso-scaled, because a game lays its
+    // whole stage out from these words (§15 picture_data).
+    [Fact]
+    public void PictureDataAnswersTheCensusAndTheScaledSizes()
+    {
+        // A branch of 2 carries on either way, so the words the call
+        // wrote (or left alone) are what is read back.
+        void Ask(StoryBuilder b, int number, int array)
+        {
+            b.Ext(0x06, Arg.Small(number), Arg.Large(array));
+            b.Branch(true, 2);
+            b.Op2(0x0F, Arg.Large(array), Arg.Small(0));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+            b.Print(" ");
+            b.Op2(0x0F, Arg.Large(array), Arg.Small(1));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+            b.Print(" ");
+        }
+
+        var (face, _) = Showing(b =>
+        {
+            var array = b.Alloc(4);
+            Ask(b, 0, array);
+            Ask(b, 1, array);
+            Ask(b, 2, array);
+            Ask(b, 3, array);
+        }, Hung(), columns: 40);
+        // Two pictures and release 9; the PNG at its own size; the
+        // placard at the room the screen earns it; then a number
+        // nothing answers, which writes nothing and leaves the words
+        // where they stood.
+        Assert.Equal("2 9 20 40 2 4 2 4", face.Model.RowText(1));
+    }
+
+    // Without art the census counts none and every number is invalid,
+    // as the cleared header bit promised (§11.1.4).
+    [Fact]
+    public void WithoutArtEveryPictureNumberIsInvalid()
+    {
+        var (face, _) = Showing(b =>
+        {
+            var array = b.Alloc(4);
+            b.Ext(0x06, Arg.Small(0), Arg.Large(array));
+            b.Branch(true, 2);
+            b.Op2(0x0F, Arg.Large(array), Arg.Small(0));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+            b.Print(" ");
+            b.Op2(0x0F, Arg.Large(array), Arg.Small(1));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+        }, null);
+        Assert.Equal("0 0", face.Model.RowText(1));
+    }
+
+    // The header declares the art the stage actually hangs (§11.1.4).
+    [Fact]
+    public void TheHeaderDeclaresWhatHangs()
+    {
+        void Flag(StoryBuilder b)
+        {
+            b.Op2(0x10, Arg.Small(0), Arg.Small(1));
+            b.Store(G0);
+            b.Op2(0x09, Arg.Var(G0), Arg.Small(2));
+            b.Store(G0);
+            b.OpVar(0x06, Arg.Var(G0));
+        }
+
+        Assert.Equal("2", Showing(Flag, Hung()).Face.Model.RowText(1));
+        Assert.Equal("0", Showing(Flag, null).Face.Model.RowText(1));
+    }
+
+    // A draw or erase places the picture relative to the current
+    // window, with zero meaning the cursor (§8.8.3.5, §15).
+    [Fact]
+    public void DrawingPlacesAPictureAgainstItsWindow()
+    {
+        var drawn = new List<(int Number, int Line, int Column)>();
+        var b = new StoryBuilder(6);
+        var main = b.Routine(0);
+        b.Ext(0x11, Arg.Small(2), Arg.Large(3 * Units), Arg.Large(4 * Units));
+        b.Ext(0x10, Arg.Small(2), Arg.Large(1 + Units), Arg.Large(1 + Units));
+        b.OpVar(0x0B, Arg.Small(2));
+        b.OpVar(0x0F, Arg.Large(1 + Units), Arg.Large(1 + 2 * Units));
+        b.Ext(0x05, Arg.Small(1), Arg.Large(1), Arg.Large(1));
+        b.Ext(0x05, Arg.Small(1));
+        b.Ext(0x07, Arg.Small(2), Arg.Large(1), Arg.Large(1));
+        b.Quit();
+        b.InitialPc = main;
+        var face = new Watching(new StageFrontend(new FakeScreen(), driven: true, gallery: Hung()), drawn);
+        new Machine(b.Build(), face, () => null, 1).Run();
+        Assert.Equal(
+            [
+                (1, 1 + Units, 1 + Units),
+                (1, 1 + 2 * Units, 1 + 3 * Units),
+                (2, 1 + Units, 1 + Units),
+            ],
+            drawn);
+    }
+
+    // A picture number nothing answers is the one thing §15 calls
+    // illegal, and without art the call passes in the conforming
+    // quiet, because Infocom's own games draw without asking.
+    [Fact]
+    public void AnInvalidPictureNumberIsRefusedOnlyWhenArtHangs()
+    {
+        void Draw(StoryBuilder b) => b.Ext(0x05, Arg.Small(9), Arg.Large(1), Arg.Large(1));
+
+        Assert.Equal("", Showing(Draw, null).Face.Model.RowText(1));
+        var b = new StoryBuilder(6);
+        var main = b.Routine(0);
+        Draw(b);
+        b.Quit();
+        b.InitialPc = main;
+        var face = new StageFrontend(new FakeScreen(), driven: true, gallery: Hung());
+        var error = Assert.Throws<ZMachineException>(() => new Machine(b.Build(), face, () => null, 1).Run());
+        Assert.Contains("picture 9 is not in the gallery", error.Message, StringComparison.Ordinal);
     }
 
     // The same story on a character face leaves the transcript exactly

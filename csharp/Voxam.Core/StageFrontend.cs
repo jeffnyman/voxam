@@ -55,6 +55,21 @@ public interface IStageFrontend : IFrontend
 
     /// <summary>Erase rightward from the cursor across a width in units (§8.8.5.2).</summary>
     void EraseLine(int pixels);
+
+    /// <summary>Whether any art hangs to draw (§11.1.4).</summary>
+    bool HasPictures { get; }
+
+    /// <summary>A picture's height and width in units, or null for a number nothing answers (§15).</summary>
+    (int Height, int Width)? PictureData(int number);
+
+    /// <summary>How many pictures hang, and the art's release (§15 picture_data).</summary>
+    (int Count, int Release) PictureCensus();
+
+    /// <summary>Draw a picture with its top left corner at a screen position, in units (§15).</summary>
+    void DrawPicture(int number, int line, int column);
+
+    /// <summary>Paint a picture's region to the background (§15 erase_picture).</summary>
+    void ErasePicture(int number, int line, int column);
 }
 
 /// <summary>
@@ -69,19 +84,22 @@ public sealed class StageFrontend : IStageFrontend, ILineCanvas
     private const string MorePrompt = "[MORE]";
 
     private readonly IStageScreen _screen;
+    private readonly Gallery _gallery;
     private readonly StageModel _model;
     private readonly LineEditor _editor = new();
     private bool _composing;
     private string _prompt = "";
 
     /// <summary>
-    /// Wrap a stage around a glass. A driven session never pauses at
-    /// [MORE]: a script is typing, there is nobody to press the key,
-    /// and the walk's own pacing is the walk itself.
+    /// Wrap a stage around a glass, with whatever art hangs behind it.
+    /// A driven session never pauses at [MORE]: a script is typing,
+    /// there is nobody to press the key, and the walk's own pacing is
+    /// the walk itself.
     /// </summary>
-    public StageFrontend(IStageScreen screen, bool driven = false)
+    public StageFrontend(IStageScreen screen, bool driven = false, Gallery? gallery = null)
     {
         _screen = screen;
+        _gallery = gallery ?? Gallery.Empty;
         _model = new StageModel(screen.Columns, screen.Lines, screen.FontWidth, screen.FontHeight);
 
         if (!driven)
@@ -192,6 +210,39 @@ public sealed class StageFrontend : IStageFrontend, ILineCanvas
     {
         _model.ScrollWindow(window, pixels);
         Settle();
+    }
+
+    /// <summary>Whether any art hangs to draw (§11.1.4).</summary>
+    public bool HasPictures => _gallery.Count > 0;
+
+    /// <summary>
+    /// A picture's height and width in units (§15 picture_data). The
+    /// size is Reso-scaled, because a game lays its whole stage out
+    /// from these words and the answer must be the drawn truth (Blorb:
+    /// The Resolution Chunk).
+    /// </summary>
+    public (int Height, int Width)? PictureData(int number)
+    {
+        if (_gallery.Size(number) is not { } size)
+        {
+            return null;
+        }
+
+        var factor = _gallery.Scale(number, _screen.Columns * _screen.FontWidth, _screen.Lines * _screen.FontHeight);
+        return (factor.Times(size.Height), factor.Times(size.Width));
+    }
+
+    /// <summary>How many pictures hang, and the art's release (§15).</summary>
+    public (int Count, int Release) PictureCensus() => (_gallery.Count, _gallery.Release);
+
+    /// <summary>Draw a picture: nothing is drawn yet, and its room is already declared.</summary>
+    public void DrawPicture(int number, int line, int column)
+    {
+    }
+
+    /// <summary>Erase a picture's region: nothing is drawn yet.</summary>
+    public void ErasePicture(int number, int line, int column)
+    {
     }
 
     /// <summary>Remember the prompt: the text left of the cursor on its row.</summary>

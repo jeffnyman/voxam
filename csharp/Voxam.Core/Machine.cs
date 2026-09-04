@@ -171,7 +171,7 @@ public sealed class Machine
                 {
                     SetFlag2(0x08, false);
                     SetFlag2(0x0100, false);
-                    SetFlag1(0x02, false);
+                    SetFlag1(0x02, _stage?.HasPictures ?? false);
                     SetFlag1(0x20, _frontend.HasSounds);
                 }
                 else
@@ -1382,6 +1382,47 @@ public sealed class Machine
         }
     }
 
+    // A draw or erase call resolved to a screen position. Without
+    // pictures the call passes in the conforming quiet: Infocom's own
+    // games draw without consulting the header, which the §11.1.4
+    // remarks name Zork Zero's Macintosh release for, so a loud halt
+    // would stop Arthur at its title card. With pictures, coordinates
+    // of zero or omitted mean the current window's cursor, the given
+    // ones are relative to the window's own origin (§8.8.3.5), and an
+    // invalid picture number is the one thing §15 calls illegal.
+    private (int Number, int Line, int Column)? PlacedPicture(Instruction i)
+    {
+        var values = Values(i);
+        var number = values[0];
+
+        if (_stage is null || !_stage.HasPictures)
+        {
+            return null;
+        }
+
+        if (_stage.PictureData(number) is null)
+        {
+            throw new ZMachineException($"picture {number} is not in the gallery, and §15 calls drawing an invalid picture number illegal");
+        }
+
+        var line = values.Length > 1 ? values[1] : 0;
+        var column = values.Length > 2 ? values[2] : 0;
+
+        if (line == 0)
+        {
+            line = _windows.Property(WindowLedger.CurrentWindow, WindowLedger.YCursor);
+        }
+
+        if (column == 0)
+        {
+            column = _windows.Property(WindowLedger.CurrentWindow, WindowLedger.XCursor);
+        }
+
+        line += _windows.Property(WindowLedger.CurrentWindow, WindowLedger.YCoordinate) - 1;
+        column += _windows.Property(WindowLedger.CurrentWindow, WindowLedger.XCoordinate) - 1;
+        return (number, line, column);
+    }
+
     // A window's ledger geometry, sent to a stage that places all eight
     // where §8.8.3.4 says; the character faces keep their two-window
     // mimicry and hear nothing.
@@ -1661,9 +1702,28 @@ public sealed class Machine
                     Next(i);
                     break;
                 }
-            case Op.SoundEffect:
             case Op.DrawPicture:
             case Op.ErasePicture:
+                {
+                    var placed = PlacedPicture(i);
+
+                    if (placed is { } where)
+                    {
+                        if (i.Op == Op.DrawPicture)
+                        {
+                            _stage!.DrawPicture(where.Number, where.Line, where.Column);
+                        }
+                        else
+                        {
+                            _stage!.ErasePicture(where.Number, where.Line, where.Column);
+                        }
+                    }
+
+                    Next(i);
+                    break;
+                }
+
+            case Op.SoundEffect:
                 // Presentation a plain stream has nothing to show for:
                 // the operands are read, and nothing changes.
                 Values(i);
@@ -2127,18 +2187,32 @@ public sealed class Machine
                 }
             case Op.PictureData:
                 {
-                    // Without pictures every number is invalid and the
-                    // census counts none, as the cleared header bit
-                    // promised (§11.1.4).
+                    // Number 0 asks the census: how many pictures hang
+                    // and what release the art is. Any other number
+                    // asks that picture's size, and a number nothing
+                    // answers takes no branch. Without pictures every
+                    // number is invalid and the census counts none, as
+                    // the cleared header bit promised (§11.1.4).
                     var values = Values(i);
 
                     if (values[0] == 0)
                     {
-                        _m.WriteWord(values[1], 0);
-                        _m.WriteWord(values[1] + 2, 0);
+                        var (count, release) = _stage?.PictureCensus() ?? (0, 0);
+                        _m.WriteWord(values[1], count);
+                        _m.WriteWord(values[1] + 2, release);
+                        DoBranch(i, count > 0);
+                        break;
                     }
 
-                    DoBranch(i, false);
+                    if (_stage?.PictureData(values[0]) is not { } size)
+                    {
+                        DoBranch(i, false);
+                        break;
+                    }
+
+                    _m.WriteWord(values[1], size.Height);
+                    _m.WriteWord(values[1] + 2, size.Width);
+                    DoBranch(i, true);
                     break;
                 }
             case Op.ReadMouse:
