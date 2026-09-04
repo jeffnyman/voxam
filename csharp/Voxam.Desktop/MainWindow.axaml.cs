@@ -54,12 +54,14 @@ public partial class MainWindow : Window
     {
         _session?.Retire();
         _session = null;
+        // The notice clears before the story starts, never after: a
+        // story that faults at once has its word on the line first.
+        Tell("");
 
         try
         {
             _session = Session.Start(game, Screen, Tell);
             Title = $"{Path.GetFileNameWithoutExtension(game)}: Voxam";
-            Tell("");
         }
         catch (Exception error) when (error is ZMachineException or IOException)
         {

@@ -164,14 +164,26 @@ public sealed class DesktopTests : IDisposable
                 b.Print("L");
             }
 
+            b.Print("END");
             ReadKey(b);
         });
         var window = Shown(path);
         var glass = window.Glass;
         Until(window, () => glass.Prompt == "[MORE]");
         Assert.NotNull(window.CaptureRenderedFrame());
-        glass.Press(" ");
-        Until(window, () => glass.Prompt is null && glass.Text.Contains("L\nL", StringComparison.Ordinal));
+
+        // How many screenfuls eighty lines make depends on the font
+        // the platform found, so every pause is let go until the end.
+        Until(window, () =>
+        {
+            if (glass.Prompt == "[MORE]")
+            {
+                glass.Press(" ");
+            }
+
+            return glass.Text.Contains("LEND", StringComparison.Ordinal);
+        });
+        Assert.Null(glass.Prompt);
         Assert.NotNull(window.CaptureRenderedFrame());
     }
 
