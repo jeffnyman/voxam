@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 751 tests and
+And the test projects, `Voxam.Core.Tests` at 769 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1751,9 +1751,22 @@ Which is how it was found. The certificate for this family is a
 probe: one story, assembled by the port itself, running every one of
 the sixty-one opcodes over seventeen values, twenty-seven operand
 pairs and four epsilons, and then run again under the Python from
-the very same file. All 2,095 results agree, and the digest of the
-Python's own answers is what the suite asserts, so the breadth is
-one test rather than sixty-one of mine.
+the very same file. All 2,095 results agree.
+
+Only 1,525 of them can be written down, though, and the reason is
+worth keeping. IEEE 754 fixes addition, subtraction, multiplication,
+division, remainder and the square root to the last bit; it does not
+fix sine, logarithm or power. Those belong to whichever library the
+platform ships, and the Python is handed the same one, so the two
+implementations agree machine for machine while no constant is true
+on Windows and Linux and macOS at once. The digest therefore covers
+what the specification fixes, taken from the Python's own answers;
+what it leaves open is checked for the things that are still
+portable, that each opcode reaches the function it names at the
+width it names, and that the infinities and NaNs the specification
+does fix come out fixed. The first shape of this test asserted one
+digest over all of it, passed on Windows, and failed on the other
+two the moment it left the machine it was written on.
 
 **The roads, in order.** The save format, and then Glk, which is
 what these stories are all waiting for. Only once Glk is over the
