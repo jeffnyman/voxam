@@ -252,8 +252,9 @@ terminal, status line and all. Beside it is `Voxam`, a desktop
 window on [Avalonia](https://avaloniaui.net/) that plays the same
 stories on the same glass, opened from its menu or named on the
 command line, with the bundled font, four themes and five sizes of
-type it remembers between sessions, and the §16 character graphics
-drawn from their own pixels. A Version 6
+type it remembers between sessions, the §16 character graphics
+drawn from their own pixels, and saved games going wherever the
+platform's own file picker is told. A Version 6
 story plays on a stage that places its windows in units, the way
 Arthur and Shogun expect, with its Blorb's art measured, declared
 and drawn.

@@ -45,6 +45,27 @@ internal static class Rig
 
     public static string Notice(MainWindow window) => window.FindControl<TextBlock>("Notice")!.Text ?? "";
 
+    /// <summary>
+    /// Do something off the window's own thread, pumping that thread
+    /// meanwhile: what waits on the window can never be what the
+    /// window is waiting for, which is how the machine's own thread
+    /// asks its questions.
+    /// </summary>
+    public static T Offstage<T>(Func<T> work)
+    {
+        var done = Task.Run(work);
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+
+        while (!done.IsCompleted)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "the work never finished");
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(5);
+        }
+
+        return done.GetAwaiter().GetResult();
+    }
+
     /// <summary>Pump the UI thread until the story's thread has done what the test waits for, or five seconds pass.</summary>
     public static void Until(MainWindow window, Func<bool> condition)
     {

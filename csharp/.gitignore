@@ -6,3 +6,6 @@ coverage/
 # Where a NativeAOT publish lands.
 publish/
 publish-desktop/
+
+# Where a hang dump lands.
+TestResults/

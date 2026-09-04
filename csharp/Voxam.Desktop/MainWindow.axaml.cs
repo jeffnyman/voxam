@@ -17,6 +17,7 @@ public partial class MainWindow : Window
         ["*.z1", "*.z2", "*.z3", "*.z4", "*.z5", "*.z6", "*.z7", "*.z8", "*.zblorb", "*.zlb", "*.blorb", "*.blb"];
 
     private Session? _session;
+    private string? _playing;
     private Preferences _chosen = Preferences.Default;
 
     [ExcludeFromCodeCoverage]
@@ -36,6 +37,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Picker = PickStory;
+        Files = PickSave;
         Kept = preferences;
         // A theme named on the command line dresses this launch; what
         // the player chose otherwise is remembered from the last one.
@@ -69,6 +71,13 @@ public partial class MainWindow : Window
     /// <summary>How a story is chosen: the platform's picker, or whatever a test hands over.</summary>
     public Func<Task<string?>> Picker { get; set; }
 
+    /// <summary>
+    /// How a saved game is named, given whether one is being saved
+    /// rather than restored: the platform's picker, or whatever a test
+    /// hands over. Null is a player who changed their mind.
+    /// </summary>
+    public Func<bool, Task<string?>> Files { get; set; }
+
     /// <summary>Where the player's choices are kept.</summary>
     public string Kept { get; }
 
@@ -97,10 +106,11 @@ public partial class MainWindow : Window
     {
         _session?.Retire();
         _session = null;
+        _playing = game;
 
         try
         {
-            _session = Session.Start(game, Screen, Tell);
+            _session = Session.Start(game, Screen, Tell, new PickedSaves(game, Files));
             Title = $"{Path.GetFileNameWithoutExtension(game)}: Voxam";
         }
         catch (Exception error) when (error is ZMachineException or IOException)
@@ -184,6 +194,37 @@ public partial class MainWindow : Window
     }
 
     private void QuitClicked(object? sender, RoutedEventArgs e) => Close();
+
+    // The platform's own save and restore dialogs, which the headless
+    // suite has none of, so it answers through Files instead.
+    [ExcludeFromCodeCoverage]
+    private async Task<string?> PickSave(bool saving)
+    {
+        var named = Path.GetFileNameWithoutExtension(_playing ?? "story") + ".sav";
+        var kind = new FilePickerFileType("Saved games") { Patterns = ["*.sav", "*.qut"] };
+
+        if (!saving)
+        {
+            var chosen = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Restore a saved game",
+                AllowMultiple = false,
+                FileTypeFilter = [kind, FilePickerFileTypes.All],
+            });
+
+            return chosen.Count > 0 ? chosen[0].TryGetLocalPath() : null;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save this story",
+            SuggestedFileName = named,
+            DefaultExtension = "sav",
+            FileTypeChoices = [kind],
+        });
+
+        return file?.TryGetLocalPath();
+    }
 
     // The platform's own file dialog: the headless suite has none to
     // open, so it hands a path through Picker instead.

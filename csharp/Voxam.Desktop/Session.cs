@@ -29,12 +29,12 @@ public sealed class Session
     /// Load the story and start it playing; the loader's refusals come
     /// straight back. Version 6 places its own windows in units, so it
     /// gets the stage; every other version gets the cell screen the
-    /// painted terminal keeps.
+    /// painted terminal keeps. Where a save goes is the caller's to
+    /// say, since a window and a prompt answer that differently.
     /// </summary>
-    public static Session Start(string game, Glass glass, Action<string> notice, int? seed = null)
+    public static Session Start(string game, Glass glass, Action<string> notice, ISaveSlot saves, int? seed = null)
     {
         var (story, blorb) = StoryFile.Load(game);
-        var saves = new FileSaveSlot(Path.ChangeExtension(game, ".sav"));
 
         if (story[0] == 6)
         {

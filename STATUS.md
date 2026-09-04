@@ -1341,7 +1341,7 @@ console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
 And the test projects, `Voxam.Core.Tests` at 391 tests and
-`Voxam.Desktop.Tests` at 38, each at 100% line and branch
+`Voxam.Desktop.Tests` at 43, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1532,6 +1532,20 @@ Version 6 stage keeps the metrics it was born with until the next
 story, because its surface is drawn in those units; every other
 face follows the new size at once, and the story hears the screen
 change under it.
+
+**Where a save goes.** At the window, the player says: SAVE and
+RESTORE put the platform's own picker on the screen, and the file
+goes wherever it is named. This is the one thing a window can do
+that a prompt cannot, since the picker and the machine share a
+filesystem, and it is why the session no longer decides where a
+save belongs. The machine asks from its own thread and waits while
+the window puts the question, which is safe because the window
+never waits on the machine. A player who changes their mind
+refuses the save, and the story is told so rather than stopped, as
+§15 has it. Auxiliary files are not the player's to name, so the
+ones §7.6.1.1 has a game supply stay beside the story. The console
+is unchanged: `zork1.z3` still saves to `zork1.sav` beside it, and
+either interpreter still reads the other's.
 
 **The roads, in order.** Pictures on the stage, then sound. Then
 Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the
