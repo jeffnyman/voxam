@@ -30,7 +30,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from voxam import blorb as blorb_module
 from voxam.acceptance import AcceptanceScript, replay
+from voxam.gallery import Gallery
 from voxam.glass import GraphicsFrontend
 from voxam.zmachine.machine import Machine
 from voxam.zmachine.story import Story
@@ -115,6 +117,25 @@ class Measuring:
         """Ignore a drawn image."""
 
 
+def hanging(game: Path) -> Gallery | None:
+    """The art beside a story, or None when no Blorb accompanies it.
+
+    Args:
+        game: The story file the walk plays.
+
+    Returns:
+        The gallery its resource file hangs, or None.
+    """
+
+    for suffix in (".blb", ".blorb", ".zblorb", ".gblorb"):
+        beside = Path(game).with_suffix(suffix)
+
+        if beside.is_file():
+            return blorb_module.Blorb.load(beside).gallery()
+
+    return None
+
+
 def grid_here(script_path: Path, seed: int | None) -> str:
     """Replay a walk on this interpreter's stage and answer its grid.
 
@@ -128,23 +149,25 @@ def grid_here(script_path: Path, seed: int | None) -> str:
 
     script = AcceptanceScript.parse(script_path)
     story = Story(Path(script.game).read_bytes())
-    frontend = GraphicsFrontend(story.header.version, Measuring(), driven=True)
+    frontend = GraphicsFrontend(
+        story.header.version, Measuring(), gallery=hanging(script.game), driven=True
+    )
     source = replay(script.commands, echo=frontend.write)
     machine = Machine(story, frontend, input_source=source, seed=seed or script.seed)
-    ending = ""
-
     try:
         machine.run()
     except EOFError:
         # The walk ends where its commands do, which is ordinary.
         pass
     except Exception as error:
-        ending = f"# ended: {error}\n"
+        # How a walk ends is worth saying, but it is each
+        # interpreter's own voice and no part of the grid, so it keeps
+        # off the output being compared.
+        sys.stderr.write(f"# ended: {error}\n")
 
     header = f"# stage {COLUMNS}x{LINES} units {UNIT_WIDTH}x{UNIT_HEIGHT}\n"
-    model = frontend.model
 
-    return header + ending + model.rendered() + "\n"
+    return header + frontend.model.rendered() + "\n"
 
 
 def grid_there(voxam: Path, script_path: Path, seed: int | None) -> str:

@@ -205,6 +205,56 @@ public sealed class StageGlassTests : IDisposable
         Assert.Equal(Theme.Classic.Paper, Pixel(frame, origin.X + 3 * cell.Width + 1, origin.Y + 1));
     }
 
+    // A Blorb beside the story hangs its art behind the stage, so the
+    // game lays its windows out for the room its pictures take, even
+    // while the drawing of them is still a road.
+    [AvaloniaFact]
+    public void ArtBesideAStoryIsHungBehindTheStage()
+    {
+        var bare = Story("bare.z6", ReadKey);
+        var window = Shown(bare, Theme.Classic);
+        Until(window, () => window.Glass.Waiting);
+        Assert.False(window.Session!.Stage!.HasPictures);
+
+        var withArt = Story("withart.z6", ReadKey);
+        File.WriteAllBytes(Path.ChangeExtension(withArt, ".blb"), Packaged());
+        window.Open(withArt);
+        Until(window, () => window.Glass.Waiting);
+        Assert.True(window.Session!.Stage!.HasPictures);
+        Assert.Equal((20, 40), window.Session.Stage.PictureData(1));
+    }
+
+    // A Blorb of one PNG picture: an index whose only entry points at
+    // the chunk that follows it.
+    private static byte[] Packaged()
+    {
+        var png = new List<byte> { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13 };
+        png.AddRange("IHDR"u8.ToArray());
+        png.AddRange([0, 0, 0, 40, 0, 0, 0, 20]);
+        var picture = Chunk("PNG ", [.. png]);
+        var index = new List<byte> { 0, 0, 0, 1 };
+        index.AddRange("Pict"u8.ToArray());
+        index.AddRange([0, 0, 0, 1, 0, 0, 0, 36]);
+        var body = new List<byte>("IFRS"u8.ToArray());
+        body.AddRange(Chunk("RIdx", [.. index]));
+        body.AddRange(picture);
+        return Chunk("FORM", [.. body]);
+    }
+
+    private static byte[] Chunk(string id, byte[] payload)
+    {
+        var framed = new List<byte>(System.Text.Encoding.ASCII.GetBytes(id));
+        framed.AddRange([(byte)(payload.Length >> 24), (byte)(payload.Length >> 16), (byte)(payload.Length >> 8), (byte)payload.Length]);
+        framed.AddRange(payload);
+
+        if (payload.Length % 2 != 0)
+        {
+            framed.Add(0);
+        }
+
+        return [.. framed];
+    }
+
     // A story longer than the stage holds waits behind [MORE] for a
     // player, and runs to its end once keys arrive, the last screenful
     // standing and the prompt leaving nothing behind (§8.8.3.2.6).
