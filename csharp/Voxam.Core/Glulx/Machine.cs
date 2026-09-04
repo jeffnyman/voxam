@@ -3,6 +3,12 @@ using System.Collections.Frozen;
 namespace Voxam.Core.Glulx;
 
 /// <summary>
+/// One opcode's operand signature beside its handler, so a step costs
+/// a single lookup.
+/// </summary>
+public readonly record struct Dispatch(OperandList Oplist, Action<Machine, Operand[]> Handler);
+
+/// <summary>
 /// The Glulx machine: the fetch-decode-execute loop.
 ///
 /// Each step reads an opcode number, inline because this runs once
@@ -272,11 +278,11 @@ public sealed class Machine
         return held;
     }
 
-    private void Store(StoreTarget target, uint value, int width = WordWidth) =>
+    internal void Store(StoreTarget target, uint value, int width = WordWidth) =>
         Operands.Store(Memory, Stack, target, value, width);
 
     // Branch by an offset, or return 0 or 1 (Glulx: Branches).
-    private void Jump(uint offset)
+    internal void Jump(uint offset)
     {
         if (offset is ReturnZeroOffset or ReturnOneOffset)
         {
@@ -865,9 +871,6 @@ public sealed class Machine
     // address the instruction ends at.
     private readonly record struct Held(Action<Machine, Operand[]> Handler, Shaped[] Items, int Width, int After);
 
-    // One opcode's operand signature beside its handler, so a step
-    // costs a single lookup.
-    private readonly record struct Dispatch(OperandList Oplist, Action<Machine, Operand[]> Handler);
 
     private static readonly OperandList None = new("");
     private static readonly OperandList L = new("L");
@@ -883,104 +886,118 @@ public sealed class Machine
     private static readonly OperandList Lllllls = new("LLLLLLS");
     private static readonly OperandList Llllllls = new("LLLLLLLS");
 
-    private static readonly FrozenDictionary<int, Dispatch> Table = new Dictionary<int, Dispatch>
+    private static readonly FrozenDictionary<int, Dispatch> Table = Built();
+
+    // The machine's own opcodes, and then the float and double
+    // families, which arrive as a prebuilt table of their own.
+    private static FrozenDictionary<int, Dispatch> Built()
     {
-        // Do nothing, well (Glulx: Dictionary of Opcodes).
-        [(int)Op.Nop] = new(None, static (_, _) => { }),
-        [(int)Op.Add] = new(Lls, static (m, a) => m.OpAdd(a)),
-        [(int)Op.Sub] = new(Lls, static (m, a) => m.OpSub(a)),
-        [(int)Op.Mul] = new(Lls, static (m, a) => m.OpMul(a)),
-        [(int)Op.Div] = new(Lls, static (m, a) => m.OpDiv(a)),
-        [(int)Op.Mod] = new(Lls, static (m, a) => m.OpMod(a)),
-        [(int)Op.Neg] = new(Ls, static (m, a) => m.OpNeg(a)),
-        [(int)Op.Bitand] = new(Lls, static (m, a) => m.OpBitand(a)),
-        [(int)Op.Bitor] = new(Lls, static (m, a) => m.OpBitor(a)),
-        [(int)Op.Bitxor] = new(Lls, static (m, a) => m.OpBitxor(a)),
-        [(int)Op.Bitnot] = new(Ls, static (m, a) => m.OpBitnot(a)),
-        [(int)Op.Shiftl] = new(Lls, static (m, a) => m.OpShiftl(a)),
-        [(int)Op.Sshiftr] = new(Lls, static (m, a) => m.OpSshiftr(a)),
-        [(int)Op.Ushiftr] = new(Lls, static (m, a) => m.OpUshiftr(a)),
-        [(int)Op.Jump] = new(L, static (m, a) => m.OpJump(a)),
-        [(int)Op.Jumpabs] = new(L, static (m, a) => m.OpJumpabs(a)),
-        [(int)Op.Jz] = new(Ll, static (m, a) => m.OpJz(a)),
-        [(int)Op.Jnz] = new(Ll, static (m, a) => m.OpJnz(a)),
-        [(int)Op.Jeq] = new(Lll, static (m, a) => m.OpJeq(a)),
-        [(int)Op.Jne] = new(Lll, static (m, a) => m.OpJne(a)),
-        [(int)Op.Jlt] = new(Lll, static (m, a) => m.OpJlt(a)),
-        [(int)Op.Jge] = new(Lll, static (m, a) => m.OpJge(a)),
-        [(int)Op.Jgt] = new(Lll, static (m, a) => m.OpJgt(a)),
-        [(int)Op.Jle] = new(Lll, static (m, a) => m.OpJle(a)),
-        [(int)Op.Jltu] = new(Lll, static (m, a) => m.OpJltu(a)),
-        [(int)Op.Jgeu] = new(Lll, static (m, a) => m.OpJgeu(a)),
-        [(int)Op.Jgtu] = new(Lll, static (m, a) => m.OpJgtu(a)),
-        [(int)Op.Jleu] = new(Lll, static (m, a) => m.OpJleu(a)),
-        [(int)Op.Call] = new(Lls, static (m, a) => m.OpCall(a)),
-        [(int)Op.Callf] = new(Ls, static (m, a) => m.OpCallf(a)),
-        [(int)Op.Callfi] = new(Lls, static (m, a) => m.OpCallfi(a)),
-        [(int)Op.Callfii] = new(Llls, static (m, a) => m.OpCallfii(a)),
-        [(int)Op.Callfiii] = new(Lllls, static (m, a) => m.OpCallfiii(a)),
-        [(int)Op.Return] = new(L, static (m, a) => m.OpReturn(a)),
-        [(int)Op.Tailcall] = new(Ll, static (m, a) => m.OpTailcall(a)),
-        [(int)Op.Catch] = new(Sl, static (m, a) => m.OpCatch(a)),
-        [(int)Op.Throw] = new(Ll, static (m, a) => m.OpThrow(a)),
-        [(int)Op.Copy] = new(Ls, static (m, a) => m.OpCopy(a)),
-        [(int)Op.Copys] = new(new OperandList("LS", ShortWidth), static (m, a) => m.OpCopys(a)),
-        [(int)Op.Copyb] = new(new OperandList("LS", ByteWidth), static (m, a) => m.OpCopyb(a)),
-        [(int)Op.Sexs] = new(Ls, static (m, a) => m.OpSexs(a)),
-        [(int)Op.Sexb] = new(Ls, static (m, a) => m.OpSexb(a)),
-        [(int)Op.Aload] = new(Lls, static (m, a) => m.OpAload(a)),
-        [(int)Op.Aloads] = new(Lls, static (m, a) => m.OpAloads(a)),
-        [(int)Op.Aloadb] = new(Lls, static (m, a) => m.OpAloadb(a)),
-        [(int)Op.Aloadbit] = new(Lls, static (m, a) => m.OpAloadbit(a)),
-        [(int)Op.Astore] = new(Lll, static (m, a) => m.OpAstore(a)),
-        [(int)Op.Astores] = new(Lll, static (m, a) => m.OpAstores(a)),
-        [(int)Op.Astoreb] = new(Lll, static (m, a) => m.OpAstoreb(a)),
-        [(int)Op.Astorebit] = new(Lll, static (m, a) => m.OpAstorebit(a)),
-        [(int)Op.Stkcount] = new(S, static (m, a) => m.OpStkcount(a)),
-        [(int)Op.Stkpeek] = new(Ls, static (m, a) => m.OpStkpeek(a)),
-        [(int)Op.Stkswap] = new(None, static (m, a) => m.OpStkswap(a)),
-        [(int)Op.Stkroll] = new(Ll, static (m, a) => m.OpStkroll(a)),
-        [(int)Op.Stkcopy] = new(L, static (m, a) => m.OpStkcopy(a)),
-        // Print one character, its low byte, or the whole of it
-        // (Glulx: Output).
-        [(int)Op.Streamchar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value & 0xFF)),
-        [(int)Op.Streamunichar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value)),
-        [(int)Op.Streamnum] = new(L, static (m, a) => Strings.StreamNum(m, a[0].Value)),
-        [(int)Op.Streamstr] = new(L, static (m, a) => Strings.StreamString(m, a[0].Value)),
-        // Claim and release heap memory (Glulx: Memory Allocation
-        // Heap); the address stores, or zero for a refusal, since
-        // allocation is never guaranteed.
-        [(int)Op.Malloc] = new(Ls, static (m, a) => m.Store(a[1].Target, m.Heap.Alloc(a[0].Value))),
-        [(int)Op.Mfree] = new(L, static (m, a) => m.Heap.Free(a[0].Value)),
+        var table = new Dictionary<int, Dispatch>
+        {
+            // Do nothing, well (Glulx: Dictionary of Opcodes).
+            [(int)Op.Nop] = new(None, static (_, _) => { }),
+            [(int)Op.Add] = new(Lls, static (m, a) => m.OpAdd(a)),
+            [(int)Op.Sub] = new(Lls, static (m, a) => m.OpSub(a)),
+            [(int)Op.Mul] = new(Lls, static (m, a) => m.OpMul(a)),
+            [(int)Op.Div] = new(Lls, static (m, a) => m.OpDiv(a)),
+            [(int)Op.Mod] = new(Lls, static (m, a) => m.OpMod(a)),
+            [(int)Op.Neg] = new(Ls, static (m, a) => m.OpNeg(a)),
+            [(int)Op.Bitand] = new(Lls, static (m, a) => m.OpBitand(a)),
+            [(int)Op.Bitor] = new(Lls, static (m, a) => m.OpBitor(a)),
+            [(int)Op.Bitxor] = new(Lls, static (m, a) => m.OpBitxor(a)),
+            [(int)Op.Bitnot] = new(Ls, static (m, a) => m.OpBitnot(a)),
+            [(int)Op.Shiftl] = new(Lls, static (m, a) => m.OpShiftl(a)),
+            [(int)Op.Sshiftr] = new(Lls, static (m, a) => m.OpSshiftr(a)),
+            [(int)Op.Ushiftr] = new(Lls, static (m, a) => m.OpUshiftr(a)),
+            [(int)Op.Jump] = new(L, static (m, a) => m.OpJump(a)),
+            [(int)Op.Jumpabs] = new(L, static (m, a) => m.OpJumpabs(a)),
+            [(int)Op.Jz] = new(Ll, static (m, a) => m.OpJz(a)),
+            [(int)Op.Jnz] = new(Ll, static (m, a) => m.OpJnz(a)),
+            [(int)Op.Jeq] = new(Lll, static (m, a) => m.OpJeq(a)),
+            [(int)Op.Jne] = new(Lll, static (m, a) => m.OpJne(a)),
+            [(int)Op.Jlt] = new(Lll, static (m, a) => m.OpJlt(a)),
+            [(int)Op.Jge] = new(Lll, static (m, a) => m.OpJge(a)),
+            [(int)Op.Jgt] = new(Lll, static (m, a) => m.OpJgt(a)),
+            [(int)Op.Jle] = new(Lll, static (m, a) => m.OpJle(a)),
+            [(int)Op.Jltu] = new(Lll, static (m, a) => m.OpJltu(a)),
+            [(int)Op.Jgeu] = new(Lll, static (m, a) => m.OpJgeu(a)),
+            [(int)Op.Jgtu] = new(Lll, static (m, a) => m.OpJgtu(a)),
+            [(int)Op.Jleu] = new(Lll, static (m, a) => m.OpJleu(a)),
+            [(int)Op.Call] = new(Lls, static (m, a) => m.OpCall(a)),
+            [(int)Op.Callf] = new(Ls, static (m, a) => m.OpCallf(a)),
+            [(int)Op.Callfi] = new(Lls, static (m, a) => m.OpCallfi(a)),
+            [(int)Op.Callfii] = new(Llls, static (m, a) => m.OpCallfii(a)),
+            [(int)Op.Callfiii] = new(Lllls, static (m, a) => m.OpCallfiii(a)),
+            [(int)Op.Return] = new(L, static (m, a) => m.OpReturn(a)),
+            [(int)Op.Tailcall] = new(Ll, static (m, a) => m.OpTailcall(a)),
+            [(int)Op.Catch] = new(Sl, static (m, a) => m.OpCatch(a)),
+            [(int)Op.Throw] = new(Ll, static (m, a) => m.OpThrow(a)),
+            [(int)Op.Copy] = new(Ls, static (m, a) => m.OpCopy(a)),
+            [(int)Op.Copys] = new(new OperandList("LS", ShortWidth), static (m, a) => m.OpCopys(a)),
+            [(int)Op.Copyb] = new(new OperandList("LS", ByteWidth), static (m, a) => m.OpCopyb(a)),
+            [(int)Op.Sexs] = new(Ls, static (m, a) => m.OpSexs(a)),
+            [(int)Op.Sexb] = new(Ls, static (m, a) => m.OpSexb(a)),
+            [(int)Op.Aload] = new(Lls, static (m, a) => m.OpAload(a)),
+            [(int)Op.Aloads] = new(Lls, static (m, a) => m.OpAloads(a)),
+            [(int)Op.Aloadb] = new(Lls, static (m, a) => m.OpAloadb(a)),
+            [(int)Op.Aloadbit] = new(Lls, static (m, a) => m.OpAloadbit(a)),
+            [(int)Op.Astore] = new(Lll, static (m, a) => m.OpAstore(a)),
+            [(int)Op.Astores] = new(Lll, static (m, a) => m.OpAstores(a)),
+            [(int)Op.Astoreb] = new(Lll, static (m, a) => m.OpAstoreb(a)),
+            [(int)Op.Astorebit] = new(Lll, static (m, a) => m.OpAstorebit(a)),
+            [(int)Op.Stkcount] = new(S, static (m, a) => m.OpStkcount(a)),
+            [(int)Op.Stkpeek] = new(Ls, static (m, a) => m.OpStkpeek(a)),
+            [(int)Op.Stkswap] = new(None, static (m, a) => m.OpStkswap(a)),
+            [(int)Op.Stkroll] = new(Ll, static (m, a) => m.OpStkroll(a)),
+            [(int)Op.Stkcopy] = new(L, static (m, a) => m.OpStkcopy(a)),
+            // Print one character, its low byte, or the whole of it
+            // (Glulx: Output).
+            [(int)Op.Streamchar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value & 0xFF)),
+            [(int)Op.Streamunichar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value)),
+            [(int)Op.Streamnum] = new(L, static (m, a) => Strings.StreamNum(m, a[0].Value)),
+            [(int)Op.Streamstr] = new(L, static (m, a) => Strings.StreamString(m, a[0].Value)),
+            // Claim and release heap memory (Glulx: Memory Allocation
+            // Heap); the address stores, or zero for a refusal, since
+            // allocation is never guaranteed.
+            [(int)Op.Malloc] = new(Ls, static (m, a) => m.Store(a[1].Target, m.Heap.Alloc(a[0].Value))),
+            [(int)Op.Mfree] = new(L, static (m, a) => m.Heap.Free(a[0].Value)),
 
-        // Install or cancel a replacement, and set a veneer parameter
-        // (Glulx: Accelerated Functions).
-        [(int)Op.Accelfunc] = new(Ll, static (m, a) => m.Accel.SetFunc(a[0].Value, a[1].Value)),
-        [(int)Op.Accelparam] = new(Ll, static (m, a) => m.Accel.SetParam(a[0].Value, a[1].Value)),
+            // Install or cancel a replacement, and set a veneer parameter
+            // (Glulx: Accelerated Functions).
+            [(int)Op.Accelfunc] = new(Ll, static (m, a) => m.Accel.SetFunc(a[0].Value, a[1].Value)),
+            [(int)Op.Accelparam] = new(Ll, static (m, a) => m.Accel.SetParam(a[0].Value, a[1].Value)),
 
-        // The three built-in searches (Glulx: Searching).
-        [(int)Op.Linearsearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
-            Search.Linear(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
-        [(int)Op.Binarysearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
-            Search.Binary(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
-        [(int)Op.Linkedsearch] = new(Lllllls, static (m, a) => m.Store(a[6].Target,
-            Search.Linked(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value))),
+            // The three built-in searches (Glulx: Searching).
+            [(int)Op.Linearsearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
+                Search.Linear(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
+            [(int)Op.Binarysearch] = new(Llllllls, static (m, a) => m.Store(a[7].Target,
+                Search.Binary(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value, a[6].Value))),
+            [(int)Op.Linkedsearch] = new(Lllllls, static (m, a) => m.Store(a[6].Target,
+                Search.Linked(m.Memory, a[0].Value, a[1].Value, a[2].Value, a[3].Value, a[4].Value, a[5].Value))),
 
-        [(int)Op.Gestalt] = new(Lls, static (m, a) => m.Store(a[2].Target, Gestalt.Answer(m, a[0].Value, a[1].Value))),
-        [(int)Op.Getstringtbl] = new(S, static (m, a) => m.OpGetstringtbl(a)),
-        [(int)Op.Setstringtbl] = new(L, static (m, a) => m.OpSetstringtbl(a)),
-        [(int)Op.Getiosys] = new(Ss, static (m, a) => m.OpGetiosys(a)),
-        [(int)Op.Setiosys] = new(Ll, static (m, a) => m.OpSetiosys(a)),
-        [(int)Op.Random] = new(Ls, static (m, a) => m.OpRandom(a)),
-        [(int)Op.Setrandom] = new(L, static (m, a) => m.OpSetrandom(a)),
-        [(int)Op.Getmemsize] = new(S, static (m, a) => m.OpGetmemsize(a)),
-        [(int)Op.Setmemsize] = new(Ls, static (m, a) => m.OpSetmemsize(a)),
-        [(int)Op.Mzero] = new(Ll, static (m, a) => m.OpMzero(a)),
-        [(int)Op.Mcopy] = new(Lll, static (m, a) => m.OpMcopy(a)),
-        [(int)Op.Protect] = new(Ll, static (m, a) => m.OpProtect(a)),
-        [(int)Op.Verify] = new(S, static (m, a) => m.OpVerify(a)),
-        [(int)Op.Quit] = new(None, static (m, a) => m.OpQuit(a)),
-        [(int)Op.Restart] = new(None, static (m, a) => m.OpRestart(a)),
-        [(int)Op.Debugtrap] = new(L, static (_, a) => OpDebugtrap(a)),
-    }.ToFrozenDictionary();
+            [(int)Op.Gestalt] = new(Lls, static (m, a) => m.Store(a[2].Target, Gestalt.Answer(m, a[0].Value, a[1].Value))),
+            [(int)Op.Getstringtbl] = new(S, static (m, a) => m.OpGetstringtbl(a)),
+            [(int)Op.Setstringtbl] = new(L, static (m, a) => m.OpSetstringtbl(a)),
+            [(int)Op.Getiosys] = new(Ss, static (m, a) => m.OpGetiosys(a)),
+            [(int)Op.Setiosys] = new(Ll, static (m, a) => m.OpSetiosys(a)),
+            [(int)Op.Random] = new(Ls, static (m, a) => m.OpRandom(a)),
+            [(int)Op.Setrandom] = new(L, static (m, a) => m.OpSetrandom(a)),
+            [(int)Op.Getmemsize] = new(S, static (m, a) => m.OpGetmemsize(a)),
+            [(int)Op.Setmemsize] = new(Ls, static (m, a) => m.OpSetmemsize(a)),
+            [(int)Op.Mzero] = new(Ll, static (m, a) => m.OpMzero(a)),
+            [(int)Op.Mcopy] = new(Lll, static (m, a) => m.OpMcopy(a)),
+            [(int)Op.Protect] = new(Ll, static (m, a) => m.OpProtect(a)),
+            [(int)Op.Verify] = new(S, static (m, a) => m.OpVerify(a)),
+            [(int)Op.Quit] = new(None, static (m, a) => m.OpQuit(a)),
+            [(int)Op.Restart] = new(None, static (m, a) => m.OpRestart(a)),
+            [(int)Op.Debugtrap] = new(L, static (_, a) => OpDebugtrap(a)),
+        };
+
+        foreach (var (number, entry) in Floats.Entries())
+        {
+            table[number] = entry;
+        }
+
+        return table.ToFrozenDictionary();
+    }
 }

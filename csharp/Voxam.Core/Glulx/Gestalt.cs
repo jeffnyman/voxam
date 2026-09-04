@@ -51,11 +51,11 @@ public sealed record Capabilities
     /// <summary>hasundo and discardundo; the same era waits.</summary>
     public bool ExtUndo { get; init; }
 
-    /// <summary>The single-precision opcodes; the float era waits.</summary>
-    public bool Floats { get; init; }
+    /// <summary>The single-precision opcodes; the float era carried them.</summary>
+    public bool Floats { get; init; } = true;
 
-    /// <summary>The double-precision opcodes; the same era waits.</summary>
-    public bool Doubles { get; init; }
+    /// <summary>The double-precision opcodes; the same era carried them.</summary>
+    public bool Doubles { get; init; } = true;
 
     /// <summary>A Glk library is installed, so the Glk output system works.</summary>
     public bool Glk { get; init; }

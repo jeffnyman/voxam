@@ -18,9 +18,9 @@ public sealed class GestaltTests
     [InlineData(7u, 0u, 1u)]
     [InlineData(8u, 0u, 0u)]
     [InlineData(9u, 0u, 1u)]
-    [InlineData(11u, 0u, 0u)]
+    [InlineData(11u, 0u, 1u)]
     [InlineData(12u, 0u, 0u)]
-    [InlineData(13u, 0u, 0u)]
+    [InlineData(13u, 0u, 1u)]
     [InlineData(99u, 0u, 0u)]
     public void EachSelectorAnswersForItsOwnEra(uint selector, uint argument, uint answer)
     {
@@ -83,7 +83,7 @@ public sealed class GestaltTests
     {
         var program = new GlulxProgram();
         program.Op(Op.Gestalt, Modes.Constant(0), Modes.Constant(0), Modes.Memory(0x140));
-        program.Op(Op.Gestalt, Modes.Constant(11), Modes.Constant(0), Modes.Memory(0x144));
+        program.Op(Op.Gestalt, Modes.Constant(3), Modes.Constant(0), Modes.Memory(0x144));
         program.Op(Op.Quit);
         var machine = program.Booted();
         machine.Run();
