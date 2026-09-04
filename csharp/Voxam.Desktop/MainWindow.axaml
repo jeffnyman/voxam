@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Voxam.Desktop"
+        x:Class="Voxam.Desktop.MainWindow"
+        Title="Voxam"
+        Icon="/Assets/voxam.ico"
+        Width="960" Height="680"
+        MinWidth="480" MinHeight="320"
+        Background="Black">
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_Story">
+                <MenuItem Name="OpenItem" Header="_Open..." Click="OpenClicked" InputGesture="Ctrl+O" />
+                <Separator />
+                <MenuItem Name="QuitItem" Header="_Quit" Click="QuitClicked" />
+            </MenuItem>
+        </Menu>
+        <TextBlock Name="Notice" DockPanel.Dock="Bottom" Margin="8,4" Foreground="#B5B5B5" />
+        <local:Glass Name="Screen" Margin="4" />
+    </DockPanel>
+</Window>

@@ -38,12 +38,15 @@ All commands below assume that environment.
 
 The `csharp/` directory holds the C# port of the Z-Machine: a
 class library, a console executable answering `--accept` the way
-the Python does, and a test project. It needs the .NET SDK named
-in `csharp/global.json` and nothing else; the Python toolchain
-never sees it and the wheel never carries it. Its gate is the
-Python's, translated: warnings are errors, formatting is checked,
-and the tests enforce 100% line and branch coverage through
-coverlet's threshold.
+the Python does, a desktop executable on Avalonia, and a test
+project for each of the library and the desktop. It needs the
+.NET SDK named in `csharp/global.json` and nothing else; the
+Python toolchain never sees it and the wheel never carries it.
+Its gate is the Python's, translated: warnings are errors,
+formatting is checked, and the tests enforce 100% line and branch
+coverage through coverlet's threshold. The desktop's suite runs on
+Avalonia's headless platform, which renders real frames without a
+window, so the glass is measured at the same gate as the core.
 
 | Task | Command |
 | --- | --- |
@@ -52,8 +55,10 @@ coverlet's threshold.
 | Format | `dotnet format csharp` |
 | Check formatting only | `dotnet format csharp --verify-no-changes` |
 | Publish a native executable | `dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish` |
+| Publish the desktop | `dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop` |
 | Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
 | Play at the terminal | `csharp/publish/voxam story.z5` (`--plain` for the transcript stream) |
+| Play in the window | `csharp/publish-desktop/Voxam story.z5`, or open one from its Story menu |
 
 The port's version lives in `csharp/Directory.Build.props`, which
 `cz bump` moves with the rest, so `voxam --version` names the same

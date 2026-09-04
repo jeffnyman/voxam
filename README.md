@@ -248,7 +248,10 @@ built to ship as one native executable through NativeAOT. It
 plays every Z-code story in the acceptance corpus identically to
 the Python above, which stays the reference, and it plays at a
 terminal: `voxam story.z5` from the native `voxam` is the painted
-terminal, status line and all.
+terminal, status line and all. Beside it is `Voxam`, a desktop
+window on [Avalonia](https://avaloniaui.net/) that plays the same
+stories on the same glass, opened from its menu or named on the
+command line.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).
