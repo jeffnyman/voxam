@@ -6,32 +6,18 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Voxam.Core.Tests.Support;
+using static Voxam.Desktop.Tests.Rig;
 
 namespace Voxam.Desktop.Tests;
 
 /// <summary>The window, the glass and the session, driven on the headless platform.</summary>
 public sealed class DesktopTests : IDisposable
 {
-    private const int G0 = 0x10;
     private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("voxam-desktop");
 
     public void Dispose() => _directory.Delete(recursive: true);
 
-    private string Story(string name, Action<StoryBuilder> body, int version = 5)
-    {
-        var b = new StoryBuilder(version);
-        body(b);
-        b.Quit();
-        var path = Path.Combine(_directory.FullName, name);
-        File.WriteAllBytes(path, b.Build());
-        return path;
-    }
-
-    private static void ReadKey(StoryBuilder b)
-    {
-        b.OpVar(0x16, Arg.Small(1));
-        b.Store(G0);
-    }
+    private string Story(string name, Action<StoryBuilder> body) => Rig.Story(_directory, name, body);
 
     // Print a greeting and wait for a key, then echo it and end.
     private string Greeting() => Story("greeting.z5", b =>
@@ -49,32 +35,6 @@ public sealed class DesktopTests : IDisposable
         b.Print(Path.GetFileNameWithoutExtension(name));
         ReadKey(b);
     });
-
-    private static MainWindow Shown(string? game)
-    {
-        var window = game is null ? new MainWindow() : new MainWindow(game);
-        window.Show();
-        Dispatcher.UIThread.RunJobs();
-        return window;
-    }
-
-    private static string Notice(MainWindow window) => window.FindControl<TextBlock>("Notice")!.Text ?? "";
-
-    // Pump the UI thread until the story's thread has done what the
-    // test waits for, or a patient five seconds have passed.
-    private static void Until(MainWindow window, Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-
-        while (!condition())
-        {
-            Assert.True(DateTime.UtcNow < deadline, $"the story never got there; notice: {Notice(window)}; glass:\n{window.Glass.Text}");
-            Dispatcher.UIThread.RunJobs();
-            Thread.Sleep(10);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-    }
 
     [AvaloniaFact]
     public static void TheWindowAsksForAStoryWhenGivenNone()
@@ -108,7 +68,7 @@ public sealed class DesktopTests : IDisposable
     {
         var path = Story("keys.z5", b =>
         {
-            for (var k = 0; k < 8; k++)
+            for (var k = 0; k < 10; k++)
             {
                 ReadKey(b);
                 b.OpVar(0x06, Arg.Var(G0));
@@ -118,7 +78,9 @@ public sealed class DesktopTests : IDisposable
         var window = Shown(path);
         var glass = window.Glass;
         Until(window, () => glass.Columns > 0);
+        window.KeyPress(Key.Home, RawInputModifiers.None, PhysicalKey.Home, null);
         window.KeyPress(Key.F1, RawInputModifiers.None, PhysicalKey.F1, null);
+        window.KeyPress(Key.F12, RawInputModifiers.None, PhysicalKey.F12, null);
         window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
         window.KeyPress(Key.Back, RawInputModifiers.None, PhysicalKey.Backspace, null);
         window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
@@ -126,9 +88,9 @@ public sealed class DesktopTests : IDisposable
         window.KeyPress(Key.Down, RawInputModifiers.None, PhysicalKey.ArrowDown, null);
         window.KeyPress(Key.Left, RawInputModifiers.None, PhysicalKey.ArrowLeft, null);
         window.KeyPress(Key.Right, RawInputModifiers.None, PhysicalKey.ArrowRight, null);
-        window.KeyTextInput("a");
+        window.KeyTextInput("\u0001a");
         Until(window, () => Notice(window) == "The story has ended.");
-        Assert.Contains("13 8 27 129 130 131 132 97", glass.Text, StringComparison.Ordinal);
+        Assert.Contains("133 144 13 8 27 129 130 131 132 97", glass.Text, StringComparison.Ordinal);
     }
 
     // Styles, colours and font 3 all reach the frame, and a screenful
@@ -282,6 +244,7 @@ public sealed class DesktopTests : IDisposable
         var glass = window.Glass;
         Until(window, () => glass.Text.Contains("before", StringComparison.Ordinal));
         var (columns, lines) = (glass.Columns, glass.Lines);
+        window.SizeToContent = SizeToContent.Manual;
         window.Width = 1400;
         window.Height = 900;
         Until(window, () => glass.Columns > columns && glass.Lines > lines);

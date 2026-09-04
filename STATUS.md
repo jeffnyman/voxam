@@ -1340,11 +1340,14 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 309 tests and
-`Voxam.Desktop.Tests` at 10, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 315 tests and
+`Voxam.Desktop.Tests` at 16, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
-test project rather than fixtures on disk.
+test project rather than fixtures on disk. The desktop's own
+tests measure the pixels of frames the headless platform renders,
+so a colour, a font 3 shape or the caret is asserted where it
+actually lands.
 
 **Where it stands.** Every one of the 41 Z-code recordings in
 the corpus replays identically, Versions 1 through 8, packaged
@@ -1423,21 +1426,26 @@ its menu, is the desktop: one window on Avalonia, published
 through NativeAOT like the console, with the glass drawn straight
 onto the control from the same screen model the painted terminal
 keeps. The terminal and the window are two screens under one
-frontend now: each is asked to paint a row, park the cursor, or
-lay [MORE] over a line, and the terminal answers in ANSI where the
+frontend: each is asked to paint a row, park the cursor, or lay
+[MORE] over a line, and the terminal answers in ANSI where the
 window answers in cells. The machine runs on its own thread and
 blocks there for keys, so the window never waits on it; opening
-another story retires the first mid-read. The suite drives the
-window on Avalonia's headless platform with Skia drawing, so a
-real frame renders to a bitmap at the 100% gate, which is the
-measure the filmstrip takes of the Python's faces, taken inside
-the tests. What the window does not yet do is the next branches'
-business: the dress (a bundled face, the preferences, the title
-from Babel), the stage for Version 6, and sound.
+another story retires the first mid-read.
 
-**The roads, in order.** The glass dressed, then the Version 6
-stage on it, then sound. Then Glulx, its own era, with the
-two recordings that certify it. The Å-machine waits on the
+The glass is dressed as the pygame window is. It wears the bundled
+Go Mono, the same face the browser tab calls Voxam Mono, so a
+frame is the same on every desktop; it carries the four themes,
+`--theme` on the command line choosing among them, dark the home
+look and a game's own white and black following the theme the way
+§8.3.3 allows; it draws the §16 character graphics from their own
+bitmaps, tiling edge to edge, rather than from Unicode stand-ins;
+and it underlines the cursor while the machine waits for a key.
+What it does not yet do is the preferences panel and the title
+from Babel, the stage for Version 6, and sound.
+
+**The roads, in order.** The Version 6 stage on the glass, then
+sound. Then Glulx, its own era, with the two recordings that
+certify it. The Å-machine waits on the
 Python's own acceptance driver for it, and a browser face waits
 on someone wanting one, at which point it is Avalonia in
 WebAssembly and not a second renderer.

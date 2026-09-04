@@ -58,7 +58,7 @@ window, so the glass is measured at the same gate as the core.
 | Publish the desktop | `dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop` |
 | Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
 | Play at the terminal | `csharp/publish/voxam story.z5` (`--plain` for the transcript stream) |
-| Play in the window | `csharp/publish-desktop/Voxam story.z5`, or open one from its Story menu |
+| Play in the window | `csharp/publish-desktop/Voxam story.z5` (`--theme paper` for a lighter look), or open one from its Story menu |
 
 The port's version lives in `csharp/Directory.Build.props`, which
 `cz bump` moves with the rest, so `voxam --version` names the same
