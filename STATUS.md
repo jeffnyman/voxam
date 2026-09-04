@@ -1341,7 +1341,7 @@ console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
 And the test projects, `Voxam.Core.Tests` at 391 tests and
-`Voxam.Desktop.Tests` at 28, each at 100% line and branch
+`Voxam.Desktop.Tests` at 38, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1518,6 +1518,20 @@ and over. The suite now measures every row of a scrolled screen
 against the model that drew it. Still a road: the adaptive
 palettes Infocom's own chrome wears, and the mouse and the
 menus.
+
+**What the player chooses.** A Look menu offers the four dressings
+and five sizes of type, and the choice takes at once and is
+remembered for the next session, kept as two plain lines beside
+the application's own settings, because a preference is not worth
+a serializer. A file nobody wrote, a line nobody meant, and a
+value nothing offers are all simply not choices. The window's own
+chrome follows the paper, since a menu dressed for a dark window
+is barely there on a pale one, and a theme named on the command
+line dresses that launch without disturbing what was chosen. A
+Version 6 stage keeps the metrics it was born with until the next
+story, because its surface is drawn in those units; every other
+face follows the new size at once, and the story hears the screen
+change under it.
 
 **The roads, in order.** Pictures on the stage, then sound. Then
 Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the

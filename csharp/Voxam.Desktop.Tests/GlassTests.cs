@@ -122,8 +122,8 @@ public sealed class GlassTests : IDisposable
     [AvaloniaFact]
     public void TheCommandLineNamesAStoryAndATheme()
     {
-        Assert.Equal(new Launch(null, Theme.Dark, null), Launch.Parse([]));
-        Assert.Equal(new Launch("tale.z5", Theme.Dark, null), Launch.Parse(["tale.z5"]));
+        Assert.Equal(new Launch(null, null, null), Launch.Parse([]));
+        Assert.Equal(new Launch("tale.z5", null, null), Launch.Parse(["tale.z5"]));
         Assert.Equal(new Launch("tale.z5", Theme.Sepia, null), Launch.Parse(["--theme", "sepia", "tale.z5"]));
         Assert.Equal(new Launch("tale.z5", Theme.Light, null), Launch.Parse(["tale.z5", "--theme", "paper"]));
         Assert.Equal("voxam: no theme named neon; the themes are dark, paper, sepia, classic", Launch.Parse(["--theme", "neon"]).Complaint);

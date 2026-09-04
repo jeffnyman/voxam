@@ -29,7 +29,6 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     /// <summary>The classic grid's height, the reference's GLASS_LINES.</summary>
     public const int OpeningLines = 24;
 
-    private const double FontSize = 18;
     private const int GraphicsFont = 3;
     private const int WhiteCode = 9;
     private const int BlackCode = 2;
@@ -93,11 +92,12 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     private (int Row, int Column) _cursor = (1, 1);
     private (int Row, int Column, string Prompt)? _overlay;
     private Size? _cell;
+    private double _size = Preferences.Default.Size;
     private int _dirty;
     private volatile int _columns;
     private volatile int _lines;
     private volatile bool _waiting;
-    private (int Columns, int Lines)? _pinned;
+    private (int Columns, int Lines, int Width, int Height)? _pinned;
     private RenderTargetBitmap? _surface;
     private RenderTargetBitmap? _scratch;
     private readonly Dictionary<byte[], Bitmap> _decoded = new(ReferenceEqualityComparer.Instance);
@@ -110,6 +110,25 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
 
     /// <summary>The ink and paper the glass wears where a game names none.</summary>
     public Theme Look { get; set; } = Voxam.Desktop.Theme.Dark;
+
+    /// <summary>
+    /// The type's size in points. Changing it re-measures the cell, so
+    /// the grid grows or shrinks; a Version 6 stage keeps the metrics
+    /// it was born with until the next story, because its own surface
+    /// is drawn in those units.
+    /// </summary>
+    public double Size
+    {
+        get => _size;
+
+        set
+        {
+            _size = value;
+            _cell = null;
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>The width in cells the control's bounds allow.</summary>
     public int Columns => _columns;
@@ -124,7 +143,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         {
             if (_cell is null)
             {
-                var probe = Formatted("M", Roman, Look.Ink);
+                var probe = Formatted("M", Roman, Look.Ink, _size);
                 _cell = new Size(probe.Width, probe.Height);
             }
 
@@ -147,9 +166,9 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
 
     int IStageScreen.FontHeight => UnitHeight;
 
-    private int UnitWidth => Math.Max((int)Math.Round(CellSize.Width), 1);
+    private int UnitWidth => _pinned?.Width ?? Math.Max((int)Math.Round(CellSize.Width), 1);
 
-    private int UnitHeight => Math.Max((int)Math.Round(CellSize.Height), 1);
+    private int UnitHeight => _pinned?.Height ?? Math.Max((int)Math.Round(CellSize.Height), 1);
 
     private Size UnitCell => new(UnitWidth, UnitHeight);
 
@@ -499,7 +518,10 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         }
     }
 
-    private static void DrawRun(DrawingContext context, string text, int column, int row, Size cell, Color ink, Color paper, int style)
+    private void DrawRun(DrawingContext context, string text, int column, int row, Size cell, Color ink, Color paper, int style) =>
+        DrawRun(context, text, column, row, cell, ink, paper, style, _size);
+
+    private static void DrawRun(DrawingContext context, string text, int column, int row, Size cell, Color ink, Color paper, int style, double size)
     {
         var origin = new Point(column * cell.Width, row * cell.Height);
         context.FillRectangle(new SolidColorBrush(paper), new Rect(origin, new Size(text.Length * cell.Width, cell.Height)));
@@ -510,7 +532,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
             (0, _) => Italic,
             _ => BoldItalic,
         };
-        context.DrawText(Formatted(text, face, ink), origin);
+        context.DrawText(Formatted(text, face, ink, size), origin);
     }
 
     // One §16 bitmap stretched to the cell, each pixel snapped to
@@ -564,7 +586,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         {
             // A stage pins the grid it was built for; anything else
             // settling here takes the glass as it stands.
-            var (columns, lines) = _pinned ?? (_columns, _lines);
+            var (columns, lines) = _pinned is { } pinned ? (pinned.Columns, pinned.Lines) : (_columns, _lines);
             var size = new PixelSize(Math.Max(columns * UnitWidth, 1), Math.Max(lines * UnitHeight, 1));
             _surface = new RenderTargetBitmap(size);
             _scratch = new RenderTargetBitmap(size);
@@ -588,7 +610,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     /// </summary>
     public void Pin(int columns, int lines)
     {
-        _pinned = (columns, lines);
+        _pinned = (columns, lines, UnitWidth, UnitHeight);
         // The surface is minted here rather than at the first paint,
         // so a stage always has one to show: what follows the early
         // return in Render is the cell face's own, where every row has
@@ -600,6 +622,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     public void Strike()
     {
         _pinned = null;
+        _cell = null;
         _surface?.Dispose();
         _scratch?.Dispose();
         _surface = null;
@@ -655,7 +678,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
                         (0, _) => Italic,
                         _ => BoldItalic,
                     };
-                    context.DrawText(Formatted(character, face, ink), origin);
+                    context.DrawText(Formatted(character, face, ink, _size), origin);
                     return;
                 }
 
@@ -733,6 +756,6 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         }
     }
 
-    private static FormattedText Formatted(string text, Typeface face, Color ink) =>
-        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, FontSize, new SolidColorBrush(ink));
+    private static FormattedText Formatted(string text, Typeface face, Color ink, double size) =>
+        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, size, new SolidColorBrush(ink));
 }

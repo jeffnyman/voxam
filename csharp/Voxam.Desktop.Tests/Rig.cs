@@ -32,9 +32,12 @@ internal static class Rig
         b.Store(G0);
     }
 
+    /// <summary>A preferences file of this test run's own, never the player's.</summary>
+    public static string Kept { get; } = Path.Combine(Directory.CreateTempSubdirectory("voxam-kept").FullName, "preferences.txt");
+
     public static MainWindow Shown(string? game, Theme? theme = null)
     {
-        var window = game is null && theme is null ? new MainWindow() : new MainWindow(new Launch(game, theme ?? Theme.Dark, null));
+        var window = new MainWindow(new Launch(game, theme ?? Theme.Dark, null), Kept);
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return window;

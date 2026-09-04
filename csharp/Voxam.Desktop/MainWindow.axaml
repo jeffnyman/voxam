@@ -13,6 +13,7 @@
                 <Separator />
                 <MenuItem Name="QuitItem" Header="_Quit" Click="QuitClicked" />
             </MenuItem>
+            <MenuItem Name="LookMenu" Header="_Look" />
         </Menu>
         <TextBlock Name="Notice" DockPanel.Dock="Bottom" Margin="8,4" Foreground="#B5B5B5" />
         <local:Glass Name="Screen" Margin="4" />

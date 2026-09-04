@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Voxam.Core;
 
@@ -15,18 +17,37 @@ public partial class MainWindow : Window
         ["*.z1", "*.z2", "*.z3", "*.z4", "*.z5", "*.z6", "*.z7", "*.z8", "*.zblorb", "*.zlb", "*.blorb", "*.blb"];
 
     private Session? _session;
+    private Preferences _chosen = Preferences.Default;
 
+    [ExcludeFromCodeCoverage]
     public MainWindow()
         : this(Launch.Parse([]))
     {
     }
 
+    /// <summary>The window a launch opens, keeping the player's own choices.</summary>
+    [ExcludeFromCodeCoverage]
     public MainWindow(Launch launch)
+        : this(launch, Preferences.Path)
+    {
+    }
+
+    public MainWindow(Launch launch, string preferences)
     {
         InitializeComponent();
         Picker = PickStory;
-        Screen.Look = launch.Theme;
-        Background = new SolidColorBrush(launch.Theme.Paper);
+        Kept = preferences;
+        // A theme named on the command line dresses this launch; what
+        // the player chose otherwise is remembered from the last one.
+        _chosen = Preferences.Load(preferences);
+
+        if (launch.Theme is { } dressed)
+        {
+            _chosen = _chosen with { Theme = dressed };
+        }
+
+        Dress();
+        Offer();
 
         Closed += (_, _) => Screen.Dispose();
 
@@ -47,6 +68,12 @@ public partial class MainWindow : Window
 
     /// <summary>How a story is chosen: the platform's picker, or whatever a test hands over.</summary>
     public Func<Task<string?>> Picker { get; set; }
+
+    /// <summary>Where the player's choices are kept.</summary>
+    public string Kept { get; }
+
+    /// <summary>What the player has chosen: the glass's dress and its type.</summary>
+    public Preferences Chosen => _chosen;
 
     /// <summary>The glass the story plays on.</summary>
     public Glass Glass => Screen;
@@ -83,6 +110,68 @@ public partial class MainWindow : Window
     }
 
     private void Tell(string text) => Dispatcher.UIThread.Post(() => Notice.Text = text);
+
+    // The Look menu: the four dressings, then the sizes. A choice
+    // takes at once and is remembered for the next session.
+    private void Offer()
+    {
+        foreach (var theme in Voxam.Desktop.Theme.All)
+        {
+            LookMenu.Items.Add(new MenuItem
+            {
+                Header = char.ToUpperInvariant(theme.Name[0]) + theme.Name[1..],
+                ToggleType = MenuItemToggleType.Radio,
+                GroupName = "theme",
+                IsChecked = theme == _chosen.Theme,
+                Tag = theme,
+            });
+        }
+
+        LookMenu.Items.Add(new Separator());
+
+        foreach (var size in Preferences.Sizes)
+        {
+            LookMenu.Items.Add(new MenuItem
+            {
+                Header = string.Create(CultureInfo.InvariantCulture, $"{size} point"),
+                ToggleType = MenuItemToggleType.Radio,
+                GroupName = "size",
+                IsChecked = size == _chosen.Size,
+                Tag = size,
+            });
+        }
+
+        foreach (var item in LookMenu.Items.OfType<MenuItem>())
+        {
+            item.Click += item.Tag is double ? ChoseSize : ChoseTheme;
+        }
+    }
+
+    private void ChoseTheme(object? sender, RoutedEventArgs e) =>
+        Keep(_chosen with { Theme = (Voxam.Desktop.Theme)((MenuItem)sender!).Tag! });
+
+    private void ChoseSize(object? sender, RoutedEventArgs e) =>
+        Keep(_chosen with { Size = (double)((MenuItem)sender!).Tag! });
+
+    private void Keep(Preferences chosen)
+    {
+        _chosen = chosen;
+        Dress();
+        _chosen.Save(Kept);
+    }
+
+    private void Dress()
+    {
+        Screen.Look = _chosen.Theme;
+        Screen.Size = _chosen.Size;
+        Background = new SolidColorBrush(_chosen.Theme.Paper);
+        // The window's own chrome follows the paper: a menu dressed
+        // for a dark window is barely there on a pale one.
+        RequestedThemeVariant = Lit(_chosen.Theme.Paper) ? ThemeVariant.Light : ThemeVariant.Dark;
+    }
+
+    /// <summary>Whether a colour is light enough to want dark chrome over it.</summary>
+    private static bool Lit(Color paper) => (0.299 * paper.R) + (0.587 * paper.G) + (0.114 * paper.B) > 128;
 
     private async void OpenClicked(object? sender, RoutedEventArgs e)
     {
