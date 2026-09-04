@@ -198,6 +198,9 @@ jobs:
       - name: Publish NativeAOT
         run: dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish
 
+      - name: Publish the desktop through NativeAOT
+        run: dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop
+
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
         with:

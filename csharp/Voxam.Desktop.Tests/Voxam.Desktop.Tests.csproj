@@ -4,23 +4,28 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!--
-      Coverage is measured on every test run and enforced as a
-      threshold, lines and branches both, the way the Python gate
-      enforces its 100%. The threshold is a ratchet: it only moves
-      up, and STATUS.md records where it stands and where it is
-      going.
+      The desktop's suite runs on Avalonia's headless platform with
+      Skia drawing, so a real frame renders to a bitmap without a
+      window. The threshold is the core's: 100% of lines and
+      branches, measured over the desktop assembly alone (the core
+      has its own suite). The process door and the platform's file
+      dialog are the two exclusions, marked where they stand.
     -->
     <CollectCoverage>true</CollectCoverage>
     <CoverletOutputFormat>cobertura</CoverletOutputFormat>
     <CoverletOutput>$(MSBuildThisFileDirectory)coverage/</CoverletOutput>
+    <Include>[Voxam]*</Include>
     <Threshold>100</Threshold>
     <ThresholdType>line,branch</ThresholdType>
     <ThresholdStat>total</ThresholdStat>
-    <!-- Source generators (the regex generator) emit code that is not ours to cover. -->
-    <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
+    <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+    <!-- The XAML compiler's own loader code is attributed to the .axaml files. -->
+    <ExcludeByFile>**/*.axaml</ExcludeByFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.2" />
     <PackageReference Include="coverlet.msbuild" Version="10.0.1">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -35,7 +40,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Voxam.Core\Voxam.Core.csproj" />
+    <ProjectReference Include="..\Voxam.Desktop\Voxam.Desktop.csproj" />
+    <!-- For the story builder the core suite keeps. -->
+    <ProjectReference Include="..\Voxam.Core.Tests\Voxam.Core.Tests.csproj" />
   </ItemGroup>
 
 </Project>

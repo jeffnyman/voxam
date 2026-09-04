@@ -37,9 +37,24 @@ public sealed class Blorb
             var length = Word32(data, pos + 4);
             var payload = pos + 8;
 
+            if (payload + length > data.Length)
+            {
+                throw new ZMachineException($"the {id} chunk claims {length} bytes, but the file ends before them (Blorb: IFF)");
+            }
+
             if (id == "RIdx")
             {
+                if (length < 4)
+                {
+                    throw new ZMachineException("the RIdx chunk is too short to hold its own count");
+                }
+
                 var count = Word32(data, payload);
+
+                if (length != 4 + 12 * count)
+                {
+                    throw new ZMachineException($"the RIdx count of {count} needs {4 + 12 * count} bytes, but the chunk holds {length} (Blorb: Resource Index Chunk)");
+                }
 
                 for (var k = 0; k < count; k++)
                 {
