@@ -57,11 +57,19 @@ public partial class MainWindow : Window
     /// <summary>Start a story on the glass, retiring whichever was playing.</summary>
     public void Open(string game)
     {
-        _session?.Retire();
-        _session = null;
         // The notice clears before the story starts, never after: a
         // story that faults at once has its word on the line first.
         Tell("");
+        // A Version 6 story is born knowing the screen's size, and it
+        // lays out its whole stage from that, so it waits for the
+        // layout to settle rather than asking a glass mid-arrangement.
+        Dispatcher.UIThread.Post(() => Begin(game), DispatcherPriority.Loaded);
+    }
+
+    private void Begin(string game)
+    {
+        _session?.Retire();
+        _session = null;
 
         try
         {

@@ -42,6 +42,7 @@ public sealed class Session
             // windows out for the room its pictures take, even while
             // the drawing of them is still a road.
             var stage = new StageFrontend(glass, gallery: blorb?.Gallery);
+            glass.Pin(stage.ScreenColumns, stage.ScreenLines);
             var staged = new Machine(story, stage, stage.ReadLine, seed, stage.ReadKey, stage.ReadLineUntil, saves);
             return Started(glass, stage, () => staged.Run(), notice, session => session.Stage = stage);
         }

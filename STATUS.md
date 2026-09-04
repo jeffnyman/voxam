@@ -1340,8 +1340,8 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 389 tests and
-`Voxam.Desktop.Tests` at 24, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 391 tests and
+`Voxam.Desktop.Tests` at 28, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1493,13 +1493,31 @@ the screen earns it, which is an exact ratio the whole way so the
 reported size and the drawn one can never drift apart. The header
 declares the art, and a game that asks what hangs is told.
 
-That declaration is the reason this arrived before any drawing:
-a game lays its whole stage out from those sizes, so claiming
-pictures moves every line of text on the screen. The stage
-certificate is what proves the arithmetic, since it sees exactly
-that movement, and the four Version 6 walks stay identical with
-the art declared on both sides. What is still a road is the
-drawing itself: a picture takes its room and leaves it empty.
+That declaration came before any drawing on purpose: a game lays
+its whole stage out from those sizes, so claiming pictures moves
+every line of text on the screen. The stage certificate is what
+proves the arithmetic, since it sees exactly that movement, and
+the four Version 6 walks stay identical with the art declared on
+both sides.
+
+Then the glass drew it. A picture is stretched into the room
+picture_data reported, kept square-shouldered the way a 1988
+monitor drew it, and whatever is clear in it stays see-through,
+which is how Arthur's illuminated border frames the scene beneath
+it. Art is decoded once and remembered, because a game redraws its
+chrome every turn, and art nothing can decode is ignored where it
+lands, which is presentation and never state. Erasing a picture
+paints its room in the window's own background.
+
+Two things had to be true first. A stage cannot follow a window
+that changes size, so it is born only once the layout has settled
+and its surface is minted at its own geometry, which is what keeps
+the model and the pixels the same shape. Before that they could
+disagree, and a scroll then left the screen holding one line over
+and over. The suite now measures every row of a scrolled screen
+against the model that drew it. Still a road: the adaptive
+palettes Infocom's own chrome wears, and the mouse and the
+menus.
 
 **The roads, in order.** Pictures on the stage, then sound. Then
 Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the

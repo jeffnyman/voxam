@@ -97,8 +97,10 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     private volatile int _columns;
     private volatile int _lines;
     private volatile bool _waiting;
+    private (int Columns, int Lines)? _pinned;
     private RenderTargetBitmap? _surface;
     private RenderTargetBitmap? _scratch;
+    private readonly Dictionary<byte[], Bitmap> _decoded = new(ReferenceEqualityComparer.Instance);
 
     public Glass()
     {
@@ -378,12 +380,12 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         }
 
         // The caret underlines the cursor's cell in its own ink while
-        // the machine waits for typing. The cell face paints every row
-        // before its first wait, so the cursor has one; a stage draws
-        // to its own surface instead and can be waiting with none.
-        // Parked past a row's end, as the model allows, it shows on
-        // the last cell.
-        if (_waiting && rows.Length > 0)
+        // the machine waits for typing. Only the cell face reaches
+        // here, and it paints every row before its first wait, so the
+        // cursor always has one; parked past a row's end, as the model
+        // allows, it shows on the last cell. A Version 6 stage draws
+        // no caret: its games place their own.
+        if (_waiting)
         {
             var line = rows[Math.Min(cursor.Row, rows.Length) - 1];
             var column = Math.Min(cursor.Column, line.Length);
@@ -560,7 +562,10 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     {
         if (_surface is null)
         {
-            var size = new PixelSize(Math.Max(_columns * UnitWidth, 1), Math.Max(_lines * UnitHeight, 1));
+            // A stage pins the grid it was built for; anything else
+            // settling here takes the glass as it stands.
+            var (columns, lines) = _pinned ?? (_columns, _lines);
+            var size = new PixelSize(Math.Max(columns * UnitWidth, 1), Math.Max(lines * UnitHeight, 1));
             _surface = new RenderTargetBitmap(size);
             _scratch = new RenderTargetBitmap(size);
 
@@ -574,13 +579,38 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     /// <summary>Let go of the surfaces a stage drew on.</summary>
     public void Dispose() => Strike();
 
+    /// <summary>
+    /// Hold the grid at the size a stage was built for. A stage cannot
+    /// follow a window that changes size, so its surface is minted at
+    /// its own geometry and the two can never disagree; a window grown
+    /// afterwards shows the stage at its own size, as a fixed window
+    /// always did.
+    /// </summary>
+    public void Pin(int columns, int lines)
+    {
+        _pinned = (columns, lines);
+        // The surface is minted here rather than at the first paint,
+        // so a stage always has one to show: what follows the early
+        // return in Render is the cell face's own, where every row has
+        // been painted before the first wait.
+        Surface();
+    }
+
     /// <summary>Let go of a stage's surface, so the next story starts on a clean one.</summary>
     public void Strike()
     {
+        _pinned = null;
         _surface?.Dispose();
         _scratch?.Dispose();
         _surface = null;
         _scratch = null;
+
+        foreach (var art in _decoded.Values)
+        {
+            art.Dispose();
+        }
+
+        _decoded.Clear();
         Invalidate();
     }
 
@@ -588,6 +618,23 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     {
         switch (paint)
         {
+            case PicturePaint picture:
+                {
+                    // The pixels stretch to the size picture_data
+                    // reported, kept square-shouldered the way a 1988
+                    // monitor drew them, and whatever is clear in them
+                    // stays see-through.
+                    if (Decoded(picture.Pixels) is not { } art)
+                    {
+                        return;
+                    }
+
+                    var room = new Rect(picture.Column - 1, picture.Line - 1, picture.Width, picture.Height);
+                    using var square = context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None });
+                    context.DrawImage(art, new Rect(art.Size), room);
+                    return;
+                }
+
             case TextPaint text:
                 {
                     var (character, style) = Glyphs.Appearance(text.Cell);
@@ -640,6 +687,29 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
         using var context = surface.CreateDrawingContext(false);
         using var clip = context.PushClip(source);
         context.DrawImage(scratch, source, landing);
+    }
+
+    // A picture's pixels, decoded once and remembered. Art this glass
+    // cannot decode is ignored where it lands: presentation, never
+    // state.
+    private Bitmap? Decoded(byte[] pixels)
+    {
+        if (_decoded.TryGetValue(pixels, out var art))
+        {
+            return art;
+        }
+
+        try
+        {
+            art = new Bitmap(new MemoryStream(pixels));
+        }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+
+        _decoded[pixels] = art;
+        return art;
     }
 
     private static void Tile(DrawingContext context, byte[] bitmap, Point origin, Size cell, Color ink)

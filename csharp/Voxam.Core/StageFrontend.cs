@@ -235,14 +235,37 @@ public sealed class StageFrontend : IStageFrontend, ILineCanvas
     /// <summary>How many pictures hang, and the art's release (§15).</summary>
     public (int Count, int Release) PictureCensus() => (_gallery.Count, _gallery.Release);
 
-    /// <summary>Draw a picture: nothing is drawn yet, and its room is already declared.</summary>
+    /// <summary>
+    /// Draw a picture at a screen position, stretched to the size
+    /// picture_data reported. A Rect placard has a size and no pixels:
+    /// games measure and position by it, and drawing it shows nothing,
+    /// which is the conforming answer rather than a shortfall.
+    /// </summary>
     public void DrawPicture(int number, int line, int column)
     {
+        if (PictureData(number) is not { } size || _gallery.Pixels(number) is not { } pixels)
+        {
+            return;
+        }
+
+        Settle();
+        _screen.Settle([new PicturePaint(line, column, size.Height, size.Width, pixels)]);
     }
 
-    /// <summary>Erase a picture's region: nothing is drawn yet.</summary>
+    /// <summary>
+    /// Paint a picture's region to the background (§15 erase_picture).
+    /// The region is the size picture_data reported, and the colour is
+    /// the selected window's own.
+    /// </summary>
     public void ErasePicture(int number, int line, int column)
     {
+        if (PictureData(number) is not { } size)
+        {
+            return;
+        }
+
+        Settle();
+        _screen.Settle([new FillPaint(line, column, size.Height, size.Width, _model.Background)]);
     }
 
     /// <summary>Remember the prompt: the text left of the cursor on its row.</summary>
