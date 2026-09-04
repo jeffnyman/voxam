@@ -1339,10 +1339,12 @@ dictionary rules, the seeded generator ported bit for bit, and a
 plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
-`Voxam.Core.Tests`, 304 tests at 100% line and branch coverage,
-enforced as a threshold the way the Python's suite is, most of
-them driving tiny stories assembled by a builder in the test
-project rather than fixtures on disk.
+`Voxam.Desktop`, a window on Avalonia playing the same stories.
+And the test projects, `Voxam.Core.Tests` at 309 tests and
+`Voxam.Desktop.Tests` at 10, each at 100% line and branch
+coverage enforced as a threshold the way the Python's suite is,
+most of them driving tiny stories assembled by a builder in the
+test project rather than fixtures on disk.
 
 **Where it stands.** Every one of the 41 Z-code recordings in
 the corpus replays identically, Versions 1 through 8, packaged
@@ -1358,8 +1360,8 @@ interval pass, firing its interrupt once. Version 6 keeps the
 cursors and properties, and answers the picture, mouse and menu
 opcodes as a frontend without them does, which is exactly what
 a plain transcript of Arthur or Shogun records. The saves are
-Quetzal, below. What remains on this machine is the glass. Glulx
-and the Å-machine are refused at the door.
+Quetzal, below, and the window has opened. Glulx and the
+Å-machine are refused at the door.
 `tools/sweep-corpus.py record --voxam` is the certificate:
 it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
@@ -1416,11 +1418,25 @@ IFhd. The certificate no recording can give was taken by hand:
 a Zork I saved in the Python restores in the port, and one saved
 in the port restores in the Python.
 
-**The roads, in order.** The Avalonia glass,
-measured the way the filmstrip measures the Python's faces but
-inside the test suite: Avalonia's headless platform renders real
-frames to bitmaps without a window, so the stage can be
-photographed at the 100% gate. Then Glulx, its own era, with the
+**The window.** `Voxam story.z5`, or Voxam alone and a story from
+its menu, is the desktop: one window on Avalonia, published
+through NativeAOT like the console, with the glass drawn straight
+onto the control from the same screen model the painted terminal
+keeps. The terminal and the window are two screens under one
+frontend now: each is asked to paint a row, park the cursor, or
+lay [MORE] over a line, and the terminal answers in ANSI where the
+window answers in cells. The machine runs on its own thread and
+blocks there for keys, so the window never waits on it; opening
+another story retires the first mid-read. The suite drives the
+window on Avalonia's headless platform with Skia drawing, so a
+real frame renders to a bitmap at the 100% gate, which is the
+measure the filmstrip takes of the Python's faces, taken inside
+the tests. What the window does not yet do is the next branches'
+business: the dress (a bundled face, the preferences, the title
+from Babel), the stage for Version 6, and sound.
+
+**The roads, in order.** The glass dressed, then the Version 6
+stage on it, then sound. Then Glulx, its own era, with the
 two recordings that certify it. The Å-machine waits on the
 Python's own acceptance driver for it, and a browser face waits
 on someone wanting one, at which point it is Avalonia in

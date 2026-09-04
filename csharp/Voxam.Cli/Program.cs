@@ -10,7 +10,6 @@ internal static class Program
     private const int ExitOk = 0;
     private const int ExitUnusable = 2;
     private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --version";
-    private static readonly string[] BlorbSuffixes = [".blb", ".blorb", ".zblorb", ".gblorb"];
 
     private static int Main(string[] args)
     {
@@ -78,34 +77,6 @@ internal static class Program
         return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
     }
 
-    // A path with a Blorb suffix must carry a packaged story; any other
-    // loads as a story file, with a like-named Blorb beside it as its
-    // resources when one exists.
-    private static (byte[] Story, Blorb? Blorb) Loaded(string game)
-    {
-        if (BlorbSuffixes.Contains(Path.GetExtension(game).ToLowerInvariant()))
-        {
-            var packaged = Blorb.Load(File.ReadAllBytes(game));
-            var story = packaged.Story
-                ?? throw new ZMachineException($"{Path.GetFileName(game)} packages no Z-code story to run");
-            return (story, packaged);
-        }
-
-        var bytes = File.ReadAllBytes(game);
-
-        foreach (var suffix in BlorbSuffixes)
-        {
-            var sidecar = Path.ChangeExtension(game, suffix);
-
-            if (File.Exists(sidecar))
-            {
-                return (bytes, Blorb.Load(File.ReadAllBytes(sidecar)));
-            }
-        }
-
-        return (bytes, null);
-    }
-
     private static void Banner(string game, byte[] story, Blorb? blorb, Action<string> emit)
     {
         emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
@@ -133,7 +104,7 @@ internal static class Program
         try
         {
             script = AcceptanceScript.Parse(scriptPath);
-            (story, blorb) = Loaded(script.Game);
+            (story, blorb) = StoryFile.Load(script.Game);
         }
         catch (Exception error) when (error is ZMachineException or IOException)
         {
@@ -186,7 +157,7 @@ internal static class Program
 
         try
         {
-            (story, blorb) = Loaded(game);
+            (story, blorb) = StoryFile.Load(game);
         }
         catch (Exception error) when (error is ZMachineException or IOException)
         {
