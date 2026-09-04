@@ -51,8 +51,9 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(path, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.RowText(1) == "A");
+        Until(window, () => window.Glass.Waiting);
         Assert.Null(window.Session!.Face);
+        Assert.Equal("A", window.Session.Stage!.Model.RowText(1));
         var frame = window.CaptureRenderedFrame()!;
         var corner = CellOrigin(window, 1, 1);
         Assert.Equal(Green, Pixel(frame, corner.X + 1, corner.Y + 1));
@@ -74,7 +75,8 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(path, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.Selected == 2);
+        Until(window, () => window.Glass.Waiting);
+        Assert.Equal(2, window.Session!.Stage!.Model.Selected);
         var origin = CellOrigin(window, 1, 1);
         var frame = window.CaptureRenderedFrame()!;
         // The cell's own corner, at unit (31, 21) counted from one.
@@ -96,14 +98,17 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(path, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.RowText(2) == "X");
+        Until(window, () => window.Glass.Waiting);
+        Assert.Equal("X", window.Session!.Stage!.Model.RowText(2));
         var origin = CellOrigin(window, 1, 1);
         var height = window.Glass.CellSize.Height;
         var before = window.CaptureRenderedFrame()!;
         Assert.Equal(Green, Pixel(before, origin.X + 1, origin.Y + height + 1));
         Assert.Equal(Theme.Classic.Paper, Pixel(before, origin.X + 1, origin.Y + 1));
 
-        window.Session!.Stage!.ScrollWindow(0, (int)Math.Round(height));
+        // The story is parked, so the scroll is driven here, the way
+        // the machine would drive it, and settles at once.
+        window.Session.Stage.ScrollWindow(0, (int)Math.Round(height));
         Until(window, () => window.Session.Stage.Model.RowText(1) == "X");
         var after = window.CaptureRenderedFrame()!;
         Assert.Equal(Green, Pixel(after, origin.X + 1, origin.Y + 1));
@@ -122,7 +127,8 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(first, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.RowText(1) == "F");
+        Until(window, () => window.Glass.Waiting);
+        Assert.Equal("F", window.Session!.Stage!.Model.RowText(1));
         var origin = CellOrigin(window, 1, 1);
         Assert.Equal(Green, Pixel(window.CaptureRenderedFrame()!, origin.X + 1, origin.Y + 1));
 
@@ -132,7 +138,7 @@ public sealed class StageGlassTests : IDisposable
         var second = Path.Combine(_directory.FullName, "second.z5");
         File.WriteAllBytes(second, b.Build());
         window.Open(second);
-        Until(window, () => window.Session?.Face is not null);
+        Until(window, () => window.Session?.Face is not null && window.Glass.Waiting);
         Assert.Null(window.Session!.Stage);
         Assert.Equal(Theme.Classic.Paper, Pixel(window.CaptureRenderedFrame()!, origin.X + 1, origin.Y + 1));
     }
@@ -153,7 +159,8 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(path, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.RowText(1) == "6");
+        Until(window, () => window.Glass.Waiting);
+        Assert.Equal("6", window.Session!.Stage!.Model.RowText(1));
         var origin = CellOrigin(window, 1, 1);
         var cell = window.Glass.CellSize;
         var frame = window.CaptureRenderedFrame()!;
@@ -187,7 +194,8 @@ public sealed class StageGlassTests : IDisposable
             ReadKey(b);
         });
         var window = Shown(path, Theme.Classic);
-        Until(window, () => window.Session?.Stage?.Model.RowText(1) == "BIX!");
+        Until(window, () => window.Glass.Waiting);
+        Assert.Equal("BIX!", window.Session!.Stage!.Model.RowText(1));
         var origin = CellOrigin(window, 1, 1);
         var cell = window.Glass.CellSize;
         var frame = window.CaptureRenderedFrame()!;
