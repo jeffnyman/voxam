@@ -263,9 +263,10 @@ public class BlorbTests
     }
 
     // An Exec entry numbered 0 names the packaged story by the offset
-    // of its chunk; only ZCOD belongs to this machine.
+    // of its chunk; ZCOD and GLUL are the two executable formats this
+    // interpreter knows, and an ADRIFT one it does not.
     [Fact]
-    public void ThePackagedStoryIsTheZcodChunkAnExecEntryPointsAt()
+    public void ThePackagedStoryIsTheExecutableChunkAnExecEntryPointsAt()
     {
         var story = new byte[] { 3, 0, 1, 2, 3 };
         var index = new List<byte> { 0, 0, 0, 1 };
@@ -278,8 +279,12 @@ public class BlorbTests
         Assert.True(packaged.HasStory);
 
         var glulx = Blorb.Load(Form(Chunk("RIdx", [.. index]), Chunk("GLUL", story)));
-        Assert.Null(glulx.Story);
+        Assert.Equal(story, glulx.Story);
         Assert.True(glulx.HasStory);
+
+        var adrift = Blorb.Load(Form(Chunk("RIdx", [.. index]), Chunk("ADRI", story)));
+        Assert.Null(adrift.Story);
+        Assert.True(adrift.HasStory);
 
         // An Exec entry pointing past the file, or at a place no file
         // could reach, packages nothing.

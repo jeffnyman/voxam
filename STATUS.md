@@ -1340,8 +1340,8 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 391 tests and
-`Voxam.Desktop.Tests` at 43, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 434 tests and
+`Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1363,8 +1363,9 @@ interval pass, firing its interrupt once. Version 6 keeps the
 cursors and properties, and answers the picture, mouse and menu
 opcodes as a frontend without them does, which is exactly what
 a plain transcript of Arthur or Shogun records. The saves are
-Quetzal, below, and the window has opened. Glulx and the
-Å-machine are refused at the door.
+Quetzal, below, and the window has opened. The Å-machine is
+refused at the door, and Glulx now gets through it as far as its
+memory map, below.
 `tools/sweep-corpus.py record --voxam` is the certificate:
 it records a sweep under the executable and compares it with the
 Python's by digest, and CI replays Zork I under both on every
@@ -1547,8 +1548,40 @@ ones §7.6.1.1 has a game supply stay beside the story. The console
 is unchanged: `zork1.z3` still saves to `zork1.sav` beside it, and
 either interpreter still reads the other's.
 
-**The roads, in order.** Pictures on the stage, then sound. Then
-Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the
-Python's own acceptance driver for it, and a browser face waits
-on someone wanting one, at which point it is Avalonia in
-WebAssembly and not a second renderer.
+**The Glulx door opens.** A `.ulx` no longer dies at the
+threshold, and neither does a Glulx Blorb: an Exec resource now
+yields a GLUL executable as readily as a ZCOD one, and what came
+out of the wrapper is the story's own first bytes to say. The
+header is nine words in ROM, so loading is the moment to hold a
+file to all of them: the version window an interpreter written to
+3.1.3 accepts, the 256-byte seat every memory boundary sits on,
+the order those boundaries climb in, and a file exactly as long as
+the EXTSTART it declares. One rule is this machine's rather than
+the specification's, which sets no ceiling because addresses are
+32 bits: a map too large to lay out is refused in words instead of
+failing to allocate.
+
+Behind the header sits the memory map, ROM held sacred below
+RAMSTART and everything above EXTSTART born zeroed, with the
+resizing, the protected range and the original image that a
+restart and a restore will want. Reads and writes come in the
+three operand widths at any alignment, and every one of them is
+bounds-checked, unconditionally: an address a story computed is
+answered as the 32-bit number it asked for, even where the machine
+holds it as a negative.
+
+What is not here is the machine. A Glulx story loads, verifies
+against the checksum its compiler stored, names itself and stops,
+at the console and at the window alike, because a session that
+stops should say what stopped it.
+`accelfunctest-r4-s220529.ulx` reads back the same seven header
+numbers under the port as under the Python, its checksum included.
+
+**The roads, in order.** The rest of Glulx: the interpreter
+itself, certified against glulxercise, then Glk over the faces the
+port already has, then the two recordings that take the sweep to
+forty-five of forty-five. Then sound, the adaptive palettes, the
+mouse and the menus. The Å-machine waits on the Python's own
+acceptance driver for it, and a browser face waits on someone
+wanting one, at which point it is Avalonia in WebAssembly and not
+a second renderer.

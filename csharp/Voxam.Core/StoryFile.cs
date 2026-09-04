@@ -16,7 +16,7 @@ public static class StoryFile
         {
             var packaged = Blorb.Load(File.ReadAllBytes(game));
             var story = packaged.Story
-                ?? throw new ZMachineException($"{Path.GetFileName(game)} packages no Z-code story to run");
+                ?? throw new ZMachineException($"{Path.GetFileName(game)} packages no story this interpreter can run");
             return (story, packaged);
         }
 

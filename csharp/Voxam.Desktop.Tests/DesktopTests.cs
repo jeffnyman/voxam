@@ -204,7 +204,32 @@ public sealed class DesktopTests : IDisposable
         var blorb = Path.Combine(_directory.FullName, "empty.zblorb");
         File.WriteAllBytes(blorb, [.. "FORM"u8, 0, 0, 0, 16, .. "IFRSRIdx"u8, 0, 0, 0, 4, 0, 0, 0, 0]);
         window.Open(blorb);
-        Until(window, () => Notice(window) == "voxam: empty.zblorb packages no Z-code story to run");
+        Until(window, () => Notice(window) == "voxam: empty.zblorb packages no story this interpreter can run");
+    }
+
+    // A Glulx story loads and names itself: the machine that plays
+    // one is a road this port has not walked yet, and a session that
+    // stops should say what stopped it.
+    [AvaloniaFact]
+    public void AGlulxStoryNamesItselfAndTheRoadItWaitsOn()
+    {
+        var window = Shown(null);
+        var path = Path.Combine(_directory.FullName, "elsewhere.ulx");
+        File.WriteAllBytes(path, new GlulxBuilder().Build());
+        window.Open(path);
+        Until(window, () => Notice(window) == "voxam: elsewhere.ulx is a Glulx story (version 3.1.2), and the Glulx machine is not here yet");
+    }
+
+    // Held to its header even here, so a Glulx file with something
+    // wrong inside it says what that is.
+    [AvaloniaFact]
+    public void ABrokenGlulxStorySaysWhatIsWrongWithIt()
+    {
+        var window = Shown(null);
+        var path = Path.Combine(_directory.FullName, "broken.ulx");
+        File.WriteAllBytes(path, new GlulxBuilder { RamStart = 260 }.Build());
+        window.Open(path);
+        Until(window, () => Notice(window) == "voxam: RAMSTART is 260, which is not a multiple of 256 (Glulx: The Header)");
     }
 
     [AvaloniaFact]
