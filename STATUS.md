@@ -1340,8 +1340,8 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 316 tests and
-`Voxam.Desktop.Tests` at 16, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 365 tests and
+`Voxam.Desktop.Tests` at 23, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -1441,11 +1441,37 @@ look and a game's own white and black following the theme the way
 bitmaps, tiling edge to edge, rather than from Unicode stand-ins;
 and it underlines the cursor while the machine waits for a key.
 What it does not yet do is the preferences panel and the title
-from Babel, the stage for Version 6, and sound.
+from Babel, and sound.
 
-**The roads, in order.** The Version 6 stage on the glass, then
-sound. Then Glulx, its own era, with the two recordings that
-certify it. The Å-machine waits on the
+**The stage.** Version 6 places its windows in units, not in
+character cells, which is why Arthur draws a status strip across
+the top and Shogun anchors art beside its text. The port keeps
+§8.8's eight windows as a stage model: pure state, each window
+with a position and size in units, its own cursor, dress and
+attributes, plotting onto one shared grid of cells and handing out
+the paints a glass carries out at their true unit positions. The
+window opens a story of Version 6 on that stage, and every other
+version on the cell screen the painted terminal keeps.
+
+The seams a stage needs are its own, so nothing else changed: the
+machine asks whether its frontend is a staged one before it places
+a window, writes a line count, sets margins, scrolls a rectangle,
+or erases across a width in units, and a plain stream or a painted
+terminal is asked none of them. That is what keeps the corpus
+certification exact rather than merely re-measured, and the sweep
+after the stage landed is the same 43 of 45 it was before.
+
+On the glass the stage draws to a surface it keeps, which is
+§8.8.3's retained screen made literal: text lands where the game
+put it, a fill paints a rectangle, and a scroll slides the pixels
+the surface already holds and blanks the strip it exposes. Only
+the region between a window's margins scrolls, so art anchored in
+a margin stays where it was. What the stage does not yet draw is
+pictures, which is the next branch, and what it does not yet
+answer is the mouse and the menus.
+
+**The roads, in order.** Pictures on the stage, then sound. Then
+Glulx, its own era, with the two recordings that certify it. The Å-machine waits on the
 Python's own acceptance driver for it, and a browser face waits
 on someone wanting one, at which point it is Avalonia in
 WebAssembly and not a second renderer.

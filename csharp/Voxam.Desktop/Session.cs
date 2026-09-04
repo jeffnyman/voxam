@@ -19,19 +19,41 @@ public sealed class Session
         _thread = thread;
     }
 
-    /// <summary>The frontend playing this story, for anyone measuring the model behind the glass.</summary>
+    /// <summary>The cell face playing this story, or null when a Version 6 stage has the glass.</summary>
     public ScreenFrontend? Face { get; private set; }
 
-    /// <summary>Load the story and start it playing; the loader's refusals come straight back.</summary>
+    /// <summary>The Version 6 face playing this story, or null for every other version.</summary>
+    public StageFrontend? Stage { get; private set; }
+
+    /// <summary>
+    /// Load the story and start it playing; the loader's refusals come
+    /// straight back. Version 6 places its own windows in units, so it
+    /// gets the stage; every other version gets the cell screen the
+    /// painted terminal keeps.
+    /// </summary>
     public static Session Start(string game, Glass glass, Action<string> notice, int? seed = null)
     {
         var (story, _) = StoryFile.Load(game);
-        var face = new ScreenFrontend(story[0], glass);
         var saves = new FileSaveSlot(Path.ChangeExtension(game, ".sav"));
+
+        if (story[0] == 6)
+        {
+            var stage = new StageFrontend(glass);
+            var staged = new Machine(story, stage, stage.ReadLine, seed, stage.ReadKey, stage.ReadLineUntil, saves);
+            return Started(glass, stage, () => staged.Run(), notice, session => session.Stage = stage);
+        }
+
+        var face = new ScreenFrontend(story[0], glass);
         var machine = new Machine(story, face, face.ReadLine, seed, face.ReadKey, face.ReadLineUntil, saves);
         face.OnResize = machine.RefreshScreenFields;
-        var thread = new Thread(() => Play(face, machine, notice)) { IsBackground = true, Name = "voxam machine" };
-        var session = new Session(glass, thread) { Face = face };
+        return Started(glass, null, () => { face.Clear(); machine.Run(); }, notice, session => session.Face = face);
+    }
+
+    private static Session Started(Glass glass, StageFrontend? stage, Action run, Action<string> notice, Action<Session> dressed)
+    {
+        var thread = new Thread(() => Play(run, notice)) { IsBackground = true, Name = "voxam machine" };
+        var session = new Session(glass, thread);
+        dressed(session);
         thread.Start();
         return session;
     }
@@ -41,14 +63,14 @@ public sealed class Session
     {
         _glass.Retire();
         _thread.Join(TimeSpan.FromSeconds(1));
+        _glass.Strike();
     }
 
-    private static void Play(ScreenFrontend face, Machine machine, Action<string> notice)
+    private static void Play(Action run, Action<string> notice)
     {
         try
         {
-            face.Clear();
-            machine.Run();
+            run();
             notice("The story has ended.");
         }
         catch (OperationCanceledException)
