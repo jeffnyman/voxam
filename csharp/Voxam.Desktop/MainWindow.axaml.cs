@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Voxam.Core;
@@ -16,26 +17,28 @@ public partial class MainWindow : Window
     private Session? _session;
 
     public MainWindow()
-        : this(null)
+        : this(Launch.Parse([]))
     {
     }
 
-    public MainWindow(string? game)
+    public MainWindow(Launch launch)
     {
         InitializeComponent();
         Picker = PickStory;
+        Screen.Look = launch.Theme;
+        Background = new SolidColorBrush(launch.Theme.Paper);
 
         Opened += (_, _) =>
         {
             Screen.Focus();
 
-            if (game is null)
+            if (launch.Game is not null)
             {
-                Tell("Open a story to begin.");
+                Open(launch.Game);
             }
             else
             {
-                Open(game);
+                Tell(launch.Complaint ?? "Open a story to begin.");
             }
         };
     }

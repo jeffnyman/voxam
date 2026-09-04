@@ -17,7 +17,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow(desktop.Args is { Length: > 0 } ? desktop.Args[0] : null);
+            desktop.MainWindow = new MainWindow(Launch.Parse(desktop.Args ?? []));
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -154,6 +154,10 @@ public class TerminalFrontendTests
         Assert.Equal(">lo", face.Model.RowText(4));
     }
 
+    // The clock is the terminal's to run out here: a source answering
+    // Expired ends the read exactly where a lapsed wall clock would,
+    // so what the read does with a half-typed line is asserted without
+    // racing a real one.
     [Fact]
     public void ATimedLineReadSurvivesItsInterruptsOrIsAbandoned()
     {
@@ -161,7 +165,8 @@ public class TerminalFrontendTests
         face.Write(">");
         face.BeginInput();
         terminal.Keys.Enqueue("w");
-        Assert.Null(face.ReadLineUntil(0.05));
+        terminal.Keys.Enqueue(LineEditor.Expired);
+        Assert.Null(face.ReadLineUntil(5));
         Assert.Equal(">w", face.Model.RowText(4));
         face.Write("\nrumble\n");
         face.ResumeInput();
@@ -171,12 +176,22 @@ public class TerminalFrontendTests
         Assert.Equal("wa", face.ReadLineUntil(5));
 
         terminal.Keys.Enqueue("z");
-        Assert.Null(face.ReadLineUntil(0.05));
+        terminal.Keys.Enqueue(LineEditor.Expired);
+        Assert.Null(face.ReadLineUntil(5));
         face.AbandonInput();
         Assert.Equal("", face.Model.RowText(4).Trim());
         face.AbandonInput();
         terminal.Keys.Enqueue("\n");
         Assert.Equal("", face.ReadLineUntil(5));
+    }
+
+    // Nothing is typed, so the read ends the only way it can: its own
+    // clock, which has already run out when it is asked for a key.
+    [Fact]
+    public void ATimedLineReadRunsOutItsOwnClock()
+    {
+        var (face, _) = Painted();
+        Assert.Null(face.ReadLineUntil(0));
     }
 
     [Fact]
