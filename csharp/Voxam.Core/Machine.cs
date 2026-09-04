@@ -43,6 +43,8 @@ public sealed class Machine
     private readonly ISaveSlot? _saves;
     private readonly HashSet<int> _passedReserved = [];
     private WindowLedger _windows;
+    private readonly IStageFrontend? _stage;
+    private readonly SortedSet<int> _aimed = [];
     private DictionaryTable? _words;
     private int _pc;
     private bool _running = true;
@@ -86,6 +88,7 @@ public sealed class Machine
     {
         _m = new Memory(story);
         _frontend = frontend;
+        _stage = frontend as IStageFrontend;
         _input = input;
         _keySource = keySource;
         _timedInputSource = timedInputSource;
@@ -1270,7 +1273,18 @@ public sealed class Machine
             _windows.Selected = selected;
             _storyWindow = selected == 0;
 
-            if (selected <= 1)
+            if (_stage is not null)
+            {
+                _stage.SetWindow(selected);
+
+                if (_aimed.Remove(selected))
+                {
+                    _stage.SetCursor(
+                        _windows.Property(selected, WindowLedger.YCursor),
+                        _windows.Property(selected, WindowLedger.XCursor));
+                }
+            }
+            else if (selected <= 1)
             {
                 _frontend.SetWindow(selected);
             }
@@ -1295,7 +1309,7 @@ public sealed class Machine
             {
                 var target = _windows.Resolve(window);
 
-                if (target > 1)
+                if (target > 1 && _stage is null)
                 {
                     Next(i);
                     return;
@@ -1350,6 +1364,41 @@ public sealed class Machine
         var target = _windows.Resolve(window);
         _windows.WriteProperty(target, WindowLedger.YCursor, line);
         _windows.WriteProperty(target, WindowLedger.XCursor, column);
+
+        if (_stage is null)
+        {
+            return;
+        }
+
+        if (target == _windows.Selected)
+        {
+            _stage.SetCursor(line, column);
+        }
+        else
+        {
+            // Aimed at an unselected window: the move reaches the
+            // stage when that window is next selected.
+            _aimed.Add(target);
+        }
+    }
+
+    // A window's ledger geometry, sent to a stage that places all eight
+    // where §8.8.3.4 says; the character faces keep their two-window
+    // mimicry and hear nothing.
+    private void PlaceStaged(int window)
+    {
+        if (_stage is null)
+        {
+            return;
+        }
+
+        var target = _windows.Resolve(window);
+        _stage.PlaceWindow(
+            target,
+            _windows.Property(target, WindowLedger.YCoordinate),
+            _windows.Property(target, WindowLedger.XCoordinate),
+            _windows.Property(target, WindowLedger.YSize),
+            _windows.Property(target, WindowLedger.XSize));
     }
 
     // The dispatch (§14, §15).
@@ -1580,17 +1629,39 @@ public sealed class Machine
                 Next(i);
                 break;
             case Op.EraseLine:
-                // Value 1 erases to the end of the line; a Version 6
-                // pixel width never reaches a character glass.
-                if (Value(i.Operands[0]) == 1)
                 {
-                    _frontend.EraseLine();
-                }
+                    // Value 1 erases to the end of the line in every
+                    // version with the opcode. Any other value does
+                    // nothing before Version 6; there it erases that
+                    // many units less one rightward (§8.8.5.2), which
+                    // only a stage has the pixels to do.
+                    var value = Value(i.Operands[0]);
 
-                Next(i);
-                break;
-            case Op.SoundEffect:
+                    if (value == 1)
+                    {
+                        _frontend.EraseLine();
+                    }
+                    else if (_stage is not null)
+                    {
+                        _stage.EraseLine(value - 1);
+                    }
+
+                    Next(i);
+                    break;
+                }
             case Op.ScrollWindow:
+                {
+                    // Unrelated, §15 notes, to the scrolling attribute:
+                    // a stage shifts the window's own rectangle by the
+                    // signed amount, and a character glass, whose lower
+                    // window scrolls as text flows, has no pixels here
+                    // and passes in the conforming quiet.
+                    var values = Values(i);
+                    _stage?.ScrollWindow(_windows.Resolve(Signed(values[0])), Signed(values[1]));
+                    Next(i);
+                    break;
+                }
+            case Op.SoundEffect:
             case Op.DrawPicture:
             case Op.ErasePicture:
                 // Presentation a plain stream has nothing to show for:
@@ -1981,6 +2052,7 @@ public sealed class Machine
                 {
                     var values = Values(i);
                     _windows.Move(values[0], values[1], values[2]);
+                    PlaceStaged(values[0]);
                     Next(i);
                     break;
                 }
@@ -1988,6 +2060,7 @@ public sealed class Machine
                 {
                     var values = Values(i);
                     _windows.Resize(values[0], values[1], values[2]);
+                    PlaceStaged(values[0]);
                     Next(i);
                     break;
                 }
@@ -2007,8 +2080,16 @@ public sealed class Machine
                 }
             case Op.PutWindProp:
                 {
+                    // A staged frontend hears line-count writes: games
+                    // set them freely to pace [MORE] (§8.8.3.2.6).
                     var values = Values(i);
                     _windows.WriteProperty(values[0], values[1], values[2]);
+
+                    if (_stage is not null && values[1] == WindowLedger.LineCount)
+                    {
+                        _stage.SetLineCount(_windows.Resolve(values[0]), Signed(values[2]));
+                    }
+
                     Next(i);
                     break;
                 }
@@ -2017,6 +2098,7 @@ public sealed class Machine
                     var values = Values(i);
                     var window = values.Length > 2 ? values[2] : WindowLedger.CurrentWindow;
                     _windows.SetMargins(window, values[0], values[1]);
+                    _stage?.SetMargins(_windows.Resolve(window), values[0], values[1]);
                     Next(i);
                     break;
                 }

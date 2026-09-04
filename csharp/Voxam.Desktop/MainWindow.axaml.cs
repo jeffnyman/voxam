@@ -28,6 +28,8 @@ public partial class MainWindow : Window
         Screen.Look = launch.Theme;
         Background = new SolidColorBrush(launch.Theme.Paper);
 
+        Closed += (_, _) => Screen.Dispose();
+
         Opened += (_, _) =>
         {
             Screen.Focus();

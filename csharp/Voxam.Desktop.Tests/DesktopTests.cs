@@ -249,7 +249,9 @@ public sealed class DesktopTests : IDisposable
         window.Height = 900;
         Until(window, () => glass.Columns > columns && glass.Lines > lines);
         glass.Press(" ");
-        Until(window, () => glass.Text.Contains("after", StringComparison.Ordinal));
+        // The story parks in its next read once the line is out, which
+        // is when the model is safe to read from here.
+        Until(window, () => glass.Text.Contains("after", StringComparison.Ordinal) && glass.Waiting);
         var model = window.Session!.Face!.Model;
         Assert.Equal((glass.Columns, glass.Lines), (model.Columns, model.Lines));
         Assert.Equal(glass.Lines, glass.Text.Count(c => c == '\n'));

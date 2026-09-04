@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Voxam.Core;
 
@@ -20,7 +21,7 @@ namespace Voxam.Desktop;
 /// bitmaps, edge to edge, so a map corridor meets its neighbour with
 /// no seam.
 /// </summary>
-public sealed class Glass : Control, IScreen
+public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
 {
     /// <summary>The classic grid the window opens at.</summary>
     public const int OpeningColumns = 80;
@@ -96,6 +97,8 @@ public sealed class Glass : Control, IScreen
     private volatile int _columns;
     private volatile int _lines;
     private volatile bool _waiting;
+    private RenderTargetBitmap? _surface;
+    private RenderTargetBitmap? _scratch;
 
     public Glass()
     {
@@ -133,6 +136,65 @@ public sealed class Glass : Control, IScreen
     int IScreen.Width => _columns;
 
     int IScreen.Height => _lines;
+
+    int IStageScreen.Columns => _columns;
+
+    int IStageScreen.Lines => _lines;
+
+    int IStageScreen.FontWidth => UnitWidth;
+
+    int IStageScreen.FontHeight => UnitHeight;
+
+    private int UnitWidth => Math.Max((int)Math.Round(CellSize.Width), 1);
+
+    private int UnitHeight => Math.Max((int)Math.Round(CellSize.Height), 1);
+
+    private Size UnitCell => new(UnitWidth, UnitHeight);
+
+    /// <summary>
+    /// Carry out a Version 6 stage's paints on the retained surface,
+    /// which is §8.8.3's screen made literal: what is drawn stays drawn
+    /// until something else is drawn over it.
+    /// </summary>
+    public void Settle(IReadOnlyList<Paint> paints)
+    {
+        var cell = UnitCell;
+        var surface = Surface();
+        var pending = 0;
+
+        while (pending < paints.Count)
+        {
+            // A shift slides pixels the surface already holds, so it
+            // reads through a scratch copy rather than itself; the runs
+            // between shifts share one drawing context.
+            var run = pending;
+
+            while (run < paints.Count && paints[run] is not ShiftPaint)
+            {
+                run++;
+            }
+
+            if (run > pending)
+            {
+                using var context = surface.CreateDrawingContext(false);
+
+                for (var at = pending; at < run; at++)
+                {
+                    Perform(context, paints[at], cell);
+                }
+            }
+
+            if (run < paints.Count)
+            {
+                Slide(surface, (ShiftPaint)paints[run]);
+                run++;
+            }
+
+            pending = run;
+        }
+
+        Invalidate();
+    }
 
     /// <summary>The snapshot as text, rows joined by newlines, for anyone reading over the player's shoulder.</summary>
     public string Text
@@ -304,6 +366,12 @@ public sealed class Glass : Control, IScreen
         var cell = CellSize;
         context.FillRectangle(new SolidColorBrush(Look.Paper), new Rect(Bounds.Size));
 
+        if (_surface is { } stage)
+        {
+            context.DrawImage(stage, new Rect(stage.Size));
+            return;
+        }
+
         for (var row = 0; row < rows.Length; row++)
         {
             DrawRow(context, rows[row], row, cell);
@@ -328,16 +396,21 @@ public sealed class Glass : Control, IScreen
         }
     }
 
-    /// <summary>The classic grid, as what the control asks for: the window opens to fit it.</summary>
+    /// <summary>
+    /// The classic grid, as what the control asks for, measured in the
+    /// same whole units the grid is counted in so the two agree.
+    /// </summary>
     protected override Size MeasureOverride(Size availableSize) =>
-        new(OpeningColumns * CellSize.Width, OpeningLines * CellSize.Height);
+        new(OpeningColumns * UnitWidth, OpeningLines * UnitHeight);
 
+    // The grid counts in whole units, the same units a stage measures
+    // its windows in, so a surface of that many never overruns the
+    // control it is drawn on.
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        var cell = CellSize;
-        _columns = (int)(e.NewSize.Width / cell.Width);
-        _lines = (int)(e.NewSize.Height / cell.Height);
+        _columns = (int)(e.NewSize.Width / UnitWidth);
+        _lines = (int)(e.NewSize.Height / UnitHeight);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -478,6 +551,115 @@ public sealed class Glass : Control, IScreen
         BlackCode => Look.Paper,
         _ => Palette.TryGetValue(code, out var named) ? named : fallback,
     };
+
+    // The retained surface, minted at the size the stage was built for
+    // and kept for the story's whole life.
+    private RenderTargetBitmap Surface()
+    {
+        if (_surface is null)
+        {
+            var size = new PixelSize(Math.Max(_columns * UnitWidth, 1), Math.Max(_lines * UnitHeight, 1));
+            _surface = new RenderTargetBitmap(size);
+            _scratch = new RenderTargetBitmap(size);
+
+            using var context = _surface.CreateDrawingContext(false);
+            context.FillRectangle(new SolidColorBrush(Look.Paper), new Rect(0, 0, size.Width, size.Height));
+        }
+
+        return _surface;
+    }
+
+    /// <summary>Let go of the surfaces a stage drew on.</summary>
+    public void Dispose() => Strike();
+
+    /// <summary>Let go of a stage's surface, so the next story starts on a clean one.</summary>
+    public void Strike()
+    {
+        _surface?.Dispose();
+        _scratch?.Dispose();
+        _surface = null;
+        _scratch = null;
+        Invalidate();
+    }
+
+    private void Perform(DrawingContext context, Paint paint, Size cell)
+    {
+        switch (paint)
+        {
+            case TextPaint text:
+                {
+                    var (character, style) = Glyphs.Appearance(text.Cell);
+                    var (ink, paper) = Colours(text.Cell, style);
+                    var origin = new Point(text.Column - 1, text.Line - 1);
+                    context.FillRectangle(new SolidColorBrush(paper), new Rect(origin, cell));
+
+                    if (text.Cell.Font == GraphicsFont && Font3.Bitmap(text.Cell.Character) is { } bitmap)
+                    {
+                        Tile(context, bitmap, origin, cell, ink);
+                        return;
+                    }
+
+                    var face = (style & ScreenModel.Bold, style & ScreenModel.Italic) switch
+                    {
+                        (0, 0) => Roman,
+                        (_, 0) => Bold,
+                        (0, _) => Italic,
+                        _ => BoldItalic,
+                    };
+                    context.DrawText(Formatted(character, face, ink), origin);
+                    return;
+                }
+
+            default:
+                {
+                    var fill = (FillPaint)paint;
+                    var brush = new SolidColorBrush(Resolve(fill.Background, Look.Paper));
+                    context.FillRectangle(brush, new Rect(fill.Column - 1, fill.Line - 1, fill.Width, fill.Height));
+                    return;
+                }
+        }
+    }
+
+    // A shift reads the pixels the surface already holds, through a
+    // scratch copy, and lays them back down risen (§8.8.3.6).
+    private void Slide(RenderTargetBitmap surface, ShiftPaint shift)
+    {
+        var scratch = _scratch!;
+
+        using (var copy = scratch.CreateDrawingContext(false))
+        {
+            copy.DrawImage(surface, new Rect(surface.Size));
+        }
+
+        var source = new Rect(shift.Column - 1, shift.Line - 1, shift.Width, shift.Height);
+        var landing = source.WithY(source.Y - shift.Rise);
+        // The surface keeps everything else it holds: only the band the
+        // shift names is laid down again, risen.
+        using var context = surface.CreateDrawingContext(false);
+        using var clip = context.PushClip(source);
+        context.DrawImage(scratch, source, landing);
+    }
+
+    private static void Tile(DrawingContext context, byte[] bitmap, Point origin, Size cell, Color ink)
+    {
+        var brush = new SolidColorBrush(ink);
+
+        for (var y = 0; y < Font3.Rows; y++)
+        {
+            var y0 = Math.Round(origin.Y + y * cell.Height / Font3.Rows);
+            var y1 = Math.Round(origin.Y + (y + 1) * cell.Height / Font3.Rows);
+
+            for (var x = 0; x < Font3.Pixels; x++)
+            {
+                if (Font3.Lit(bitmap, x, y))
+                {
+                    var x0 = Math.Round(origin.X + x * cell.Width / Font3.Pixels);
+                    var x1 = Math.Round(origin.X + (x + 1) * cell.Width / Font3.Pixels);
+                    context.FillRectangle(brush, new Rect(x0, y0, x1 - x0, y1 - y0));
+                }
+            }
+        }
+    }
 
     private static FormattedText Formatted(string text, Typeface face, Color ink) =>
         new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, FontSize, new SolidColorBrush(ink));
