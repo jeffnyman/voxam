@@ -5,6 +5,8 @@
     Python: a gate that can be argued with is not a gate.
   -->
   <PropertyGroup>
+    <!-- The port versions with the repository; cz bump moves this line. -->
+    <Version>2.7.0</Version>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>

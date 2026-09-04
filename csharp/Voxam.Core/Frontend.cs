@@ -11,6 +11,10 @@ public interface IFrontend
     bool HasFixedPitch { get; }
     bool HasTimedInput { get; }
     bool HasColours { get; }
+
+    /// <summary>Whether §16's character graphics font can be drawn.</summary>
+    bool HasCharacterGraphics { get; }
+
     int ScreenLines { get; }
     int ScreenColumns { get; }
 
@@ -22,11 +26,26 @@ public interface IFrontend
 
     void Write(string text);
     void WriteRectangle(IReadOnlyList<string> rows);
+    void ShowStatus(Status status);
+    void SetStyle(int style);
+    void SetFont(int font);
+    void SetColour(int foreground, int background);
+    void SetBuffering(bool buffered);
     void SplitWindow(int lines);
     void SetWindow(int window);
     void EraseWindow(int window);
+    void EraseLine();
     void SetCursor(int line, int column);
     (int Line, int Column) CursorPosition();
+
+    /// <summary>A timed line read begins: remember the prompt (§15 read remarks).</summary>
+    void BeginInput();
+
+    /// <summary>A printing interrupt let input continue: show the prompt again.</summary>
+    void ResumeInput();
+
+    /// <summary>An interrupt ended the read: erase the half-typed line.</summary>
+    void AbandonInput();
 }
 
 /// <summary>
@@ -53,6 +72,7 @@ public sealed class PlainFrontend(Action<string> write) : IFrontend
     public bool HasFixedPitch => true;
     public bool HasTimedInput => true;
     public bool HasColours => false;
+    public bool HasCharacterGraphics => false;
     public int ScreenLines => 255;
     public int ScreenColumns => 80;
 
@@ -133,4 +153,43 @@ public sealed class PlainFrontend(Action<string> write) : IFrontend
     }
 
     public (int Line, int Column) CursorPosition() => (_upperRow, _upperColumn);
+
+    // A transcript has no status line, no styles, no colours, no
+    // cursor to erase from, and no input line to redisplay: each
+    // request is the conforming quiet of a frontend that said so.
+    public void ShowStatus(Status status)
+    {
+    }
+
+    public void SetStyle(int style)
+    {
+    }
+
+    public void SetFont(int font)
+    {
+    }
+
+    public void SetColour(int foreground, int background)
+    {
+    }
+
+    public void SetBuffering(bool buffered)
+    {
+    }
+
+    public void EraseLine()
+    {
+    }
+
+    public void BeginInput()
+    {
+    }
+
+    public void ResumeInput()
+    {
+    }
+
+    public void AbandonInput()
+    {
+    }
 }

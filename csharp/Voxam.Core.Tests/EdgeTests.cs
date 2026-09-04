@@ -16,13 +16,26 @@ internal sealed class LoudFrontend(Action<string> write) : IFrontend
     public bool HasFixedPitch => false;
     public bool HasTimedInput => false;
     public bool HasColours => true;
+    public bool HasCharacterGraphics => true;
     public int ScreenLines => 24;
     public int ScreenColumns => 80;
     public int FontWidth => 8;
     public int FontHeight => 16;
 
+    /// <summary>What the machine handed the presentation seams, for assertions.</summary>
+    public List<string> Told { get; } = [];
+
     public void Write(string text) => _plain.Write(text);
     public void WriteRectangle(IReadOnlyList<string> rows) => _plain.WriteRectangle(rows);
+    public void ShowStatus(Status status) => Told.Add($"status {status.Location} {status.Score} {status.Turns} {status.TimeGame}");
+    public void SetStyle(int style) => Told.Add($"style {style}");
+    public void SetFont(int font) => Told.Add($"font {font}");
+    public void SetColour(int foreground, int background) => Told.Add($"colour {foreground} {background}");
+    public void SetBuffering(bool buffered) => Told.Add($"buffer {buffered}");
+    public void EraseLine() => Told.Add("erase line");
+    public void BeginInput() => Told.Add("begin");
+    public void ResumeInput() => Told.Add("resume");
+    public void AbandonInput() => Told.Add("abandon");
     public void SplitWindow(int lines) => _plain.SplitWindow(lines);
     public void SetWindow(int window) => _plain.SetWindow(window);
     public void EraseWindow(int window) => _plain.EraseWindow(window);

@@ -53,6 +53,11 @@ coverlet's threshold.
 | Check formatting only | `dotnet format csharp --verify-no-changes` |
 | Publish a native executable | `dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish` |
 | Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
+| Play at the terminal | `csharp/publish/voxam story.z5` (`--plain` for the transcript stream) |
+
+The port's version lives in `csharp/Directory.Build.props`, which
+`cz bump` moves with the rest, so `voxam --version` names the same
+release as the Python and adds `(native)` after it.
 
 The port is certified the way a release is: a sweep of the corpus
 under the Python, a sweep under the native executable, and a

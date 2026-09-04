@@ -1339,7 +1339,7 @@ dictionary rules, the seeded generator ported bit for bit, and a
 plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
-`Voxam.Core.Tests`, 220 tests at 100% line and branch coverage,
+`Voxam.Core.Tests`, 263 tests at 100% line and branch coverage,
 enforced as a threshold the way the Python's suite is, most of
 them driving tiny stories assembled by a builder in the test
 project rather than fixtures on disk.
@@ -1386,11 +1386,22 @@ different name would claim a difference the certificate denies.
 The one place they should differ is `--version`, where the
 native one names its runtime; the port versions with the repo.
 
-**The roads, in order.** The console plays: the painted terminal's
-screen model and status line, so `voxam story.z5` is a game and
-not only a certificate. Save and restore in Quetzal, with the
-file conventions the Python keeps, in the same stretch, since a
-terminal that cannot save is a toy. Then the Avalonia glass,
+**The console plays.** `voxam story.z5` at a real terminal is the
+painted terminal, ported piece by piece: the §8 screen model as
+pure state (two windows, one grid, the owed scroll, the [MORE]
+pause), the line editor with its history and cursor keys, the
+painter that redraws only damaged rows, the status line, styles,
+colours and the font 3 shapes, a window that follows its
+terminal's size, and the wall-clock half of timed reads, so a
+Border Zone or a Bureaucracy form runs in real time. A piped
+session, or `--plain`, is the transcript stream, answering as the
+Python's does. `voxam --version` says `voxam 2.7.0 (native)`, and
+the port versions with the repository. Not yet at this face:
+sixel pictures, sound, and the terminal's title bar.
+
+**The roads, in order.** Save and restore in Quetzal, with the
+file conventions the Python keeps, since a terminal that cannot
+save is a toy. Then the Avalonia glass,
 measured the way the filmstrip measures the Python's faces but
 inside the test suite: Avalonia's headless platform renders real
 frames to bitmaps without a window, so the stage can be

@@ -244,10 +244,11 @@ and the filmstrip), and the optional reference material.
 ### The C# port
 
 `csharp/` holds a second implementation of the Z-Machine, in C#,
-built to ship as one native executable through NativeAOT. It is
-young: it plays Version 3 stories and a good part of what came
-after, and its measure is the acceptance corpus, replayed byte
-for byte against the Python above, which stays the reference.
+built to ship as one native executable through NativeAOT. It
+plays every Z-code story in the acceptance corpus identically to
+the Python above, which stays the reference, and it plays at a
+terminal: `voxam story.z5` from the native `voxam` is the painted
+terminal, status line and all.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).
