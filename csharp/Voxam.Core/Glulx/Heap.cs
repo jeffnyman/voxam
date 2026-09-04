@@ -132,6 +132,109 @@ public sealed class Heap(Memory memory)
         }
     }
 
+    /// <summary>
+    /// The heap as the save format's MAll words: start, count, then
+    /// the address and length of each extant block (Glulx: Memory
+    /// Allocation Heap). An inactive heap summarizes as nothing at
+    /// all, and its chunk is omitted.
+    /// </summary>
+    public IReadOnlyList<uint> Summary()
+    {
+        if (!Active)
+        {
+            return [];
+        }
+
+        var values = new List<uint> { (uint)Start, (uint)AllocCount };
+
+        foreach (var block in _blocks)
+        {
+            if (!block.Free)
+            {
+                values.Add((uint)block.Address);
+                values.Add((uint)block.Length);
+            }
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Rebuild the heap from a summary's words.
+    ///
+    /// Memory must already be the size it was when the summary was
+    /// taken, restoring the map being the caller's job, and the free
+    /// blocks are reconstructed from the gaps between extant ones, out
+    /// to ENDMEM.
+    /// </summary>
+    /// <exception cref="GlulxException">
+    /// When the heap is already active, the summary's pairs are cut
+    /// short, or its blocks are out of address order.
+    /// </exception>
+    public void ApplySummary(IReadOnlyList<uint> values)
+    {
+        if (Active)
+        {
+            throw new GlulxException("a heap summary cannot land on an active heap");
+        }
+
+        // Fewer than two words says nothing, and two zeroes say the
+        // heap was inactive when the summary was taken.
+        if (values.Count < 2 || (values[0] == 0 && values[1] == 0))
+        {
+            return;
+        }
+
+        var extant = values.Skip(2).ToList();
+
+        if (extant.Count % 2 != 0)
+        {
+            throw new GlulxException("the save file's heap summary is cut short mid-block");
+        }
+
+        for (var at = 0; at + 2 < extant.Count; at += 2)
+        {
+            if (extant[at] >= extant[at + 2])
+            {
+                throw new GlulxException("the save file's heap blocks are out of address order");
+            }
+        }
+
+        Start = (int)values[0];
+        AllocCount = (int)values[1];
+        _blocks.Clear();
+
+        var position = 0;
+        var cursor = Start;
+        var endmem = _memory.EndMem;
+
+        while (position < extant.Count || cursor < endmem)
+        {
+            if (position >= extant.Count)
+            {
+                // Trailing free space, out to the end of the map.
+                _blocks.Add(new Block(cursor, endmem - cursor, true));
+
+                break;
+            }
+
+            var address = (int)extant[position];
+
+            if (cursor < address)
+            {
+                // A gap before the next extant block is free space.
+                _blocks.Add(new Block(cursor, address - cursor, true));
+                cursor = address;
+
+                continue;
+            }
+
+            _blocks.Add(new Block(address, extant[position + 1], false));
+            position += 2;
+            cursor = address + (int)extant[position - 1];
+        }
+    }
+
     // First-fit search, coalescing free neighbors on the way. Merging
     // happens during the search rather than eagerly, as the reference
     // glulxe has it: a run of free blocks is only joined up when

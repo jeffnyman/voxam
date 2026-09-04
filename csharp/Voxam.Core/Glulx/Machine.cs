@@ -46,6 +46,11 @@ public sealed class Machine
     private const uint ReturnOneOffset = 1;
     private const uint BranchAdjustment = 2;
 
+    // What a popped save stub stores after a restore: "you have just
+    // been restored and are continuing from this instruction" (Glulx:
+    // Game State).
+    private const uint Restored = 0xFFFFFFFF;
+
     private readonly Story _story;
     private readonly Randomizer _random;
 
@@ -103,6 +108,13 @@ public sealed class Machine
 
     /// <summary>What this build of the machine can do (Glulx: Gestalt).</summary>
     public Capabilities Capabilities { get; }
+
+    /// <summary>
+    /// The states saveundo has put by, newest last. The chain is not
+    /// part of saved state and does not survive a restart of the
+    /// process, only of the story.
+    /// </summary>
+    public List<byte[]> UndoChain { get; } = [];
 
     /// <summary>Which output system is current (Glulx: Output).</summary>
     public IoSystem IoSys { get; }
@@ -773,6 +785,52 @@ public sealed class Machine
         }
     }
 
+    // Save the state to a Glk stream (Glulx: Game State). The call
+    // stub is pushed first, so it lands inside the save's own stack
+    // chunk; popping it stores the spoken result and, after a later
+    // restore, the same stub stores -1 and execution continues from
+    // this very instruction (Glulx: Contents of the Stack).
+    //
+    // A stream is named by a Glk stream identifier, and with no
+    // library installed there is no registry to name one in, so the
+    // answer is the spoken failure a game learns to prompt again from.
+    // The format such a stream would carry is already here, and
+    // saveundo writes and reads it every turn.
+    private void OpSave(Operand[] args)
+    {
+        var target = args[1].Target;
+
+        Stack.PushStub(target.DestType, target.Addr, (uint)Pc);
+        PopStub(Serial.Failed);
+    }
+
+    // Restore the state from a Glk stream. On success the restored
+    // stack's own stub would pop with -1 and this instruction never
+    // store at all; a failure speaks 1 in place, which is all there is
+    // to speak until a stream can be named.
+    private void OpRestore(Operand[] args) => Store(args[1].Target, Serial.Failed);
+
+    private void OpSaveUndo(Operand[] args)
+    {
+        var target = args[0].Target;
+
+        Stack.PushStub(target.DestType, target.Addr, (uint)Pc);
+        PopStub(Serial.SaveUndo(this));
+    }
+
+    private void OpRestoreUndo(Operand[] args)
+    {
+        if (Serial.RestoreUndo(this) == Serial.Succeeded)
+        {
+            Discontinuity = true;
+            PopStub(Restored);
+
+            return;
+        }
+
+        Store(args[0].Target, Serial.Failed);
+    }
+
     private void OpGetstringtbl(Operand[] args) => Store(args[0].Target, StringTable);
 
     // Point the decoder at another table (Glulx: Output). The address
@@ -956,6 +1014,17 @@ public sealed class Machine
             [(int)Op.Streamunichar] = new(L, static (m, a) => Strings.PutChar(m, a[0].Value)),
             [(int)Op.Streamnum] = new(L, static (m, a) => Strings.StreamNum(m, a[0].Value)),
             [(int)Op.Streamstr] = new(L, static (m, a) => Strings.StreamString(m, a[0].Value)),
+            // Save and restore through a Glk stream (Glulx: Game State).
+            // With no library installed there is no stream to name, so the
+            // answer is the spoken failure a game learns to prompt again
+            // from; the lookup arrives with the Glk era.
+            [(int)Op.Save] = new(Ls, static (m, a) => m.OpSave(a)),
+            [(int)Op.Restore] = new(Ls, static (m, a) => m.OpRestore(a)),
+            [(int)Op.Saveundo] = new(S, static (m, a) => m.OpSaveUndo(a)),
+            [(int)Op.Restoreundo] = new(S, static (m, a) => m.OpRestoreUndo(a)),
+            [(int)Op.Hasundo] = new(S, static (m, a) => m.Store(a[0].Target, Serial.HasUndo(m))),
+            [(int)Op.Discardundo] = new(None, static (m, _) => Serial.DiscardUndo(m)),
+
             // Claim and release heap memory (Glulx: Memory Allocation
             // Heap); the address stores, or zero for a refusal, since
             // allocation is never guaranteed.
