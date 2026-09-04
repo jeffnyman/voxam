@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 769 tests and
+And the test projects, `Voxam.Core.Tests` at 770 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1764,9 +1764,18 @@ what the specification fixes, taken from the Python's own answers;
 what it leaves open is checked for the things that are still
 portable, that each opcode reaches the function it names at the
 width it names, and that the infinities and NaNs the specification
-does fix come out fixed. The first shape of this test asserted one
-digest over all of it, passed on Windows, and failed on the other
-two the moment it left the machine it was written on.
+does fix come out fixed. A NaN sign is left out of the digest for
+the same reason and a different cause: an x86 makes its default NaN
+with the sign bit set and an ARM makes the same NaN with it clear,
+so infinity less infinity reads differently on a Mac, and the
+specification does not say which one an operation owes. The payload
+does travel, and stays.
+
+The first shape of this test asserted one digest over all of it. It
+passed on the machine it was written on and failed on the other two
+the moment it left, once for the library and once for the processor,
+which is the honest reason the shape it has now is the shape it
+needed.
 
 **The roads, in order.** The save format, and then Glk, which is
 what these stories are all waiting for. Only once Glk is over the

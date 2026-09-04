@@ -91,13 +91,40 @@ public sealed class FloatsTests
     [Fact]
     public void EveryExactOpcodeAnswersAsTheReferenceDoes()
     {
-        var (exact, library) = Probe();
+        var (exact, widths, library) = Probe();
 
         Assert.Equal(1525, exact.Length);
         Assert.Equal(570, library.Length);
         Assert.Equal(
-            "9cf25fd2690a3e705a3b150f45fff3b61763c32b2c3dce9e0ed7ff56413931fd",
-            Convert.ToHexString(SHA256.HashData(exact.SelectMany(BitConverter.GetBytes).ToArray())).ToLowerInvariant());
+            "681a299d88228e2dd6681ca58ebdf3fc3a3c6564416f85aaf0a08dd39d5c0197",
+            Convert.ToHexString(SHA256.HashData(
+                Normalized(exact, widths).SelectMany(BitConverter.GetBytes).ToArray())).ToLowerInvariant());
+    }
+
+    // The sign of a NaN is the other thing no constant can carry, and
+    // it is the processor's doing rather than the library's: an x86
+    // makes its default NaN with the sign bit set and an ARM makes the
+    // same NaN with it clear, so infinity less infinity comes out
+    // differently on a Mac than on the machine this was written on.
+    // The Python is handed the same processor, so the two still agree
+    // there; what cannot travel is the constant. The payload does
+    // travel, and stays in the digest.
+    [Fact]
+    public void TheDigestDoesNotDependOnWhichNaNTheProcessorMakes()
+    {
+        var (exact, widths, _) = Probe();
+        var flipped = exact.ToArray();
+
+        for (var at = 0; at < flipped.Length; at++)
+        {
+            if (IsNaNAt(flipped, widths, at))
+            {
+                flipped[at] ^= 0x80000000;
+            }
+        }
+
+        Assert.NotEqual(exact, flipped);
+        Assert.Equal(Normalized(exact, widths), Normalized(flipped, widths));
     }
 
     // What is portable about the library functions is that each
@@ -315,16 +342,46 @@ public sealed class FloatsTests
         Assert.Equal(0x80000000u, machine.Memory.ReadWord(0x144));
     }
 
-    private static (uint[] Exact, uint[] Library) Probe()
+    // A NaN result with its sign bit cleared; everything else as it
+    // stands. Which NaN an operation produces is not something the
+    // specification fixes, so it is not something a digest may carry.
+    private static uint[] Normalized(uint[] results, Width[] widths)
+    {
+        var normalized = results.ToArray();
+
+        for (var at = 0; at < normalized.Length; at++)
+        {
+            if (IsNaNAt(normalized, widths, at))
+            {
+                normalized[at] &= 0x7FFFFFFF;
+            }
+        }
+
+        return normalized;
+    }
+
+    // Whether the slot holds the sign-bearing word of a NaN: a single
+    // in its own right, or the high word of a double. An integer or a
+    // branch flag is left alone, since its bits mean something else.
+    private static bool IsNaNAt(uint[] results, Width[] widths, int at) => widths[at] switch
+    {
+        Width.Single => float.IsNaN(BitConverter.UInt32BitsToSingle(results[at])),
+        Width.High => double.IsNaN(Floats.DecodeWide(results[at], results[at - 1])),
+        _ => false,
+    };
+
+    private static (uint[] Exact, Width[] Widths, uint[] Library) Probe()
     {
         var program = new GlulxProgram(at: 256) { ImageSize = 65536, EndMem = 262144, StackSize = 4096 };
         var exact = (uint)Exact;
         var library = (uint)Library;
+        var widths = new List<Width>();
 
-        uint NextExact()
+        uint NextExact(Width width)
         {
             var at = exact;
             exact += 4;
+            widths.Add(width);
 
             return at;
         }
@@ -339,7 +396,7 @@ public sealed class FloatsTests
 
         void Skipping(Op opcode, Slot[] operands)
         {
-            var mark = NextExact();
+            var mark = NextExact(Width.Opaque);
             program.Op(Op.Copy, Modes.Constant(0), Modes.Memory(mark));
             program.Op(opcode, [.. operands, Modes.Word(0)]);
             var after = program.Here;
@@ -351,7 +408,8 @@ public sealed class FloatsTests
         {
             foreach (var value in Singles)
             {
-                program.Op(opcode, Modes.Word(Floats.Encode(value)), Modes.Memory(NextExact()));
+                program.Op(opcode, Modes.Word(Floats.Encode(value)),
+                    Modes.Memory(NextExact(opcode is Op.Ftonumz or Op.Ftonumn ? Width.Opaque : Width.Single)));
             }
         }
 
@@ -365,14 +423,14 @@ public sealed class FloatsTests
 
         foreach (var value in Singles)
         {
-            program.Op(Op.Numtof, Modes.Word((uint)(int)value.ClampToInt()), Modes.Memory(NextExact()));
-            program.Op(Op.Ftod, Modes.Word(Floats.Encode(value)), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
-            program.Op(Op.Numtod, Modes.Word((uint)(int)value.ClampToInt()), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
+            program.Op(Op.Numtof, Modes.Word((uint)(int)value.ClampToInt()), Modes.Memory(NextExact(Width.Single)));
+            program.Op(Op.Ftod, Modes.Word(Floats.Encode(value)), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
+            program.Op(Op.Numtod, Modes.Word((uint)(int)value.ClampToInt()), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
 
             var (high, low) = Floats.EncodeWide(value);
-            program.Op(Op.Dtof, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact()));
-            program.Op(Op.Dtonumz, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact()));
-            program.Op(Op.Dtonumn, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact()));
+            program.Op(Op.Dtof, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact(Width.Single)));
+            program.Op(Op.Dtonumz, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact(Width.Opaque)));
+            program.Op(Op.Dtonumn, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact(Width.Opaque)));
             program.Op(Op.Jisnan, Modes.Word(Floats.Encode(value)), Modes.Constant(2));
             program.Op(Op.Jisinf, Modes.Word(Floats.Encode(value)), Modes.Constant(2));
             Skipping(Op.Jisnan, [Modes.Word(Floats.Encode(value))]);
@@ -386,7 +444,7 @@ public sealed class FloatsTests
             foreach (var value in Singles)
             {
                 var (high, low) = Floats.EncodeWide(value);
-                program.Op(opcode, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
+                program.Op(opcode, Modes.Word(high), Modes.Word(low), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
             }
         }
 
@@ -406,7 +464,7 @@ public sealed class FloatsTests
 
             foreach (var opcode in ExactBinary)
             {
-                program.Op(opcode, Modes.Word(Floats.Encode(a)), Modes.Word(Floats.Encode(b)), Modes.Memory(NextExact()));
+                program.Op(opcode, Modes.Word(Floats.Encode(a)), Modes.Word(Floats.Encode(b)), Modes.Memory(NextExact(Width.Single)));
             }
 
             foreach (var opcode in LibraryBinary)
@@ -414,11 +472,11 @@ public sealed class FloatsTests
                 program.Op(opcode, Modes.Word(Floats.Encode(a)), Modes.Word(Floats.Encode(b)), Modes.Memory(NextLibrary()));
             }
 
-            program.Op(Op.Fmod, Modes.Word(Floats.Encode(a)), Modes.Word(Floats.Encode(b)), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
+            program.Op(Op.Fmod, Modes.Word(Floats.Encode(a)), Modes.Word(Floats.Encode(b)), Modes.Memory(NextExact(Width.Single)), Modes.Memory(NextExact(Width.Single)));
 
             foreach (var opcode in ExactWideBinary)
             {
-                program.Op(opcode, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
+                program.Op(opcode, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
             }
 
             foreach (var opcode in LibraryWideBinary)
@@ -426,8 +484,8 @@ public sealed class FloatsTests
                 program.Op(opcode, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextLibrary()), Modes.Memory(NextLibrary()));
             }
 
-            program.Op(Op.Dmodr, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
-            program.Op(Op.Dmodq, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact()), Modes.Memory(NextExact()));
+            program.Op(Op.Dmodr, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
+            program.Op(Op.Dmodq, Modes.Word(ah), Modes.Word(al), Modes.Word(bh), Modes.Word(bl), Modes.Memory(NextExact(Width.Low)), Modes.Memory(NextExact(Width.High)));
 
             foreach (var opcode in Comparisons)
             {
@@ -455,7 +513,26 @@ public sealed class FloatsTests
         var machine = new Machine(new Story(program.Build()), 777);
         machine.Run(50000);
 
-        return (Read(machine, Exact, (int)((exact - Exact) / 4)), Read(machine, Library, (int)((library - Library) / 4)));
+        return (
+            Read(machine, Exact, (int)((exact - Exact) / 4)),
+            [.. widths],
+            Read(machine, Library, (int)((library - Library) / 4)));
+    }
+
+    /// <summary>What a result slot holds, so a NaN in it can be recognized.</summary>
+    private enum Width
+    {
+        /// <summary>An integer or a branch flag, whose bits mean something else.</summary>
+        Opaque,
+
+        /// <summary>A single-precision result.</summary>
+        Single,
+
+        /// <summary>A double's low word, which carries no sign of its own.</summary>
+        Low,
+
+        /// <summary>A double's high word, which does.</summary>
+        High,
     }
 
     private static uint[] Read(Machine machine, int start, int count) =>
