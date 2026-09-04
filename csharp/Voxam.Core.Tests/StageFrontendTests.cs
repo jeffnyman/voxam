@@ -125,10 +125,10 @@ public class StageFrontendTests
         Assert.Equal("f", face.Model.RowText(4));
     }
 
-    // Nothing is drawn yet: the room a picture takes is declared, and
-    // the calls that would draw it arrive and wait for a glass.
+    // A glass with no art behind it answers no picture, and the calls
+    // that would draw one settle nothing.
     [Fact]
-    public void DrawingAPictureWaitsForAGlass()
+    public void WithoutArtNoPictureIsDrawn()
     {
         var (face, screen) = Staged();
         Assert.False(face.HasPictures);
@@ -136,6 +136,52 @@ public class StageFrontendTests
         Assert.Equal((0, 0), face.PictureCensus());
         face.DrawPicture(1, 1, 1);
         face.ErasePicture(1, 1, 1);
+        Assert.Empty(screen.Settled);
+    }
+
+    // A picture is settled as its pixels stretched to the size
+    // picture_data reported; a placard has a size and no pixels, so
+    // drawing it shows nothing, which is the conforming answer.
+    [Fact]
+    public void APictureIsSettledAtTheSizeItWasMeasured()
+    {
+        var png = new List<byte> { 0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13 };
+        png.AddRange("IHDR"u8.ToArray());
+        png.AddRange([0, 0, 0, 8, 0, 0, 0, 6]);
+        var pixels = png.ToArray();
+        var art = new Dictionary<int, object> { [1] = pixels, [2] = new Placard(4, 2) };
+        var scalings = new Dictionary<int, Scaling> { [1] = new(new Ratio(2, 1), null, null) };
+        var screen = new FakeScreen();
+        var face = new StageFrontend(screen, gallery: new Gallery(art, 3, new Resolution(10 * Units, 4 * Units, scalings)));
+        Assert.True(face.HasPictures);
+        Assert.Equal((2, 3), face.PictureCensus());
+
+        // The screen is the standard window, so the room is one and
+        // the picture wears its own doubling.
+        Assert.Equal((12, 16), face.PictureData(1));
+        face.DrawPicture(1, 5, 7);
+        Assert.Equal([new PicturePaint(5, 7, 12, 16, pixels)], screen.Settled);
+
+        // A placard takes its room and shows nothing.
+        screen.Settled.Clear();
+        face.DrawPicture(2, 1, 1);
+        face.DrawPicture(9, 1, 1);
+        Assert.Empty(screen.Settled);
+    }
+
+    // Erasing a picture paints its room in the selected window's own
+    // background (§15 erase_picture).
+    [Fact]
+    public void ErasingAPicturePaintsItsRoom()
+    {
+        var art = new Dictionary<int, object> { [1] = new Placard(4, 2) };
+        var screen = new FakeScreen();
+        var face = new StageFrontend(screen, gallery: new Gallery(art, 0, null));
+        face.SetColour(ScreenModel.CurrentColour, 4);
+        face.ErasePicture(1, 3, 5);
+        Assert.Equal([new FillPaint(3, 5, 2, 4, 4)], screen.Settled);
+        screen.Settled.Clear();
+        face.ErasePicture(9, 1, 1);
         Assert.Empty(screen.Settled);
     }
 

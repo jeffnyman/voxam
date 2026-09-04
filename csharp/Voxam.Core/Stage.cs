@@ -19,6 +19,14 @@ public sealed record FillPaint(int Line, int Column, int Height, int Width, int 
 public sealed record ShiftPaint(int Line, int Column, int Height, int Width, int Rise) : Paint;
 
 /// <summary>
+/// A picture stretched into a unit rectangle (§15 draw_picture). The
+/// size is the one picture_data reported, so what a game measured is
+/// what it gets, and clear pixels stay see-through, which is how
+/// Arthur's banner frames the scene art beneath it.
+/// </summary>
+public sealed record PicturePaint(int Line, int Column, int Height, int Width, byte[] Pixels) : Paint;
+
+/// <summary>
 /// The Version 6 stage: §8.8's eight windows on one cell grid.
 ///
 /// Version 6 games place their windows in units, a status strip here,

@@ -57,6 +57,19 @@ internal static class Rig
         Dispatcher.UIThread.RunJobs();
     }
 
+    /// <summary>
+    /// Where a stage cell's top left corner falls in the window's own
+    /// pixels. A stage measures in whole units, so a row is that many
+    /// pixels down and not a fraction of a cell more.
+    /// </summary>
+    public static Point StageOrigin(MainWindow window, int row, int column)
+    {
+        var glass = window.Glass;
+        var origin = glass.TranslatePoint(new Point(0, 0), window)!.Value;
+        var screen = (Voxam.Core.IStageScreen)glass;
+        return new Point(origin.X + (column - 1) * screen.FontWidth, origin.Y + (row - 1) * screen.FontHeight);
+    }
+
     /// <summary>Where a cell's top left corner falls in the window's own pixels.</summary>
     public static Point CellOrigin(MainWindow window, int row, int column)
     {
@@ -67,11 +80,29 @@ internal static class Rig
     }
 
     /// <summary>The colour of one pixel of a rendered frame.</summary>
-    public static Color Pixel(WriteableBitmap frame, double x, double y)
+    public static Color Pixel(WriteableBitmap frame, double x, double y) => Pixels(frame, [new Point(x, y)])[0];
+
+    /// <summary>
+    /// The colours of several pixels, read under one lock: a frame
+    /// does not survive being locked over and over.
+    /// </summary>
+    public static Color[] Pixels(WriteableBitmap frame, IReadOnlyList<Point> points)
     {
         using var buffer = frame.Lock();
-        var word = Marshal.ReadInt32(buffer.Address, (int)y * buffer.RowBytes + (int)x * 4);
-        var (low, mid, high) = ((byte)word, (byte)(word >> 8), (byte)(word >> 16));
-        return buffer.Format == PixelFormat.Rgba8888 ? Color.FromRgb(low, mid, high) : Color.FromRgb(high, mid, low);
+        var colours = new Color[points.Count];
+
+        for (var at = 0; at < points.Count; at++)
+        {
+            // Reading past the frame is an access violation, not an
+            // exception, so the bounds are checked here where the
+            // failure can still say what happened.
+            Assert.InRange(points[at].X, 0, frame.PixelSize.Width - 1);
+            Assert.InRange(points[at].Y, 0, frame.PixelSize.Height - 1);
+            var word = Marshal.ReadInt32(buffer.Address, (int)points[at].Y * buffer.RowBytes + (int)points[at].X * 4);
+            var (low, mid, high) = ((byte)word, (byte)(word >> 8), (byte)(word >> 16));
+            colours[at] = buffer.Format == PixelFormat.Rgba8888 ? Color.FromRgb(low, mid, high) : Color.FromRgb(high, mid, low);
+        }
+
+        return colours;
     }
 }

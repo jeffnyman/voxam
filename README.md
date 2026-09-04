@@ -254,8 +254,8 @@ stories on the same glass, opened from its menu or named on the
 command line, with the bundled font, the four themes, and the
 §16 character graphics drawn from their own pixels. A Version 6
 story plays on a stage that places its windows in units, the way
-Arthur and Shogun expect, with its Blorb's art measured and
-declared so the layout is the one its author drew.
+Arthur and Shogun expect, with its Blorb's art measured, declared
+and drawn.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).
