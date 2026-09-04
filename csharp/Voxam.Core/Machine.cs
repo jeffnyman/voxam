@@ -23,8 +23,6 @@ public sealed class Machine
         public int ArgCount;
     }
 
-    private sealed record Snapshot(byte[] Dynamic, int[] Stack, Frame[] Frames, int Pc, int StoreVariable);
-
     private sealed record Redirection(int Table, StringBuilder Text, int? Limit);
 
     private readonly Memory _m;
@@ -41,7 +39,8 @@ public sealed class Machine
     private readonly Dictionary<int, Instruction> _cache = [];
     private readonly List<Redirection> _redirections = [];
     private readonly Queue<int> _pendingKeys = [];
-    private readonly LinkedList<Snapshot> _undo = [];
+    private readonly LinkedList<SavedState> _undo = [];
+    private readonly ISaveSlot? _saves;
     private readonly HashSet<int> _passedReserved = [];
     private WindowLedger _windows;
     private DictionaryTable? _words;
@@ -82,13 +81,15 @@ public sealed class Machine
         Func<string?> input,
         int? seed,
         Func<double?, string?>? keySource = null,
-        Func<double, string?>? timedInputSource = null)
+        Func<double, string?>? timedInputSource = null,
+        ISaveSlot? saves = null)
     {
         _m = new Memory(story);
         _frontend = frontend;
         _input = input;
         _keySource = keySource;
         _timedInputSource = timedInputSource;
+        _saves = saves;
         _rng = new Randomizer(seed);
         _version = _m.Version;
         _globals = _m.ReadWord(Header.Globals);
@@ -1027,44 +1028,197 @@ public sealed class Machine
 
     // Save, restore, restart, undo (§6.1).
 
-    private Snapshot TakeSnapshot(int storeVariable, int pc) =>
-        new(
-            _m.DynamicSnapshot(),
-            [.. _stack],
-            _frames.Select(f => new Frame
-            {
-                ReturnAddress = f.ReturnAddress,
-                StoreVariable = f.StoreVariable,
-                Locals = (int[])f.Locals.Clone(),
-                StackBase = f.StackBase,
-                ArgCount = f.ArgCount,
-            }).ToArray(),
-            pc,
-            storeVariable);
+    // The four §6.1 ingredients frozen: dynamic memory, the pc, and the
+    // call chain with each frame's locals and its portion of the stack.
+    private SavedState Capture(int pc)
+    {
+        var frames = new List<SavedFrame>();
 
-    private void RestoreSnapshot(Snapshot snapshot)
+        for (var k = 0; k < _frames.Count; k++)
+        {
+            var frame = _frames[k];
+            var top = k + 1 < _frames.Count ? _frames[k + 1].StackBase : _stack.Count;
+            frames.Add(new SavedFrame(frame.ReturnAddress, frame.StoreVariable, (int[])frame.Locals.Clone(), frame.ArgCount, _stack[frame.StackBase..top].ToArray()));
+        }
+
+        return new SavedState(_m.DynamicSnapshot(), pc, frames);
+    }
+
+    // Everything comes back except Flags 2, whose bits belong to the
+    // player's session (§6.1.2), and the header is stamped again
+    // (§6.1.2.2), since the capture may not be this interpreter's.
+    private void Restore(SavedState state)
     {
         var flags2 = _m.ReadWord(Header.Flags2);
-        _m.RestoreDynamic(snapshot.Dynamic);
-        _m.WriteWord(Header.Flags2, (_m.ReadWord(Header.Flags2) & ~0x03) | (flags2 & 0x03));
-        DeclareCapabilities();
+        _m.RestoreDynamic(state.Dynamic);
+        _m.WriteWord(Header.Flags2, flags2);
         _stack.Clear();
-        _stack.AddRange(snapshot.Stack);
         _frames.Clear();
 
-        foreach (var f in snapshot.Frames)
+        foreach (var frame in state.Frames)
         {
             _frames.Add(new Frame
             {
-                ReturnAddress = f.ReturnAddress,
-                StoreVariable = f.StoreVariable,
-                Locals = (int[])f.Locals.Clone(),
-                StackBase = f.StackBase,
-                ArgCount = f.ArgCount,
+                ReturnAddress = frame.ReturnAddress,
+                StoreVariable = frame.StoreVariable,
+                Locals = (int[])frame.Locals.Clone(),
+                StackBase = _stack.Count,
+                ArgCount = frame.ArgumentCount,
             });
+            _stack.AddRange(frame.Stack);
         }
 
-        _pc = snapshot.Pc;
+        _pc = state.Pc;
+        DeclareCapabilities();
+    }
+
+    // Pick up at the rider of the save that made us (Quetzal §5.8):
+    // through Version 3 the branch data, taken as the successful save
+    // it was; from Version 4 the store byte, answered with 2 so the
+    // story knows it is being restored rather than saved (§15 save).
+    private void ResumeFromSave(int pc)
+    {
+        if (_version <= 3)
+        {
+            var (branch, after) = Instruction.ReadBranch(_m, pc);
+
+            if (branch.ReturnsFalse)
+            {
+                Return(FalseValue);
+            }
+            else if (branch.ReturnsTrue)
+            {
+                Return(TrueValue);
+            }
+            else
+            {
+                _pc = branch.Target(after);
+            }
+        }
+        else
+        {
+            WriteVariable(_m.FetchByte(pc), 2);
+            _pc = pc + 1;
+        }
+    }
+
+    // Save answers the §15 way: a branch through Version 3, a stored
+    // result from Version 4.
+    private void SaveRider(Instruction i, bool success)
+    {
+        if (_version <= 3)
+        {
+            DoBranch(i, success);
+        }
+        else
+        {
+            Store(i, success ? 1 : 0);
+            Next(i);
+        }
+    }
+
+    // The state of play as a Quetzal file (§15 save, §6.1.1): the pc
+    // captured is this instruction's own rider, so a restore resumes
+    // there. With operands, a region of memory goes to a game-named
+    // auxiliary file instead, storing 1 on success and 0 on failure.
+    private void Save(Instruction i)
+    {
+        if (i.Operands.Length > 0)
+        {
+            var (table, count, name) = TableForm(i);
+            var data = new byte[count];
+
+            for (var k = 0; k < count; k++)
+            {
+                data[k] = (byte)_m.ReadByte(table + k);
+            }
+
+            Store(i, _saves is not null && _saves.WriteAux(AuxName(name), data) ? 1 : 0);
+            Next(i);
+            return;
+        }
+
+        var bytes = Quetzal.Write(Capture(i.OperandsEnd), _m.Pristine);
+        SaveRider(i, _saves is not null && _saves.Write(bytes));
+    }
+
+    // On success the machine does not continue here: the restored
+    // state resumes at the save's rider. Every failure, no bytes, bytes
+    // that are not a save, a save of another game, answers as §15
+    // says: no branch through Version 3, a stored 0 from Version 4.
+    private void RestoreSaved(Instruction i)
+    {
+        if (i.Operands.Length > 0)
+        {
+            var (table, count, name) = TableForm(i);
+            var found = _saves?.ReadAux(AuxName(name)) ?? [];
+            var loaded = Math.Min(found.Length, count);
+
+            for (var k = 0; k < loaded; k++)
+            {
+                _m.WriteByte(table + k, found[k]);
+            }
+
+            Store(i, loaded);
+            Next(i);
+            return;
+        }
+
+        SavedState? state = null;
+        var data = _saves?.Read();
+
+        if (data is not null)
+        {
+            try
+            {
+                state = Quetzal.Read(data, _m.Pristine);
+            }
+            catch (ZMachineException)
+            {
+                state = null;
+            }
+        }
+
+        if (state is null)
+        {
+            if (_version > 3)
+            {
+                Store(i, FalseValue);
+            }
+
+            Next(i);
+            return;
+        }
+
+        Restore(state);
+        ResumeFromSave(state.Pc);
+    }
+
+    private (int Table, int Count, int Name) TableForm(Instruction i)
+    {
+        var values = Values(i);
+
+        if (values.Length < 3)
+        {
+            throw new ZMachineException(
+                $"{i.Info.Name} at ${i.Address:x4} has {values.Length} operand(s), but the table form takes a table, a length, and a name (§15 save)");
+        }
+
+        return (values[0], values[1], values[2]);
+    }
+
+    // A game-supplied filename: a count byte, then text (§15).
+    private string AuxName(int address)
+    {
+        var length = _m.ReadByte(address);
+        var name = new StringBuilder();
+
+        for (var k = 0; k < length; k++)
+        {
+            name.Append(Zscii.ToChar(_m, _m.ReadByte(address + 1 + k)));
+        }
+
+        return name.ToString();
     }
 
     private void Restart()
@@ -1453,9 +1607,10 @@ public sealed class Machine
                 // Passed in the conforming quiet, operands and all.
                 Next(i);
                 break;
-            case Op.ExtReserved:
-                // §14.2.1: an opcode of a future Standard is ignored,
-                // with a warning off-screen, once per number.
+            default:
+                // §14.2.1: an opcode of a future Standard, which the
+                // tables decode as reserved and nothing above names, is
+                // ignored with a warning off-screen, once per number.
                 if (_passedReserved.Add(i.Number))
                 {
                     Console.Error.WriteLine($"voxam: EXT:{i.Number} is reserved for a future Standard; passed unclaimed (§14.2.1)");
@@ -1609,6 +1764,12 @@ public sealed class Machine
             case Op.PrintRet:
                 Print(Zscii.Decode(_m, i.OperandsEnd).Text + "\n");
                 Return(TrueValue);
+                break;
+            case Op.Save:
+                Save(i);
+                break;
+            case Op.Restore:
+                RestoreSaved(i);
                 break;
             case Op.Restart:
                 Restart();
@@ -2195,7 +2356,7 @@ public sealed class Machine
                 }
             case Op.SaveUndo:
                 {
-                    _undo.AddLast(TakeSnapshot(i.StoreVariable, i.NextAddress));
+                    _undo.AddLast(Capture(i.OperandsEnd));
 
                     if (_undo.Count > UndoDepth)
                     {
@@ -2215,11 +2376,12 @@ public sealed class Machine
                         break;
                     }
 
-                    var snapshot = _undo.Last!.Value;
+                    // Resumes at the save_undo's own store byte, which
+                    // then answers 2 (§15 save).
+                    var held = _undo.Last!.Value;
                     _undo.RemoveLast();
-                    RestoreSnapshot(snapshot);
-                    // The save_undo that took this snapshot now answers 2.
-                    WriteVariable(snapshot.StoreVariable, 2);
+                    Restore(held);
+                    ResumeFromSave(held.Pc);
                     break;
                 }
             case Op.PrintUnicode:
@@ -2233,10 +2395,6 @@ public sealed class Machine
                     Next(i);
                     break;
                 }
-            default:
-                // Save and restore, and anything the cases above do not
-                // name: a road not yet walked is refused, never guessed.
-                throw Unported(i);
         }
     }
 }

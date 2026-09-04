@@ -170,7 +170,8 @@ internal static class Program
             watch.Saw(text);
         }
 
-        var code = Session(() => new Machine(story, new PlainFrontend(Tee), Source, seed), emit, () => Banner(script.Game, story, blorb, emit), null);
+        var saves = new FileSaveSlot(Path.ChangeExtension(script.Game, ".sav"));
+        var code = Session(() => new Machine(story, new PlainFrontend(Tee), Source, seed, saves: saves), emit, () => Banner(script.Game, story, blorb, emit), null);
         watch.Finish();
         return code;
     }
@@ -194,10 +195,12 @@ internal static class Program
         }
 
         var painted = !plain && !Console.IsOutputRedirected && !Console.IsInputRedirected;
+        // Saved games live beside the story: zork1.z3 saves to zork1.sav.
+        var saves = new FileSaveSlot(Path.ChangeExtension(game, ".sav"));
 
         if (!painted)
         {
-            return Session(() => new Machine(story, new PlainFrontend(emit), Console.ReadLine, seed), emit, () => Banner(game, story, blorb, emit), null);
+            return Session(() => new Machine(story, new PlainFrontend(emit), Console.ReadLine, seed, saves: saves), emit, () => Banner(game, story, blorb, emit), null);
         }
 
         using var terminal = new ConsoleTerminal();
@@ -207,7 +210,7 @@ internal static class Program
         return Session(
             () =>
             {
-                var machine = new Machine(story, face, face.ReadLine, seed, face.ReadKey, face.ReadLineUntil);
+                var machine = new Machine(story, face, face.ReadLine, seed, face.ReadKey, face.ReadLineUntil, saves);
                 face.OnResize = machine.RefreshScreenFields;
                 return machine;
             },
