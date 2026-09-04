@@ -93,6 +93,24 @@ public class BlorbTests
         Assert.False(Blorb.Load(Form(Index(), Chunk("IFhd", wrongChecksumHigh))).Matches(story));
     }
 
+    // A chunk that runs past the file, and an index that cannot hold
+    // what it counts, are refused by name rather than read off the end.
+    [Theory]
+    [InlineData("long", "the AUTH chunk claims 9 bytes, but the file ends before them")]
+    [InlineData("count", "too short to hold its own count")]
+    [InlineData("entries", "the RIdx count of 2 needs 28 bytes, but the chunk holds 4")]
+    public void ATruncatedBlorbIsRefusedByName(string shape, string message)
+    {
+        byte[] bytes = shape switch
+        {
+            "long" => Form(Index(), [.. Encoding.ASCII.GetBytes("AUTH"), 0, 0, 0, 9, 1]),
+            "count" => Form(Chunk("RIdx", [0, 0])),
+            _ => Form(Chunk("RIdx", [0, 0, 0, 2])),
+        };
+        var error = Assert.Throws<ZMachineException>(() => Blorb.Load(bytes));
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
+    }
+
     // An Exec entry numbered 0 names the packaged story by the offset
     // of its chunk; only ZCOD belongs to this machine.
     [Fact]

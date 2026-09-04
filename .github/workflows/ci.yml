@@ -182,7 +182,7 @@ jobs:
           submodules: true
 
       - name: Install .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: csharp/global.json
 
@@ -197,6 +197,9 @@ jobs:
 
       - name: Publish NativeAOT
         run: dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish
+
+      - name: Publish the desktop through NativeAOT
+        run: dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.0.1
