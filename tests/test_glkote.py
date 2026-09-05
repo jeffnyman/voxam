@@ -396,6 +396,37 @@ def test_a_line_input_posts_and_carries() -> None:
         buffered().line_input(1, 80, terminators=("tab",))
 
 
+# A rearrange resends the standing field even though nothing about
+# it changed: the display sizes a line field from the geometry it
+# was emplaced in, so a window that changes shape under a standing
+# request has to be told the request again. A geometry change with
+# nothing requested still says nothing.
+def test_a_moved_window_resends_its_standing_field() -> None:
+    page = buffered()
+
+    page.line_input(1, 80)
+    page.update()
+
+    narrower = (0, 0, 320, 400)
+
+    page.window(1, "buffer", 0, narrower)
+    page.line_input(1, 80)
+
+    moved = page.update()
+
+    assert_that(moved["windows"][0]["width"]).is_equal_to(320)
+    assert_that(moved["input"]).is_equal_to(
+        [{"id": 1, "type": "line", "maxlen": 80, "gen": 1}]
+    )
+
+    quiet = buffered()
+
+    quiet.update()
+    quiet.window(1, "buffer", 0, narrower)
+
+    assert_that(quiet.update()).does_not_contain_key("input")
+
+
 # Content reaching a window recreates its carried field at the new
 # generation -- a carried field forbids content, a recreated one
 # permits it (GlkOte: The Input Update Array).
