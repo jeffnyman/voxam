@@ -266,6 +266,11 @@ painted console, status line and wrapped text and a pause prompt,
 the same shape the Z-Machine's own painter has, and in the desktop
 window it plays on the same glass, drawing its pictures and hearing
 the pointer.
+It can also say what a
+story is: `voxam --babel story.z5` reports the identity the Treaty
+of Babel gives it, along with the title, author and headline where
+the file carries an iFiction record, and the name Infocom's own
+catalog gives the games that shipped before there was a treaty.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).

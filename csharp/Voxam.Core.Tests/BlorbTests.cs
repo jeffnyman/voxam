@@ -65,6 +65,22 @@ public class BlorbTests
         Assert.Throws<ZMachineException>(() => Blorb.Load(Chunk("RIFF", Encoding.ASCII.GetBytes("IFRS"))));
     }
 
+    // The metadata chunk rides out as it stands, for whoever wants to
+    // read a record out of it; a package carrying none says so.
+    [Fact]
+    public void TheMetadataChunkCarriesTheRecordWhole()
+    {
+        var xml = Encoding.ASCII.GetBytes(
+            "<ifindex><story><bibliographic><title>Bronze</title>"
+            + "</bibliographic></story></ifindex>");
+
+        var packaged = Blorb.Load(Form(Index(), Chunk("IFmd", xml)));
+
+        Assert.Equal(xml, packaged.Ifiction);
+        Assert.Equal("Bronze", Babel.Ifiction(packaged.Ifiction!)?.Title);
+        Assert.Null(Blorb.Load(Form(Index())).Ifiction);
+    }
+
     [Fact]
     public void TheIdentifierChunkNamesAStory()
     {

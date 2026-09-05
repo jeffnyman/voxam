@@ -37,6 +37,14 @@ public sealed class Blorb
     public byte[]? Story { get; private init; }
 
     /// <summary>
+    /// The metadata chunk's iFiction record, XML bytes as they stand,
+    /// or null where the package carries none. The treaty puts a work's
+    /// bibliography in the file rather than in a table somewhere, which
+    /// is what lets a modern story name itself (Babel: The IFmd chunk).
+    /// </summary>
+    public byte[]? Ifiction { get; private init; }
+
+    /// <summary>
     /// The Version 6 art as a gallery: sizes eager, pixels lazy. PNG
     /// pictures and Rect placeholders make the census; a JPEG, which
     /// no Infocom Version 6 set carries, is left out, because a
@@ -78,6 +86,7 @@ public sealed class Blorb
         var story = false;
         byte[]? packaged = null;
         byte[]? identity = null;
+        byte[]? metadata = null;
         var art = new Dictionary<int, object>();
         var index = new List<Resource>();
         var release = 0;
@@ -152,6 +161,10 @@ public sealed class Blorb
             {
                 identity = data[payload..(payload + length)];
             }
+            else if (id == "IFmd")
+            {
+                metadata = data[payload..(payload + length)];
+            }
             else if (id == "RelN")
             {
                 if (length != 2)
@@ -176,6 +189,7 @@ public sealed class Blorb
             Sounds = sounds,
             HasStory = story,
             Story = packaged,
+            Ifiction = metadata,
             Gallery = new Gallery(art, release, resolution),
             _identity = identity,
         };

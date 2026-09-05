@@ -250,6 +250,48 @@ jobs:
             wc -l reference.txt
           done
 
+      # The treaty's report is a small fixed block, so unlike the
+      # transcripts it can be compared in full for every story the
+      # corpus holds. That sweep is a local one; what runs here is the
+      # three answers the report can give: a legacy Infocom file named
+      # by the catalog, a package naming itself from its own iFiction
+      # record, and a Glulx package doing the same.
+      - name: The treaty's report, byte for byte
+        shell: bash
+        run: |
+          set -o pipefail
+
+          stories="entharion/zcode-infocom/zork1-r88-s840726.z3
+          entharion/zcode-inform/bronze-r11-s060503.zblorb
+          entharion/glulx-code/anchorhead-r1-s171017.gblorb"
+
+          for story in $stories; do
+            echo "== $story"
+
+            if ! uv run voxam --babel "$story" > reference.txt; then
+              echo "the reference itself would not report $story"
+              cat reference.txt
+              exit 1
+            fi
+
+            if ! csharp/publish/voxam --babel "$story" > port.txt; then
+              echo "the port would not report $story"
+              cat port.txt
+              exit 1
+            fi
+
+            if ! diff -u reference.txt port.txt; then
+              exit 1
+            fi
+
+            if ! cmp -s reference.txt port.txt; then
+              echo "$story differs; the diff is above"
+              exit 1
+            fi
+
+            tail -n +4 reference.txt
+          done
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest

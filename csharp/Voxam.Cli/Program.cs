@@ -14,7 +14,7 @@ internal static class Program
     // The terminal a session falls back to when nothing can be measured.
     private const int DefaultColumns = 80;
     private const int DefaultLines = 24;
-    private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --stage-grid SCRIPT [--seed N]\n       voxam --version";
+    private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --stage-grid SCRIPT [--seed N]\n       voxam --babel STORY\n       voxam --version";
 
     private static int Main(string[] args)
     {
@@ -23,6 +23,7 @@ internal static class Program
         string? story = null;
         int? seedOverride = null;
         var plain = false;
+        var babel = false;
 
         for (var k = 0; k < args.Length; k++)
         {
@@ -39,6 +40,9 @@ internal static class Program
                     break;
                 case "--plain":
                     plain = true;
+                    break;
+                case "--babel":
+                    babel = true;
                     break;
                 case "--version":
                     Console.WriteLine($"voxam {Version()} (native)");
@@ -74,6 +78,11 @@ internal static class Program
             if (grid is not null)
             {
                 return StageGrid.Dump(grid, seedOverride, Emit);
+            }
+
+            if (babel)
+            {
+                return Babelled(story!, Emit);
             }
 
             return script is not null ? Replay(script, seedOverride, Emit) : Play(story!, seedOverride, plain, Emit, stdout);
@@ -210,6 +219,88 @@ internal static class Program
                 emit("voxam: the resource file names a different story\n\n");
             }
         }
+    }
+
+    // The treaty's own report. Unlike the Z-Machine's reports it speaks
+    // both machines: a blorb's iFiction record answers first, then the
+    // packaged or loose story's own bytes (Babel: The IFID for a
+    // blorbed story file), and the record's bibliography rides along
+    // when it has any. A metadata-only blorb still refuses, since a
+    // blorb with no story "is not itself a work of IF".
+    private static int Babelled(string game, Action<string> emit)
+    {
+        Greeting(emit);
+
+        byte[]? data;
+        IFiction? record = null;
+
+        try
+        {
+            if (StoryFile.IsBlorb(game))
+            {
+                var packaged = Blorb.Load(File.ReadAllBytes(game));
+                data = packaged.Story;
+
+                if (packaged.Ifiction is { } metadata)
+                {
+                    // A chunk that will not parse earns a loud note
+                    // before the story's own bytes answer instead.
+                    record = Babel.Ifiction(metadata);
+
+                    if (record is null)
+                    {
+                        emit("voxam: the iFiction record cannot be read; the story answers instead\n");
+                    }
+                }
+            }
+            else
+            {
+                data = File.ReadAllBytes(game);
+            }
+        }
+        catch (Exception error) when (error is VoxamException or IOException)
+        {
+            emit($"voxam: {error.Message}\n");
+            return ExitUnusable;
+        }
+
+        var name = Path.GetFileName(game);
+
+        if (data is null)
+        {
+            emit($"voxam: {name} packages no story, and a blorb without one is not itself a work of IF\n");
+            return ExitUnusable;
+        }
+
+        var identity = record?.Ifid ?? Babel.Ifid(data);
+
+        if (identity is null)
+        {
+            emit($"voxam: {name} is neither Z-code nor Glulx\n");
+            return ExitUnusable;
+        }
+
+        emit($"{name}\n\n");
+        emit($"IFID: {identity}\n");
+
+        // The record names the work; failing that, the catalog names
+        // the games that shipped before there were records to name them.
+        if ((record?.Title ?? Infocom.Title(identity)) is { } named)
+        {
+            emit($"Title: {named}\n");
+        }
+
+        if (record?.Author is { } author)
+        {
+            emit($"Author: {author}\n");
+        }
+
+        if (record?.Headline is { } headline)
+        {
+            emit($"Headline: {headline}\n");
+        }
+
+        return ExitOk;
     }
 
     private static int Replay(string scriptPath, int? seedOverride, Action<string> emit)
