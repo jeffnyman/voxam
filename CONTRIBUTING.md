@@ -58,6 +58,7 @@ window, so the glass is measured at the same gate as the core.
 | Publish the desktop | `dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop` |
 | Certify against the reference | `uv run python tools/sweep-corpus.py record port --voxam csharp/publish/voxam` |
 | Certify the Version 6 stage | `uv run python tools/stage-grid.py acceptance/SCRIPT.accept --voxam csharp/publish/voxam` |
+| Certify the treaty's report | `uv run python tools/sweep-babel.py --other csharp/publish/voxam` |
 | Play at the terminal | `csharp/publish/voxam story.z5` (`--plain` for the transcript stream) |
 | Play in the window | `csharp/publish-desktop/Voxam story.z5` (`--theme paper` for a lighter look), or open one from its Story menu |
 
@@ -71,12 +72,17 @@ comparison of the two by transcript digest. A transcript is a
 character face's answer, though, so the Version 6 stage has a
 certificate of its own: `tools/stage-grid.py` replays a walk on
 each interpreter's stage, at the same geometry, and compares the
-grids row for row. CI does the smallest
-version of that on every push, replaying Zork I under both and
-requiring the bytes to agree. The Python is the reference and
-stays so: a difference between the two is a question for the
-port, not the Python, unless the Python is shown wrong against
-the Standard.
+grids row for row. What a story is called has a third:
+`tools/sweep-babel.py` asks both interpreters to report every
+story in the corpus by the Treaty of Babel, and compares the
+answers byte for byte. That report is short enough to compare in
+full, so unlike the other two it covers the whole corpus rather
+than a sample of it. CI runs a small version of the first and the
+third on every push, replaying Zork I and Adventure under both
+and reporting three stories under both, requiring the bytes to
+agree each time. The Python is the reference and stays so: a
+difference between the two is a question for the port, not the
+Python, unless the Python is shown wrong against the Standard.
 
 ## The desktop shell
 

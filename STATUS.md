@@ -2162,15 +2162,42 @@ of Glk 0.7.6's hundred and twenty-three functions is served, both
 faces are here, and the acceptance sweep stands at forty-five of
 forty-five.
 
-**The road, now plural again.** Sound, which needs a speaker the port
-has never had, and which the painted faces will claim honestly the
-moment there is one. The adaptive palettes, the Babel title, the
-menus the desktop shell could grow. None of them blocks a game the
-corpus plays. Only once Glk is over the
-faces the port already has can glulxercise judge any of it, and
-after that come the two recordings that take the sweep to
-forty-five of forty-five. Then sound, the adaptive palettes, the
-mouse and the menus. The Å-machine waits on the Python's own
-acceptance driver for it, and a browser face waits on someone
-wanting one, at which point it is Avalonia in WebAssembly and not
-a second renderer.
+**The treaty, and what a story is called.** The port can name a
+story now. `voxam --babel STORY` reports the identity the Treaty of
+Babel gives it, and the bibliography where the file carries one. The
+modern UUID brand wins wherever it is burned into byte-accessible
+memory; where it is not, the header's own numbers earn the story a
+human-readable identity like ZCODE-88-840726, which is what the
+treaty prefers to a hash because Infocom's files "sometimes crop up
+with spurious tails". A package's iFiction record answers ahead of
+the story's own bytes, and Infocom's catalog, two hundred and
+forty-six identities for the games that shipped two decades before
+there was a treaty to record them, names what neither can. The
+Å-machine's rule is not here and will not be: it belongs to the
+reference, which is the only one of the two that runs Dialog.
+
+**Certified the usual way, and for once completely.** A transcript is
+long enough that the sweep compares a corpus of recordings; the
+treaty's report is a small fixed block, so the differential is not a
+sample but the whole thing. Every story in the corpus the port can
+play, reported by both and compared byte for byte: **206 compared, 0
+differing.** CI carries three of them on every push, one for each
+answer the report can give: a legacy Infocom file named by the
+catalog, a package naming itself out of its own record, and a Glulx
+package doing the same.
+
+**The road.** Sound, which needs a speaker the port has never had,
+and which the painted faces will claim honestly the moment there is
+one. The adaptive palettes. The story's own name in the desktop
+window's title bar, and the per-version icons beside it, both of
+which were waiting on the reader above. The checker batteries, CZECH
+and glulxercise, which run against the reference on every push and
+have never yet been pointed at the port: the plain stream could take
+glulxercise today, while arthur.regtest waits on a `--regtest` of its
+own. And the reports the reference has
+and the port does not, `--header` and `--listing` and `--decompose`
+and `--trace`, which are printers over readers the port already
+carries. None of them blocks a game the corpus plays. The Å-machine
+waits on the Python's own acceptance driver for it, and a browser
+face waits on someone wanting one, at which point it is Avalonia in
+WebAssembly and not a second renderer.
