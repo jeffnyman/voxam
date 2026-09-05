@@ -93,9 +93,9 @@ public static class GlkGestalt
 /// shared: the window tree, the live object lists, and the current
 /// stream are the same few fields everything here reads.
 ///
-/// Not every function is served yet. Pictures and sound wait for the
-/// resources they would draw and play. What is missing refuses by name
-/// through the seat above.
+/// The whole of Glk 0.7.6 is served: every function the dispatch table
+/// carries has a handler here, and the refusal the seat above keeps for
+/// an unserved selector now speaks only for a Glk yet to be written.
 /// </summary>
 public sealed partial class Api : GlkLibrary, IGlkOutput
 {
@@ -114,10 +114,12 @@ public sealed partial class Api : GlkLibrary, IGlkOutput
     /// <summary>Open with no windows, over a display or over nothing.</summary>
     /// <param name="display">The display to render into, or null.</param>
     /// <param name="saveDir">Where game-named files live.</param>
-    public Api(GlkDisplay? display = null, string? saveDir = null)
+    /// <param name="resources">The pictures, sounds and data on offer.</param>
+    public Api(GlkDisplay? display = null, string? saveDir = null, GlkResources? resources = null)
     {
         Display = display ?? new NullDisplay();
         SaveDir = saveDir ?? Directory.GetCurrentDirectory();
+        Resources = resources ?? new GlkResources();
 
         ServeMain();
         ServeWindows();
@@ -126,12 +128,17 @@ public sealed partial class Api : GlkLibrary, IGlkOutput
         ServeOutput();
         ServeText();
         ServeInput();
+        ServePictures();
+        ServeSound();
 
         Display.Attach(this);
     }
 
     /// <summary>The display rendered into and read from.</summary>
     public GlkDisplay Display { get; }
+
+    /// <summary>The pictures, sounds and data on offer.</summary>
+    public GlkResources Resources { get; }
 
     /// <summary>
     /// Where game-named files live; every sanitized filename resolves

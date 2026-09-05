@@ -3,6 +3,20 @@ using System.Text;
 namespace Voxam.Core;
 
 /// <summary>Enough of a Blorb to take the session banner's census and check identity.</summary>
+/// <summary>
+/// One resource the index names: what it is for, the number a game asks
+/// for it by, and the chunk it points at (Blorb: Resource Index Chunk).
+///
+/// The payload is the chunk's body. A FORM resource is a whole nested
+/// IFF file, so whoever reads one puts the header back; everything else
+/// is the bytes as they stand.
+/// </summary>
+/// <param name="Usage">What the resource is for: Pict, Snd, Data, Exec.</param>
+/// <param name="Number">The number a game asks for it by.</param>
+/// <param name="Id">The chunk type: PNG, JPEG, FORM, TEXT, BINA, and kin.</param>
+/// <param name="Payload">The chunk's body.</param>
+public sealed record Resource(string Usage, int Number, string Id, byte[] Payload);
+
 public sealed class Blorb
 {
     private const int RectSize = 8;
@@ -31,6 +45,27 @@ public sealed class Blorb
     /// </summary>
     public Gallery Gallery { get; private init; } = Gallery.Empty;
 
+    private IReadOnlyList<Resource> _index = [];
+
+    /// <summary>
+    /// The resource a game asks for by usage and number, or null where
+    /// the index names none.
+    /// </summary>
+    /// <param name="usage">What the resource is for: Pict, Snd, Data.</param>
+    /// <param name="number">The number the game asks for it by.</param>
+    public Resource? Resource(string usage, int number)
+    {
+        foreach (var piece in _index)
+        {
+            if (piece.Number == number && piece.Usage == usage)
+            {
+                return piece;
+            }
+        }
+
+        return null;
+    }
+
     public static Blorb Load(byte[] data)
     {
         if (data.Length < 12 || Ascii(data, 0) != "FORM" || Ascii(data, 8) != "IFRS")
@@ -44,6 +79,7 @@ public sealed class Blorb
         byte[]? packaged = null;
         byte[]? identity = null;
         var art = new Dictionary<int, object>();
+        var index = new List<Resource>();
         var release = 0;
         Resolution? resolution = null;
         var pos = 12;
@@ -77,6 +113,20 @@ public sealed class Blorb
                 {
                     var entry = payload + 4 + 12 * k;
                     var usage = Ascii(data, entry);
+
+                    // The three usages a game asks Glk about are indexed
+                    // here: the Z-Machine reads pictures through the
+                    // gallery below, and Glk reads pictures, sounds and
+                    // data files through this. The executable is not
+                    // among them, and keeps the forgiving seat it has
+                    // always had: a story that will not resolve is a
+                    // Blorb with no story in it, not a broken file.
+                    if (usage is "Pict" or "Snd " or "Data")
+                    {
+                        Indexed(
+                            data, index, usage,
+                            Word32(data, entry + 4), Word32(data, entry + 8));
+                    }
 
                     if (usage == "Pict")
                     {
@@ -121,6 +171,7 @@ public sealed class Blorb
 
         return new Blorb
         {
+            _index = index,
             Pictures = pictures,
             Sounds = sounds,
             HasStory = story,
@@ -130,14 +181,15 @@ public sealed class Blorb
         };
     }
 
-    // One Pict entry's art, when this machine can draw it: a PNG
-    // keeps its bytes, and a Rect is a size with no pixels at all
-    // (Blorb: Picture Resource Chunks).
-    private static void Hang(byte[] data, Dictionary<int, object> art, int number, int offset)
+    // One index entry, resolved to the chunk it points at. An entry
+    // pointing nowhere is the index lying about its own file, which is
+    // the same refusal a picture pointing nowhere earns below.
+    private static void Indexed(
+        byte[] data, List<Resource> index, string usage, int number, int offset)
     {
         if (offset < 0 || offset + 8 > data.Length)
         {
-            throw new ZMachineException($"picture {number} points at offset {offset}, where no chunk begins (Blorb: Resource Index Chunk)");
+            throw new ZMachineException($"{usage} resource {number} points at offset {offset}, where no chunk begins (Blorb: Resource Index Chunk)");
         }
 
         var id = Ascii(data, offset);
@@ -147,6 +199,21 @@ public sealed class Blorb
         {
             throw new ZMachineException($"the {id} chunk claims {length} bytes, but the file ends before them (Blorb: IFF)");
         }
+
+        index.Add(new Resource(usage, number, id, data[(offset + 8)..(offset + 8 + length)]));
+    }
+
+    // One Pict entry's art, when this machine can draw it: a PNG
+    // keeps its bytes, and a Rect is a size with no pixels at all
+    // (Blorb: Picture Resource Chunks).
+    //
+    // The offset and the chunk's own length were held to the file's
+    // bounds by the index above, which every picture entry passes
+    // through first, so there is nothing left here to guard.
+    private static void Hang(byte[] data, Dictionary<int, object> art, int number, int offset)
+    {
+        var id = Ascii(data, offset);
+        var length = Word32(data, offset + 4);
 
         if (id == "PNG ")
         {
