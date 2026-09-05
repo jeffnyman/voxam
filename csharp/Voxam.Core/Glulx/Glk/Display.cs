@@ -154,6 +154,108 @@ public abstract class GlkDisplay
     /// <param name="fmode">How the game means to open it.</param>
     public virtual string? PromptFile(uint usage, uint fmode) => null;
 
+    // The drawing contract is inert by default. A display that claims
+    // graphics overrides these; one that does not is never asked,
+    // because the Graphics gestalt reports zero and graphics windows
+    // refuse to open.
+
+    /// <summary>
+    /// Draw a picture; answer whether it was drawn (Glk: Graphics).
+    /// </summary>
+    /// <param name="window">The window to draw in.</param>
+    /// <param name="image">The picture, measured.</param>
+    /// <param name="val1">Where across, or the alignment in a buffer.</param>
+    /// <param name="val2">Where down, or the link value in a buffer.</param>
+    /// <param name="width">How wide to draw it.</param>
+    /// <param name="height">How tall.</param>
+    public virtual bool DrawImage(
+        Window window, ImageInfo image, int val1, int val2, uint width, uint height) => false;
+
+    /// <summary>
+    /// Erase a rectangle to the background (Glk: Graphics in Graphics
+    /// Windows).
+    /// </summary>
+    /// <param name="window">The window to erase in.</param>
+    /// <param name="left">The rectangle's left edge.</param>
+    /// <param name="top">Its top edge.</param>
+    /// <param name="width">Its width.</param>
+    /// <param name="height">Its height.</param>
+    public virtual void EraseRect(Window window, int left, int top, uint width, uint height)
+    {
+        // A display that cannot draw has nothing to erase.
+    }
+
+    /// <summary>Fill a rectangle with a color.</summary>
+    /// <param name="window">The window to fill in.</param>
+    /// <param name="color">The color to fill with.</param>
+    /// <param name="left">The rectangle's left edge.</param>
+    /// <param name="top">Its top edge.</param>
+    /// <param name="width">Its width.</param>
+    /// <param name="height">Its height.</param>
+    public virtual void FillRect(
+        Window window, uint color, int left, int top, uint width, uint height)
+    {
+        // Nor anything to fill.
+    }
+
+    /// <summary>Set the color future clears fill with.</summary>
+    /// <param name="window">The window whose background it is.</param>
+    /// <param name="color">The color to clear to.</param>
+    public virtual void SetBackgroundColor(Window window, uint color)
+    {
+        // A background nothing is drawn on is nothing to choose.
+    }
+
+    /// <summary>
+    /// Break text below margin images (Glk: Graphics in Text Buffer
+    /// Windows).
+    /// </summary>
+    /// <param name="window">The buffer window to break in.</param>
+    public virtual void FlowBreak(Window window)
+    {
+        // Text laid around no pictures needs no break.
+    }
+
+    // The sound contract, equally inert without the sound flag.
+
+    /// <summary>
+    /// Begin playing; answer whether it started.
+    ///
+    /// A display that supports notification posts a sound event through
+    /// Post when the sound ends: a blocking display has no other way to
+    /// raise one.
+    /// </summary>
+    /// <param name="channel">The channel to play on.</param>
+    /// <param name="sound">The resource number to play.</param>
+    /// <param name="repeats">How many times, or -1 for forever.</param>
+    /// <param name="notify">The nonzero value a finished play reports with.</param>
+    public virtual bool PlaySound(
+        SoundChannel channel, uint sound, uint repeats, uint notify) => false;
+
+    /// <summary>Stop whatever the channel is playing.</summary>
+    /// <param name="channel">The channel to silence.</param>
+    public virtual void StopSound(SoundChannel channel)
+    {
+        // Silence needs no stopping.
+    }
+
+    /// <summary>Pause or resume the channel.</summary>
+    /// <param name="channel">The channel to hold or release.</param>
+    /// <param name="paused">Whether it is held.</param>
+    public virtual void PauseSound(SoundChannel channel, bool paused)
+    {
+        // Nor holding.
+    }
+
+    /// <summary>Change the channel's volume, over a duration if asked.</summary>
+    /// <param name="channel">The channel to change.</param>
+    /// <param name="volume">The volume, as a fraction of full volume.</param>
+    /// <param name="duration">How long to take about it, in milliseconds.</param>
+    public virtual void SetVolume(SoundChannel channel, uint volume, uint duration)
+    {
+        // Nor turning up.
+    }
+
     /// <summary>
     /// Queue an event the display raised, for the next select.
     ///

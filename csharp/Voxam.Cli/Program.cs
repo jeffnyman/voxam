@@ -98,6 +98,7 @@ internal static class Program
     private static int Glulxed(
         string game,
         byte[] data,
+        Blorb? blorb,
         int? seed,
         Action<string> emit,
         Func<string?> read,
@@ -121,7 +122,11 @@ internal static class Program
         emit($"Running {Path.GetFileName(game)}: Glulx {story.Version}, {(story.Verify() ? "checksum verified" : "CHECKSUM MISMATCH")}\n\n");
 
         var display = new Glulx.Glk.StdioDisplay(emit, read, Room(), witness, clicks, links);
-        var library = new Glulx.Glk.Api(display);
+        // A story's own package is its resources: the pictures it draws,
+        // the sounds it plays, and the data files it reads. What this
+        // display can do with them is another matter, and its own.
+        var library = new Glulx.Glk.Api(
+            display, resources: new Glulx.Glk.GlkResources(blorb));
 
         try
         {
@@ -255,6 +260,7 @@ internal static class Program
             var played = Glulxed(
                 script.Game,
                 story,
+                blorb,
                 seed,
                 emit,
                 Source,
@@ -296,7 +302,7 @@ internal static class Program
             // plays over the plain stream whether one was asked for or
             // not. The prompt is pushed out before every read, since a
             // buffered writer would otherwise leave it unshown.
-            return Glulxed(game, story, seed, emit, () =>
+            return Glulxed(game, story, blorb, seed, emit, () =>
             {
                 stdout.Flush();
                 return Console.ReadLine();

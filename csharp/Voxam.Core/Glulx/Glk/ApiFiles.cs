@@ -103,6 +103,35 @@ public sealed partial class Api
 
         Serve(0x0138, args =>
             Held.OfOpaque(OpenFile(File(args[0]), Word(args[1]), Word(args[2]), true)));
+
+        // A byte stream and a word stream over a Blorb data resource
+        // (Glk: Resource Streams).
+        Serve(0x0049, args =>
+            Held.OfOpaque(OpenResource(Word(args[0]), Word(args[1]), false)));
+        Serve(0x013A, args =>
+            Held.OfOpaque(OpenResource(Word(args[0]), Word(args[1]), true)));
+    }
+
+    /// <summary>
+    /// Open a read-only stream over a data chunk, or nothing where no
+    /// resource answers the number.
+    /// </summary>
+    private StreamOnFile? OpenResource(uint filenum, uint rock, bool unicode)
+    {
+        if (Resources.Datafile((int)filenum) is not var (bytes, isText))
+        {
+            return null;
+        }
+
+        // The same encoding matrix as a file, over bytes instead of a
+        // handle: text plus Unicode means UTF-8, binary means four-byte
+        // words (Glk: Resource Streams).
+        var stream = new StreamOnFile(
+            new MemoryStream(bytes, false), GlkFileMode.Read, rock, unicode, isText);
+
+        Streams.Insert(0, stream);
+
+        return stream;
     }
 
     /// <summary>

@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 1,140 tests and
+And the test projects, `Voxam.Core.Tests` at 1,165 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -2015,7 +2015,53 @@ and The Tiny House, which were the only two the port could not play.
 Continuous integration now compares one recording from each machine
 against the reference on all three operating systems.
 
-**The road, now singular.** Glk's pictures and sound. Only once Glk is over the
+**Pictures and sound, and the last refusal falls silent.** Glk's own
+view of a Blorb is here: the pictures a game draws, the sounds a
+channel plays, and the data chunks a resource stream opens over. The
+Blorb reader reads the container; this decides what its contents mean
+to Glk, which is the same split the reference keeps, and for the same
+reason: the interpreter needs that container to find the executable
+before any of this exists.
+
+A picture is measured from its own bytes rather than asked of the
+display, because glk_image_get_info must answer even where nothing
+can be drawn: a game may lay a window out from the dimensions and
+only then discover it has no graphics. PNG keeps its size at a fixed
+offset, the format requiring the header chunk to come first; a JPEG
+hides it in a start-of-frame segment that has to be walked to, past
+the standalone markers that carry no length and past the three
+markers that sit in the frame numbering without being frames.
+
+With those in hand the remaining twenty-four functions are served,
+and **every one of Glk 0.7.6's one hundred and twenty-three now has a
+handler.** The refusal the seat keeps for an unserved selector is
+still there, and now speaks only for a Glk yet to be written.
+
+The Blorb reader grew a resource index to make this possible, and it
+indexes what a game asks Glk about: pictures, sounds and data files.
+The executable keeps the forgiving seat it has always had, because a
+story that will not resolve is a Blorb with no story in it rather
+than a broken file. One consequence was worth taking: the picture
+loader's own two guards became unreachable once every picture entry
+passed through the index first, so they are gone rather than left
+standing as code nothing can reach.
+
+Certified as ever: a scripted session of 114 actions over a
+synthetic container carrying every kind of resource the rung reads,
+driven through the bridge from raw words in, with a display that
+draws and plays and records what it was asked. After every call both
+report the live channels with what each is playing and at what
+volume, the streams opened over data chunks with their read counts
+and positions, the pending events, and the display's whole ask log.
+184 lines, identical.
+
+And the proof that matters more: every Glulx story vendored in the
+corpus, twenty of them, plays identically on both interpreters, the
+picture-drawing ones included. Dead Cities refused by name an hour
+before this rung and now plays byte for byte with the reference.
+
+**The road, now singular.** The painted faces: the console, and then
+the window. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
