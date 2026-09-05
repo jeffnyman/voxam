@@ -10,6 +10,10 @@ internal static class Program
 {
     private const int ExitOk = 0;
     private const int ExitUnusable = 2;
+
+    // The terminal a session falls back to when nothing can be measured.
+    private const int DefaultColumns = 80;
+    private const int DefaultLines = 24;
     private const string Usage = "usage: voxam STORY [--plain] [--seed N]\n       voxam --accept SCRIPT [--seed N]\n       voxam --stage-grid SCRIPT [--seed N]\n       voxam --version";
 
     private static int Main(string[] args)
@@ -87,27 +91,95 @@ internal static class Program
         return version is null ? "0.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
     }
 
-    // A Glulx story loads and is held to every promise its header
-    // makes, and then says what it is: the machine that runs one is a
-    // road this port has not walked yet, and a session that stops
-    // should name what stopped it.
-    private static bool Frontier(string game, byte[] data, Action<string> emit)
+    // A Glulx session over the plain stream, which is what a piped
+    // session and the acceptance harness drive. The checksum verdict is
+    // printed but does not gate the run: the verify opcode exists so a
+    // story can judge itself.
+    private static int Glulxed(
+        string game,
+        byte[] data,
+        int? seed,
+        Action<string> emit,
+        Func<string?> read,
+        Action<string>? witness = null,
+        Func<(int X, int Y)?>? clicks = null,
+        Func<int?>? links = null)
     {
-        if (!Glulx.Story.IsGlulx(data))
+        Glulx.Story story;
+
+        try
         {
-            return false;
+            story = new Glulx.Story(data);
+        }
+        catch (VoxamException error)
+        {
+            emit($"voxam: {error.Message}\n");
+            return ExitUnusable;
         }
 
-        var story = new Glulx.Story(data);
-        var checksum = story.Verify() ? "checksum verified" : "checksum wrong";
-        emit($"voxam: {Path.GetFileName(game)} is a Glulx story (version {story.Version}, {checksum}), and the Glulx machine is not here yet\n");
+        Greeting(emit);
+        emit($"Running {Path.GetFileName(game)}: Glulx {story.Version}, {(story.Verify() ? "checksum verified" : "CHECKSUM MISMATCH")}\n\n");
 
-        return true;
+        var display = new Glulx.Glk.StdioDisplay(emit, read, Room(), witness, clicks, links);
+        var library = new Glulx.Glk.Api(display);
+
+        try
+        {
+            new Glulx.Machine(story, seed, library: library).Run();
+        }
+        catch (Exception error) when (error is VoxamException or IOException)
+        {
+            emit($"\nvoxam: {error.Message}\n");
+            return ExitUnusable;
+        }
+
+        // A story that ends with quit rather than glk_exit never asked
+        // for a last flush; whatever its windows still hold is shown on
+        // the way out.
+        display.Flush(library.Root);
+        emit("\n");
+
+        return ExitOk;
     }
+
+    // The room the windows lay out in, measured the way the reference
+    // measures it: the environment first, since that is how a harness
+    // pins a width; then the console itself, when there is one to ask;
+    // and a conventional terminal when neither can say. A piped session
+    // therefore lays out at eighty by twenty-four on both interpreters,
+    // which is what makes their transcripts comparable.
+    private static (int Width, int Height) Room()
+    {
+        var width = Declared("COLUMNS");
+        var height = Declared("LINES");
+
+        if (width > 0 && height > 0)
+        {
+            return (width, height);
+        }
+
+        var (columns, lines) = Console.IsOutputRedirected
+            ? (DefaultColumns, DefaultLines)
+            : (Console.WindowWidth, Console.WindowHeight);
+
+        return (width > 0 ? width : columns, height > 0 ? height : lines);
+    }
+
+    // A dimension the environment names, or nothing it can be read as.
+    private static int Declared(string name) =>
+        int.TryParse(
+            Environment.GetEnvironmentVariable(name),
+            CultureInfo.InvariantCulture,
+            out var value)
+            ? value
+            : 0;
+
+    private static void Greeting(Action<string> emit) =>
+        emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
 
     private static void Banner(string game, byte[] story, Blorb? blorb, Action<string> emit)
     {
-        emit("\nVoxam Interpreter for Z-Machine and Glulx Stories\n\n");
+        Greeting(emit);
         var release = (story[Header.Release] << 8) | story[Header.Release + 1];
         var serial = Encoding.ASCII.GetString(story, Header.Serial, 6);
         emit($"Running {Path.GetFileName(game)}: release {release}, serial {serial} (z{story[0]})\n\n");
@@ -133,11 +205,6 @@ internal static class Program
         {
             script = AcceptanceScript.Parse(scriptPath);
             (story, blorb) = StoryFile.Load(script.Game);
-
-            if (Frontier(script.Game, story, emit))
-            {
-                return ExitUnusable;
-            }
         }
         catch (Exception error) when (error is VoxamException or IOException)
         {
@@ -174,6 +241,31 @@ internal static class Program
             watch.Saw(text);
         }
 
+        if (Glulx.Story.IsGlulx(story))
+        {
+            // The Glulx replay rides the plain display's own seams: the
+            // source types, the witness listens for refusals, and a
+            // script that carries clicks or links answers the events its
+            // recording's game asked for, one per marker. A script that
+            // carries neither wires neither source, so its replay keeps
+            // those gestalts at zero, which is what a session recorded at
+            // this display was told.
+            var positions = script.Clicks.GetEnumerator();
+            var selections = script.Links.GetEnumerator();
+            var played = Glulxed(
+                script.Game,
+                story,
+                seed,
+                emit,
+                Source,
+                watch.Saw,
+                script.Clicks.Count > 0 ? () => positions.MoveNext() ? positions.Current : null : null,
+                script.Links.Count > 0 ? () => selections.MoveNext() ? selections.Current : null : null);
+
+            watch.Finish();
+            return played;
+        }
+
         var saves = new FileSaveSlot(Path.ChangeExtension(script.Game, ".sav"));
         var code = Session(() => new Machine(story, new PlainFrontend(Tee), Source, seed, saves: saves), emit, () => Banner(script.Game, story, blorb, emit), null);
         watch.Finish();
@@ -191,16 +283,24 @@ internal static class Program
         try
         {
             (story, blorb) = StoryFile.Load(game);
-
-            if (Frontier(game, story, emit))
-            {
-                return ExitUnusable;
-            }
         }
         catch (Exception error) when (error is VoxamException or IOException)
         {
             emit($"voxam: {error.Message}\n");
             return ExitUnusable;
+        }
+
+        if (Glulx.Story.IsGlulx(story))
+        {
+            // The painted displays are their own roads; a Glulx story
+            // plays over the plain stream whether one was asked for or
+            // not. The prompt is pushed out before every read, since a
+            // buffered writer would otherwise leave it unshown.
+            return Glulxed(game, story, seed, emit, () =>
+            {
+                stdout.Flush();
+                return Console.ReadLine();
+            });
         }
 
         var painted = !plain && !Console.IsOutputRedirected && !Console.IsInputRedirected;
