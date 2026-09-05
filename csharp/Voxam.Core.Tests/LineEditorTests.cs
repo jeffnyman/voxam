@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Voxam.Core.Tests;
@@ -13,7 +14,7 @@ public class LineEditorTests
 
         public int Retreat(int cells)
         {
-            Log.Append($"<{cells}");
+            Log.Append(CultureInfo.InvariantCulture, $"<{cells}");
             return cells;
         }
     }

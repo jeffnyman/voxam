@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Voxam.Core;
@@ -1978,7 +1979,7 @@ public sealed class Machine
                 Next(i);
                 break;
             case Op.PrintNum:
-                Print(Signed(Value(i.Operands[0])).ToString());
+                Print(Signed(Value(i.Operands[0])).ToString(CultureInfo.InvariantCulture));
                 Next(i);
                 break;
             case Op.Random:

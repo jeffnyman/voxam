@@ -16,6 +16,18 @@ public class GlulxException(string message) : VoxamException(message);
 /// <summary>The input source ran dry: the session ends there, as at end of input.</summary>
 public sealed class EndOfInputException() : Exception("end of input");
 
+/// <summary>
+/// The session is over, thrown by glk_exit: a game that calls exit is
+/// finished, and the throw is how the news travels up out of a Glk call
+/// that may be nested deep inside the machine (Glk: Your Program's Main
+/// Function).
+///
+/// The reference deliberately declines to name this one as an error,
+/// because it is not one. Here it wears the suffix anyway, the
+/// analyzers holding every throwable to the same ending.
+/// </summary>
+public sealed class SessionEndException() : Exception("the session has ended");
+
 /// <summary>Header field offsets (§11.1).</summary>
 public static class Header
 {
