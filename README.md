@@ -261,8 +261,10 @@ and drawn. A Glulx story plays too, over a plain
 stream: the machine, the whole of its Glk library, and a display the
 acceptance harness can drive, which is enough for every acceptance
 recording in the corpus to come back byte-identical to the
-reference. The richer Glk faces, the painted console and the window
-that would show what a game draws, are still ahead.
+reference. At a real terminal it gets the
+painted console, status line and wrapped text and a pause prompt,
+the same shape the Z-Machine's own painter has; the window that
+would show what a game draws is still ahead.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).

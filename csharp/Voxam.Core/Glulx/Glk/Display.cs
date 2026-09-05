@@ -76,12 +76,21 @@ public abstract class GlkDisplay
     public virtual void Attach(GlkLibrary library) => Library = library;
 
     /// <summary>
-    /// What one window's characters cost in the display's own layout
-    /// unit. A terminal's unit is already the cell, so the default is
-    /// one by one and every measurement is the same number either way.
+    /// What one character costs in the display's own layout unit. A
+    /// terminal's unit is already the cell, so the default is one by one
+    /// and every measurement is the same number either way.
+    /// </summary>
+    public virtual Metrics Metrics => Glk.Metrics.CharacterCell;
+
+    /// <summary>
+    /// The metrics for one window; by default, the same for all.
+    ///
+    /// A display may spend different amounts on different window types,
+    /// so the tree asks per window rather than once. A display with one
+    /// answer need not override this.
     /// </summary>
     /// <param name="window">The window being measured.</param>
-    public virtual Metrics MetricsFor(Window window) => Metrics.CharacterCell;
+    public virtual Metrics MetricsFor(Window window) => Metrics;
 
     /// <summary>
     /// Whether two styles look different in a window. Only the display
