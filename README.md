@@ -263,8 +263,9 @@ acceptance harness can drive, which is enough for every acceptance
 recording in the corpus to come back byte-identical to the
 reference. At a real terminal it gets the
 painted console, status line and wrapped text and a pause prompt,
-the same shape the Z-Machine's own painter has; the window that
-would show what a game draws is still ahead.
+the same shape the Z-Machine's own painter has, and in the desktop
+window it plays on the same glass, drawing its pictures and hearing
+the pointer.
 Where it stands, and where it is going, is in
 [STATUS.md](STATUS.md); how to build and certify it is in
 [CONTRIBUTING.md](CONTRIBUTING.md).

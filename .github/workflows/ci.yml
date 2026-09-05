@@ -209,23 +209,46 @@ jobs:
       - name: Install the project
         run: uv sync --all-groups
 
-      - name: Zork I, byte for byte against the reference
-        shell: bash
-        run: |
-          uv run voxam --accept acceptance/zork1-r88-s840726.accept > reference.txt
-          csharp/publish/voxam --accept acceptance/zork1-r88-s840726.accept > port.txt
-          cmp reference.txt port.txt
-
-      # One recording from each machine, since the port now runs both.
+      # One recording from each machine, since the port runs both.
       # Adventure is the Glulx side's own oldest witness, and its
       # transcript exercises the whole stack the Z-Machine one does not:
       # the dispatch layer, the library, and the plain display.
-      - name: Adventure on Glulx, byte for byte against the reference
+      #
+      # Both transcripts go to files, so a bare comparison would fail in
+      # silence and leave a red job saying nothing at all. Each run is
+      # therefore checked for itself first, and a difference is shown
+      # rather than merely reported.
+      - name: One recording from each machine, byte for byte
         shell: bash
         run: |
-          uv run voxam --accept acceptance/advent-r5-s961209-glulx.accept > reference-glulx.txt
-          csharp/publish/voxam --accept acceptance/advent-r5-s961209-glulx.accept > port-glulx.txt
-          cmp reference-glulx.txt port-glulx.txt
+          set -o pipefail
+
+          for name in zork1-r88-s840726 advent-r5-s961209-glulx; do
+            echo "== $name"
+
+            if ! uv run voxam --accept "acceptance/$name.accept" > reference.txt; then
+              echo "the reference itself would not replay $name"
+              tail -20 reference.txt
+              exit 1
+            fi
+
+            if ! csharp/publish/voxam --accept "acceptance/$name.accept" > port.txt; then
+              echo "the port would not replay $name"
+              tail -20 port.txt
+              exit 1
+            fi
+
+            if ! diff -u reference.txt port.txt | head -40; then
+              exit 1
+            fi
+
+            if ! cmp -s reference.txt port.txt; then
+              echo "$name differs; the diff is above"
+              exit 1
+            fi
+
+            wc -l reference.txt
+          done
 
   build:
     name: Build distribution

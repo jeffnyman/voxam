@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Voxam.Core;
+using Voxam.Core.Glulx.Glk;
 
 namespace Voxam.Desktop;
 
@@ -21,7 +22,7 @@ namespace Voxam.Desktop;
 /// bitmaps, edge to edge, so a map corridor meets its neighbour with
 /// no seam.
 /// </summary>
-public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
+public sealed class Glass : Control, IScreen, IStageScreen, IGlkGlass, IDisposable
 {
     /// <summary>The classic grid the window opens at.</summary>
     public const int OpeningColumns = 80;
@@ -99,6 +100,7 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     private volatile bool _waiting;
     private (int Columns, int Lines, int Width, int Height)? _pinned;
     private RenderTargetBitmap? _surface;
+    private (int X, int Y)? _clicked;
     private RenderTargetBitmap? _scratch;
     private readonly Dictionary<byte[], Bitmap> _decoded = new(ReferenceEqualityComparer.Instance);
 
@@ -165,6 +167,31 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     int IStageScreen.FontWidth => UnitWidth;
 
     int IStageScreen.FontHeight => UnitHeight;
+
+    uint IGlkGlass.Ink => Packed(Look.Ink);
+
+    uint IGlkGlass.Paper => Packed(Look.Paper);
+
+    /// <summary>
+    /// Whether a click at the glass reaches the story. Only the Glk
+    /// displays ask for one; the Z-Machine's faces read keys alone, and
+    /// a marker they never expected would be a keystroke to them.
+    /// </summary>
+    public bool Clicks { get; set; }
+
+    /// <summary>
+    /// Where the player last clicked, in zero-based pixels, or null with
+    /// nothing waiting. Reading it spends it.
+    /// </summary>
+    public (int X, int Y)? Click()
+    {
+        lock (_typed)
+        {
+            var at = _clicked;
+            _clicked = null;
+            return at;
+        }
+    }
 
     private int UnitWidth => _pinned?.Width ?? Math.Max((int)Math.Round(CellSize.Width), 1);
 
@@ -466,6 +493,22 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         Focus();
+
+        if (Clicks)
+        {
+            // The click travels the key queue as the character the
+            // Z-Machine spells one with, and the position waits beside
+            // it: what wakes the read is the same thing either way.
+            var at = e.GetPosition(this);
+
+            lock (_typed)
+            {
+                _clicked = ((int)at.X, (int)at.Y);
+                _typed.Enqueue("\u00fe");
+                Monitor.Pulse(_typed);
+            }
+        }
+
         base.OnPointerPressed(e);
     }
 
@@ -682,6 +725,49 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
                     return;
                 }
 
+            case RunPaint run:
+                {
+                    // A whole run in one go: Glk hands over styled runs
+                    // rather than dressed cells, so there is no reason
+                    // to draw them a character at a time.
+                    var origin = new Point(run.Column - 1, run.Line - 1);
+                    var room = new Rect(origin, new Size(run.Text.Length * cell.Width, cell.Height));
+                    context.FillRectangle(new SolidColorBrush(Unpacked(run.Paper)), room);
+
+                    var face = (run.Bold, run.Italic) switch
+                    {
+                        (false, false) => Roman,
+                        (true, false) => Bold,
+                        (false, true) => Italic,
+                        _ => BoldItalic,
+                    };
+
+                    context.DrawText(Formatted(run.Text, face, Unpacked(run.Ink), _size), origin);
+                    return;
+                }
+
+            case ColourPaint colour:
+                {
+                    context.FillRectangle(
+                        new SolidColorBrush(Unpacked(colour.Colour)),
+                        new Rect(colour.Column - 1, colour.Line - 1, colour.Width, colour.Height));
+                    return;
+                }
+
+            case ClipPaint clip:
+                {
+                    if (Decoded(clip.Bytes) is not { } art)
+                    {
+                        return;
+                    }
+
+                    var source = new Rect(
+                        clip.SourceLeft, clip.SourceTop, clip.SourceWidth, clip.SourceHeight);
+                    var room = new Rect(clip.Column - 1, clip.Line - 1, clip.Width, clip.Height);
+                    context.DrawImage(art, source, room);
+                    return;
+                }
+
             default:
                 {
                     var fill = (FillPaint)paint;
@@ -715,6 +801,14 @@ public sealed class Glass : Control, IScreen, IStageScreen, IDisposable
     // A picture's pixels, decoded once and remembered. Art this glass
     // cannot decode is ignored where it lands: presentation, never
     // state.
+    // A Glk colour is 0x00RRGGBB, which is the same three bytes an
+    // Avalonia colour carries, opaque.
+    private static uint Packed(Color colour) =>
+        ((uint)colour.R << 16) | ((uint)colour.G << 8) | colour.B;
+
+    private static Color Unpacked(uint colour) =>
+        Color.FromRgb((byte)(colour >> 16), (byte)(colour >> 8), (byte)colour);
+
     private Bitmap? Decoded(byte[] pixels)
     {
         if (_decoded.TryGetValue(pixels, out var art))

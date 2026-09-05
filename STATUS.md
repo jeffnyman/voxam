@@ -1340,8 +1340,8 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 1,219 tests and
-`Voxam.Desktop.Tests` at 45, each at 100% line and branch
+And the test projects, `Voxam.Core.Tests` at 1,237 tests and
+`Voxam.Desktop.Tests` at 50, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
@@ -2113,8 +2113,60 @@ them: after each call both report every frame, every placement with
 its position and its styled runs, the cursor, each wrapper's pager
 state, and everything heard at the input seams. 429 lines, identical.
 
-**The road, now singular.** The window: Avalonia, reusing the glass
-the Z-Machine already plays on. Only once Glk is over the
+**The window, and the ladder's end.** A Glulx story opened in the
+desktop app now plays on the same glass the Z-Machine does. Its unit
+is the real pixel: the window tree is arranged over the glass's pixel
+grid, the metrics carry the font cell so a text window still answers
+its size in characters, and a graphics window's size is honestly its
+box. The graphics claim is true here, so canvases open, fill and
+erase in their own colours and persist between repaints, because
+their pixels are the game's work and painting over is only text's way
+of erasing. A picture that hangs off the edge of its window is drawn
+only as far as the window goes, cut by naming the part of the picture
+that shows rather than by clipping what is drawn.
+
+The pointer is claimed too. A click lands in whichever armed grid or
+canvas it hit, translated to that window's own units, cells in a grid
+and pixels on a canvas; a click on a linked run in an armed text
+window delivers the link's value, read off a map the paint itself
+leaves behind; and a click nothing asked for is swallowed, as every
+interpreter swallows it. The glass hears the pointer only for Glk:
+the Z-Machine's faces read keys alone, and a click marker they never
+expected would be a keystroke to them.
+
+The seam is the Version 6 stage's own, widened by the three things
+Glk needs and the stage does not: the true colours a game names, the
+ink and paper the window is dressed in, and where the player clicked.
+So the whole windowed display runs against a stub with no window
+open at all, which is how it is tested.
+
+**How this one is certified, and why not the usual way.** The spine
+beneath it is the same one the painted console rides, and that was
+diffed against the reference action for action in the rung before.
+The glass on top of it is not diffed, and deliberately: the reference
+draws through pygame's own primitives, placing cells and sampling
+pixel rows, where this port hands its glass whole runs and source
+rectangles and lets Avalonia do the scaling. Those two vocabularies
+are different designs rather than two spellings of one, and a
+transcript of them would compare the designs, not the ports. What
+holds it instead is eighteen tests over a recording stub, and four
+more that read the pixels of real rendered frames: a filled rectangle
+in the colour it was given, a run of text in its own ink on its own
+paper, a picture drawn from the part of itself that shows, and a
+press of the pointer arriving in the glass's own coordinates.
+
+**And with that the Glk ladder is finished.** Six rungs: the object
+model, the dispatch layer, the output half, the input half, the plain
+stream, the resources, the painted console and the window. Every one
+of Glk 0.7.6's hundred and twenty-three functions is served, both
+faces are here, and the acceptance sweep stands at forty-five of
+forty-five.
+
+**The road, now plural again.** Sound, which needs a speaker the port
+has never had, and which the painted faces will claim honestly the
+moment there is one. The adaptive palettes, the Babel title, the
+menus the desktop shell could grow. None of them blocks a game the
+corpus plays. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the

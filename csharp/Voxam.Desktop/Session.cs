@@ -1,4 +1,5 @@
 using Voxam.Core;
+using Voxam.Core.Glulx.Glk;
 using Glulx = Voxam.Core.Glulx;
 
 namespace Voxam.Desktop;
@@ -26,6 +27,9 @@ public sealed class Session
     /// <summary>The Version 6 face playing this story, or null for every other version.</summary>
     public StageFrontend? Stage { get; private set; }
 
+    /// <summary>The Glk display playing this story, or null for a Z-Machine one.</summary>
+    public GlassDisplay? Glk { get; private set; }
+
     /// <summary>
     /// Load the story and start it playing; the loader's refusals come
     /// straight back. Version 6 places its own windows in units, so it
@@ -39,12 +43,39 @@ public sealed class Session
 
         if (Glulx.Story.IsGlulx(story))
         {
-            // Held to its header's promises even here, so a Glulx file
-            // with something wrong inside it says what that is, rather
-            // than only that it cannot be played.
+            // Held to its header's promises here as everywhere, so a
+            // Glulx file with something wrong inside it says what that
+            // is rather than only that it will not play.
             var glulx = new Glulx.Story(story);
 
-            throw new GlulxException($"{Path.GetFileName(game)} is a Glulx story (version {glulx.Version}), and the Glulx machine is not here yet");
+            // The window tree is laid out over real pixels, so the glass
+            // keeps a retained surface the way a Version 6 stage does,
+            // and it hears the pointer, which only Glk asks it for.
+            glass.Pin(glass.Columns, glass.Lines);
+            glass.Clicks = true;
+
+            var display = new GlassDisplay(glass);
+            var library = new Api(
+                display,
+                Path.GetDirectoryName(Path.GetFullPath(game)),
+                new GlkResources(blorb));
+            var glulxed = new Glulx.Machine(glulx, seed, library: library);
+
+            return Started(
+                glass,
+                null,
+                () =>
+                {
+                    display.Clear();
+                    glulxed.Run();
+
+                    // A story that ends with quit rather than glk_exit
+                    // never asked for a last flush; whatever its windows
+                    // still hold is shown on the way out.
+                    display.Flush(library.Root);
+                },
+                notice,
+                session => session.Glk = display);
         }
 
         if (story[0] == 6)
