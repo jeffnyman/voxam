@@ -1,10 +1,11 @@
 """Generate the manual testing sheet from the corpus itself.
 
-Every story Voxam will actually open, each with the five faces a
-tester can paste. What counts as a story is decided by Voxam's own
-readers rather than by a file extension, so a resource-only blorb
-sitting beside its story is left out instead of listed as a game
-that refuses to start.
+Every story Voxam will actually open, each with the faces a tester
+can paste: the reference's five, and the C# port's three where the
+port plays that story at all. What counts as a story is decided by
+Voxam's own readers rather than by a file extension, so a
+resource-only blorb sitting beside its story is left out instead of
+listed as a game that refuses to start.
 
 Run it from anywhere; the repository is found from this file's own
 place in it, and the corpus from the submodule beside it:
@@ -55,6 +56,18 @@ FOLDERS = [
 ]
 
 FACES = ["", "--plain ", "--graphics ", "--web ", "--glkote "]
+
+# The port's own faces. It carries no pygame window and no wire, by
+# design: GlkOte and the sidecar are the reference's alone. What it
+# has instead is a window of its own, which is a separate binary
+# rather than a flag.
+PORT_CONSOLE = ["", "--plain "]
+PORT_BINARY = "csharp/publish/voxam"
+PORT_WINDOW = "csharp/publish-desktop/Voxam"
+
+# The Å-machine is the reference's alone; the port carries the
+# Z-Machine and Glulx.
+PORTED = (*BLORBS, *BARE_Z, *BARE_GLULX)
 
 # One story as the sheet describes it: where it lives, its Z
 # version where it has one, and the name it answers to.
@@ -234,15 +247,40 @@ def blocked(folder: str, entry: Described) -> list[str]:
     pieces.append("\n```bash\n")
     pieces += [f"uv run voxam {flag}{folder}/{held.name}\n" for flag in FACES]
     pieces.append("```\n")
+    pieces += ported(folder, held)
 
     return pieces
 
 
-def bodied(counts: list[tuple[str, int]]) -> list[str]:
+def ported(folder: str, held: Path) -> list[str]:
+    """The same story at the port, where the port can play it.
+
+    The plain stream is left out of the interesting part on purpose:
+    the sweep already compares it against the reference transcript by
+    transcript, so a tester adds nothing by reading it again. What no
+    transcript can check is the painted console and the window, which
+    is what these lines are for.
+    """
+
+    if held.suffix.lower() not in PORTED:
+        return []
+
+    return [
+        "\nAnd at the port:\n",
+        "\n```bash\n",
+        *[f"{PORT_BINARY} {flag}{folder}/{held.name}\n" for flag in PORT_CONSOLE],
+        f"{PORT_WINDOW} {folder}/{held.name}\n",
+        "```\n",
+    ]
+
+
+def bodied(counts: list[tuple[str, int, int]]) -> list[str]:
     """Every folder's stories, sectioned by machine family.
 
     The counts list is filled as the walk goes, so the preamble's
-    table and the body cannot disagree about what was found.
+    table and the body cannot disagree about what was found. Each
+    entry carries how many of that folder's stories the port plays as
+    well, which is all of them outside the Dialog corpus.
     """
 
     pieces: list[str] = []
@@ -254,7 +292,13 @@ def bodied(counts: list[tuple[str, int]]) -> list[str]:
         if not entries:
             continue
 
-        counts.append((label, len(entries)))
+        counts.append(
+            (
+                label,
+                len(entries),
+                sum(1 for held, _, _ in entries if held.suffix.lower() in PORTED),
+            )
+        )
 
         if family != heading:
             pieces.append(f"\n## {family}\n")
@@ -269,19 +313,23 @@ def bodied(counts: list[tuple[str, int]]) -> list[str]:
     return pieces
 
 
-def opened(total: int, counts: list[tuple[str, int]]) -> list[str]:
+def opened(
+    total: int, ported_total: int, counts: list[tuple[str, int, int]]
+) -> list[str]:
     """The preamble: how to run this, and what the faces are."""
 
     version, commit = stamped()
     stamp = datetime.now(UTC).date().isoformat()
+    commands = total * len(FACES) + ported_total * (len(PORT_CONSOLE) + 1)
     pieces = [
         "# Voxam manual testing sheet\n",
         f"\nGenerated {stamp} from `{version}` (`{commit}`), against the "
         "corpus in the `entharion` submodule. Regenerate it whenever the "
         "submodule pin moves; nothing here is written by hand.\n",
-        f"\n**{total} stories, five faces each: {total * len(FACES)} "
-        "commands.** Nobody is expected to run them all. Take a folder, "
-        "take a face, or take the handful you touched.\n",
+        f"\n**{total} stories at the reference's five faces, and "
+        f"{ported_total} of them at the port's three: {commands} commands "
+        "in all.** Nobody is expected to run them all. Take a folder, take "
+        "a face, or take the handful you touched.\n",
         "\n## Before you start\n",
         "\nRun everything from the repository root, so `uv run` finds the "
         "working tree rather than an installed copy:\n",
@@ -291,6 +339,17 @@ def opened(total: int, counts: list[tuple[str, int]]) -> list[str]:
         "\n```bash\ngit submodule update --init --recursive\n```\n",
         "\nTwo faces need an extra, and say so plainly if it is missing:\n",
         "\n```bash\nuv sync --extra screen --extra graphics --extra sound\n```\n",
+        "\n### The port has to be built first\n",
+        "\nThe C# port is not installed; it is compiled. Both binaries "
+        "publish through NativeAOT, and the paths in this sheet are where "
+        "these two commands put them:\n",
+        "\n```bash\n"
+        "dotnet publish csharp/Voxam.Cli -c Release -o csharp/publish\n"
+        "dotnet publish csharp/Voxam.Desktop -c Release -o csharp/publish-desktop\n"
+        "```\n",
+        "\nNativeAOT cannot cross-compile between operating systems, so "
+        "each platform builds its own. On Windows add `.exe` to both "
+        "paths, or let the shell find them without it.\n",
         "\n## What the five faces are\n",
         "\n| command | face | what to look at |\n"
         "|---|---|---|\n"
@@ -323,12 +382,48 @@ def opened(total: int, counts: list[tuple[str, int]]) -> list[str]:
         "all of these say what they will not do and why. What is worth "
         "filing is silence, a traceback, or a face that shows the wrong "
         "thing confidently.\n",
+        "\n## What the port's three faces are\n",
+        "\nThe port carries the Z-Machine and Glulx, so every story below "
+        "except the Dialog ones gets these as well. It has no pygame "
+        "window and no wire, by design: GlkOte and the sidecar are the "
+        "reference's alone, and the port's window is a binary of its own "
+        "rather than a flag.\n",
+        "\n| command | face | what to look at |\n"
+        "|---|---|---|\n"
+        "| `csharp/publish/voxam STORY` | painted console | the same "
+        "shape the reference's terminal has: status line, wrapped text, "
+        "a pause prompt |\n"
+        "| `csharp/publish/voxam --plain STORY` | plain stream | already "
+        "compared to the reference transcript by transcript in the sweep, "
+        "so read this one only when something else looks wrong |\n"
+        "| `csharp/publish-desktop/Voxam STORY` | the window | the "
+        "Version 6 stage, Glulx pictures, the pointer, themes and sizes |\n",
+        "\n### What is worth a tester's time here\n",
+        "\nThe plain stream is certified mechanically: "
+        "`tools/sweep-corpus.py` replays all forty-five acceptance "
+        "recordings on both and compares them byte for byte, and CI does "
+        "one from each machine on every push. Reading it by hand adds "
+        "nothing.\n",
+        "\nWhat no transcript can check is what the painted faces draw. "
+        "The console and the window are where a manual pass earns its "
+        "keep: a status line in the wrong place, art that does not "
+        "appear, a click that lands nowhere, a caret drawn past the edge "
+        "of the glass.\n",
+        "\n### What the port will not do\n",
+        "\nSound. There is no speaker on the C# side, so it claims none "
+        "and refuses the channels rather than pretending. A story that "
+        "asks for sound plays silently and says so; that is the design "
+        "and not a defect. Everything else Glk 0.7.6 defines is "
+        "served.\n",
         "\n## The corpus\n",
-        "\n| section | stories |\n|---|---:|\n",
+        "\n| section | stories | at the port |\n|---|---:|---:|\n",
     ]
 
-    pieces += [f"| {label} | {count} |\n" for label, count in counts]
-    pieces.append(f"| **total** | **{total}** |\n")
+    pieces += [
+        f"| {label} | {count} | {ported_count} |\n"
+        for label, count, ported_count in counts
+    ]
+    pieces.append(f"| **total** | **{total}** | **{ported_total}** |\n")
 
     return pieces
 
@@ -336,11 +431,12 @@ def opened(total: int, counts: list[tuple[str, int]]) -> list[str]:
 def sheet() -> str:
     """The whole sheet, body walked first so the counts are real."""
 
-    counts: list[tuple[str, int]] = []
+    counts: list[tuple[str, int, int]] = []
     body = bodied(counts)
-    total = sum(count for _, count in counts)
+    total = sum(count for _, count, _ in counts)
+    ported_total = sum(count for _, _, count in counts)
 
-    return "".join(opened(total, counts)) + "".join(body)
+    return "".join(opened(total, ported_total, counts)) + "".join(body)
 
 
 def main(argv: list[str]) -> int:
