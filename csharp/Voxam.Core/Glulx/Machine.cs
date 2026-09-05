@@ -257,6 +257,16 @@ public sealed class Machine
 
             return steps;
         }
+        catch (MachineSuspendedException)
+        {
+            // The suspending instruction completed, so it counts; the
+            // machine stands down where it is, still running. The host
+            // delivers the answer through the library, and calling Run
+            // again continues from here.
+            steps++;
+
+            return steps;
+        }
         catch (SessionEndException)
         {
             // glk_exit ends the session from wherever it was called,
@@ -874,8 +884,26 @@ public sealed class Machine
         }
 
         var call = Funcs.PopArguments(Stack, args[1].Value, Memory);
+        var result = Bridge.Perform((int)args[0].Value, call);
 
-        Store(args[2].Target, Bridge.Perform((int)args[0].Value, call));
+        if (Bridge.Library.Suspended is Prompting prompting)
+        {
+            // The call itself stands mid-flight: the store is owed to
+            // the player's answer, so it parks on the wait for the
+            // delivered name to run.
+            var target = args[2].Target;
+
+            prompting.Store = value => Store(target, value);
+
+            throw new MachineSuspendedException();
+        }
+
+        Store(args[2].Target, result);
+
+        if (Bridge.Library.Suspended is not null)
+        {
+            throw new MachineSuspendedException();
+        }
     }
 
     private void OpSaveUndo(Operand[] args)

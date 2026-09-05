@@ -43,6 +43,11 @@ internal sealed class LoudDisplay : GlkDisplay
     public override bool StyleDistinguish(Window window, uint first, uint second) => Distinct;
 
     public override uint? StyleMeasure(Window window, uint style, uint hint) => Measured;
+
+    public override (string Text, uint Terminator)? ReadLine(Window window, int maxlen) =>
+        throw new SessionEndException();
+
+    public override uint? ReadChar(Window window) => throw new SessionEndException();
 }
 
 /// <summary>

@@ -28,6 +28,17 @@ public class GlkLibrary
     public Action<GlkObject>? OnDispose { get; set; }
 
     /// <summary>
+    /// The call standing down, waiting on an answer from outside, or
+    /// null while the machine runs.
+    ///
+    /// The seat carries this rather than the library alone, because the
+    /// bridge above it must see a suspension without knowing which
+    /// library it is talking to: it defers its writebacks onto whatever
+    /// stands here, and refuses every further call while one does.
+    /// </summary>
+    public Suspension? Suspended { get; protected set; }
+
+    /// <summary>
     /// Call one function, or refuse by name if it is not served yet.
     /// </summary>
     /// <param name="signature">The function's dispatch signature.</param>

@@ -28,6 +28,16 @@ public sealed class EndOfInputException() : Exception("end of input");
 /// </summary>
 public sealed class SessionEndException() : Exception("the session has ended");
 
+/// <summary>
+/// A Glk call stood down, waiting on an answer only the host outside
+/// can supply: the machine returns to that host where it stands, and
+/// running it again continues from the same place.
+///
+/// Not an error either, and named as one for the same reason the
+/// session's end is: every throwable here wears the suffix.
+/// </summary>
+public sealed class MachineSuspendedException() : Exception("the machine stands suspended");
+
 /// <summary>Header field offsets (§11.1).</summary>
 public static class Header
 {

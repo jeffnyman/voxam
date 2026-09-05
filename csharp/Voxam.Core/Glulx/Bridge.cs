@@ -213,6 +213,16 @@ public sealed class Bridge
             ?? throw new GlulxException(
                 $"the glk opcode asked for unknown function 0x{selector:x4}");
 
+        if (Library.Suspended is not null)
+        {
+            // A suspended machine executes nothing until its answer is
+            // delivered; a call arriving anyway means a host ran on past
+            // the suspension. Refused before any argument pops, so the
+            // stack stays whole.
+            throw new GlulxException(
+                $"{signature.GlkName} called while the machine stands suspended");
+        }
+
         if (args.Count != signature.WordCount)
         {
             throw new GlulxException(
@@ -223,9 +233,25 @@ public sealed class Bridge
         var (callArgs, writebacks) = Unmarshal(signature, args);
         var result = Library.Call(signature, callArgs);
 
-        foreach (var writeback in writebacks)
+        if (Library.Suspended is { } suspended)
         {
-            writeback();
+            // The call suspended: whatever must travel back into memory
+            // waits with it. A select's struct fill runs when the event
+            // is delivered; a file prompt parks the whole result
+            // encoding here, for the delivered name to run.
+            suspended.Writebacks = writebacks;
+
+            if (suspended is Prompting prompting)
+            {
+                prompting.Encode = value => EncodeResult(signature.Result, Held.OfOpaque(value));
+            }
+        }
+        else
+        {
+            foreach (var writeback in writebacks)
+            {
+                writeback();
+            }
         }
 
         return EncodeResult(signature.Result, result);
