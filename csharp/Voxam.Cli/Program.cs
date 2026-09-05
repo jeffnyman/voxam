@@ -101,10 +101,7 @@ internal static class Program
         Blorb? blorb,
         int? seed,
         Action<string> emit,
-        Func<string?> read,
-        Action<string>? witness = null,
-        Func<(int X, int Y)?>? clicks = null,
-        Func<int?>? links = null)
+        Glulx.Glk.GlkDisplay display)
     {
         Glulx.Story story;
 
@@ -121,12 +118,19 @@ internal static class Program
         Greeting(emit);
         emit($"Running {Path.GetFileName(game)}: Glulx {story.Version}, {(story.Verify() ? "checksum verified" : "CHECKSUM MISMATCH")}\n\n");
 
-        var display = new Glulx.Glk.StdioDisplay(emit, read, Room(), witness, clicks, links);
         // A story's own package is its resources: the pictures it draws,
         // the sounds it plays, and the data files it reads. What this
         // display can do with them is another matter, and its own.
         var library = new Glulx.Glk.Api(
             display, resources: new Glulx.Glk.GlkResources(blorb));
+
+        if (display is Glulx.Glk.PaintedDisplay opening)
+        {
+            // The story deserves a clean glass: anything the shell left
+            // on screen would otherwise show through every row the game
+            // has not yet painted.
+            opening.Clear();
+        }
 
         try
         {
@@ -142,6 +146,14 @@ internal static class Program
         // for a last flush; whatever its windows still hold is shown on
         // the way out.
         display.Flush(library.Root);
+
+        if (display is Glulx.Glk.PaintedDisplay parked)
+        {
+            // The shell's next prompt belongs under the story, not
+            // somewhere mid-screen where the cursor was parked.
+            parked.Retire();
+        }
+
         emit("\n");
 
         return ExitOk;
@@ -263,10 +275,17 @@ internal static class Program
                 blorb,
                 seed,
                 emit,
-                Source,
-                watch.Saw,
-                script.Clicks.Count > 0 ? () => positions.MoveNext() ? positions.Current : null : null,
-                script.Links.Count > 0 ? () => selections.MoveNext() ? selections.Current : null : null);
+                new Glulx.Glk.StdioDisplay(
+                    emit,
+                    Source,
+                    Room(),
+                    watch.Saw,
+                    script.Clicks.Count > 0
+                        ? () => positions.MoveNext() ? positions.Current : null
+                        : null,
+                    script.Links.Count > 0
+                        ? () => selections.MoveNext() ? selections.Current : null
+                        : null));
 
             watch.Finish();
             return played;
@@ -298,15 +317,28 @@ internal static class Program
 
         if (Glulx.Story.IsGlulx(story))
         {
-            // The painted displays are their own roads; a Glulx story
-            // plays over the plain stream whether one was asked for or
-            // not. The prompt is pushed out before every read, since a
-            // buffered writer would otherwise leave it unshown.
-            return Glulxed(game, story, blorb, seed, emit, () =>
+            if (plain || Console.IsOutputRedirected || Console.IsInputRedirected)
             {
-                stdout.Flush();
-                return Console.ReadLine();
-            });
+                // The prompt is pushed out before every read, since a
+                // buffered writer would otherwise leave it unshown.
+                return Glulxed(
+                    game, story, blorb, seed, emit,
+                    new Glulx.Glk.StdioDisplay(
+                        emit,
+                        () =>
+                        {
+                            stdout.Flush();
+                            return Console.ReadLine();
+                        },
+                        Room()));
+            }
+
+            using var glass = new ConsoleTerminal();
+
+            stdout.Flush();
+
+            return Glulxed(
+                game, story, blorb, seed, emit, new Glulx.Glk.TerminalDisplay(glass));
         }
 
         var painted = !plain && !Console.IsOutputRedirected && !Console.IsInputRedirected;

@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 1,165 tests and
+And the test projects, `Voxam.Core.Tests` at 1,219 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -2060,8 +2060,61 @@ corpus, twenty of them, plays identically on both interpreters, the
 picture-drawing ones included. Dead Cities refused by name an hour
 before this rung and now plays byte for byte with the reference.
 
-**The road, now singular.** The painted faces: the console, and then
-the window. Only once Glk is over the
+**The painted console.** A Glulx story at a real terminal now gets a
+full-screen display in the manner of glkterm, and not the plain
+stream it fell back to. The window tree repaints whole on every
+flush: grids from their cells, buffers from wrapped text sitting at
+the bottom of their boxes the way a terminal scrolls, and every
+window padding its own bounding box, so painting over is all the
+erasing there is. A graphics window is the exception, because its
+pixels are the game's own work: the repaint leaves them alone, and
+only a pending clear erases the canvas.
+
+Wrapping is its own piece, because two things make it more than
+breaking a string. Text arrives in pieces that may stop mid-word, so
+the wrapper keeps the unfinished paragraph and folds the next piece
+into it; and text is styled, so the breaks are found in the plain
+text and the styled runs are sliced to match, or the emphasis moves
+at every line end. It keeps the paragraphs rather than the lines,
+which is what makes a resize exact: the display lines are recomputed
+from the original text, not re-broken from lines that already lost
+their spaces at the break points. A character above the basic plane
+counts once toward a line's width, as it does at the reference,
+which is the one place the port had to walk code points where the
+reference gets them for free.
+
+A window shows a windowful. If the game prints more than that
+between two chances for the player to read, the excess would scroll
+past unread, so the display stops at a pause prompt and a keystroke
+turns the page instead of reaching the game. Input is collected at a
+keyboard that echoes nothing, the half-typed line drawn as part of
+the layout but not part of the window until the game accepts it, and
+a file prompt takes the bottom line with every window forced to the
+end first, so the player answers a question rather than fighting the
+pager for the keyboard.
+
+Two things the reference has are honestly absent. There is no
+speaker in this port, so a painted display claims no sound and Glk
+refuses the channels rather than pretending; and the key alphabet
+differs, because the reference reads through a terminal library that
+names its own keys while this port reads through the seam the
+Z-Machine's painter already had, which spells the cursor codes the
+way that machine does. The translation is the same shape at both
+ends and the two tables cannot be compared, so the terminal's own
+half is held by tests rather than by a differential.
+
+The spine is certified as everything else has been, at the level the
+two ports must agree on: not what escape sequences a terminal
+spells, which is the terminal's business, but where every styled run
+lands and where the cursor is parked. A scripted session of 276
+actions, driven through the bridge, with the painted display
+subclassed by a stub that records placements instead of drawing
+them: after each call both report every frame, every placement with
+its position and its styled runs, the cursor, each wrapper's pager
+state, and everything heard at the input seams. 429 lines, identical.
+
+**The road, now singular.** The window: Avalonia, reusing the glass
+the Z-Machine already plays on. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
