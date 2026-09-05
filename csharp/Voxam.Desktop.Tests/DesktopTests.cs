@@ -212,13 +212,28 @@ public sealed class DesktopTests : IDisposable
     // one is a road this port has not walked yet, and a session that
     // stops should say what stopped it.
     [AvaloniaFact]
-    public void AGlulxStoryNamesItselfAndTheRoadItWaitsOn()
+    public void AGlulxStoryPlaysOnTheGlassToo()
     {
         var window = Shown(null);
         var path = Path.Combine(_directory.FullName, "elsewhere.ulx");
+        // A C1 function with no locals, and a quit: the shortest story
+        // there is, and enough to prove the machine ran it.
+        File.WriteAllBytes(path, new GlulxBuilder().Lay(256, 0xC1, 0x00, 0x00, 0x81, 0x20).Build());
+        window.Open(path);
+        Until(window, () => Notice(window) == "The story has ended.");
+        Assert.NotNull(window.Session?.Glk);
+    }
+
+    // A Glulx story that asks for something the machine refuses says
+    // what it refused, the way a Z-Machine one does.
+    [AvaloniaFact]
+    public void AGlulxStoryThatBreaksARuleSaysWhichOne()
+    {
+        var window = Shown(null);
+        var path = Path.Combine(_directory.FullName, "headless.ulx");
         File.WriteAllBytes(path, new GlulxBuilder().Build());
         window.Open(path);
-        Until(window, () => Notice(window) == "voxam: elsewhere.ulx is a Glulx story (version 3.1.2), and the Glulx machine is not here yet");
+        Until(window, () => Notice(window) == "voxam: the address $100 holds type $0, which is not a function at all (Glulx: Functions)");
     }
 
     // Held to its header even here, so a Glulx file with something

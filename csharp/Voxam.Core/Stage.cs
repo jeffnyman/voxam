@@ -19,6 +19,40 @@ public sealed record FillPaint(int Line, int Column, int Height, int Width, int 
 public sealed record ShiftPaint(int Line, int Column, int Height, int Width, int Rise) : Paint;
 
 /// <summary>
+/// A run of text at a unit position, its top left corner 1-based,
+/// dressed in true colour. Glk names its colours outright rather than
+/// through a table of eight, so this is what a Glk display paints with
+/// where the Z-Machine's stage paints cells.
+/// </summary>
+public sealed record RunPaint(
+    int Line, int Column, string Text, uint Ink, uint Paper, bool Bold, bool Italic) : Paint;
+
+/// <summary>A unit rectangle painted in a true colour, for the same reason.</summary>
+public sealed record ColourPaint(
+    int Line, int Column, int Height, int Width, uint Colour) : Paint;
+
+/// <summary>
+/// A picture drawn into a unit rectangle, showing only the part of
+/// itself named in its own pixels.
+///
+/// Glk lets a picture hang off the edge of its window, and "the excess
+/// is not drawn" (Glk: Graphics in Graphics Windows). The overhang is
+/// cut away by naming the source rectangle rather than by clipping the
+/// destination, which is the same answer and one fewer thing for a
+/// glass to keep track of.
+/// </summary>
+public sealed record ClipPaint(
+    int Line,
+    int Column,
+    int Height,
+    int Width,
+    int SourceLeft,
+    int SourceTop,
+    int SourceWidth,
+    int SourceHeight,
+    byte[] Bytes) : Paint;
+
+/// <summary>
 /// A picture stretched into a unit rectangle (§15 draw_picture). The
 /// size is the one picture_data reported, so what a game measured is
 /// what it gets, and clear pixels stay see-through, which is how

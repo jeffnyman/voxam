@@ -696,8 +696,11 @@ public abstract class PaintedDisplay : GlkDisplay
     /// every input path goes through here. The something else is a timer
     /// coming round, which posts its event and answers nothing so that
     /// glk_select can come back and deliver it.
+    ///
+    /// A display whose pointer speaks through the same wait reaches for
+    /// this too, which is why it is the subclass's to call.
     /// </summary>
-    private uint? Key()
+    protected uint? Key()
     {
         while (true)
         {
