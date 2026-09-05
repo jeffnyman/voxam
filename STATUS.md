@@ -33,7 +33,7 @@ the surround. And it offers the way back, one Reset, because a
 panel that can reach every corner needs a door out of them.
 
 Under it, a divergence closed. The shell and the tab render the
-same GlkOte display but had grown two colour models, and the
+same GlkOte display but had grown two color models, and the
 shell was still wearing GlkOte's own. Making them share one set
 of custom properties fixed four defects that had been invisible
 only because nobody had put the two faces side by side.
@@ -1186,7 +1186,7 @@ window decided exactly that. Now it does not:
   (the new default), `paper`, `sepia`, or `classic`, which is
   the old white on black kept by name for anyone who wants it.
   A theme is a whole dress, not a background swap: the ink and
-  paper it names are what §8.3's "default" colours resolve to,
+  paper it names are what §8.3's "default" colors resolve to,
   so a game that resets to its own defaults lands on the
   theme's pair rather than snapping back to a look the screen
   never otherwise shows.
@@ -1206,7 +1206,7 @@ window decided exactly that. Now it does not:
   it had been derived by inversion, which looks right until the
   upper window is itself dressed as the story's inverse: §8.2's
   line is reverse video from end to end, so it inverted a second
-  time and landed back on the story's own colours. In sepia the
+  time and landed back on the story's own colors. In sepia the
   bar was pixel-for-pixel the prose beneath it; in paper its
   text was lighter than the story's own. Every ink now chooses
   its bar, the way WinFrotz chooses white on blue, and the grid
@@ -1340,13 +1340,13 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 951 tests and
+And the test projects, `Voxam.Core.Tests` at 1,081 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
 test project rather than fixtures on disk. The desktop's own
 tests measure the pixels of frames the headless platform renders,
-so a colour, a font 3 shape or the caret is asserted where it
+so a color, a font 3 shape or the caret is asserted where it
 actually lands.
 
 **Where it stands.** Every one of the 41 Z-code recordings in
@@ -1398,7 +1398,7 @@ painted terminal, ported piece by piece: the §8 screen model as
 pure state (two windows, one grid, the owed scroll, the [MORE]
 pause), the line editor with its history and cursor keys, the
 painter that redraws only damaged rows, the status line, styles,
-colours and the font 3 shapes, a window that follows its
+colors and the font 3 shapes, a window that follows its
 terminal's size, and the wall-clock half of timed reads, so a
 Border Zone or a Bureaucracy form runs in real time. A piped
 session, or `--plain`, is the transcript stream, answering as the
@@ -1880,6 +1880,59 @@ creates one. And every scalar reference in Glk 0.7.6 travels
 outward, so the port writes one back unconditionally rather than
 carrying a direction check nothing can reach; a test holds the
 whole table to that, and a later Glk that breaks it fails there.
+
+**A library behind the door.** The functions themselves now stand
+where the frontier was: windows of all five kinds opening,
+splitting, measuring and closing; streams over memory and over
+files; file references with the name-sanitizing the whole Glk
+world exchanges files by; the printing functions and their
+Unicode twins; styles, style hints and the two questions a
+display answers about them; the case and normalization
+functions; and the clock with its calendar. What is not there
+refuses by name: pictures and sound wait for the resources they
+would draw and play, and everything that asks the player for
+something waits for the era that can suspend a machine.
+
+**Save and restore are whole.** The serial era left them
+answering the spoken failure, because a save names a Glk stream
+and there was no registry to find one in. There is now. A story
+saves onto a stream, and reading those same bytes back lands the
+machine inside the save instruction it left, with -1 stored, and
+carries on from there. The two output seats joined at the same
+time: a library installed is the machine's output system as
+well, so a story printing with `streamchar` and a story calling
+`glk_put_char` reach the same place.
+
+**One project-wide setting changed, and it was a defect.** The
+port had been built with invariant globalization, under which
+this runtime's Unicode normalization is a silent no-op:
+`glk_buffer_canon_decompose_uni` and its twin answered without
+doing anything, which is exactly the kind of quiet wrongness the
+rest of the machine refuses. Turning it off cost four call sites
+made explicit about their format provider, and nothing else: the
+native binary still publishes and still runs, at two megabytes.
+
+**Where the two interpreters part company, exactly.** Case
+mapping is the one place, and it was measured rather than
+guessed at: every code point was mapped on both sides and the
+answers compared. 55 differ because the two runtimes carry
+different Unicode versions, almost all of them letters added
+since one or the other last looked; the dotless i is the one a
+reader might meet. A further 103 are characters whose uppercase
+needs more than one character, the sharp s and the ligatures:
+the reference expands them in the buffer functions where this
+runtime maps one to one. `glk_char_to_upper` agrees on all of
+those, because a function that answers one character cannot
+expand either. Tests pin the boundary from this side so it stays
+visible.
+
+Certified as ever, and the shape held: a scripted session of
+1,258 calls, every one of them through the bridge from raw words
+in, was recorded by the reference and replayed by the port. After
+each call both report the whole library state, window tree, live
+streams, file references, style hints and pending events, plus
+whatever the call wrote into memory or onto the stack. 2,685
+lines, identical.
 
 **The road, now singular.** Glk, which is what these stories are all
 waiting for, and then the two recordings. Only once Glk is over the

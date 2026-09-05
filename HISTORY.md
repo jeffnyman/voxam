@@ -210,7 +210,7 @@ flag away; the browser tab follows the reader's own system
 preference until a picker says otherwise, and remembers the
 answer. A theme is a whole dress rather than a background swap:
 the ink and paper it names are what the §8.3 defaults resolve
-to, so a game resetting to its own colours lands on the theme's
+to, so a game resetting to its own colors lands on the theme's
 pair. Underneath the dress, three places where a face had been
 trusting instead of reading: the painted terminal now follows
 the window it is handed rather than the one it booted against;
@@ -275,7 +275,7 @@ the letter and word spacing that a reader who needs them needs
 badly. It offers eight surfaces set to anything at all, and one
 Reset, because a panel that can reach every corner owes a door
 out of them. Underneath, the shell and the tab stopped keeping
-two colour models and started keeping one, which fixed four
+two color models and started keeping one, which fixed four
 defects that had been invisible only because nobody had put the
 two faces side by side.
 

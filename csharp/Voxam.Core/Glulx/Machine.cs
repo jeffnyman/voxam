@@ -73,12 +73,16 @@ public sealed class Machine
     public Machine(Story story, int? seed = null, IGlkOutput? glk = null, GlkLibrary? library = null)
     {
         _story = story;
-        Glk = glk;
+        // A library is an output system as well as a dispatch target:
+        // a story printing with streamchar and a story calling
+        // glk_put_char must land in the same place, so an installed
+        // library takes the output seat unless one was given outright.
+        Glk = glk ?? library as IGlkOutput;
         Library = library;
         Memory = new Memory(story);
         Heap = new Heap(Memory);
         Accel = new Accelerator(Memory);
-        Capabilities = new Capabilities { Glk = glk is not null };
+        Capabilities = new Capabilities { Glk = Glk is not null };
         Stack = new StackMemory(story.StackSize);
         Bridge = library is null ? null : new Bridge(Memory, library, Stack);
         IoSys = new IoSystem();
@@ -250,6 +254,16 @@ public sealed class Machine
                 Step();
                 steps++;
             }
+
+            return steps;
+        }
+        catch (SessionEndException)
+        {
+            // glk_exit ends the session from wherever it was called,
+            // however deep inside a Glk call that was (Glk: Your
+            // Program's Main Function). The step it ended on counts.
+            Running = false;
+            steps++;
 
             return steps;
         }
@@ -813,30 +827,41 @@ public sealed class Machine
         }
     }
 
+    // The Glk stream a save or restore names, or nothing bare. The
+    // registry is class-checked, so whatever answers for a stream id is
+    // a stream.
+    private StreamObject? SavedStream(uint ident) =>
+        Bridge?.Registry.Lookup(OpaqueClass.Stream, ident) as StreamObject;
+
     // Save the state to a Glk stream (Glulx: Game State). The call
     // stub is pushed first, so it lands inside the save's own stack
     // chunk; popping it stores the spoken result and, after a later
     // restore, the same stub stores -1 and execution continues from
     // this very instruction (Glulx: Contents of the Stack).
-    //
-    // A stream is named by a Glk stream identifier, and with no
-    // library installed there is no registry to name one in, so the
-    // answer is the spoken failure a game learns to prompt again from.
-    // The format such a stream would carry is already here, and
-    // saveundo writes and reads it every turn.
     private void OpSave(Operand[] args)
     {
         var target = args[1].Target;
 
         Stack.PushStub(target.DestType, target.Addr, (uint)Pc);
-        PopStub(Serial.Failed);
+        PopStub(Serial.Save(this, SavedStream(args[0].Value)));
     }
 
     // Restore the state from a Glk stream. On success the restored
-    // stack's own stub would pop with -1 and this instruction never
-    // store at all; a failure speaks 1 in place, which is all there is
-    // to speak until a stream can be named.
-    private void OpRestore(Operand[] args) => Store(args[1].Target, Serial.Failed);
+    // stack's own stub pops with -1, "you have just been restored", and
+    // this instruction never stores at all; failure speaks 1 in place.
+    private void OpRestore(Operand[] args)
+    {
+        if (Serial.Restore(this, SavedStream(args[0].Value)) == Serial.Succeeded)
+        {
+            Discontinuity = true;
+
+            PopStub(Restored);
+
+            return;
+        }
+
+        Store(args[1].Target, Serial.Failed);
+    }
 
     // Call a Glk function by selector (Glulx: Miscellaneous). The
     // opcode always functions when a library is installed: Glk being

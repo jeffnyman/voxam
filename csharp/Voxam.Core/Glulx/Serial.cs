@@ -1,4 +1,5 @@
 using System.Text;
+using Voxam.Core.Glulx.Glk;
 
 namespace Voxam.Core.Glulx;
 
@@ -127,6 +128,65 @@ public static class Serial
         }
 
         machine.Stack.Restore(stack);
+    }
+
+    /// <summary>
+    /// The save opcode's work: the state onto a Glk stream.
+    ///
+    /// A stream that is missing or unwritable fails with 1 rather than
+    /// faulting: the spoken failure is how a game learns to prompt again
+    /// (Glulx: Game State).
+    /// </summary>
+    /// <param name="machine">The machine whose state is written.</param>
+    /// <param name="stream">The stream to write it to, or null.</param>
+    public static uint Save(Machine machine, StreamObject? stream)
+    {
+        if (stream is null || !stream.Writable)
+        {
+            return Failed;
+        }
+
+        foreach (var piece in Serialize(machine))
+        {
+            stream.PutChar(piece);
+        }
+
+        return Succeeded;
+    }
+
+    /// <summary>
+    /// The restore opcode's work: the state off a Glk stream.
+    ///
+    /// On success the whole machine state, stack included, has been
+    /// replaced, and the caller pops the call stub that was saved with
+    /// it. Failure speaks 1 and changes nothing.
+    /// </summary>
+    /// <param name="machine">The machine whose state is replaced.</param>
+    /// <param name="stream">The stream to read it from, or null.</param>
+    public static uint Restore(Machine machine, StreamObject? stream)
+    {
+        if (stream is null || !stream.Readable)
+        {
+            return Failed;
+        }
+
+        var data = new List<byte>();
+
+        for (var piece = stream.GetChar(); piece >= 0; piece = stream.GetChar())
+        {
+            data.Add((byte)piece);
+        }
+
+        try
+        {
+            Deserialize(machine, [.. data]);
+        }
+        catch (GlulxException)
+        {
+            return Failed;
+        }
+
+        return Succeeded;
     }
 
     /// <summary>

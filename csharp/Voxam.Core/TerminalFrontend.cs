@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Voxam.Core;
@@ -235,12 +236,12 @@ public sealed class AnsiScreen(ITerminal terminal) : IScreen
 
         if (AnsiColours.TryGetValue(cell.Foreground, out var foreground))
         {
-            pieces.Append($"\u001b[{30 + foreground}m");
+            pieces.Append(CultureInfo.InvariantCulture, $"\u001b[{30 + foreground}m");
         }
 
         if (AnsiColours.TryGetValue(cell.Background, out var background))
         {
-            pieces.Append($"\u001b[{40 + background}m");
+            pieces.Append(CultureInfo.InvariantCulture, $"\u001b[{40 + background}m");
         }
 
         return pieces.ToString();

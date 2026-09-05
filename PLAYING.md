@@ -116,7 +116,7 @@ The inks are System, Paper, Sepia, Dark, and Frotz, which is the
 DOS Infocom look WinFrotz still opens in: white on deep blue,
 with the status bar its exact inverse.
 
-Choosing Custom opens a set of colour wells instead, mixed from
+Choosing Custom opens a set of color wells instead, mixed from
 whichever ink was showing so you begin from what you were just
 reading: the story's own paper and ink, the §8.2 status bar and
 its text as their own pair, the paper and ink §8.7's reverse
