@@ -216,6 +216,17 @@ jobs:
           csharp/publish/voxam --accept acceptance/zork1-r88-s840726.accept > port.txt
           cmp reference.txt port.txt
 
+      # One recording from each machine, since the port now runs both.
+      # Adventure is the Glulx side's own oldest witness, and its
+      # transcript exercises the whole stack the Z-Machine one does not:
+      # the dispatch layer, the library, and the plain display.
+      - name: Adventure on Glulx, byte for byte against the reference
+        shell: bash
+        run: |
+          uv run voxam --accept acceptance/advent-r5-s961209-glulx.accept > reference-glulx.txt
+          csharp/publish/voxam --accept acceptance/advent-r5-s961209-glulx.accept > port-glulx.txt
+          cmp reference-glulx.txt port-glulx.txt
+
   build:
     name: Build distribution
     runs-on: ubuntu-latest

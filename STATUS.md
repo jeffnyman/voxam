@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 1,124 tests and
+And the test projects, `Voxam.Core.Tests` at 1,140 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1459,8 +1459,10 @@ machine asks whether its frontend is a staged one before it places
 a window, writes a line count, sets margins, scrolls a rectangle,
 or erases across a width in units, and a plain stream or a painted
 terminal is asked none of them. That is what keeps the corpus
-certification exact rather than merely re-measured, and the sweep
-after the stage landed is the same 43 of 45 it was before.
+certification exact rather than merely re-measured; the sweep after
+the stage landed was the same 43 of 45 it was before, and the two
+that were missing were the Glulx ones, which the Glk ladder has
+since brought in.
 
 The stage has a certificate of its own, because a transcript is
 what a character face answers and says nothing about §8.8. The
@@ -1976,8 +1978,44 @@ and terminators, the timer cadence, what stands suspended and how
 much of its tail is parked, the pending queue, the file references
 minted, and what the display was asked. 280 lines, identical.
 
-**The road, now singular.** Glk's pictures and sound, and then the
-two recordings. Only once Glk is over the
+**A face, and the corpus entire.** The plain-stream display is
+here: the minimum a Glk display can be, and the one the acceptance
+harness drives. Buffer windows stream their text out as it
+accumulates; a grid is drawn as a block with a divider under it
+whenever its contents move, which is what an Inform status line
+amounts to on a terminal that cannot address the cursor; and the
+tree is walked in visual order rather than tree order, so a status
+line split off above its buffer prints above it. Input is a line
+off the stream, a keystroke is that line's first character, and a
+replayed key token presses the key it means on either machine.
+
+The command stream and a recording's clicks travel in step: where
+the game waits for a click, the next command must be the grammar's
+click marker and its coordinates come off the script, the very
+coordinates the recording's game was told. A script that speaks
+anything else there has diverged from its game, and the session
+ends loudly rather than replaying wrong. Links keep the same
+discipline. A live session wires neither source and so claims
+neither gestalt, which is what a session recorded at this display
+was told.
+
+One measurement had to be ported along with it. The room the
+windows lay out in changes what a grid holds and therefore what a
+transcript says, so the port reads it the way the reference does:
+the environment's own COLUMNS and LINES first, since that is how a
+harness pins a width; then the console, when there is one to ask;
+then a conventional eighty by twenty-four. A piped session lays out
+identically on both interpreters, which is what makes their
+transcripts comparable at all.
+
+**And with that, the sweep reaches forty-five of forty-five.** Every
+acceptance recording in the corpus, replayed by the port and by the
+reference, is byte-identical, the two Glulx ones included: Adventure
+and The Tiny House, which were the only two the port could not play.
+Continuous integration now compares one recording from each machine
+against the reference on all three operating systems.
+
+**The road, now singular.** Glk's pictures and sound. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the
