@@ -812,7 +812,14 @@ class Page:
         if content:
             stanza["content"] = content
 
-        if input_changed or refresh:
+        # A standing field travels again whenever the windows move,
+        # even carried unchanged. The display sizes a line field
+        # from the geometry it was emplaced in, and recomputes that
+        # only from this array; a window that changed shape under a
+        # standing request would otherwise keep a field measured for
+        # the old one, hanging past the frame and scrolling the
+        # whole window sideways (GlkOte: The Input Update Array).
+        if input_changed or refresh or (windows_changed and self._requests):
             stanza["input"] = self._roster(gen, conflicted)
 
         if timer_field is not _UNSET:
