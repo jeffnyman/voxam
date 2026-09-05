@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 1,081 tests and
+And the test projects, `Voxam.Core.Tests` at 1,124 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1890,8 +1890,7 @@ Unicode twins; styles, style hints and the two questions a
 display answers about them; the case and normalization
 functions; and the clock with its calendar. What is not there
 refuses by name: pictures and sound wait for the resources they
-would draw and play, and everything that asks the player for
-something waits for the era that can suspend a machine.
+would draw and play.
 
 **Save and restore are whole.** The serial era left them
 answering the spoken failure, because a save names a Glk stream
@@ -1934,8 +1933,51 @@ streams, file references, style hints and pending events, plus
 whatever the call wrote into memory or onto the stack. 2,685
 lines, identical.
 
-**The road, now singular.** Glk, which is what these stories are all
-waiting for, and then the two recordings. Only once Glk is over the
+**Input, and a machine that can stand down.** A game can now ask
+for something and be answered. Lines and keystrokes, clicks and
+links, a timer's cadence, the echo a line leaves behind and the
+keys that may end one: every request opens, withdraws, and
+arrives. Both arrangements the specification allows are here.
+
+A display that can block is asked on the spot, which is how
+cheapglk and glkterm work: `glk_select` loops, flushing and
+asking, and a display that answers nothing is understood to have
+been interrupted rather than to have refused, so a timer can fire
+without cancelling the line beneath it. A request the display
+could never answer at all is not a wait but a hang, and it is
+refused out loud instead.
+
+A display that cannot block, one speaking a wire protocol to a
+browser, is never asked. `glk_select` records the seat its event
+will land in and the machine stands down where it is: the
+opcode is whole, the machine is still running, and the host
+delivers the event and runs it again. `glk_fileref_create_by_prompt`
+goes further, because its result is the player's answer and no
+value can be stored until the name arrives: it parks the whole
+tail of the call, the bridge's result encoding and the machine's
+own store, and the delivered name runs them. A suspended machine
+executes nothing, so any Glk call arriving while one stands is
+refused before a single argument pops and the stack stays whole.
+
+Two names could not cross. The specification's wait is a
+`Suspension` here, so that a `Waiting` and a `Prompting` can share
+one seat the bridge reads without knowing which library it holds;
+and the machine's own stand-down wears the analyzers' suffix as
+`MachineSuspendedException`, though it is not an error, exactly as
+the session's end does.
+
+Certified as ever: a scripted session of 178 actions, driven
+through the bridge from raw words in, recorded by the reference
+and replayed by the port. Both arrangements are driven in the one
+session, the display's answers scripted identically on both sides,
+and after every call and every delivery both report the whole
+input state: each window's standing requests with their capacities
+and terminators, the timer cadence, what stands suspended and how
+much of its tail is parked, the pending queue, the file references
+minted, and what the display was asked. 280 lines, identical.
+
+**The road, now singular.** Glk's pictures and sound, and then the
+two recordings. Only once Glk is over the
 faces the port already has can glulxercise judge any of it, and
 after that come the two recordings that take the sweep to
 forty-five of forty-five. Then sound, the adaptive palettes, the

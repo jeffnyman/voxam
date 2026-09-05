@@ -94,9 +94,8 @@ public static class GlkGestalt
 /// stream are the same few fields everything here reads.
 ///
 /// Not every function is served yet. Pictures and sound wait for the
-/// resources they would draw and play; the events, and everything that
-/// asks the player for something, wait for the era that can suspend a
-/// machine. What is missing refuses by name through the seat above.
+/// resources they would draw and play. What is missing refuses by name
+/// through the seat above.
 /// </summary>
 public sealed partial class Api : GlkLibrary, IGlkOutput
 {
@@ -126,6 +125,7 @@ public sealed partial class Api : GlkLibrary, IGlkOutput
         ServeFiles();
         ServeOutput();
         ServeText();
+        ServeInput();
 
         Display.Attach(this);
     }
@@ -165,10 +165,7 @@ public sealed partial class Api : GlkLibrary, IGlkOutput
     /// <summary>The hints set by stylehint_set, for a display that honors them.</summary>
     public Dictionary<(uint WinType, uint Style, uint Hint), int> StyleHints { get; } = [];
 
-    /// <summary>
-    /// Events a display has posted, waiting for the next select. The era
-    /// that reads them is the one that can suspend a machine.
-    /// </summary>
+    /// <summary>Events a display has posted, waiting for the next select.</summary>
     public List<GlkEvent> PendingEvents { get; } = [];
 
     /// <summary>Put an event by for the next select to find.</summary>
@@ -395,11 +392,16 @@ public sealed partial class Api : GlkLibrary, IGlkOutput
     /// </summary>
     private static int Fill(IBuffer? buf, IEnumerable<uint> values)
     {
+        if (buf is null)
+        {
+            return 0;
+        }
+
         var written = 0;
 
         foreach (var value in values)
         {
-            if (written >= buf!.Length)
+            if (written >= buf.Length)
             {
                 break;
             }

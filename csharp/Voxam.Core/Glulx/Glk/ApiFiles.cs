@@ -33,6 +33,10 @@ public sealed partial class Api
             return Held.OfOpaque(NewFileRef(PathFor(Text(args[1]), usage), usage, Word(args[2])));
         });
 
+        // A reference to a file the player names.
+        Serve(0x0062, args =>
+            Held.OfOpaque(PromptForFile(Word(args[0]), Word(args[1]), Word(args[2]))));
+
         Serve(0x0068, args =>
         {
             var fileref = File(args[1])
@@ -101,6 +105,83 @@ public sealed partial class Api
             Held.OfOpaque(OpenFile(File(args[0]), Word(args[1]), Word(args[2]), true)));
     }
 
+    /// <summary>
+    /// Complete a suspended file prompt with the player's name.
+    ///
+    /// The prompt's name is the player's own, not the game's: the
+    /// sanitizing jail guards names arriving from bytecode, but a name a
+    /// person chose, a native picker's whole path or a word typed at the
+    /// wire, is honored as given (Glk: File References; cheapglk draws
+    /// the same line). A relative name lands in the save directory, a
+    /// bare one gains its usage's suffix as a courtesy, and a cancel is
+    /// nothing at all, which is always legitimate.
+    ///
+    /// Then the call's parked tail runs: the bridge's encoding, the
+    /// machine's store.
+    /// </summary>
+    /// <param name="name">What the player named, or null to cancel.</param>
+    /// <exception cref="GlulxException">
+    /// When no file prompt stands suspended, or the wait never came
+    /// through a glk opcode and has no tail to run.
+    /// </exception>
+    public void DeliverFile(string? name)
+    {
+        if (Suspended is not Prompting prompting)
+        {
+            throw new GlulxException(
+                "a file name arrived with no prompt suspended to receive it");
+        }
+
+        if (prompting.Encode is null || prompting.Store is null)
+        {
+            throw new GlulxException(
+                "the file prompt stands outside any glk call, with no store owed");
+        }
+
+        FileRef? fileref = null;
+
+        if (!string.IsNullOrEmpty(name))
+        {
+            var chosen = Path.IsPathRooted(name) ? name : Path.Combine(SaveDir, name);
+
+            if (!Path.HasExtension(chosen))
+            {
+                chosen += SuffixFor(prompting.Usage);
+            }
+
+            fileref = NewFileRef(chosen, prompting.Usage, prompting.Rock);
+        }
+
+        prompting.Store(prompting.Encode(fileref));
+
+        Suspended = null;
+    }
+
+    /// <summary>
+    /// A reference to a file the player names.
+    ///
+    /// A blocking display is asked on the spot; a suspending one is
+    /// never asked. The call itself stands down mid-flight, its tail
+    /// parked on the wait, until the host answers through DeliverFile. A
+    /// cancelled prompt yields the null reference either way (Glk: File
+    /// References).
+    /// </summary>
+    private FileRef? PromptForFile(uint usage, uint fmode, uint rock)
+    {
+        if (Display.Suspends)
+        {
+            Suspended = new Prompting(usage, fmode, rock);
+
+            // A placeholder the bridge encodes but the machine never
+            // stores: the real result arrives with the name.
+            return null;
+        }
+
+        var name = Display.PromptFile(usage, fmode);
+
+        return string.IsNullOrEmpty(name) ? null : NewFileRef(PathFor(name, usage), usage, rock);
+    }
+
     /// <summary>Record a reference on the live list.</summary>
     private FileRef NewFileRef(string path, uint usage, uint rock, bool temporary = false)
     {
@@ -132,16 +213,20 @@ public sealed partial class Api
             stem = "null";
         }
 
-        var suffix = (usage & FileUsage.TypeMask) switch
-        {
-            FileUsage.SavedGame => ".glksave",
-            FileUsage.Transcript => ".txt",
-            FileUsage.InputRecord => ".txt",
-            _ => DefaultSuffix,
-        };
-
-        return Path.Combine(SaveDir, stem + suffix);
+        return Path.Combine(SaveDir, stem + SuffixFor(usage));
     }
+
+    /// <summary>
+    /// The suffix a file wears, by what it is for (Glk: File
+    /// References).
+    /// </summary>
+    private static string SuffixFor(uint usage) => (usage & FileUsage.TypeMask) switch
+    {
+        FileUsage.SavedGame => ".glksave",
+        FileUsage.Transcript => ".txt",
+        FileUsage.InputRecord => ".txt",
+        _ => DefaultSuffix,
+    };
 
     /// <summary>
     /// Open a file stream, or nothing where it will not open (Glk: File
