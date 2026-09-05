@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 790 tests and
+And the test projects, `Voxam.Core.Tests` at 897 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1809,6 +1809,35 @@ written by one interpreter opens in the other.
 
 That leaves `glk` as the only opcode in the whole of 3.1.3 this
 machine still answers as a frontier.
+
+**The four opaque classes.** Glk's object model is the first rung of
+the ladder that lifts the frontier, and it stands: windows of all
+five kinds, streams of all four, file references and sound
+channels, the rocks a game files them under, and the holders a
+function writes its results into. Nothing here knows a VM exists,
+because the 32-bit ids Glulx sees are the bridge's translation and
+not the library's.
+
+Three of the specification's names could not survive the crossing.
+Every type ending in the bare word for a stream is refused by the
+analyzers, and two of the names the specification would have us use
+are among the best known in the base class library, so the word
+leads instead of trailing: `StreamObject`, and `StreamOnWindow`,
+`StreamOnMemory`, `StreamOnFile` beneath it. An event is a
+`GlkEvent`, the bare word being a keyword elsewhere in the runtime,
+and the eleven styles are a `TextStyle` because a window carries a
+style of its own and the two cannot share a name inside one class.
+The port has still added no analyzer suppression of any kind.
+
+Certified the way the rungs before it were: both object models were
+walked through the same 2,938 observations, every character value
+across the interesting boundaries rendered to its bytes, every
+stream mode opened and seeked and drained, seventy window trees
+three levels deep laid out at three sizes each, on a terminal cell
+and a glass one, a grid taking a pattern of wraps and
+newlines and out-of-range cursor moves, and a buffer gathering runs
+around a picture and a flow break. The two transcripts are
+identical, line for line.
 
 **The road, now singular.** Glk, which is what these stories are all
 waiting for, and then the two recordings. Only once Glk is over the
