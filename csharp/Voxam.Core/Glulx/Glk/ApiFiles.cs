@@ -181,16 +181,13 @@ public sealed partial class Api
                     fileref.Filename, FileMode.OpenOrCreate, FileAccess.ReadWrite),
             };
         }
-        catch (IOException)
+        catch (Exception thrown) when (thrown is IOException or UnauthorizedAccessException)
         {
             // Opening may simply fail, and yields the null stream (Glk:
-            // File Streams).
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // A name that is really a directory, or a file this session
-            // may not have: the same answer.
+            // File Streams). A missing file, a name that is really a
+            // directory, and a file this session may not have all arrive
+            // here, and which of them a given system raises which
+            // exception for is that system's own business.
             return null;
         }
 
@@ -206,23 +203,17 @@ public sealed partial class Api
         return stream;
     }
 
-    /// <summary>Remove a file, saying nothing if it was not there.</summary>
-    private static void Delete(string filename)
-    {
-        try
-        {
-            System.IO.File.Delete(filename);
-        }
-        catch (IOException)
-        {
-            // A file that will not go is a file the game cannot delete,
-            // and glk_fileref_delete_file has nothing to report either
-            // way (Glk: File References).
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Nor can a directory be deleted this way, and the answer is
-            // the same silence.
-        }
-    }
+    /// <summary>
+    /// Remove a file. One that was never there is no error, and a
+    /// deletion that cannot happen at all faults rather than passing in
+    /// silence: the reference deletes through a call with exactly those
+    /// two properties, and the port has no business being braver than
+    /// the thing it is a port of.
+    ///
+    /// Nothing is caught here on purpose. Which deletions a system
+    /// refuses, and which exception it refuses with, is that system's
+    /// own business, and a guess at it would put a path through this
+    /// code that one machine could reach and another could not.
+    /// </summary>
+    private static void Delete(string filename) => System.IO.File.Delete(filename);
 }

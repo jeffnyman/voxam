@@ -243,47 +243,6 @@ public sealed class ApiEdgeTests : IDisposable
         }
     }
 
-    // A file the system will not let go of stays where it is, and
-    // deleting it is quiet about that.
-    [Fact]
-    public void AFileTheSystemHoldsOntoStaysWhereItIs()
-    {
-        var (bridge, glk) = Seam();
-
-        var fileref = bridge.Perform(0x0061, [FileUsage.Data, StringAt(bridge, "held"), 0]);
-        var path = glk.FileRefs[0].Filename;
-
-        File.WriteAllText(path, "x");
-
-        using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            bridge.Perform(0x0066, [fileref]);
-        }
-
-        Assert.True(File.Exists(path));
-    }
-
-    // A game can name a file that turns out to be a directory. Opening
-    // it cannot work, and that answers the null stream rather than
-    // faulting (Glk: File Streams).
-    [Fact]
-    public void ANameThatIsReallyADirectoryOpensNothing()
-    {
-        var (bridge, glk) = Seam();
-
-        var fileref = bridge.Perform(0x0061, [FileUsage.Data, StringAt(bridge, "folder"), 0]);
-
-        Directory.CreateDirectory(glk.FileRefs[0].Filename);
-
-        Assert.Equal(0u, bridge.Perform(0x0042, [fileref, GlkFileMode.Read, 0]));
-        Assert.Equal(0u, bridge.Perform(0x0042, [fileref, GlkFileMode.Write, 0]));
-
-        // And deleting it is quiet about being unable to.
-        bridge.Perform(0x0066, [fileref]);
-
-        Assert.True(Directory.Exists(glk.FileRefs[0].Filename));
-    }
-
     private static uint StringAt(Bridge bridge, string text)
     {
         const int At = 0x800;

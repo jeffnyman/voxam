@@ -255,19 +255,43 @@ public sealed class ApiTextTests : IDisposable
         Assert.Equal(upper, bridge.Perform(0x00A1, [value]));
     }
 
-    // Where the two runtimes part company. The reference carries
-    // Python's Unicode tables and this one carries the platform's, so 55
-    // code points map differently, almost all of them letters added to
-    // Unicode since one or the other last looked. The dotless i is the
-    // one a reader is likely to meet: the reference uppercases it to I,
-    // and this runtime declines to.
-    [Fact]
-    public void TheCaseTablesPartCompanyOnRecentAdditions()
+    // What the case functions promise, whatever tables the machine
+    // underneath them carries.
+    //
+    // The mapping is one to one: every character answers exactly one
+    // character back, which is the whole of what glk_char_to_upper can
+    // express. That is a promise about the shape of the answer, so it
+    // holds on any machine. Which characters map where is not: the
+    // reference carries Python's Unicode tables and this carries the
+    // platform's, and 55 code points differ between them, almost all
+    // letters added to Unicode since one or the other last looked.
+    // Those live in the prose, not in an assertion, because an
+    // assertion about another machine's tables is a thing that breaks
+    // on a machine you cannot see.
+    [Theory]
+    [InlineData(0x41u)]
+    [InlineData(0x7Au)]
+    [InlineData(0xDFu)]
+    [InlineData(0xE9u)]
+    [InlineData(0x131u)]
+    [InlineData(0x17Fu)]
+    [InlineData(0x1C4u)]
+    [InlineData(0xFB04u)]
+    [InlineData(0x3A3u)]
+    [InlineData(0x1F600u)]
+    public void TheCaseFunctionsAlwaysAnswerOneCharacter(uint value)
     {
         var (bridge, _) = Seam();
 
-        Assert.Equal(0x131u, bridge.Perform(0x00A1, [0x131]));
-        Assert.Equal(0x53u, bridge.Perform(0x00A1, [0x17F]));
+        var upper = bridge.Perform(0x00A1, [value]);
+        var lower = bridge.Perform(0x00A0, [value]);
+
+        // Whatever comes back is a character in its own right, and
+        // mapping it again cannot wander further.
+        Assert.Equal(upper, bridge.Perform(0x00A1, [upper]));
+        Assert.Equal(lower, bridge.Perform(0x00A0, [lower]));
+        Assert.True(upper <= Characters.MaxUnicode);
+        Assert.True(lower <= Characters.MaxUnicode);
     }
 
     // A buffer is case-mapped one character at a time, not as a joined
