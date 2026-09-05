@@ -652,18 +652,12 @@ public sealed class MachineTests
         Assert.Equal("debugtrap with value 42 (Glulx: Miscellaneous)", Refusal(Op.Debugtrap, Modes.Constant(42)));
     }
 
-    // The whole roster is known even where it is not yet carried, so a
-    // number the dispatch does not serve says what it is rather than
-    // pretending to be a mystery.
+    // The roster is whole, so a number that misses it is a number the
+    // specification does not define, and it says exactly that rather
+    // than pretending to be a mystery.
     [Fact]
-    public void AnOpcodeNotCarriedYetSaysSoAndOneNotDefinedSaysThat()
+    public void AnOpcodeNotDefinedSaysSo()
     {
-        var program = new GlulxProgram();
-        // The Glk opcode is the last one still waiting on its era.
-        program.Op(Op.Glk, Modes.Constant(0), Modes.Constant(0), Modes.Discard);
-
-        Assert.Equal("executed glk, an opcode this machine does not carry yet", Refusal(() => program.Booted().Run()));
-
         var unknown = new GlulxProgram();
         unknown.Op((Op)0x99, Modes.Constant(0));
 

@@ -1340,7 +1340,7 @@ plain frontend with the Python's muting rules. `Voxam.Cli`, a
 console executable answering `--accept SCRIPT` exactly as the
 Python does, down to the banner and the Blorb census. And
 `Voxam.Desktop`, a window on Avalonia playing the same stories.
-And the test projects, `Voxam.Core.Tests` at 897 tests and
+And the test projects, `Voxam.Core.Tests` at 951 tests and
 `Voxam.Desktop.Tests` at 45, each at 100% line and branch
 coverage enforced as a threshold the way the Python's suite is,
 most of them driving tiny stories assembled by a builder in the
@@ -1838,6 +1838,48 @@ and a glass one, a grid taking a pattern of wraps and
 newlines and out-of-range cursor moves, and a buffer gathering runs
 around a picture and a flow break. The two transcripts are
 identical, line for line.
+
+**The last frontier lifts.** The `glk` opcode dispatches. It reads
+its selector, finds the signature, marshals the arguments off the
+stack and out of memory, calls, writes the answers back, and
+stores. Every opcode Glulx 3.1.3 defines now has a handler, and
+the decoder's refusal for an unknown number says only that: the
+roster is whole, so a number that misses it is a number the
+specification does not define. A test holds the table to that
+promise rather than a branch in the decoder guessing at it.
+
+What is not there yet is the library. A selector nobody serves
+refuses by name, `called glk_window_open, a Glk function this
+library does not serve yet`, which is the same discipline the
+opcode roster kept while it was filling: an absence speaks in the
+words of the thing that is missing, and never answers wrongly.
+
+The dispatch table is generated rather than transcribed. Each
+function is declared as a readable argument list and its prototype
+string is composed from that, which means the strings can be
+checked rather than trusted: all 123 of them are compared against
+the ones cheapglk's gi_dispa.c hand-writes. They were generated
+out of that vendored source, and the reference's own embedded copy
+was checked against the same file, so three independent tables
+agree.
+
+Certified the way the rungs before it were, and this one has the
+best shape yet: both bridges were walked through every one of the
+123 functions twice, once with every reference argument in main
+memory and once with all of them on the stack, with a stub library
+that fills whatever holder it is handed by a fixed rule. Each run
+reports what the library received, what the result stored, what
+the touched memory holds afterwards, and what stands on the stack.
+1,056 observations, identical line for line.
+
+Two small honesties. A call that suspends, which is `glk_select`
+and the file prompts, parks its write-backs on the suspension
+instead of running them; nothing can suspend until there are
+functions to suspend in, so that branch waits for the era that
+creates one. And every scalar reference in Glk 0.7.6 travels
+outward, so the port writes one back unconditionally rather than
+carrying a direction check nothing can reach; a test holds the
+whole table to that, and a later Glk that breaks it fails there.
 
 **The road, now singular.** Glk, which is what these stories are all
 waiting for, and then the two recordings. Only once Glk is over the

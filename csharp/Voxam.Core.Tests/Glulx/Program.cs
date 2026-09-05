@@ -1,4 +1,5 @@
 using Voxam.Core.Glulx;
+using Voxam.Core.Glulx.Glk;
 
 namespace Voxam.Tests.Glulx;
 
@@ -172,5 +173,6 @@ public sealed class GlulxProgram
     }
 
     /// <summary>A machine booted on this program, its dice seeded for repeatability.</summary>
-    public Machine Booted(int? seed = 7, IGlkOutput? glk = null) => new(new Story(Build()), seed, glk);
+    public Machine Booted(int? seed = 7, IGlkOutput? glk = null, GlkLibrary? library = null) =>
+        new(new Story(Build()), seed, glk, library);
 }
