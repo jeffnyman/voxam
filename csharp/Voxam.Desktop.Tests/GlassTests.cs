@@ -17,13 +17,13 @@ public sealed class GlassTests : IDisposable
 
     private string Story(string name, Action<StoryBuilder> body) => Rig.Story(_directory, name, body);
 
-    // The window opens to the classic eighty by twenty-four, whatever
-    // the face measures.
+    // The window opens to the roomier grid, whatever the face measures,
+    // and the glass counts its cells into whatever room it was given.
     [AvaloniaFact]
-    public void TheWindowOpensAtTheClassicGrid()
+    public void TheWindowOpensAtTheOpeningGrid()
     {
         var window = Shown(null);
-        Assert.Equal((Glass.OpeningColumns, Glass.OpeningLines), (window.Glass.Columns, window.Glass.Lines));
+        Assert.Equal((Opening.Columns, Opening.Lines), (window.Glass.Columns, window.Glass.Lines));
         Assert.True(window.Glass.CellSize.Width > 5 && window.Glass.CellSize.Height > 10);
     }
 
