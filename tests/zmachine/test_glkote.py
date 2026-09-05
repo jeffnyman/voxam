@@ -529,6 +529,35 @@ def test_the_grid_comes_and_goes_with_new_names(
     assert_that(frontend.accept({"type": "external", "gen": 3})).is_equal_to(PASS)
 
 
+# The turn's high water mark recedes with the screen. A split
+# taken while the screen was tall, and a rearrange that makes the
+# screen short, would otherwise leave the grid claiming rows the
+# model no longer has, and the next render walks off the end of it.
+def test_a_shorter_screen_lowers_the_high_water(
+    code_machine: Callable[..., Machine],
+) -> None:
+    frontend, _ = opened(code_machine)
+
+    frontend.split_window(frontend.screen_lines)
+    frontend.render()
+
+    short = dict(METRICS, height=100)
+
+    verdict = frontend.accept(
+        {"type": "arrange", "gen": frontend.page.gen, "metrics": short}
+    )
+
+    assert_that(verdict).is_equal_to(STAND)
+    assert_that(frontend.screen_lines).is_equal_to(5)
+
+    # The render itself is the assertion: a grid taller than its
+    # model walks off the end of the model's own rows.
+    update = frontend.render()
+    grid = next(held for held in update["windows"] if held["type"] == "grid")
+
+    assert_that(grid["gridheight"]).is_equal_to(5)
+
+
 # The grid's box carries the display's interior margins on top of
 # its rows (GlkOte: The Metrics Object) -- a box of bare rows clips
 # its bottom and floats the buffer up into the status line -- and

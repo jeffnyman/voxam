@@ -817,6 +817,14 @@ class GlkOteFrontend(PlainFrontend):
 
         return band_h
 
+    def _status_row(self) -> int:
+        """The §8.2 status line's own row.
+
+        The versions that have one wear it above the split.
+        """
+
+        return 1 if self.version <= STATUS_FLAGS_VERSION else 0
+
     def _grid_rows(self) -> int:
         """The grid's height: the §8.2 chrome plus the split.
 
@@ -824,9 +832,7 @@ class GlkOteFrontend(PlainFrontend):
         the quote-box courtesy split_window explains.
         """
 
-        chrome = 1 if self.version <= STATUS_FLAGS_VERSION else 0
-
-        return chrome + max(self._model.split, self._peak_split)
+        return self._status_row() + max(self._model.split, self._peak_split)
 
     def _faced(self, rows: int) -> list[list[TextRun]]:
         """The grid's face, cells coalesced into named, inked runs."""
@@ -1023,6 +1029,13 @@ class GlkOteFrontend(PlainFrontend):
 
         self._measure(stanza)
         self._model.resize(self.screen_columns, self.screen_lines)
+
+        # The high water mark is a measurement of a screen, so it
+        # recedes with one. The model draws its own split back
+        # inside the new bounds; the mark is the frontend's and
+        # would otherwise keep a height the grid no longer has,
+        # sending the next render off the end of its own rows.
+        self._peak_split = min(self._peak_split, self._model.lines - self._status_row())
 
         if self.on_resize is not None:
             self.on_resize()
