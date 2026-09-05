@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -51,10 +52,18 @@ public partial class MainWindow : Window
         Dress();
         Offer();
 
+        // The screen has the last word on how large the window opens,
+        // and only on that: a cap that outlived the opening would stop
+        // a reader making the window as large as they like.
+        var room = Opening.Capped(Screens);
+        MaxWidth = room.Width;
+        MaxHeight = room.Height;
+
         Closed += (_, _) => Screen.Dispose();
 
         Opened += (_, _) =>
         {
+            Settled();
             Screen.Focus();
 
             if (launch.Game is not null)
@@ -116,6 +125,29 @@ public partial class MainWindow : Window
         catch (Exception error) when (error is VoxamException or IOException)
         {
             Tell($"voxam: {error.Message}");
+        }
+    }
+
+    // The window has taken its opening size by now, so the sizing to
+    // content is done: from here the window keeps whatever size it is
+    // given and the glass counts cells into it, which is why a change
+    // of type reflows the story rather than resizing the window around
+    // it. The caps come off with it, and the placement is made again
+    // against the size the window actually took, since a window that
+    // sizes itself is centred before it knows how large it is.
+    [ExcludeFromCodeCoverage]
+    private void Settled()
+    {
+        SizeToContent = SizeToContent.Manual;
+        MaxWidth = double.PositiveInfinity;
+        MaxHeight = double.PositiveInfinity;
+
+        if (Screens.ScreenFromWindow(this) is { } screen)
+        {
+            var frame = FrameSize ?? ClientSize;
+
+            Position = Opening.Centred(
+                screen.WorkingArea, PixelSize.FromSize(frame, screen.Scaling));
         }
     }
 

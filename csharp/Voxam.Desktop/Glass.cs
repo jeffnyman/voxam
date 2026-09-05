@@ -24,12 +24,6 @@ namespace Voxam.Desktop;
 /// </summary>
 public sealed class Glass : Control, IScreen, IStageScreen, IGlkGlass, IDisposable
 {
-    /// <summary>The classic grid the window opens at.</summary>
-    public const int OpeningColumns = 80;
-
-    /// <summary>The classic grid's height, the reference's GLASS_LINES.</summary>
-    public const int OpeningLines = 24;
-
     private const int GraphicsFont = 3;
     private const int WhiteCode = 9;
     private const int BlackCode = 2;
@@ -447,11 +441,13 @@ public sealed class Glass : Control, IScreen, IStageScreen, IGlkGlass, IDisposab
     }
 
     /// <summary>
-    /// The classic grid, as what the control asks for, measured in the
-    /// same whole units the grid is counted in so the two agree.
+    /// The opening grid, as what the control asks for, measured in the
+    /// same whole units the grid is counted in so the two agree. Only
+    /// the first layout listens: once the window is up it has a size of
+    /// its own, and the glass counts cells into whatever it is given.
     /// </summary>
     protected override Size MeasureOverride(Size availableSize) =>
-        new(OpeningColumns * UnitWidth, OpeningLines * UnitHeight);
+        new(Opening.Columns * UnitWidth, Opening.Lines * UnitHeight);
 
     // The grid counts in whole units, the same units a stage measures
     // its windows in, so a surface of that many never overruns the

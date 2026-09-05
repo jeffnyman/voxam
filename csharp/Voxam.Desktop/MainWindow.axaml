@@ -5,6 +5,7 @@
         Title="Voxam"
         Icon="/Assets/voxam.ico"
         SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterScreen"
         MinWidth="480" MinHeight="320">
     <DockPanel>
         <Menu DockPanel.Dock="Top">
