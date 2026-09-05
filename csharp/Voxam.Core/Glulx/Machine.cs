@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using Voxam.Core.Glulx.Glk;
 
 namespace Voxam.Core.Glulx;
 
@@ -69,15 +70,17 @@ public sealed class Machine
     /// called. A seed makes the dice reproducible; none means true
     /// entropy.
     /// </summary>
-    public Machine(Story story, int? seed = null, IGlkOutput? glk = null)
+    public Machine(Story story, int? seed = null, IGlkOutput? glk = null, GlkLibrary? library = null)
     {
         _story = story;
         Glk = glk;
+        Library = library;
         Memory = new Memory(story);
         Heap = new Heap(Memory);
         Accel = new Accelerator(Memory);
         Capabilities = new Capabilities { Glk = glk is not null };
         Stack = new StackMemory(story.StackSize);
+        Bridge = library is null ? null : new Bridge(Memory, library, Stack);
         IoSys = new IoSystem();
         // The generator is deliberately not reseeded by a restart: it
         // is no part of saved state either (Glulx: The Random Number
@@ -86,6 +89,14 @@ public sealed class Machine
 
         Restart();
     }
+
+    /// <summary>
+    /// Whether the roster carries a handler for an opcode. Every opcode
+    /// Glulx 3.1.3 defines does; the answer is here so a test can hold
+    /// the table to that promise.
+    /// </summary>
+    /// <param name="opcode">The opcode number to ask about.</param>
+    public static bool Carries(int opcode) => Table.ContainsKey(opcode);
 
     /// <summary>
     /// The program counter. The string decoder moves it too, since a
@@ -126,6 +137,20 @@ public sealed class Machine
     /// fallback and the refusal tell the same truth.
     /// </summary>
     public IGlkOutput? Glk { get; }
+
+    /// <summary>
+    /// The Glk library the glk opcode dispatches into, or null with
+    /// none installed. Separate from the output seat above for now: the
+    /// output system was wired in the string era, when a library was
+    /// still a frontier, and joining the two is the api era's to do.
+    /// </summary>
+    public GlkLibrary? Library { get; }
+
+    /// <summary>
+    /// The seam between this machine and its library, or null with no
+    /// library installed.
+    /// </summary>
+    public Bridge? Bridge { get; }
 
     /// <summary>The string-decoding table's address; 0 means none.</summary>
     public uint StringTable { get; private set; }
@@ -274,9 +299,12 @@ public sealed class Machine
 
         if (!Table.TryGetValue(opcode, out var entry))
         {
-            throw new GlulxException(Enum.IsDefined((Op)opcode)
-                ? $"executed {Opcode.Name(opcode)}, an opcode this machine does not carry yet"
-                : $"executed opcode {Opcode.Name(opcode)}, which Glulx 3.1.3 does not define (Glulx: Dictionary of Opcodes)");
+            // The roster is whole: every opcode 3.1.3 defines has a
+            // handler, which a test holds the table to. So a number
+            // that misses the table is a number the specification does
+            // not define, and there is no third case to speak for.
+            throw new GlulxException(
+                $"executed opcode {Opcode.Name(opcode)}, which Glulx 3.1.3 does not define (Glulx: Dictionary of Opcodes)");
         }
 
         var (items, after) = Operands.Shape(memory, at, entry.Oplist);
@@ -810,6 +838,21 @@ public sealed class Machine
     // to speak until a stream can be named.
     private void OpRestore(Operand[] args) => Store(args[1].Target, Serial.Failed);
 
+    // Call a Glk function by selector (Glulx: Miscellaneous). The
+    // opcode always functions when a library is installed: Glk being
+    // the current output system is not required (Glulx: Output).
+    private void OpGlk(Operand[] args)
+    {
+        if (Bridge is null)
+        {
+            throw new GlulxException("the glk opcode needs a Glk library, and none is installed");
+        }
+
+        var call = Funcs.PopArguments(Stack, args[1].Value, Memory);
+
+        Store(args[2].Target, Bridge.Perform((int)args[0].Value, call));
+    }
+
     private void OpSaveUndo(Operand[] args)
     {
         var target = args[0].Target;
@@ -1024,6 +1067,12 @@ public sealed class Machine
             [(int)Op.Restoreundo] = new(S, static (m, a) => m.OpRestoreUndo(a)),
             [(int)Op.Hasundo] = new(S, static (m, a) => m.Store(a[0].Target, Serial.HasUndo(m))),
             [(int)Op.Discardundo] = new(None, static (m, _) => Serial.DiscardUndo(m)),
+
+            // Call a Glk function by selector (Glulx: Miscellaneous).
+            // The arguments come off the stack, first argument topmost,
+            // just as the call opcodes leave them; any stack output
+            // references push back before the result stores.
+            [(int)Op.Glk] = new(Lls, static (m, a) => m.OpGlk(a)),
 
             // Claim and release heap memory (Glulx: Memory Allocation
             // Heap); the address stores, or zero for a refusal, since
