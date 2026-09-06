@@ -1,3 +1,51 @@
+## v2.8.0 (2026-09-06)
+
+### Feat
+
+- **csharp**: the port ships, one archive per platform (#420)
+- **csharp**: the window opens centred, roomier, and reflows in place (#419)
+- **csharp**: the port learns the treaty, and a story can say its name (#418)
+- **csharp**: a window for Glk, and the ladder reaches its top (#412)
+- **csharp**: a painted console for Glk, and the wrapper behind it (#411)
+- **csharp**: Glk learns to see and hear, and its last frontier closes (#410)
+- **csharp**: a plain face for Glk, and the sweep reaches 45 of 45 (#409)
+- **csharp**: Line and character input, the event loop, and timers (#408)
+- **csharp**: a Glk library, and a state that can go out through it (#407)
+- **csharp**: the glk opcode finds its way across the seam (#406)
+- **csharp**: Glk's four opaque classes (#405)
+- **csharp**: a Glulx state can be put by and taken back (#402)
+- **csharp**: Glulx counts in floats and doubles (#401)
+- **csharp**: Glulx gets its searches, its heap, and its veneer (#400)
+- **csharp**: the Glulx machine learns to print (#399)
+- **csharp**: the Glulx machine turns over (#398)
+- **csharp**: Glulx gets a stack, a decoder, and every opcode number (#397)
+- **csharp**: a Glulx story gets through the door as far as its memory map (#396)
+- **csharp**: the window's saves go wherever the player names them (#395)
+- **csharp**: the desktop remembers how the player likes the glass (#394)
+- **csharp**: the stage draws its pictures (#393)
+- **csharp**: a Version 6 Blorb's art is measured and declared (#392)
+- **csharp**: Version 6 plays on a stage that places its windows in units (#390)
+- **csharp**: the desktop glass wears the bundled font, the themes, and font 3's own pixels (#389)
+- **csharp**: the desktop window opens on Avalonia (#388)
+- **csharp**: save and restore speak Quetzal (#385)
+- **csharp**: the console plays, with the painted terminal ported rule for rule (#384)
+- **csharp**: every Z-code walk in the corpus replays identically (#381)
+- **csharp**: the patient typist and packaged stories certify every walk short of Version 6 (#380)
+- **csharp**: every early Z-code walk replays identically (#379)
+- **csharp**: the port earns its directory, with its gate and its first certificate (#378)
+- **tools**: the corpus sweep can walk another interpreter, and says which (#377)
+- **acceptance**: a walk can mark where it wants photographing (#374)
+- **tools**: the acceptance corpus gets a sweep, and CI smoke-tests seventeen of it (#369)
+
+### Fix
+
+- **cli**: a story's own name reaches the title bar, not only Infocom's (#422)
+- **csharp**: the symbol sweep reaches the .dSYM macOS keeps its own in (#421)
+- **zmachine**: the grid's high water recedes with the screen (#417)
+- **glkote**: a standing field is resent when its window moves (#416)
+- **csharp**: a stage answers its cursor from the printing, not the ledger, and four Version 6 walks certify it (#391)
+- **cli**: the third machine's refusal reaches every door that can hear it (#376)
+
 ## v2.7.0 (2026-09-02)
 
 ### Feat

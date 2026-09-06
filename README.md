@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/built%20with-Python-blue.svg" alt="Built with Python"></a>
+  <a href="https://learn.microsoft.com/dotnet/csharp/"><img src="https://img.shields.io/badge/built%20with-C%23-512BD4.svg" alt="Built with C#"></a>
   <a href="https://github.com/jeffnyman/voxam/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="Voxam is released under the MIT license."></a>
 </p>
 
@@ -25,11 +26,12 @@
 <p align="center">
   <a href="https://pypi.org/project/voxam/"><img src="https://img.shields.io/pypi/v/voxam.svg" alt="PyPI package latest release"></a>
   <a href="https://pypi.org/project/voxam/"><img src="https://img.shields.io/pypi/pyversions/voxam.svg" alt="Supported Python versions"></a>
-  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen.svg" alt="Coverage: 100% branch, enforced in CI">
 </p>
 
 <p align="center">
   <a href="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml"><img src="https://github.com/jeffnyman/voxam/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/badge/coverage%20(Python)-100%25-brightgreen.svg" alt="Python coverage: 100% line and branch, enforced in CI">
+  <img src="https://img.shields.io/badge/coverage%20(C%23)-100%25-brightgreen.svg" alt="C# coverage: 100% line and branch, enforced in CI">
   <a href="https://conventionalcommits.org"><img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-green.svg" alt="Conventional Commits: 1.0.0"></a>
 </p>
 
@@ -336,6 +338,7 @@ Z-code.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3178C6?style=for-the-badge&logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/C%23-512BD4?style=for-the-badge&logo=dotnet&logoColor=white">
 </p>
 
 <p align="center">
