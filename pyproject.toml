@@ -1,6 +1,6 @@
 [project]
 name = "voxam"
-version = "2.7.0"
+version = "2.8.0"
 description = "An Interpreter for the Z-Machine, Glulx, and the Å-machine"
 readme = "README.md"
 authors = [
