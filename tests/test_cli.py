@@ -1931,6 +1931,31 @@ def test_the_ifiction_card_prints_at_the_banner(
     assert_that(out).contains("One paragraph.\n\nAnother one.\n")
 
 
+# A packaged story plays under the name its own Blorb gives it,
+# and not only the ones the Infocom catalog can answer for. The
+# record travels into the Z-Machine session the way it already
+# travels into the Glulx one, so a modern .zblorb names its own
+# title bar. A story that carries no record still names nothing,
+# quietly, which is the whole of what a bare file can honestly do.
+def test_a_packaged_story_names_its_own_title_bar(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+
+    named = covered_story(tmp_path, [], record=IFICTION_RECORD)
+
+    assert_that(main(["--plain", str(named)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).contains("\x1b]0;Tiny Case — Voxam\x07")
+
+    nameless = covered_story(tmp_path, [])
+
+    assert_that(main(["--plain", str(nameless)])).is_equal_to(0)
+    assert_that(capsys.readouterr().out).does_not_contain("\x1b]0;")
+
+
 # A PNG cover in the story's Blorb shows before play at a painted
 # terminal: half-block art, a keypress, then the story.
 def test_a_png_cover_shows_before_play(
