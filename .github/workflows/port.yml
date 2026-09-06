@@ -88,9 +88,11 @@ jobs:
       # The symbols are larger than everything they describe: the
       # window's own run to eighty megabytes beside a program of
       # nineteen. What ships is the program and the libraries it
-      # loads, and nothing that only a debugger reads.
+      # loads, and nothing that only a debugger reads. macOS keeps
+      # its own in a .dSYM, which is a directory rather than a file,
+      # so this has to sweep both shapes.
       - name: Drop the symbols
-        run: rm -f built/*/*.pdb built/*/*.dbg
+        run: rm -rf built/*/*.pdb built/*/*.dbg built/*/*.dSYM
 
       # The window sits at the top where a player clicks it and the
       # console sits under it, which on Windows is not only tidiness:
@@ -122,6 +124,16 @@ jobs:
             for native in "$1"/*; do
               name=$(basename "$native")
               intel="$2/$name"
+
+              # Only a file can be joined, and the symbols are gone
+              # by here, the .dSYM bundle with them. Anything still
+              # arriving as a directory is something new, and it
+              # wants a decision rather than this making a guess and
+              # shipping whatever the guess produced.
+              if [ ! -f "$native" ]; then
+                echo "voxam: $native is not a file and cannot be joined"
+                exit 1
+              fi
 
               if [ -f "$intel" ] && ! cmp -s "$native" "$intel"; then
                 lipo -create "$native" "$intel" -output "$3/$name"
