@@ -1,0 +1,195 @@
+name: Port
+
+# The C# port's native binaries, one archive per platform. The
+# release chain calls this on every version tag and attaches what it
+# builds; dispatching it by hand is a dry run whose archives stay on
+# the workflow run.
+#
+# Each platform is built on itself because NativeAOT cannot
+# cross-compile between operating systems, which is the same reason
+# CI publishes on all three: a binary that links on one is no
+# evidence about the others. Architectures within one system it will
+# cross-compile, which is what earns macOS a universal build below.
+#
+# The archives are unsigned, as the shell's installers are. Signing
+# is its own road, with its own certificates, and until it is walked
+# the note inside each archive tells a player how to get past their
+# platform's gatekeeper.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  binaries:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            flavour: windows-x64
+          - name: macos
+            os: macos-latest
+            flavour: macos-universal
+          - name: linux
+            os: ubuntu-latest
+            flavour: linux-x64
+    runs-on: ${{ matrix.os }}
+    # One shell for all three, so the arranging reads the same
+    # everywhere it is not deliberately different.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: csharp/global.json
+
+      # The port versions with the repository and this file is where
+      # cz bump writes it, so the archives are named the same whether
+      # the run has a tag to read or is somebody's dry run.
+      - name: Read the version
+        run: |
+          version=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' csharp/Directory.Build.props)
+          test -n "$version"
+          echo "folder=voxam-$version-${{ matrix.flavour }}" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_ENV"
+
+      - name: Publish the window
+        run: dotnet publish csharp/Voxam.Desktop -c Release -o built/window
+
+      - name: Publish the console
+        run: dotnet publish csharp/Voxam.Cli -c Release -o built/console
+
+      # A binary that will not start is worse than no binary, and an
+      # archive is where that stops being visible. The console
+      # answers for both: they are one core, published the same way,
+      # and it can say so at a prompt.
+      - name: The console answers
+        run: |
+          ./built/console/voxam --version
+          ./built/console/voxam --babel tests/fixtures/simple-test-r1-s260727.z3
+
+      # Apple silicon is what this runner is, so the Intel half is
+      # cross-compiled beside it and the two are joined below. There
+      # is no universal target to ask for: unlike the shell's Rust,
+      # NativeAOT publishes one architecture at a time, and lipo is
+      # what makes one program of them afterwards.
+      - name: Publish the Intel half
+        if: matrix.name == 'macos'
+        run: |
+          dotnet publish csharp/Voxam.Desktop -c Release -r osx-x64 -o built/window-intel
+          dotnet publish csharp/Voxam.Cli -c Release -r osx-x64 -o built/console-intel
+
+      # The symbols are larger than everything they describe: the
+      # window's own run to eighty megabytes beside a program of
+      # nineteen. What ships is the program and the libraries it
+      # loads, and nothing that only a debugger reads.
+      - name: Drop the symbols
+        run: rm -f built/*/*.pdb built/*/*.dbg
+
+      # The window sits at the top where a player clicks it and the
+      # console sits under it, which on Windows is not only tidiness:
+      # Voxam.exe and voxam.exe are one name to that filesystem, and
+      # two programs cannot share a directory under it.
+      - name: Arrange the archive
+        if: matrix.name != 'macos'
+        run: |
+          mkdir -p "$folder/console"
+          cp -R built/window/. "$folder/"
+          cp built/console/voxam* "$folder/console/"
+
+      # macOS wants an application rather than a program: a bare
+      # executable there opens a terminal to run itself in, takes no
+      # menu bar and answers to no name. The bundle is the smallest
+      # one that makes it an application, its version stamped from
+      # the same line every other artifact reads.
+      - name: Arrange the macOS application
+        if: matrix.name == 'macos'
+        run: |
+          # A file that differs between the two publishes is the
+          # single-architecture kind and is joined; one that is byte
+          # for byte the same in both is already universal, which is
+          # how the native libraries usually arrive, and travels as
+          # it stands. The comparison decides, so neither kind has to
+          # be assumed or listed by name.
+          fuse() {
+            mkdir -p "$3"
+            for native in "$1"/*; do
+              name=$(basename "$native")
+              intel="$2/$name"
+
+              if [ -f "$intel" ] && ! cmp -s "$native" "$intel"; then
+                lipo -create "$native" "$intel" -output "$3/$name"
+              else
+                cp "$native" "$3/$name"
+              fi
+            done
+          }
+
+          mkdir -p "$folder/Voxam.app/Contents/Resources" "$folder/console"
+          fuse built/window built/window-intel "$folder/Voxam.app/Contents/MacOS"
+          fuse built/console built/console-intel "$folder/console"
+
+          sed "s|@VERSION@|$version|" csharp/packaging/Info.plist \
+            > "$folder/Voxam.app/Contents/Info.plist"
+          cp csharp/packaging/Voxam.icns "$folder/Voxam.app/Contents/Resources/"
+
+      # Both architectures or neither. The word universal is on the
+      # archive, and a build that quietly lost half of itself would
+      # send an Intel player away with a program their machine cannot
+      # start and no way to know why.
+      - name: The universal build holds both
+        if: matrix.name == 'macos'
+        run: |
+          for program in "$folder/Voxam.app/Contents/MacOS/Voxam" "$folder/console/voxam"; do
+            chmod +x "$program"
+            architectures=$(lipo -archs "$program")
+            echo "$program: $architectures"
+
+            case " $architectures " in
+              *" x86_64 "*) ;;
+              *) echo "voxam: $program has no Intel half"; exit 1 ;;
+            esac
+
+            case " $architectures " in
+              *" arm64 "*) ;;
+              *) echo "voxam: $program has no Apple silicon half"; exit 1 ;;
+            esac
+          done
+
+          # Joined and still able to run, which lipo reporting two
+          # architectures does not on its own promise.
+          "$folder/console/voxam" --version
+
+      - name: Add the note
+        run: cp csharp/packaging/README.txt "$folder/README.txt"
+
+      # Archived before it is uploaded, because the artifact upload
+      # keeps no file modes: a player who downloaded the run's own
+      # artifact would get a program their system will not run.
+      - name: Pack the archive
+        run: |
+          case "${{ matrix.name }}" in
+            windows) 7z a -tzip "$folder.zip" "$folder" ;;
+            macos)   ditto -c -k --sequesterRsrc --keepParent "$folder" "$folder.zip" ;;
+            linux)   tar czf "$folder.tar.gz" "$folder" ;;
+          esac
+
+      - name: Keep the archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: port-${{ matrix.name }}
+          # Matched by shape rather than by name. The name is written
+          # at run time, and only the shell that packed the archive
+          # ever needs to know it: naming it here would mean reaching
+          # into a context no checker can follow, to no purpose, since
+          # one run packs exactly one archive.
+          path: |
+            voxam-*.zip
+            voxam-*.tar.gz
+          if-no-files-found: error

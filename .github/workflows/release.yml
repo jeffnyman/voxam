@@ -158,10 +158,18 @@ jobs:
     name: Desktop installers
     uses: ./.github/workflows/desktop.yml
 
+  # The C# port's own binaries, built beside the shell's installers
+  # and attached to the same release. They install nothing and drive
+  # nothing: where the shell above needs the published wheel on the
+  # PATH to have an interpreter to talk to, these carry their own.
+  port:
+    name: Port binaries
+    uses: ./.github/workflows/port.yml
+
   github-release:
     name: Cut the GitHub release
     runs-on: ubuntu-latest
-    needs: [publish-pypi, desktop]
+    needs: [publish-pypi, desktop, port]
     permissions:
       contents: write
     steps:
@@ -178,6 +186,13 @@ jobs:
         with:
           pattern: desktop-*
           path: installers/
+          merge-multiple: true
+
+      - name: Download the port's archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: port-*
+          path: binaries/
           merge-multiple: true
 
       # The release notes are this version's section of the
@@ -205,5 +220,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* $(find installers -type f) \
+          gh release create "$GITHUB_REF_NAME" \
+            dist/* $(find installers -type f) $(find binaries -type f) \
             --title "$GITHUB_REF_NAME" --notes-file notes.md
