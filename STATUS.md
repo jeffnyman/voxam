@@ -2186,6 +2186,34 @@ answer the report can give: a legacy Infocom file named by the
 catalog, a package naming itself out of its own record, and a Glulx
 package doing the same.
 
+**And it ships, as a beta.** From `2.8.0` the release chain builds the
+port on each of the three platforms and attaches an archive per
+platform beside the wheel and the shell's installers: the window at
+the top, the console under it in a folder of its own, and a note
+about the first run. The console sits in that folder rather than
+beside the window for a reason Windows supplies: `Voxam.exe` and
+`voxam.exe` are one name to that filesystem, and two programs cannot
+share a directory under it. It is also a reason not to drop the
+folder on a PATH that already has the Python's `voxam` on it, since
+the two answer the same banner on purpose. macOS gets an application
+rather than a program, the smallest bundle that earns a menu bar and
+a name in the dock, and it is universal: NativeAOT has no universal
+target the way the shell's Rust does, so both architectures are
+published and joined with `lipo`, and the job refuses to ship an
+archive whose halves are not both there. It wears a mark, too, and
+the same one the shell's own bundle wears: the port already keeps its
+copies of that drawing as a `.png` and an `.ico`, and the `.icns` is
+its third form, complete from thirty-two pixels to a thousand and
+twenty-four with the largest a doubling of the five hundred and
+twelve the artwork is drawn at, which is what the shell has shipped
+on that platform all along. What ships is the program and
+the libraries it loads; the symbols are dropped, being larger than
+everything they describe. Everything is unsigned, as the shell's
+installers are, so the note in the archive says how to get past each
+platform's gatekeeper. The point of the beta is the thing no
+certificate can supply: the port has been run on this machine and in
+CI, and never yet on somebody else's.
+
 **The road.** Sound, which needs a speaker the port has never had,
 and which the painted faces will claim honestly the moment there is
 one. The adaptive palettes. The story's own name in the desktop

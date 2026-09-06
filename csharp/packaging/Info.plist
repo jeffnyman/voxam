@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  What makes the published window an application on macOS rather
+  than a program. NativeAOT emits a bare executable, and a bare
+  executable there opens a terminal to run itself in, takes no menu
+  bar of its own and answers to no name in the dock. The release
+  workflow wraps the publish in a bundle around this file, with
+  @VERSION@ replaced by the version the whole repository wears.
+
+  Voxam.icns beside this file is the mark macOS asks for, in the
+  sizes it asks for. It is the same artwork the shell's own bundle
+  carries: the port already keeps its own copies of the .png and the
+  .ico, and this is the third form of the one drawing.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleName</key>
+  <string>Voxam</string>
+  <key>CFBundleDisplayName</key>
+  <string>Voxam</string>
+  <key>CFBundleExecutable</key>
+  <string>Voxam</string>
+  <!-- Named without its suffix, which is how the key is read. -->
+  <key>CFBundleIconFile</key>
+  <string>Voxam</string>
+  <key>CFBundleIdentifier</key>
+  <string>org.voxam.port</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@VERSION@</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.games</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
