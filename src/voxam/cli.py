@@ -2376,9 +2376,12 @@ def _play(  # noqa: PLR0911, PLR0912, PLR0913, PLR0915 -- one knob per session s
     key_source: Callable[[float | None], str | None] | None = None
     timed_input_source: Callable[[float], str | None] | None = None
     painted: ScreenFrontend | GraphicsFrontend | None = None
-    # The catalog's courtesy: an Infocom story plays under its own
-    # name, in the terminal's title bar and the window's alike.
-    caption = _titled(story_path)
+    # A story names itself, and the catalog answers for the ones
+    # that shipped before there was a treaty to name them with: the
+    # package's own iFiction record first, Infocom's names second.
+    # Either way it plays under that name, in the terminal's title
+    # bar and the window's alike.
+    caption = _titled(story_path, blorb)
 
     _entitle_terminal(caption)
 
