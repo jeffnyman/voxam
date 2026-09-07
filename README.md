@@ -275,8 +275,9 @@ the file carries an iFiction record, and the name Infocom's own
 catalog gives the games that shipped before there was a treaty.
 It ships as a beta from `2.8.0` on. Each
 release attaches one archive per platform, named
-`voxam-VERSION-windows-x64.zip`, `voxam-VERSION-macos-universal.zip`
-and `voxam-VERSION-linux-x64.tar.gz`, holding the window, the console
+`voxam-standalone-VERSION-windows-x64.zip`,
+`voxam-standalone-VERSION-macos-universal.zip` and
+`voxam-standalone-VERSION-linux-x64.tar.gz`, holding the window, the console
 beneath it, and a note about the first run: they are unsigned, like
 the shell's installers. Nothing installs and nothing is required,
 not even Python, so trying the port costs an unzip and undoing it
