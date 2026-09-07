@@ -199,7 +199,9 @@ jobs:
       # commitizen-maintained changelog, under a standing guide to
       # the assets. Three streams land on one release and the file
       # names alone cannot say which is which, least of all to
-      # somebody who has never read this repository.
+      # somebody who has never read this repository. That guide is
+      # prose GitHub renders rather than prose anyone reads in the
+      # file, so it is left unwrapped: a paragraph is one line.
       - name: Assemble the release notes
         run: |
           python - <<'NOTES'
