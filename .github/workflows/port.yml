@@ -52,11 +52,17 @@ jobs:
       # The port versions with the repository and this file is where
       # cz bump writes it, so the archives are named the same whether
       # the run has a tag to read or is somebody's dry run.
+      #
+      # The standalone in the name is the one word that separates
+      # these from the other two streams on a release page: the
+      # shell's installers want a Python interpreter already on the
+      # PATH, and the Python package is that interpreter. These
+      # carry their own and install nothing.
       - name: Read the version
         run: |
           version=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' csharp/Directory.Build.props)
           test -n "$version"
-          echo "folder=voxam-$version-${{ matrix.flavour }}" >> "$GITHUB_ENV"
+          echo "folder=voxam-standalone-$version-${{ matrix.flavour }}" >> "$GITHUB_ENV"
           echo "version=$version" >> "$GITHUB_ENV"
 
       - name: Publish the window

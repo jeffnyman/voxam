@@ -196,8 +196,11 @@ jobs:
           merge-multiple: true
 
       # The release notes are this version's section of the
-      # commitizen-maintained changelog.
-      - name: Extract changelog section
+      # commitizen-maintained changelog, under a standing guide to
+      # the assets. Three streams land on one release and the file
+      # names alone cannot say which is which, least of all to
+      # somebody who has never read this repository.
+      - name: Assemble the release notes
         run: |
           python - <<'NOTES'
           import os, pathlib, re
@@ -212,6 +215,9 @@ jobs:
           notes = match.group(0) if match else f"Release {version}"
           pathlib.Path("notes.md").write_text(notes, encoding="utf-8")
           NOTES
+
+          { cat .github/release-assets.md; echo; cat notes.md; } > body.md
+          mv body.md notes.md
 
       # Files only, whatever shape any artifact arrives in: the
       # v1.9.0 release fell at this step when a glob handed gh a
