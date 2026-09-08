@@ -771,15 +771,29 @@ pub fn run() {
             // shown, so it never flashes at the fallback size. The
             // show is unconditional: a screen that cannot be asked
             // still gets the config's own size.
+            //
+            // The centering is done by hand, from the monitor's work
+            // area, rather than through window.center(): on macOS
+            // that call delegates to Cocoa's NSWindow.center(), which
+            // by Apple's design sits the window above the true middle
+            // -- a proportional bias that reads as off-center at every
+            // resolution. Windows and Linux already center this way
+            // inside Tauri; this just does the same everywhere.
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.primary_monitor() {
-                    let size = monitor.size();
+                    let screen = monitor.size();
+                    let area = monitor.work_area();
 
-                    let _ = window.set_size(tauri::PhysicalSize::new(
-                        (f64::from(size.width) * SHARE) as u32,
-                        (f64::from(size.height) * SHARE) as u32,
+                    let size = tauri::PhysicalSize::new(
+                        (f64::from(screen.width) * SHARE) as u32,
+                        (f64::from(screen.height) * SHARE) as u32,
+                    );
+
+                    let _ = window.set_size(size);
+                    let _ = window.set_position(tauri::PhysicalPosition::new(
+                        area.position.x + (area.size.width as i32 - size.width as i32) / 2,
+                        area.position.y + (area.size.height as i32 - size.height as i32) / 2,
                     ));
-                    let _ = window.center();
                 }
 
                 let _ = window.show();
